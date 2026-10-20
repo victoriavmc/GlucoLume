@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Solicitud de eliminación de cuenta{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Recibimos una solicitud para eliminar tu cuenta de GlucoLume.</p>
+{{ m.datos([
+  ("Fecha de la solicitud", fechaEvento|fechaHora),
+  ("La confirmación vence", fechaExpiracion|fechaHora),
+]) }}
+<p style="{{ m.P }}"><strong>Si confirmás la eliminación:</strong></p>
+{{ m.lista([
+  "Se eliminarán tus datos personales identificatorios (nombre, apellido, correo, nombre de usuario, fecha de nacimiento y sexo).",
+  "Vas a perder el acceso a tu historial y a los grupos o instituciones vinculados.",
+  "La acción no se puede deshacer.",
+]) }}
+{{ m.boton(urlConfirmacion, "Confirmar eliminación") }}
+{% call m.aviso() %}Abrir este correo no elimina tu cuenta. La eliminación solo se realiza si confirmás desde el botón y validás tu identidad en GlucoLume.{% endcall %}
+{{ m.noFuisteVos(urlProteccion, "No fui yo / proteger mi cuenta") }}
+{% endblock %}

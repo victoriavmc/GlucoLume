@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Te damos la bienvenida a GlucoLume{% endblock %}
+{% block contenido %}
+{% if esInstitucional is defined and esInstitucional %}
+<p style="{{ m.P }}">Tu cuenta institucional fue creada correctamente. Ya podés ingresar a GlucoLume.</p>
+{% else %}
+<p style="{{ m.P }}">Tu cuenta fue creada correctamente. Ya podés ingresar y empezar a usar GlucoLume.</p>
+{% endif %}
+{{ m.datos([
+  ("Titular", ((nombre ~ " " ~ apellido) if (nombre is defined and nombre and apellido is defined and apellido) else (nombre if nombre is defined else none))),
+  ("Fecha de creación", fechaCreacion|fechaHora),
+]) }}
+{% if esInstitucional is defined and esInstitucional %}
+{% if fechaVencimiento is defined and fechaVencimiento %}
+<p style="{{ m.P }}"><strong>Para trabajar en GlucoLume tu cuenta tiene que pertenecer a una institución.</strong> Podés elegir cualquiera de estos caminos:</p>
+{{ m.lista([
+  "Crear tu propia institución y convertirte en su propietario/a.",
+  "Incorporarte a una institución que ya existe, como operador/a o moderador/a, aceptando su invitación.",
+]) }}
+{% call m.aviso() %}Tenés <strong>{{ diasGracia }} días corridos</strong> para completar una de esas acciones, es decir, <strong>hasta el {{ fechaVencimiento|fechaHora }}</strong>. Si para esa fecha tu cuenta no quedó vinculada a ninguna institución, <strong>se eliminará automáticamente y tus datos personales se anonimizarán</strong>. También podés eliminar tu cuenta cuando quieras.{% endcall %}
+{% else %}
+<p style="{{ m.P }}">Podés crear tu propia institución y convertirte en su propietario/a, o incorporarte a una institución existente como operador/a o moderador/a.</p>
+{% endif %}
+{% endif %}
+{{ m.boton(urlIngreso, "Ingresar a GlucoLume") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Si en algún momento querés dar de baja tu cuenta, podés solicitarlo desde la sección Cuenta dentro de la aplicación, después de iniciar sesión. Por seguridad, la eliminación nunca se realiza desde un enlace de correo.</p>
+{% endblock %}

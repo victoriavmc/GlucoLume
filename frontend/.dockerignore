@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+dist/
+coverage/
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+# Carpeta anidada residual (frontend/frontend): no forma parte de la aplicación.
+frontend/
+Dockerfile
+.dockerignore
+*.md

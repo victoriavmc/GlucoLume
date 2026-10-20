@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Paciente asignado{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreOperador }}</strong> dejó a tu cargo un paciente de <strong>{{ nombreInstitucion }}</strong>.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Paciente", identificadorPseudonimo), ("Asignado por", nombreOperador), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}">Desde ahora sos su operador responsable: podés medirlo, editar sus datos y consultar su historial.</p>
+{{ m.boton(urlPaciente, "Ver paciente") }}
+{% endblock %}

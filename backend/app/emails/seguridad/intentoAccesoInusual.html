@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Revisá una actividad de seguridad{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ motivo if motivo is defined else "Detectamos intentos de acceso a tu cuenta que no pudieron completarse." }}</p>
+{{ m.datos([
+  ("Fecha y hora", fechaEvento|fechaHora),
+  ("Intentos fallidos", cantidadIntentos if cantidadIntentos is defined else none),
+  ("Acceso bloqueado hasta", (bloqueadoHasta|fechaHora) if bloqueadoHasta is defined else none),
+]) }}
+{% if bloqueadoHasta is defined %}
+{% call m.aviso(alerta=true) %}Por seguridad, el acceso se bloqueó temporalmente. Vas a poder intentarlo de nuevo después de la hora indicada.{% endcall %}
+{% endif %}
+{{ m.boton(urlSeguridad, "Revisar seguridad") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Si fuiste vos y no recordás tu contraseña, podés restablecerla desde la pantalla de inicio de sesión.</p>
+{% endblock %}

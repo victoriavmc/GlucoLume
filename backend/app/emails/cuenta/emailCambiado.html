@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu correo electrónico fue modificado{% endblock %}
+{% block contenido %}
+{% if esCorreoAnterior %}
+<p style="{{ m.P }}">Te informamos que la dirección de correo asociada a tu cuenta de GlucoLume fue cambiada. A partir de ahora, los avisos de la cuenta se enviarán a la nueva dirección.</p>
+{{ m.datos([
+  ("Fecha del cambio", fechaEvento|fechaHora),
+  ("Nuevo correo", correoNuevoEnmascarado if correoNuevoEnmascarado is defined else none),
+]) }}
+{{ m.noFuisteVos(urlAccion, "Proteger mi cuenta") }}
+<p style="{{ m.P_SUAVE }}">Por seguridad, el cambio no se revierte desde este correo: el botón te lleva a un proceso protegido que requiere verificar tu identidad.</p>
+{% else %}
+<p style="{{ m.P }}">Esta dirección ahora es el correo electrónico asociado a tu cuenta de GlucoLume.</p>
+{{ m.datos([("Fecha del cambio", fechaEvento|fechaHora)]) }}
+{% if requiereVerificacion is defined and requiereVerificacion %}
+<p style="{{ m.P }}">Para completar el cambio, confirmá que esta dirección te pertenece.</p>
+{{ m.boton(urlAccion, "Verificar mi correo") }}
+{% if fechaExpiracion is defined %}{{ m.datos([("El enlace vence", fechaExpiracion|fechaHora)]) }}{% endif %}
+{% else %}
+{{ m.boton(urlAccion, "Ingresar a GlucoLume") }}
+{% endif %}
+{% endif %}
+{% endblock %}

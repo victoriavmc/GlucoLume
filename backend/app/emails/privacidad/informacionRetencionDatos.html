@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Información sobre tus datos en GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ motivo if motivo is defined else "Te contamos cómo trata GlucoLume la información de tu cuenta." }}</p>
+<p style="{{ m.P }}"><strong>Mientras tu cuenta está activa</strong> guardamos datos que te identifican:</p>
+{{ m.lista([
+  "Nombre y apellido.",
+  "Correo electrónico y nombre de usuario.",
+  "Fecha de nacimiento y sexo.",
+  "Las mediciones asociadas a tu cuenta.",
+]) }}
+<p style="{{ m.P }}"><strong>Si se elimina tu cuenta</strong>, se borran los datos identificatorios directos: nombre, apellido, correo electrónico, nombre de usuario, fecha de nacimiento y sexo.</p>
+<p style="{{ m.P }}"><strong>Si una institución debe conservar una medición</strong>, se mantiene solo la información permitida:</p>
+{{ m.lista([
+  "Edad al momento de la medición.",
+  "Sexo, cuando corresponda.",
+  "Valores y contexto permitido de la medición.",
+]) }}
+{% call m.aviso() %}Esas mediciones se conservan de forma <strong>desidentificada (seudonimizada)</strong>: sin nombre, apellido, correo ni otros datos que te identifiquen directamente. No las llamamos «anonimizadas» porque el sistema mantiene un identificador técnico interno que no es tu nombre ni tu correo.{% endcall %}
+{{ m.datos([("Fecha", fechaEvento|fechaHora)]) }}
+{% endblock %}

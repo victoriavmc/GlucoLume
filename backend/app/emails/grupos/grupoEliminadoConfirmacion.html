@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Eliminaste el grupo con éxito{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Eliminaste el grupo <strong>«{{ nombreGrupo }}»</strong> con éxito.</p>
+{{ m.datos([("Grupo", nombreGrupo), ("Integrantes avisados", cantidadIntegrantes), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}Avisamos por correo a los demás integrantes. Las mediciones personales de cada integrante, incluidas las tuyas, se conservan en su propia cuenta; solo se dejó de compartir información dentro del grupo.{% endcall %}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Si no fuiste vos quien eliminó el grupo, revisá la seguridad de tu cuenta.</p>
+{% endblock %}

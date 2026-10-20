@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Se agregó un nuevo operador{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreOperador }} se sumó como operador/a de <strong>{{ nombreInstitucion }}</strong>.</p>
+{{ m.datos([("Operador/a", nombreOperador), ("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P_SUAVE }}">Recibís este aviso porque administrás la institución.</p>
+{% endblock %}

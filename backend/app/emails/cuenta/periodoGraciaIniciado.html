@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu cuenta no tiene instituciones{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Tu cuenta institucional de GlucoLume no está vinculada a ninguna institución, por lo que no tenés acceso a información institucional.</p>
+{{ m.datos([("Fecha", fechaEvento|fechaHora), ("Plazo", diasGracia ~ " días corridos"), ("Vence", fechaVencimiento|fechaHora)]) }}
+<p style="{{ m.P }}"><strong>Qué podés hacer hasta esa fecha:</strong></p>
+{{ m.lista([
+  "Crear tu propia institución y convertirte en su propietario/a.",
+  "Incorporarte a una institución existente aceptando una invitación (como operador/a o moderador/a).",
+  "Eliminar tu cuenta voluntariamente, desde Seguridad.",
+]) }}
+{% call m.aviso() %}Si el plazo vence sin que hayas creado una institución ni te hayas incorporado a una, tu cuenta se elimina automáticamente y tus datos personales se anonimizan. Iniciar sesión no reinicia el plazo y una invitación pendiente tampoco lo cancela: solo aceptarla.{% endcall %}
+{{ m.boton(urlInvitaciones, "Ver mis invitaciones") }}
+<p style="{{ m.P_SUAVE }}">Las instituciones conservan un registro histórico de tu paso por ellas, con acceso restringido a su personal autorizado.</p>
+{% endblock %}

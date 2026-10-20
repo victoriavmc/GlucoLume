@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Respuesta a la transferencia de administración{% endblock %}
+{% block contenido %}
+{% if aceptada %}
+<p style="{{ m.P }}"><strong>{{ nombreDestinatario }}</strong> aceptó la transferencia: ahora es el administrador del sistema de GlucoLume y tu rol pasó a moderador del sistema.</p>
+{% else %}
+<p style="{{ m.P }}"><strong>{{ nombreDestinatario }}</strong> rechazó la transferencia. Seguís siendo el administrador del sistema.</p>
+{% endif %}
+{{ m.datos([("Fecha", fechaEvento|fechaHora)]) }}
+{% endblock %}

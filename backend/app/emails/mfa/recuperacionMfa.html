@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Código para recuperar tu acceso{% endblock %}
+{% block contenido %}
+{% if desvincular is defined and desvincular %}
+<p style="{{ m.P }}">Recibimos una solicitud para desvincular la verificación en dos pasos de tu cuenta de GlucoLume porque ya no tenés acceso a tu aplicación autenticadora ni a tus códigos de recuperación.</p>
+{% else %}
+<p style="{{ m.P }}">Recibimos una solicitud para recuperar el acceso a tu cuenta de GlucoLume porque ya no tenés acceso a tu aplicación de verificación en dos pasos.</p>
+{% endif %}
+<p style="{{ m.P }}">Tu código de seguridad es:</p>
+{{ m.codigo(codigoSeguridad) }}
+<p style="{{ m.P }}">Este código vence en <strong>{{ minutosValidez }} minutos</strong> y sirve una sola vez. Al usarlo se desactiva la verificación en dos pasos de tu cuenta.</p>
+{% call m.aviso(alerta=true) %}Si no solicitaste esta acción, no compartas el código con nadie y no continúes con el proceso. Alguien conoce tu contraseña: cambiala cuanto antes.{% endcall %}
+{{ m.noFuisteVos(urlSeguridad, "Proteger mi cuenta") }}
+{% endblock %}

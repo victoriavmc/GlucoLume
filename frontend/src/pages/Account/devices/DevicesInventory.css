@@ -1,0 +1,159 @@
+/* Inventario de dispositivos (rediseño): aviso informativo, estado vacío, tabla que pasa a tarjetas en pantallas angostas. */
+
+.inventory {
+  display: grid;
+  gap: var(--gap-section);
+  min-width: 0;
+}
+
+.inventory-lead {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid #cfe0ff;
+  border-radius: 14px;
+  background: #eef5ff;
+  color: var(--ink-900);
+}
+
+.info-note > svg {
+  flex: none;
+  margin-top: 2px;
+  color: #2563eb;
+}
+
+.info-note b {
+  display: block;
+}
+
+.info-note p {
+  margin: 4px 0 0;
+  color: var(--ink-700);
+  font-size: 15px;
+}
+
+.device-filters {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: end;
+}
+
+.device-filters .field-control .field-input {
+  padding-left: 48px;
+}
+
+.device-table {
+  font-size: 15px;
+}
+
+.device-table td,
+.device-table th {
+  padding: 14px 12px;
+  white-space: normal;
+}
+
+.device-table .ui-badge {
+  white-space: nowrap;
+}
+
+.device-table th[scope='row'] {
+  font-weight: 700;
+  white-space: nowrap; /* los códigos (GL-0001) no se parten por la mitad */
+}
+
+.device-table td.device-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.device-actions .btn + .btn {
+  margin-left: 8px;
+}
+
+.device-table .btn {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+@media (max-width: 860px) {
+  .device-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* La tabla necesita ~1000 px útiles: con el menú lateral eso ocurre desde ~1280 px de pantalla. */
+@media (max-width: 1280px) {
+  /* Cada dispositivo pasa a ser una tarjeta: etiqueta a la izquierda y valor a la derecha. */
+  .device-table,
+  .device-table tbody,
+  .device-table tr,
+  .device-table td,
+  .device-table th[scope='row'] {
+    display: block;
+  }
+
+  .device-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .device-table tr {
+    margin-bottom: 14px;
+    padding: 6px 16px;
+    border: 1px solid var(--line-soft);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .device-table td,
+  .device-table th[scope='row'] {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .device-table td::before,
+  .device-table th[scope='row']::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--ink-500);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .device-table td.device-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+    gap: 8px;
+    padding-top: 14px;
+    border-bottom: 0;
+    white-space: normal;
+  }
+
+  .device-actions .btn + .btn {
+    margin-left: 0;
+  }
+
+  .device-table td.device-actions::before {
+    content: none;
+  }
+
+  .device-table td.device-actions .btn {
+    flex: 1 1 140px;
+  }
+}

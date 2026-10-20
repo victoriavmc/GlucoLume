@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Te invitaron a un grupo de GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreInvitante }} te invitó a sumarte al grupo <strong>«{{ nombreGrupo }}»</strong> en GlucoLume.</p>
+{{ m.datos([
+  ("Grupo", nombreGrupo),
+  ("Invitación de", nombreInvitante),
+  ("Fecha", fechaEvento|fechaHora),
+  ("La invitación vence", fechaExpiracion|fechaHora),
+]) }}
+{{ m.boton(urlAceptar, "Aceptar invitación") }}
+{{ m.boton(urlRechazar, "Rechazar", secundario=true) }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Los enlaces son personales, se pueden usar una sola vez y vencen en la fecha indicada. Para responder vas a tener que iniciar sesión en GlucoLume. Si no conocés a quien te invitó, podés ignorar este correo.</p>
+{% endblock %}

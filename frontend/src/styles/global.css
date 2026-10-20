@@ -1,0 +1,576 @@
+/* Identidad visual GlucoLume - Etapa 1 (referencia roja). */
+
+:root {
+  --red-600: #e3101e;
+  --red-700: #c20d19;
+  --red-100: #fde6e8;
+  --red-50: #fff4f5;
+  --blue-700: #1d4ed8;
+  --blue-600: #2563eb;
+  --blue-100: #e3ecfd;
+  --blue-50: #f3f7ff;
+  --ink-900: #0f1730;
+  --ink-700: #34405a;
+  --ink-500: #5c6680;
+  --ink-400: #667085; /* texto atenuado y placeholders: ≥4,5:1 sobre las superficies de la app */
+  --ink-300: #a3abbd; /* solo decoración (bordes al pasar el mouse, puntos, flechas): 2,3:1, nunca para texto */
+  --line: #e7e9f0;
+  --line-soft: #f1e6e8; /* borde suave rosado de tarjetas y paneles */
+  --surface: #ffffff;
+  --page: #fbfbfd;
+  --success: #15803d;
+
+  /* Estados: fondo (50), borde (200) y texto (700, ≥4,5:1 sobre el fondo 50). */
+  --ok-50: #f0fdf4;
+  --ok-200: #bbf7d0;
+  --ok-700: #166534;
+  --warn-50: #fff4e0;
+  --warn-500: #d98200; /* solo gráficos y bordes: 2,9:1 */
+  --warn-700: #b45309;
+  --danger-50: var(--red-50);
+  --danger-200: #f7c3c8;
+  --danger-700: #9b0c16;
+  --info-50: var(--blue-50);
+  --info-200: #cddcfb;
+  --info-700: #1e3a8a;
+
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+  --focus-ring: 3px solid var(--red-600);
+  --shadow-card: 0 18px 50px -24px rgba(15, 23, 48, 0.25);
+  --shadow-soft: 0 8px 24px -16px rgba(15, 23, 48, 0.3);
+  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --gutter: clamp(16px, 4vw, 48px);
+  --max: 1240px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--ink-900);
+  background: var(--page);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+img,
+svg {
+  display: block;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+/* Anillo de foco sólido: 4,8:1 sobre blanco (el anterior, rojo al 35 %, daba ≈2:1 y no cumplía el mínimo de 3:1). */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* El <main> recibe el foco por programa desde «Saltar al contenido»: no es un control, no necesita anillo. */
+main[tabindex='-1']:focus {
+  outline: none;
+}
+
+/* Enlace «Saltar al contenido»: fuera de pantalla hasta recibir el foco con el teclado. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 200;
+  padding: 12px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--red-600);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+  outline: 3px solid var(--ink-900);
+  outline-offset: 2px;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* Texto solo para lectores de pantalla. `.sr-only` es el nombre que usan las pantallas internas: misma regla. */
+.visually-hidden,
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- Botones --------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 24px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid transparent;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.05s;
+  white-space: nowrap;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--red-600);
+  color: #fff;
+  box-shadow: 0 10px 24px -12px rgba(227, 16, 30, 0.7);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--red-700);
+}
+
+.btn-outline {
+  background: #fff;
+  color: var(--red-600);
+  border-color: var(--red-600);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--red-50);
+}
+
+.btn-outline-blue {
+  background: #fff;
+  color: var(--blue-700);
+  border-color: var(--blue-600);
+}
+
+.btn-outline-blue:hover:not(:disabled) {
+  background: var(--blue-50);
+}
+
+.btn-ghost {
+  background: #fff;
+  color: var(--ink-900);
+  border-color: var(--line);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--ink-300);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-lg {
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* --- Etiquetas y alertas --------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--red-100);
+  color: var(--red-700);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.alert svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.alert-error {
+  background: var(--danger-50);
+  border: 1px solid var(--danger-200);
+  color: var(--danger-700);
+}
+
+.alert-info {
+  background: var(--info-50);
+  border: 1px solid var(--info-200);
+  color: var(--info-700);
+}
+
+.alert-success {
+  background: var(--ok-50);
+  border: 1px solid var(--ok-200);
+  color: var(--success);
+}
+
+/* --- Formularios ----------------------------------------------------------------------- */
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.field-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.field-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--ink-500);
+  pointer-events: none;
+}
+
+.field-input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 16px 0 48px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink-900);
+  font-size: 16px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field-input::placeholder {
+  color: var(--ink-400);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--red-600);
+  box-shadow: 0 0 0 4px rgba(227, 16, 30, 0.12);
+}
+
+.field-input[aria-invalid='true'] {
+  border-color: var(--red-600);
+}
+
+.field-input.has-action {
+  padding-right: 52px;
+}
+
+.field-action {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+}
+
+.field-action:hover {
+  color: var(--ink-900);
+  background: #f3f4f8;
+}
+
+.field-error {
+  margin: 0;
+  color: #b00d18;
+  font-size: 13.5px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  flex: none; /* con una etiqueta larga en pantallas angostas la casilla no se achica */
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--red-600);
+  cursor: pointer;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* objetivo táctil cómodo (el mínimo de WCAG 2.2 es 24 px) */
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--red-600);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.full-page-loader {
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  min-height: 100vh;
+  align-content: center;
+  color: var(--ink-500);
+}
+
+.full-page-loader .spinner {
+  width: 32px;
+  height: 32px;
+  color: var(--red-600);
+}
+
+.field-select {
+  padding-left: 16px;
+  appearance: auto;
+}
+
+.field-textarea {
+  min-height: 130px;
+  padding: 14px 16px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field-hint-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field-counter {
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 13.5px;
+}
+
+/* --- Aviso experimental, consentimiento y enlaces legales ------------------------------------ */
+
+.experimental-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--info-50);
+  border: 1px solid var(--info-200);
+  color: var(--info-700);
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+
+.experimental-notice svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.experimental-notice p {
+  margin: 0;
+}
+
+.experimental-notice.is-inline {
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.policy-consent {
+  margin: 4px 0;
+}
+
+.policy-consent .check a {
+  color: var(--red-600);
+  font-weight: 600;
+}
+
+.consent-panel .consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.consent-panel ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  color: var(--ink-700);
+  font-size: 14px;
+}
+
+.consent-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.consent-status p {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 14px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 16px;
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-700);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: var(--red-600);
+  text-decoration: underline;
+}
+
+.landing-notice {
+  margin-top: 8px;
+}
+
+/* --- Modal ----------------------------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 48, 0.5);
+}
+
+.modal {
+  width: min(480px, 100%);
+  padding: 26px 24px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.modal h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.modal-body p {
+  margin: 0 0 8px;
+  color: var(--ink-700);
+  line-height: 1.55;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}

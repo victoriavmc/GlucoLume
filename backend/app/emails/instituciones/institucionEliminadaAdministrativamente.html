@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}La institución fue cerrada por la administración{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">La administración de GlucoLume cerró <strong>{{ nombreInstitucion }}</strong>. Los accesos asociados a la institución quedaron revocados: ya no vas a poder ingresar a su información, dispositivos ni perfiles.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}Tu cuenta personal sigue activa. Esta institución no se puede reabrir desde una cuenta de GlucoLume: para consultar lo ocurrido, comunicate con el soporte.{% endcall %}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">No se destruyeron datos clínicos: los datos de pacientes se conservan durante el plazo de retención y luego se desidentifican, como en cualquier cierre.</p>
+{% endblock %}

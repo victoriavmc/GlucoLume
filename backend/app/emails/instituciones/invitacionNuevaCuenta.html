@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Te invitaron a sumarte a una institución en GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreInstitucion }}</strong> te invitó a sumarte a GlucoLume con el rol de {{ rol|rol }}. Para empezar, activá tu cuenta institucional.</p>
+{{ m.datos([
+  ("Institución", nombreInstitucion),
+  ("Rol propuesto", rol|rol),
+  ("Invitación de", nombreInvitante if nombreInvitante is defined else none),
+  ("El enlace vence", fechaExpiracion|fechaHora),
+]) }}
+{{ m.boton(urlActivar, "Activar mi cuenta") }}
+<p style="{{ m.P_SUAVE }}">Vas a elegir tu nombre de usuario y tu contraseña, o podés ingresar con tu cuenta de Google de este mismo correo. Después vas a ver la invitación en GlucoLume para aceptarla o rechazarla.</p>
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Nadie más conoce ni define tu contraseña. El enlace es personal, se puede usar una sola vez y vence en la fecha indicada. Si no esperabas esta invitación, podés ignorar este correo.</p>
+{% endblock %}

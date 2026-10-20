@@ -1,0 +1,255 @@
+.auth-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(800px 520px at -5% 30%, #fde3e6 0%, transparent 60%),
+    radial-gradient(700px 600px at 105% 100%, #e8f0ff 0%, transparent 55%),
+    linear-gradient(180deg, #fff7f8 0%, #fbfbfd 100%);
+}
+
+.auth-main {
+  padding: clamp(28px, 4vw, 48px) 0 clamp(40px, 6vw, 72px);
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 580px);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: start;
+}
+
+.auth-hero {
+  display: grid;
+  gap: 26px;
+  justify-items: start;
+  padding-top: clamp(16px, 4vw, 56px);
+}
+
+.auth-hero h1 {
+  margin: 0;
+  font-size: clamp(36px, 3.9vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+.auth-hero .accent {
+  color: var(--red-600);
+}
+
+.auth-lead {
+  margin: 0;
+  max-width: 500px;
+  color: var(--ink-700);
+  font-size: clamp(16px, 1.4vw, 19px);
+}
+
+.benefits {
+  display: grid;
+  gap: 26px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.benefits li {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.benefit-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--red-100);
+  color: var(--red-600);
+}
+
+.benefits b {
+  display: block;
+  font-size: 17px;
+}
+
+.benefits small {
+  display: block;
+  max-width: 320px;
+  color: var(--ink-500);
+  font-size: 15px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 18px;
+  padding: clamp(24px, 3.4vw, 40px);
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  border: 1px solid #f2e5e7;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 36px);
+  letter-spacing: -0.02em;
+}
+
+.auth-subtitle {
+  margin: -10px 0 0;
+  color: var(--ink-500);
+}
+
+
+
+
+
+
+.auth-info {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: var(--red-50);
+}
+
+.auth-info b {
+  display: block;
+}
+
+.auth-info p {
+  margin: 2px 0 0;
+  color: var(--ink-500);
+  font-size: 14.5px;
+}
+
+.auth-info-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--red-600);
+}
+
+.auth-info.is-institutional {
+  background: var(--blue-50);
+}
+
+.auth-info.is-institutional .auth-info-icon {
+  color: var(--blue-700);
+}
+
+.auth-institution-note .auth-info-icon {
+  background: transparent;
+}
+
+.auth-form {
+  display: grid;
+  gap: 18px;
+}
+
+.auth-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-500);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.btn-text:hover {
+  color: var(--ink-900);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.auth-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--ink-500);
+}
+
+.auth-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--red-600);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-500);
+}
+
+.auth-status .spinner {
+  color: var(--red-600);
+}
+
+@media (max-width: 960px) {
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* En pantallas angostas primero el formulario; el mensaje de bienvenida queda debajo. */
+  .auth-card {
+    order: -1;
+  }
+
+  .auth-hero {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .auth-info {
+    align-items: flex-start;
+  }
+}
+
+.resend-box {
+  display: grid;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.resend-box .auth-form {
+  gap: 12px;
+}

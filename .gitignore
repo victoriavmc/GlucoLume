@@ -1,0 +1,124 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Tests / herramientas
+.pytest_cache/
+.ruff_cache/
+
+.env
+.env
+.env.*
+!.env.example
+
+# Docker: secretos locales
+docker/db.env
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Puente serie: configuración local con el token (no versionar)
+acquisition/bridge/bridge.env
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+acquisition/bridge/.venv/
+
+# Copias de los scripts SQL para la base descartable de pruebas (database/herramientas/crear_base_descartable.py)
+database/herramientas/_copias/
+*.nb
+*.ipynb
+
+# Capturas y diferencias de la validación visual del frontend (cientos de MB; se regeneran con las herramientas de validación)
+docs/frontend/capturas/
+
+# Dependencias y cachés sueltos fuera de frontend/ y backend/
+/node_modules/
+.vite/
+
+# Configuración local de la herramienta de desarrollo
+.claude/
+
+# Registros
+*.log
+
+# Salidas generadas por las pruebas y herramientas
+backend/tests/email_preview/output/
+
+# Entornos virtuales y paquetes generados
+.venv/
+venv/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Respaldos de base de datos y temporales
+*.bak
+*.tmp
+*.swp
+
+# Claves y certificados
+*.pem
+*.key
+*.pfx
+
+# Editor y sistema operativo
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Imagen de correo sin uso (la que se adjunta es backend/app/emails/bannerCorreoGlucoLume.png)
+backend/app/emails/GlucoLume_ banner.png
+
+# Secretos y configuraciones privadas
+.env
+.env.*
+!.env.example
+bridge.env
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Respaldos de base de datos
+*.bak
+*.gpg
+
+
+# Secretos y configuraciones privadas
+.env
+.env.*
+*.env
+!.env.example
+bridge.env
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Backups y archivos comprimidos
+*.bak
+*.gpg
+*.zip
+*.7z
+*.rar
+
+# Dependencias y archivos temporales
+node_modules/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+dist/
+build/
+*.log
+

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu invitación institucional fue aceptada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreInvitado }} aceptó la invitación para sumarse a <strong>{{ nombreInstitucion }}</strong>.</p>
+{{ m.datos([
+  ("Persona", nombreInvitado),
+  ("Institución", nombreInstitucion),
+  ("Rol", rol|rol),
+  ("Fecha", fechaEvento|fechaHora),
+]) }}
+{% endblock %}

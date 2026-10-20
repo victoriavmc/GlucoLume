@@ -1,0 +1,8 @@
+# Herramientas de desarrollo y seguridad (fuera del runtime de producción).
+# Lock reproducible: pip-compile --generate-hashes requirements-dev.in -o requirements-dev.txt
+-c requirements.txt
+pytest==9.1.1
+ruff==0.16.10
+bandit==1.9.4
+pip-audit==2.10.1
+pip-tools==7.6.1

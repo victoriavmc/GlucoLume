@@ -1,0 +1,513 @@
+/* Auditoría (rediseño): resumen, filtros, listado y detalle del evento. */
+
+.audit,
+.audit-detail {
+  display: grid;
+  gap: var(--gap-section);
+  min-width: 0;
+}
+
+.audit-count {
+  color: var(--ink-500);
+  font-weight: 600;
+}
+
+/* Cuatro indicadores en una fila cuando hay lugar (3 + 1 se vería desparejo). */
+.audit .summary-grid.kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(max(200px, calc((100% - 48px) / 4 - 1px)), 1fr));
+}
+
+/* Distribución por módulo / institución. */
+.audit-distribution {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.audit-distribution-block h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+/* Filtros: grilla que se acomoda al ancho, sin ocupar alto de más. */
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: end;
+  gap: 14px 16px;
+}
+
+.audit-filter-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 50px;
+}
+
+/* Tabla de eventos. */
+.audit-table {
+  font-size: 15px;
+}
+
+.audit-table td,
+.audit-table th {
+  padding: 14px 12px;
+  white-space: normal;
+}
+
+.audit-table td:first-child {
+  white-space: nowrap;
+}
+
+.audit-action {
+  min-width: 180px;
+  font-weight: 600;
+}
+
+.audit-table .btn {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .audit-table,
+  .audit-table tbody,
+  .audit-table tr,
+  .audit-table td {
+    display: block;
+  }
+
+  .audit-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .audit-table tr {
+    margin-bottom: 14px;
+    padding: 6px 16px;
+    border: 1px solid var(--line-soft);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .audit-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-table td::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--ink-500);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .audit-table td.audit-actions {
+    justify-content: stretch;
+    padding-top: 14px;
+    border-bottom: 0;
+  }
+
+  .audit-table td.audit-actions::before {
+    content: none;
+  }
+
+  .audit-table td.audit-actions .btn {
+    flex: 1;
+  }
+}
+
+/* Detalle del evento. */
+.audit-summary-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.audit-changes th[scope='row'] {
+  font-weight: 700;
+}
+
+.audit-changes td,
+.audit-changes th {
+  padding: 14px 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.audit-changes td.is-empty {
+  color: var(--ink-400);
+}
+
+@media (max-width: 720px) {
+  .audit-changes,
+  .audit-changes tbody,
+  .audit-changes tr,
+  .audit-changes td,
+  .audit-changes th[scope='row'] {
+    display: block;
+  }
+
+  .audit-changes thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .audit-changes tr {
+    margin-bottom: 12px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+
+  .audit-changes td,
+  .audit-changes th[scope='row'] {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 0;
+  }
+
+  .audit-changes td::before,
+  .audit-changes th[scope='row']::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--ink-500);
+    font-weight: 600;
+  }
+}
+
+.audit-technical > summary {
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.audit-technical[open] > summary {
+  margin-bottom: 12px;
+}
+
+.audit-ids {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.audit-ids > div {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(0, 2.4fr);
+  align-items: center;
+  gap: 4px 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f8f9fc;
+}
+
+.audit-ids dt {
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.audit-ids dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0;
+  min-width: 0;
+}
+
+.audit-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-500);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.audit-ref-name {
+  display: grid;
+  min-width: 180px;
+  font-weight: 700;
+}
+
+.audit-ref-id {
+  display: grid;
+  min-width: 0;
+}
+
+.audit-ref-id small {
+  color: var(--ink-500);
+  font-size: 12.5px;
+}
+
+.audit-ref-name.is-empty,
+.audit-ref-id.is-empty {
+  color: var(--ink-400);
+  font-weight: 500;
+}
+
+.audit-ids code {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: var(--ink-700);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.copy-button.is-failed {
+  border-color: var(--red-600);
+  color: var(--red-700);
+}
+
+.copy-button:hover {
+  border-color: var(--red-600);
+  color: var(--red-600);
+}
+
+.audit-json-block {
+  margin-top: 14px;
+}
+
+.audit-json-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.audit-json-head .member-list-title {
+  padding-top: 0;
+  border-top: 0;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .audit-ids > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- Auditoría administrativa: ámbitos, severidad, seguridad y cuentas ------------------------------------------------------------ */
+
+.audit-scope {
+  display: grid;
+  gap: var(--gap-section);
+  min-width: 0;
+}
+
+/* Severidad: una marca de color a la izquierda de la fila (el significado también está en el texto de la insignia). Verde = exitoso,
+   naranja = advertencia o sospechoso, rojo = error o crítico, gris = informativo. */
+.audit-row > td:first-child {
+  border-left: 5px solid transparent;
+}
+
+.audit-row.is-exito > td:first-child { border-left-color: var(--success); }
+.audit-row.is-advertencia > td:first-child { border-left-color: var(--warn-700); }
+.audit-row.is-critico > td:first-child { border-left-color: var(--red-600); }
+.audit-row.is-info > td:first-child { border-left-color: var(--ink-400); }
+
+@media (max-width: 1280px) {
+  .audit-table tr.audit-row { border-left: 5px solid var(--line); }
+  .audit-table tr.audit-row.is-exito { border-left-color: var(--success); }
+  .audit-table tr.audit-row.is-advertencia { border-left-color: var(--warn-700); }
+  .audit-table tr.audit-row.is-critico { border-left-color: var(--red-600); }
+  .audit-table tr.audit-row.is-info { border-left-color: var(--ink-400); }
+  .audit-row > td:first-child { border-left: 0; }
+}
+
+.audit-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Contenido de una celda: texto principal y una nota debajo (motivo, IP), como UN solo elemento para que la vista en tarjetas no lo separe. */
+.audit-cell {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+
+.audit-cell .audit-note {
+  margin-top: 0;
+}
+
+@media (max-width: 1280px) {
+  .audit-cell { justify-items: end; }
+  .audit-result { justify-content: flex-end; }
+}
+
+.audit-more-filters {
+  grid-column: 1 / -1;
+}
+
+.audit-more-filters > summary {
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.audit-more-filters[open] > summary {
+  margin-bottom: 12px;
+}
+
+.audit-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 14px 0 0;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: #f8f9fc;
+  font-weight: 600;
+}
+
+/* Seguridad y accesos fallidos. */
+.audit-security {
+  display: grid;
+  gap: 18px;
+}
+
+.audit-security-controls {
+  display: grid;
+  gap: 14px;
+}
+
+.audit-signals {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-signal {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.audit-signal.is-suspicious { border-left-color: var(--warn-700); }
+.audit-signal.is-confirmed { border-left-color: var(--red-600); }
+
+.audit-signal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.audit-signal-head h3,
+.audit-signal p {
+  margin: 0;
+}
+
+.audit-signal-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 0;
+}
+
+.audit-signal-facts div {
+  display: grid;
+}
+
+.audit-signal-facts dt {
+  color: var(--ink-500);
+  font-size: 13.5px;
+}
+
+.audit-signal-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.audit-signal .btn {
+  justify-self: start;
+  min-height: 44px;
+}
+
+/* Selección de institución o cuenta. */
+.audit-pick-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink-900, inherit);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.audit-pick:hover,
+.audit-pick:focus-visible {
+  border-color: var(--red-600);
+}
+
+.audit-chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.audit-account h2 small {
+  color: var(--ink-500);
+  font-weight: 500;
+}

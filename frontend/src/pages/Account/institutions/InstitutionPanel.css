@@ -1,0 +1,908 @@
+/* Panel institucional (rediseño): encabezado en tarjeta, resumen, accesos rápidos, dashboard, gráficos y actividad.
+   Las grillas se adaptan al ancho disponible (no al viewport, que incluye el sidebar): 3 columnas mientras cada tarjeta
+   conserve unos 250 px, luego 2 y 1. */
+
+.institution-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: clamp(18px, 2.4vw, 26px) clamp(18px, 2.6vw, 30px);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, #fff 35%, var(--red-50) 100%);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+/* Ilustración decorativa (hospital) a la derecha: no es contenido y se oculta en pantallas angostas. */
+.institution-head::after {
+  content: '';
+  position: absolute;
+  inset: 0 clamp(12px, 3vw, 40px) 0 auto;
+  width: 200px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'%3E%3Cg fill='%23fde6e8'%3E%3Crect x='20' y='48' width='56' height='72' rx='6'/%3E%3Crect x='124' y='40' width='60' height='80' rx='6'/%3E%3C/g%3E%3Crect x='70' y='20' width='64' height='100' rx='8' fill='%23fbd0d4'/%3E%3Cpath d='M98 40h8v10h10v8h-10v10h-8V58H88v-8h10z' fill='%23e3101e' opacity='.85'/%3E%3Cg fill='%23fff'%3E%3Crect x='80' y='84' width='10' height='10' rx='2'/%3E%3Crect x='95' y='84' width='10' height='10' rx='2'/%3E%3Crect x='110' y='84' width='10' height='10' rx='2'/%3E%3C/g%3E%3C/svg%3E") right center / contain no-repeat;
+  pointer-events: none;
+}
+
+.institution-head > * {
+  position: relative;
+  z-index: 1;
+}
+
+.institution-head .icon-button {
+  width: 44px;
+  height: 44px;
+  background: #fff;
+}
+
+.institution-head-text p.institution-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: #f3f4f8;
+  color: var(--ink-700);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chip.is-role,
+.chip.is-active {
+  background: #f0fdf4;
+  color: var(--success);
+}
+
+.chip.is-inactive {
+  background: #fff4e5;
+  color: #92400e;
+}
+
+/* Grillas: tarjetas uniformes que pasan de 3 a 2 y a 1 columnas según el ancho real. */
+.summary-grid.stat-grid {
+  /* Resumen del equipo y los dispositivos: hasta 4 tarjetas en una fila. */
+  grid-template-columns: repeat(auto-fill, minmax(max(230px, calc((100% - 3 * var(--gap-card)) / 4 - 1px)), 1fr));
+  gap: var(--gap-card);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Indicadores: las columnas dependen del ancho real del contenedor (con o sin menú lateral), nunca del de la ventana.
+   Cada tarjeta conserva al menos 210 px y el resto de filas se reparte por igual. */
+.summary-grid.kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tarjetas del resumen. */
+.stat-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+  padding: 22px;
+  border-radius: 20px;
+}
+
+.stat-card .panel-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
+
+.stat-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 22px;
+}
+
+.stat-text b {
+  font-size: 22px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.stat-text .field-hint {
+  margin: 0;
+}
+
+.stat-text .summary-link {
+  margin-top: 6px;
+}
+
+a.stat-card.is-link {
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+a.stat-card.is-link:hover {
+  border-color: var(--red-600);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+
+a.stat-card.is-link:focus-visible {
+  outline: 3px solid rgba(227, 16, 30, 0.35);
+  outline-offset: 2px;
+}
+
+/* Accesos rápidos. */
+.quick-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  padding-block: 20px;
+  border-radius: 24px;
+  background: linear-gradient(100deg, var(--red-50) 0%, #fff 75%);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+}
+
+.quick-head {
+  display: flex;
+  flex: 1 1 240px;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.quick-head h2,
+.inst-dashboard-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.quick-head p {
+  margin: 4px 0 0;
+  color: var(--ink-500);
+}
+
+.quick-actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.quick-actions .btn {
+  padding-inline: 22px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+@media (min-width: 1280px) {
+  .quick-actions {
+    flex-wrap: nowrap;
+  }
+}
+
+.quick-note {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+/* Dashboard de la institución: encabezado con el selector de período a la derecha. */
+.inst-dashboard-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+.inst-dashboard-head .panel-title {
+  align-items: center;
+  min-width: 0;
+}
+
+.measurement-filters.is-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.measurement-filters.is-compact .field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.measurement-filters.is-compact .field-label {
+  color: var(--ink-500);
+  font-weight: 500;
+}
+
+.period-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.period-select > svg {
+  position: absolute;
+  left: 14px;
+  color: var(--ink-700);
+  pointer-events: none;
+}
+
+.measurement-filters.is-compact .field-select {
+  min-width: 210px;
+  padding-left: 44px;
+  font-weight: 500;
+}
+
+/* Tarjeta de indicador: fila de ícono + título, valor destacado y descripción debajo. */
+.kpi-card {
+  display: flex;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.kpi-card .panel-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+
+.kpi-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.kpi-card .kpi-head small {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-top: 2px;
+  color: var(--ink-700);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+
+.kpi-card.is-link {
+  padding: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.kpi-card.is-link:hover,
+.kpi-card.is-link:focus-within {
+  border-color: var(--primary, currentColor);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.kpi-link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Colores diferenciados por tipo de indicador (ej.: estados del inventario). */
+.kpi-card.is-ok .panel-icon {
+  background: #e7f8ee;
+  color: var(--success);
+}
+
+.kpi-card.is-warn .panel-icon {
+  background: #fff3df;
+  color: #b45309;
+}
+
+.kpi-card.is-muted .panel-icon {
+  background: #eef0f5;
+  color: var(--ink-500);
+}
+
+.kpi-text {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kpi-text b {
+  font-size: 28px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.kpi-text b.is-empty {
+  font-size: 17px;
+}
+
+.kpi-text .field-hint {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+/* Tarjetas de gráficos. */
+.chart-grid {
+  gap: var(--gap-card);
+  min-width: 0;
+}
+
+.chart-grid.is-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(300px, calc((100% - var(--gap-card)) / 2 - 1px)), 1fr));
+}
+
+.chart-grid.is-three {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.chart-grid.is-three > .chart-card {
+  flex: 1 1 max(280px, calc((100% - 2 * var(--gap-card)) / 3 - 1px));
+}
+
+.chart-card {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+  padding: var(--pad-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.chart-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chart-card-head h3 {
+  margin: 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.chart-card-head .panel-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.chart-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 8px 14px;
+  color: var(--ink-400);
+  text-align: center;
+}
+
+.chart-empty b {
+  color: var(--ink-700);
+  font-size: 16px;
+}
+
+.chart-empty p {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.chart-grid.is-three > .chart-card.is-wide {
+  flex-basis: 100%;
+}
+
+.chart-card.is-wide .metric-blocks {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.chart-card.is-wide .metric-block {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Las etiquetas del SVG se escalan con el ancho de la tarjeta: se agrandan para que sigan legibles. */
+.chart-card .trend-label {
+  font-size: 15px;
+}
+
+.chart-card .metric-block {
+  padding-top: 12px;
+}
+
+.chart-card .metric-block .member-list-title {
+  margin: 0 0 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.chart-card .metric-blocks {
+  gap: 12px;
+}
+
+.chart-card .data-list {
+  gap: 8px;
+}
+
+.chart-card .data-list div {
+  padding: 10px 12px;
+}
+
+.chart-card .bar-list li {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.chart-card .bar-list .bar-track {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+/* Actividad reciente. */
+.activity-list.is-cards li {
+  display: block; /* anula el flex genérico de .activity-list li: la fila ocupa todo el ancho y la fecha queda a la derecha */
+  border-top: 1px solid var(--line);
+}
+
+.activity-list.is-cards li:first-child {
+  border-top: 0;
+}
+
+.activity-link {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 14px 8px;
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.activity-link:hover {
+  background: var(--red-50);
+}
+
+a.activity-link:focus-visible {
+  outline: 3px solid rgba(227, 16, 30, 0.35);
+  outline-offset: 2px;
+}
+
+.activity-list.is-cards .panel-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.activity-entity {
+  color: var(--ink-900);
+  font-weight: 500;
+}
+
+.activity-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activity-text small {
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.activity-meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.activity-date {
+  color: var(--ink-500);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .quick-actions {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .institution-head::after {
+    display: none;
+  }
+
+  .stat-card {
+    padding: 18px;
+  }
+
+  .quick-actions .btn {
+    flex: 1 1 100%;
+  }
+
+  .measurement-filters.is-compact,
+  .measurement-filters.is-compact .field,
+  .period-select {
+    width: 100%;
+  }
+
+  .measurement-filters.is-compact .field {
+    flex-wrap: wrap;
+  }
+
+  .measurement-filters.is-compact .field-select {
+    min-width: 0;
+  }
+
+  .activity-link {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .activity-meta {
+    grid-column: 2;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .institution-head .panel-icon {
+    display: none;
+  }
+}
+
+/* Resumen del panel: ícono de color, cantidad con su unidad y acceso circular. */
+.stat-text b {
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.stat-unit {
+  color: var(--ink-700);
+  font-size: 15px;
+}
+
+.stat-go {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--red-100);
+  color: var(--red-600);
+}
+
+.stat-card.is-blue .panel-icon {
+  background: #e8f1ff;
+  color: #2563eb;
+}
+
+.stat-card.is-green .panel-icon {
+  background: #e7f8ee;
+  color: var(--success);
+}
+
+.stat-card.is-amber .panel-icon {
+  background: #fff3df;
+  color: #b45309;
+}
+
+.stat-card.is-blue .stat-go {
+  background: #e8f1ff;
+  color: #2563eb;
+}
+
+.stat-card.is-green .stat-go {
+  background: #e7f8ee;
+  color: var(--success);
+}
+
+.stat-card.is-amber .stat-go {
+  background: #fff3df;
+  color: #b45309;
+}
+
+.admin-updated {
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+/* Dashboard del operador: pacientes asignados y tarjetas de trabajo. */
+.op-patients {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.op-patient {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 20px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.op-avatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #efeaf5;
+  color: #4a3f6b;
+  font-weight: 700;
+}
+
+.op-patient-id {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.op-patient-id small,
+.op-patient-last small {
+  color: var(--ink-500);
+}
+
+.op-patient-last {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.op-patient-last span:last-child {
+  display: grid;
+}
+
+.op-last-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-500);
+}
+
+.chart-empty.is-framed {
+  padding: 22px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.chart-card-head p {
+  margin: 2px 0 0;
+}
+
+@media (max-width: 900px) {
+  .op-patient {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .op-patient-last,
+  .op-patient .member-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+.chart-card-head.has-subtitle {
+  align-items: flex-start;
+}
+
+/* Dashboard del paciente: perfil con datos en tarjetas con ícono, indicadores y estados vacíos. */
+.kpi-card.is-info .panel-icon {
+  background: #eaf0ff;
+  color: #3b4fb8;
+}
+
+.pac-identity {
+  margin: 14px 0 16px;
+}
+
+.pac-identity .patient-name {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.pac-identity small {
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.pac-facts {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pac-fact {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f7f8fc;
+}
+
+.pac-fact-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--red-100);
+  color: var(--red-600);
+}
+
+.pac-fact-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.pac-fact-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pac-fact-text small {
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.pac-fact-text b {
+  overflow-wrap: anywhere;
+  font-size: 17px;
+}
+
+.pac-fact-text b.is-empty {
+  color: var(--ink-500);
+  font-weight: 600;
+}
+
+/* Con 5 datos (sin fecha de nacimiento) la segunda fila reparte el ancho en dos tarjetas. */
+.pac-fact:nth-child(4):nth-last-child(2),
+.pac-fact:nth-child(5):last-child {
+  grid-column: span 3;
+}
+
+.pac-empty {
+  padding: 18px 12px 8px;
+}
+
+.pac-empty > svg {
+  box-sizing: content-box;
+  padding: 16px;
+  border-radius: 50%;
+  background: var(--red-50);
+  color: var(--ink-400);
+}
+
+@media (max-width: 960px) {
+  .pac-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pac-fact,
+  .pac-fact:nth-child(4):nth-last-child(2),
+  .pac-fact:nth-child(5):last-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .pac-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Panel del operador: indicadores 4 + 3, fila de gráficos y actividad junto a pacientes asignados. */
+.summary-grid.kpi-grid.op-kpis { margin-top: 0; }
+.summary-grid.kpi-grid.op-kpis.is-three { margin-top: 16px; }
+/* Dos por fila para que cada gráfico se lea bien; los cuatro en una sola fila solo cuando el ancho lo permite. */
+.op-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--gap-card); }
+@media (min-width: 1000px) { .op-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1900px) { .op-charts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.op-charts .op-chart { min-width: 0; align-content: start; }
+.op-chart-select { justify-self: end; }
+.op-chart-select select { padding-block: 6px; font-size: 13px; min-height: 0; }
+.op-chart .an-donut { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.op-chart .an-donut-figure { width: 150px; }
+.op-chart .an-legend { width: 100%; }
+.op-chart .an-legend li { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.op-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap-card); align-items: start; }
+@media (min-width: 1180px) { .op-columns { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); } }
+.op-columns .op-patient { grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; }
+.op-columns .op-patient-id { grid-column: 2; grid-row: 1; }
+.op-columns .op-patient-last { grid-column: 2; grid-row: 2; }
+.op-columns .op-patient .member-actions { grid-column: 2; grid-row: 3; justify-content: flex-start; flex-wrap: wrap; }
+.op-patient-last small { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.op-measure-link { color: inherit; text-decoration: none; }
+.op-measure-link:hover b { text-decoration: underline; }
+.op-subchart { margin: 6px 0 0; font-size: 14px; color: var(--ink-700); }
+
+/* Resultados de salud agregados: un bloque por origen (experimental / DEMO), nunca mezclados */
+.mg-health-groups { display: grid; gap: 20px; }
+.mg-health { display: grid; gap: 10px; }
+.mg-health.is-demo { padding-top: 16px; border-top: 1px dashed var(--line); }
+
+/* Resultados de salud agregados: tres tarjetas por origen con gráfico temporal grande (HealthMetricCard / TimeSeriesChart) */
+.hl-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.hl-head h4 { margin: 0; }
+.hl-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: #fff; }
+.hl-toggle button { border: 0; background: transparent; padding: 8px 16px; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-700); cursor: pointer; }
+.hl-toggle button.is-on { background: var(--red-600); color: #fff; }
+.hl-toggle button:focus-visible { outline: 3px solid var(--red-600); outline-offset: -3px; }
+.hl-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.hl-cards > .hl-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.hl-card { display: grid; gap: 12px; align-content: start; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fff; }
+.hl-card h4 { margin: 0; font-size: 17px; }
+.hl-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.hl-cards > .hl-card:last-child:nth-child(odd) .hl-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hl-stats div { padding: 10px 12px; border-radius: 12px; background: #f7f7fb; }
+.hl-stats dt { font-size: 13px; color: var(--ink-500); }
+.hl-stats dd { margin: 2px 0 0; font-size: 18px; font-weight: 700; }
+.hl-stats dd small { font-size: 13px; font-weight: 500; color: var(--ink-500); white-space: nowrap; }
+.hl-chart { position: relative; }
+.hl-chart svg { max-width: 100%; overflow: visible; }
+.hl-grid { stroke: #ece6e8; stroke-width: 1; }
+.hl-tick { font-size: 13px; fill: var(--ink-600, #5b6070); }
+.hl-axis-title { font-size: 13px; font-weight: 600; fill: var(--ink-700); }
+.hl-point { cursor: pointer; transition: transform .12s; }
+.hl-point:focus { outline: none; }
+.hl-point:focus-visible, .hl-point.is-active { stroke: var(--ink-900); stroke-width: 2.5; }
+.hl-tooltip { position: absolute; top: 4px; transform: translateX(-50%); z-index: 2; display: grid; gap: 2px; min-width: 170px; max-width: 230px; padding: 10px 12px; border-radius: 12px;
+  background: var(--ink-900, #1b1d2a); color: #fff; font-size: 13px; box-shadow: 0 8px 24px rgba(20, 20, 40, .25); pointer-events: none; }
+.hl-tooltip b { font-size: 16px; }
+.hl-tooltip-origin { color: #ffd66b; font-weight: 600; }
+.hl-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; margin: 0; padding: 14px 16px; border-radius: var(--radius-md); background: #f7f7fb; }
+.hl-summary dt { font-size: 13px; color: var(--ink-500); }
+.hl-summary dd { margin: 2px 0 0; font-size: 14.5px; font-weight: 600; }
+@media (max-width: 900px) { .hl-cards { grid-template-columns: minmax(0, 1fr); } .hl-cards > .hl-card:last-child:nth-child(odd) .hl-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

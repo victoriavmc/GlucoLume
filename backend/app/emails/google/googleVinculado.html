@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu cuenta de Google fue vinculada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Tu cuenta de GlucoLume quedó vinculada con una cuenta de Google. Desde ahora también podés ingresar con «Continuar con Google».</p>
+{{ m.datos([
+  ("Fecha y hora", fechaEvento|fechaHora),
+  ("Cuenta de Google", (correoGoogle|enmascararCorreo) if correoGoogle is defined else none),
+]) }}
+{% call m.aviso() %}Si tenías una contraseña de GlucoLume, sigue funcionando: ambos accesos ingresan a la misma cuenta.{% endcall %}
+{{ m.boton(urlSeguridad, "Revisar seguridad", secundario=true) }}
+{% endblock %}

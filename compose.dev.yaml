@@ -1,0 +1,51 @@
+# GlucoLume - desarrollo. Se combina con la configuración común:
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml up --build
+#
+# - Frontend con Vite y recarga en caliente en http://localhost:5173 (como sin Docker). Llama a la API en
+#   http://localhost:8000, por lo que FRONTEND_URL del .env debe ser http://localhost:5173 (CORS y enlaces de correo).
+# - Backend con recarga automática y el código montado desde ./backend/app; API y Swagger en http://localhost:8000.
+# - Puertos solo en 127.0.0.1. Con el perfil "db", SQL Server queda en 127.0.0.1:1433 para herramientas de administración.
+# - SQL Server de Windows: DOCKER_DB_HOST=host.docker.internal (y DOCKER_DB_PORT si no es 1433) en el .env.
+
+services:
+  backend:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/srv/backend/app"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend/app:/srv/backend/app:ro
+    environment:
+      WATCHFILES_FORCE_POLLING: "true"   # el montaje de Windows no emite eventos de archivo
+      # En desarrollo el backend se publica en 127.0.0.1:8000 y Vite lo llama directo, sin proxy: no se confía en X-Forwarded-* de
+      # nadie (con "*" cualquier cliente local podría falsear la IP que registra la auditoría y que usan los límites). GL-18.
+      FORWARDED_ALLOW_IPS: "127.0.0.1"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  frontend:
+    build:
+      target: dev
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    ports: !override
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/public:/app/public:ro
+    read_only: false
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5173/"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  db:
+    ports:
+      - "127.0.0.1:1433:1433"

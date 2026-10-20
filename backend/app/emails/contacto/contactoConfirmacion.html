@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Recibimos tu consulta{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Recibimos correctamente tu consulta en GlucoLume.</p>
+{{ m.datos([
+  ("Tipo de consulta", tipoConsulta),
+  ("Asunto", asuntoConsulta),
+]) }}
+<p style="{{ m.P }}">Nuestro equipo podrá revisar tu mensaje y responderte a través del correo electrónico que nos indicaste.</p>
+{% call m.aviso() %}No es necesario volver a enviar la consulta.{% endcall %}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Gracias por comunicarte con GlucoLume. Si no enviaste esta consulta, podés ignorar este correo.</p>
+{% endblock %}

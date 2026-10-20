@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Se modificó tu método de verificación{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Se modificó el método de verificación en dos pasos de tu cuenta.</p>
+{{ m.datos([
+  ("Método anterior", metodoAnterior|metodoMfa),
+  ("Método nuevo", metodoNuevo|metodoMfa),
+  ("Fecha y hora", fechaEvento|fechaHora),
+]) }}
+{{ m.noFuisteVos(urlSeguridad, "Proteger mi cuenta") }}
+{% endblock %}

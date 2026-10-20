@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Te invitaron a administrar GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Te invitaron a asumir un rol de administración de la plataforma GlucoLume: <strong>{{ rolPlataforma }}</strong>. Para empezar, activá tu cuenta.</p>
+{{ m.datos([("Rol propuesto", rolPlataforma), ("El enlace vence", fechaExpiracion|fechaHora)]) }}
+{{ m.boton(urlActivar, "Activar mi cuenta") }}
+<p style="{{ m.P_SUAVE }}">Vas a elegir tu nombre de usuario y tu contraseña. Después tenés que activar la verificación en dos pasos (MFA): sin ella no se habilitan las funciones administrativas.</p>
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Nadie más conoce ni define tu contraseña. El enlace es personal, se usa una sola vez y vence en la fecha indicada. Si no esperabas esta invitación, ignorá este correo.</p>
+{% endblock %}

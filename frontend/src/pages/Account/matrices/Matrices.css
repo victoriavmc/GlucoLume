@@ -1,0 +1,261 @@
+/* Matrices de estimación: tarjeta de la matriz en uso, reglas, versiones institucionales y alta con reglas. */
+
+.matrix-active {
+  display: grid;
+  gap: 16px;
+  border: 1px solid #b7e4c7;
+  background: linear-gradient(120deg, #f1faf4 0%, #fff 80%);
+}
+
+.matrix-active-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.matrix-active-head h3 {
+  margin: 2px 0 8px;
+  font-size: 22px;
+}
+
+.matrix-eyebrow {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.matrix-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.matrix-explain {
+  margin: 0;
+  font-size: 17px;
+}
+
+.matrix-inuse {
+  background: #d8f3e2;
+  color: #146c3a;
+  font-weight: 700;
+}
+
+.matrix-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px 24px;
+}
+
+/* Desplegable de reglas */
+.rules-disclosure {
+  display: grid;
+  gap: 12px;
+}
+
+.rules-toggle {
+  justify-self: start;
+}
+
+.rules-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.rules-table th,
+.rules-table td {
+  padding: 12px;
+  white-space: normal;
+  vertical-align: top;
+}
+
+.rule-general {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: var(--ink-500);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rule-criteria {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule-criteria li {
+  padding: 4px 10px;
+  border: 1px solid var(--border, #e6e8ee);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.rule-criteria li span {
+  margin-right: 4px;
+  color: var(--ink-500);
+  font-weight: 600;
+}
+
+.rule-range {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--red-50, #fdecec);
+  color: var(--red-700, #b3121c);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rule-actions {
+  white-space: nowrap;
+}
+
+/* Versiones institucionales */
+.matrix-versions {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.matrix-version {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border, #e6e8ee);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.matrix-version.is-active {
+  border-color: #b7e4c7;
+  background: #f1faf4;
+}
+
+.matrix-version-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.matrix-version-head h4 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.matrix-version-head p {
+  margin: 0;
+}
+
+.matrix-version-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 20px;
+  margin: 0;
+}
+
+.matrix-version-facts dt {
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.matrix-version-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.matrix-version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.matrix-global-backup h3,
+.matrix-create h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Alta con reglas */
+.matrix-step {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border, #e6e8ee);
+  border-radius: 16px;
+}
+
+.matrix-step legend {
+  padding: 0 8px;
+  font-weight: 700;
+}
+
+/* Tabla de reglas como tarjetas en pantallas chicas */
+@media (max-width: 900px) {
+  .rules-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .rules-table,
+  .rules-table tbody,
+  .rules-table tr,
+  .rules-table th,
+  .rules-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .rules-table tr {
+    margin-bottom: 12px;
+    padding: 8px 4px;
+    border: 1px solid var(--border, #e6e8ee);
+    border-radius: 16px;
+  }
+
+  .rules-table th[data-label],
+  .rules-table td[data-label] {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    border: 0;
+  }
+
+  .rules-table th[data-label]::before,
+  .rules-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--ink-500);
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 600px) {
+  .matrix-active-head {
+    align-items: flex-start;
+  }
+
+  .matrix-version-head {
+    flex-direction: column;
+  }
+}

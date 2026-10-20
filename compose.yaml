@@ -1,0 +1,233 @@
+# GlucoLume - configuración común de Docker Compose (válida en desarrollo y producción).
+#
+#   docker compose up --build -d              # backend + frontend (sin SQL Server, sin Arduino)
+#   docker compose up -d backend              # solo la API
+#   docker compose up -d frontend             # solo el frontend (Nginx)
+#   docker compose --profile db up -d         # además, SQL Server en un contenedor (opcional)
+#   docker compose -f compose.yaml -f compose.dev.yaml up --build   # desarrollo (ver compose.dev.yaml)
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d       # producción (ver compose.prod.yaml)
+#
+# La configuración y los secretos salen de ./.env (no está en las imágenes ni en Git). Variables propias de Docker:
+# ver ".env.example", sección "Docker". Documentación completa: docs/DOCKER.md.
+#
+# Qué NO hay aquí, a propósito:
+#  - Un servicio "acquisition": el puerto COM de Windows no se puede pasar a un contenedor Linux. El Arduino lo lee el
+#    puente serie de Windows (acquisition/bridge) y lo envía al backend por HTTP con BRIDGE_TOKEN (o el propio backend en
+#    el mismo equipo con el puerto, ver compose.serial.yaml). Ver docs/DOCKER.md, sección Adquisición.
+#  - Scripts de inicialización ni migraciones de base de datos: Docker nunca crea ni modifica esquemas.
+
+name: glucolume
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:-dev}
+    <<: *hardening
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      # Dentro de Docker "localhost" es el propio contenedor: DOCKER_DB_HOST/DOCKER_DB_PORT (opcionales) reemplazan a
+      # DB_HOST/DB_PORT del .env. Con SQL Server en Windows usar host.docker.internal o la IP del equipo.
+      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST}}
+      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-1433}}
+      # El backend no se publica: solo lo alcanzan contenedores de la red interna "edge" (Nginx), que fijan X-Forwarded-*.
+      FORWARDED_ALLOW_IPS: "*"
+      # La cuenta de base de la conservación (GL-03) es solo del servicio «lifecycle»: la API no la recibe aunque esté en el .env.
+      DB_JOBS_USER: ""
+      DB_JOBS_PASSWORD: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      # Certificado público de SQL Server para validarlo (GL-07): docker/certs/sqlserver.crt y DB_SERVER_CERTIFICATE=/run/certs/sqlserver.crt.
+      - ./docker/certs:/run/certs:ro
+    networks:
+      - edge
+      - data
+    depends_on:
+      # Solo aplica si el perfil "db" está activo; sin él, la base es externa (Windows o un servidor administrado).
+      db:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 20s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # Ciclo de vida de las cuentas institucionales (UN solo programador, aparte de la API): elimina y anonimiza las cuentas cuyo período de
+  # gracia de 30 días venció y minimiza los datos personales históricos vencidos (backend/app/jobs/accountLifecycle.py). No publica puertos
+  # y usa la imagen del backend. Las réplicas de la API no ejecutan esta tarea, así que no se duplica; igualmente cada cuenta se revalida
+  # con su fila bloqueada. Intervalo: ACCOUNT_LIFECYCLE_INTERVAL_SECONDS (3600 por defecto; 0 lo desactiva).
+  lifecycle:
+    build:
+      context: ./backend
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:-dev}
+    command: ["python", "-m", "app.jobs.accountLifecycle", "--loop"]
+    <<: *hardening
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST}}
+      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-1433}}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./docker/certs:/run/certs:ro
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.jobs.accountLifecycle", "--health"]
+      interval: 5m
+      timeout: 20s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  frontend:
+    build:
+      context: ./frontend
+      additional_contexts:
+        nginxconf: ./docker/nginx
+      args:
+        # "/" = misma origen: Nginx reenvía /api al backend. Pública: nunca secretos aquí.
+        VITE_API_BASE_URL: ${FRONTEND_API_BASE_URL:-/}
+        # Login en localhost (Google no admite .local) y resto de la app en glucolume.local. Vacíos = sin separación.
+        VITE_LOGIN_ORIGIN: ${FRONTEND_LOGIN_ORIGIN:-}
+        VITE_APP_ORIGIN: ${FRONTEND_APP_ORIGIN:-}
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/frontend:${GLUCOLUME_VERSION:-dev}
+    <<: *hardening
+    environment:
+      # A dónde reenvía Nginx /api. Por defecto el backend de Compose; con el backend corriendo en Windows (para
+      # usar el Arduino) se pone host.docker.internal:8000.
+      BACKEND_UPSTREAM: ${FRONTEND_BACKEND_UPSTREAM:-backend:8000}
+      # Red desde la que Nginx confía en X-Forwarded-For (el proxy HTTPS delante: Caddy del perfil "https" o el proxy del servidor).
+      # Cualquier otro origen no puede fijar su IP. Docker usa 172.16.0.0/12 por defecto; ajustar si se cambió la red de Docker.
+      TRUSTED_PROXY_CIDR: ${FRONTEND_TRUSTED_PROXY_CIDR:-172.16.0.0/12}
+    ports:
+      # Puerto 80 del host (http://glucolume.local, ver docs/DOCKER.md). Solo en el equipo local por defecto;
+      # FRONTEND_BIND=0.0.0.0 lo expone en la red.
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-80}:8080"
+      # Segundo puerto del mismo Nginx: la pantalla de login se sirve en http://localhost:8080 (ver docs/DOCKER.md).
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_LOGIN_PORT:-8080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+      # El arranque genera aquí la configuración final a partir de la plantilla (envsubst).
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+    networks:
+      - edge
+    # Sin depends_on del backend: Nginx resuelve el destino en cada pedido y el frontend sirve aunque la API caiga.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  # SQL Server opcional: perfil "db". Sin él, el backend usa la base externa indicada en DB_HOST/DOCKER_DB_HOST.
+  # No ejecuta scripts: arranca un servidor vacío con almacenamiento persistente; crear la base y aplicar
+  # database/scripts es un paso manual y explícito (docs/DOCKER.md).
+  db:
+    profiles: ["db"]
+    build:
+      context: ./docker/mssql
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/mssql:2022-CU16-p${GLUCOLUME_VERSION:-dev}
+    # Sin cap_drop ni no-new-privileges: sqlservr usa capacidades de archivo (setcap) y con ellos no arranca. Igual corre
+    # como usuario "mssql" (no root).
+    # La contraseña de sa vive en docker/db.env (no en el .env que recibe el backend): copiar docker/db.env.example.
+    env_file:
+      - path: docker/db.env
+        required: true
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: ${MSSQL_PID:-Express}
+    volumes:
+      - mssql-data:/var/opt/mssql
+    networks:
+      - data
+    # Sin "ports": solo el backend (red data) llega a SQL Server. compose.dev.yaml lo publica en 127.0.0.1.
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+    restart: unless-stopped
+    stop_grace_period: 60s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # Compilación del firmware con Arduino CLI: perfil "firmware", bajo demanda (no es parte de la aplicación web).
+  #   docker compose --profile firmware run --rm firmware
+  firmware:
+    profiles: ["firmware"]
+    build:
+      context: ./docker/firmware
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/firmware-build:${GLUCOLUME_VERSION:-dev}
+    volumes:
+      - ./firmware:/work:ro
+      - firmware-build:/out
+    network_mode: none
+    restart: "no"
+
+networks:
+  # edge: frontend <-> backend (y proxy HTTPS). data: backend <-> SQL Server. El frontend no ve la base.
+  edge:
+  data:
+
+volumes:
+  mssql-data:
+  firmware-build:

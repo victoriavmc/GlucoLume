@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu institución fue pausada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">La administración de GlucoLume pausó temporalmente a <strong>{{ nombreInstitucion }}</strong>. Mientras dure la pausa no se pueden operar sus funciones: nadie del equipo puede ingresar al contexto de la institución, crear cuentas o pacientes, medir ni usar sus dispositivos.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora), ("Motivo", motivo)]) }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">No se eliminó ninguna cuenta, paciente, medición, dispositivo ni historial: todo se conserva. Para resolver la situación y pedir la reactivación, ingresá a GlucoLume, abrí «Instituciones» y usá «Escribir al soporte» en la tarjeta de la institución pausada (solo el propietario).</p>
+{% endblock %}

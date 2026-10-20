@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Institución registrada correctamente{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Registraste la institución <strong>{{ nombreInstitucion }}</strong> en GlucoLume.</p>
+{{ m.datos([
+  ("Institución", nombreInstitucion),
+  ("Tipo", tipoInstitucion),
+  ("CUIT", cuit),
+  ("Rol asignado", rol|rol),
+  ("Fecha y hora del registro", fechaEvento|fechaHora),
+]) }}
+<p style="{{ m.P }}">Desde el panel podés completar sus datos y agregar moderadores, que incorporan a los operadores.</p>
+{{ m.boton(urlPanel, "Ir al panel institucional") }}
+{% endblock %}

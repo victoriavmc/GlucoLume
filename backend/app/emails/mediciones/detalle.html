@@ -1,0 +1,21 @@
+{#- Detalle de una medición. Solo se renderiza si mostrarDetalle es verdadero: el servicio de correo lo
+    habilita únicamente con autorización explícita y elimina los datos de detalle en caso contrario. -#}
+{%- import "macros.html" as m -%}
+{%- macro detalleMedicion() -%}
+{%- if mostrarDetalle %}
+{%- if esDemo is defined %}
+{% call m.aviso(true) %}<strong>Medición de PRUEBA (DEMO).</strong> Los valores fueron simulados por el dispositivo para verificar la comunicación: no son una medición real ni una glucemia.{% endcall %}
+{%- endif %}
+<p style="{{ m.P }}"><strong>Detalle de la medición</strong> (lo recibís porque autorizaste el envío por correo):</p>
+{{ m.datos([
+  ("Modo de medición", modo if modo is defined else none),
+  ("Glucosa (valor DEMO simulado, no es una glucemia)" if esDemo is defined else "Glucosa experimental (estimación, no es un diagnóstico)", (valorGlucosa ~ " " ~ (unidad if unidad is defined else "mg/dL")) if valorGlucosa is defined else none),
+  ("SpO₂", (spo2 ~ " %") if spo2 is defined else none),
+  ("Frecuencia cardíaca", (frecuenciaCardiaca ~ " lpm") if frecuenciaCardiaca is defined else none),
+  ("Índice óptico (indicador del sensor, no clínico)", indiceOptico if indiceOptico is defined else none),
+  ("Condición", condicionComida if condicionComida is defined else none),
+  ("Última comida", (fechaUltimaComida|fechaHora) if fechaUltimaComida is defined else none),
+  ("Contexto", contexto if contexto is defined else none),
+]) }}
+{%- endif %}
+{%- endmacro -%}

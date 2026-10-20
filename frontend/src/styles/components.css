@@ -1,0 +1,319 @@
+/* Componentes compartidos nuevos (paso 2 de la modernización visual). Solo clases `ui-*`: no afectan a las pantallas
+   hasta que cada módulo se migre. Usan los tokens de global.css. */
+
+/* --- Pestañas (Tabs / NavTabs) ------------------------------------------------------------------------------- */
+
+.ui-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-700);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ui-tab svg {
+  flex: none;
+}
+
+.ui-tab:disabled,
+.ui-tab[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* pill: botones grises con borde; el activo se rellena de rojo (gráficos y filtros de variable). */
+.ui-tabs--pill .ui-tab {
+  min-height: 48px;
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+  background: #f6f6fa;
+}
+
+.ui-tabs--pill .ui-tab:hover:not(:disabled) {
+  border-color: var(--ink-300);
+}
+
+.ui-tabs--pill .ui-tab.is-active {
+  border-color: var(--red-600);
+  background: var(--red-600);
+  color: #fff;
+  box-shadow: 0 10px 22px -14px rgba(227, 16, 30, 0.8);
+}
+
+/* soft: texto con pastilla roja solo en el activo (secciones dentro de una pantalla). */
+.ui-tabs--soft {
+  gap: 8px;
+}
+
+.ui-tabs--soft .ui-tab {
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  color: var(--ink-500);
+}
+
+.ui-tabs--soft .ui-tab:hover:not(:disabled) {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.ui-tabs--soft .ui-tab.is-active {
+  background: var(--red-600);
+  color: #fff;
+}
+
+/* ruled: línea fina bajo la fila de pestañas (secciones de una pantalla). */
+.ui-tabs--ruled {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* underline: pestañas de ancho completo con subrayado; se desplazan en horizontal si no caben. */
+.ui-tabs--underline {
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.ui-tabs--underline .ui-tab {
+  flex: none;
+  padding: 0 16px;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  color: var(--ink-500);
+}
+
+.ui-tabs--underline .ui-tab:hover:not(:disabled) {
+  background: var(--red-50);
+}
+
+.ui-tabs--underline .ui-tab.is-active {
+  border-bottom-color: var(--red-600);
+  color: var(--red-700);
+}
+
+@media (max-width: 560px) {
+  .ui-tabs--pill .ui-tab {
+    flex: 1 1 calc(50% - 10px);
+    padding: 0 12px;
+  }
+}
+
+/* Contenido de un TabPanel que mantiene el espacio entre bloques del contenedor que lo envuelve. */
+.ui-stack {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.ui-stack--card {
+  gap: var(--gap-card);
+}
+
+/* --- Insignias (Badge) ------------------------------------------------------------------------------------- */
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: #f3f4f8;
+  color: var(--ink-500);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.ui-badge svg {
+  flex: none;
+}
+
+.ui-badge--sm {
+  padding: 2px 10px;
+  font-size: 14px;
+}
+
+.ui-badge--success {
+  background: var(--ok-50);
+  color: var(--ok-700);
+}
+
+.ui-badge--warning {
+  background: var(--warn-50);
+  color: var(--warn-700);
+}
+
+.ui-badge--danger {
+  background: var(--danger-50);
+  color: var(--danger-700);
+}
+
+.ui-badge--info {
+  background: var(--info-50);
+  color: var(--info-700);
+}
+
+.ui-badge--brand {
+  background: var(--red-100);
+  color: var(--red-700);
+}
+
+.ui-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* --- Estado vacío (EmptyState) ----------------------------------------------------------------------------- */
+
+.ui-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: var(--ink-400);
+  text-align: center;
+}
+
+.ui-empty--inline {
+  justify-items: start;
+  padding: 8px 0;
+  text-align: left;
+}
+
+.ui-empty--framed {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--page);
+}
+
+.ui-empty-title {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ui-empty-text {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--ink-500);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ui-empty-action {
+  margin-top: 6px;
+}
+
+/* --- Encabezado de página (PageHeader) --------------------------------------------------------------------- */
+
+.ui-page-head {
+  gap: 10px;
+}
+
+.ui-page-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.ui-page-head-text {
+  display: grid;
+  flex: 1 1 280px;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Con h2 (la pantalla ya tiene un h1 en su layout) conserva la misma jerarquía visual que el h1 de `.page-head`. */
+.ui-page-head h2 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 36px);
+  letter-spacing: -0.02em;
+}
+
+.ui-page-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}/* --- Campos de formulario ---------------------------------------------------------------------------------- */
+
+
+.field-check-block {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.field-check-block .check input {
+  width: 24px;
+  height: 24px; /* objetivo táctil mínimo de WCAG 2.2 (2.5.8) */
+}
+
+.field-check-block .field-hint,
+.field-check-block .field-error {
+  padding-left: 34px;
+}
+
+/* Un campo sin ícono no necesita la sangría de 48 px que `.field-input` reserva para él. */
+.field-input.has-no-icon {
+  padding-left: 16px;
+}
+
+/* Campo deshabilitado: se distingue por fondo, color y cursor (no solo por el atenuado del navegador). */
+.field-input:disabled {
+  background: #f3f4f8;
+  color: var(--ink-500);
+  cursor: not-allowed;
+}
+
+/* Pantalla de carga al guardar una medición (SavingScreen): a pantalla completa, con retardo para no parpadear en guardados instantáneos. */
+.saving-screen {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px;
+  background:
+    radial-gradient(60% 50% at 20% 15%, rgba(244, 118, 138, 0.22), transparent 70%),
+    radial-gradient(55% 45% at 85% 85%, rgba(255, 196, 70, 0.20), transparent 70%),
+    linear-gradient(180deg, #fff 0%, #fff4f5 100%);
+  animation: saving-in 0.25s ease 0.3s both;
+}
+.saving-card { display: grid; justify-items: center; gap: 10px; width: min(480px, 100%); text-align: center; }
+.saving-mark { display: grid; place-items: center; width: 108px; height: 108px; border-radius: 50%; background: #fff; box-shadow: 0 18px 44px rgba(227, 16, 30, 0.18); animation: saving-pulse 1.8s ease-in-out infinite; }
+.saving-brand { margin: 6px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; color: #14161f; }
+.saving-brand span { color: #e3101e; }
+.saving-title { margin: 6px 0 0; font-size: 20px; }
+.saving-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; color: #4a4f5e; font-size: 15px; }
+.saving-steps li::before { content: '• '; color: #e3101e; }
+.saving-bar { width: 100%; height: 12px; margin-top: 10px; border-radius: 999px; background: #f3dde0; overflow: hidden; box-shadow: inset 0 0 0 1px #f0c9ce; }
+.saving-bar span { display: block; width: 40%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #e3101e, #ff5a5f, #ffc446); animation: saving-slide 1.4s ease-in-out infinite; }
+.saving-note { margin: 4px 0 0; color: #6b7080; font-size: 14px; }
+@keyframes saving-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes saving-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes saving-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+@media (prefers-reduced-motion: reduce) {
+  .saving-screen, .saving-mark, .saving-bar span { animation: none; }
+  .saving-bar span { width: 100%; }
+}

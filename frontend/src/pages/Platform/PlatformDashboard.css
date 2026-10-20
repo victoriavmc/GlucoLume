@@ -1,0 +1,104 @@
+/* Dashboard general de la Administración (PlatformDashboard.jsx) e instituciones (PlatformInstitutions.jsx).
+   Rojo de GlucoLume como color principal; verde = bien, naranja = advertencia, rojo = falla o crítico. */
+.pd { display: grid; gap: 20px; text-align: left; }
+.pd-date { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 14px; color: var(--ink-700); }
+.pd-period { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 16px; }
+.pd-period .field-hint { margin: 0; }
+
+/* Estado de los componentes */
+.pd-health { padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fff; display: grid; gap: 12px; }
+.pd-health header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.pd-health h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; }
+.pd-health header span { font-size: 14px; font-weight: 700; }
+.pd-health header .is-ok { color: #15803d; }
+.pd-health header .is-warn { color: #b45309; }
+.pd-health header small { margin-left: auto; color: var(--ink-500); }
+.pd-health ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.pd-chip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fafafc; }
+.pd-chip .badge { margin-left: auto; }
+.pd-chip small { flex-basis: 100%; color: var(--ink-500); font-size: 12.5px; line-height: 1.35; }
+.pd-chip-name { flex: 1 1 auto; font-weight: 600; font-size: 14px; }
+.pd-chip.is-success { border-color: #bfe5cd; background: #f3fbf6; }
+.pd-chip.is-warning { border-color: #f5d49a; background: #fff9ee; }
+.pd-chip.is-danger { border-color: #f4b6bb; background: #fff4f5; }
+.pd-dot { width: 10px; height: 10px; border-radius: 50%; background: #9aa0ae; display: inline-block; }
+.pd-chip.is-success .pd-dot, .pd-dot.is-ok { background: #22a35a; }
+.pd-chip.is-warning .pd-dot, .pd-dot.is-warn { background: #f08a00; }
+.pd-chip.is-danger .pd-dot, .pd-dot.is-danger { background: var(--red-600); }
+
+/* Cifras clave */
+.pd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.pd-stat { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--line); border-left: 4px solid #d3d6df; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-card); }
+.pd-stat.is-ok { border-left-color: #22a35a; }
+.pd-stat > div { min-width: 0; text-align: left; }
+.pd-stat.is-warn { border-left-color: #f08a00; }
+.pd-stat.is-danger { border-left-color: var(--red-600); }
+.pd-stat-icon { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 14px; background: var(--red-50, #fdeced); color: var(--red-600); }
+.pd-stat small { display: block; color: var(--ink-500); font-size: 13px; }
+.pd-stat b { display: block; font-size: clamp(26px, 2.6vw, 34px); line-height: 1.1; letter-spacing: -0.02em; color: var(--ink-900); }
+.pd-unclassified { margin: 0; }
+.pd-hint { display: block; margin-top: 2px; color: var(--ink-500); font-size: 12.5px; line-height: 1.35; }
+
+/* Tarjetas */
+.pd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.pd-card { display: grid; gap: 16px; align-content: start; min-width: 0; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--line); border-radius: var(--radius-lg, 18px); background: #fff; box-shadow: var(--shadow-card); }
+.pd-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.pd-card-head > div { flex: 1; min-width: 200px; }
+.pd-card-head h2 { margin: 0; font-size: 19px; }
+.pd-card-head p { margin: 2px 0 0; color: var(--ink-500); font-size: 14px; }
+.pd-card h3 { margin: 0 0 8px; font-size: 15px; }
+.pd-card-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--red-50, #fdeced); color: var(--red-600); }
+.pd-privacy { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+
+/* Números secundarios */
+.pd-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0; }
+.pd-mini { padding: 12px 14px; border-radius: 12px; background: #f8f8fb; }
+.pd-mini dt { font-size: 13px; color: var(--ink-500); }
+.pd-mini dd { margin: 2px 0 0; font-size: 22px; font-weight: 700; color: var(--ink-900); }
+.pd-mini small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.35; color: var(--ink-500); }
+.pd-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.pd-reasons { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pd-reasons li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 10px; background: #f8f8fb; font-size: 14px; }
+
+/* Dispositivos */
+.pd-bar { display: flex; height: 14px; overflow: hidden; border-radius: 999px; background: #eceef3; }
+.pd-bar span { min-width: 4px; }
+.pd-bar .is-ok, .pd-legend .is-ok { background: #22a35a; }
+.pd-bar .is-warn, .pd-legend .is-warn { background: #f08a00; }
+.pd-bar .is-danger, .pd-legend .is-danger { background: var(--red-600); }
+.pd-bar .is-muted, .pd-legend .is-muted { background: #9aa0ae; }
+.pd-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 14px; }
+.pd-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; }
+
+/* Eventos */
+.pd-events { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pd-events li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: #f8f8fb; font-size: 14px; }
+.pd-events small { color: var(--ink-500); }
+
+/* Instituciones */
+.pd-institutions { display: grid; gap: 12px; }
+.pd-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.pd-search { position: relative; flex: 1 1 260px; max-width: 420px; }
+.pd-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-500); pointer-events: none; }
+.pd-search input { padding-left: 38px; width: 100%; }
+.pd-status select { min-width: 190px; }
+.pd-count { margin-left: auto; font-size: 14px; color: var(--ink-500); }
+.pd-table th[scope='row'] small { display: block; font-weight: 400; color: var(--ink-500); }
+.pd-muted { color: var(--ink-500); }
+.pd-pager { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 14px; }
+.pd-meter { height: 10px; border-radius: 999px; background: #eceef3; overflow: hidden; }
+.pd-meter span { display: block; height: 100%; background: var(--red-600); border-radius: 999px; }
+
+@media (max-width: 960px) {
+  .pd-grid, .pd-split { grid-template-columns: minmax(0, 1fr); }
+  .pd-health header small { margin-left: 0; }
+}
+@media (max-width: 520px) {
+  .pd-stat { padding: 14px; }
+  .pd-events li { grid-template-columns: auto 1fr; }
+  .pd-events small { grid-column: 2; }
+}
+
+/* Control de la institución: acciones y avisos de pausa / exceso. */
+.pd-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.pd-actions .btn { display: inline-flex; align-items: center; gap: 8px; }

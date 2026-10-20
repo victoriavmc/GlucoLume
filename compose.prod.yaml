@@ -1,0 +1,69 @@
+# GlucoLume - producción en un servidor Linux. Se combina con la configuración común:
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d
+#   docker compose -f compose.yaml -f compose.prod.yaml --profile https up -d     # + HTTPS automático (Caddy)
+#
+# - Imágenes versionadas (GLUCOLUME_VERSION obligatoria): se construyen en el servidor o se descargan de un registro
+#   (GLUCOLUME_IMAGE_PREFIX=registro.ejemplo.com/glucolume). Nunca "latest".
+# - API_ENV=production se fuerza aquí: certificado SQL Server verificado salvo DB_TRUST_SERVER_CERTIFICATE explícito,
+#   cookie de OAuth con Secure, etc.
+# - Ni el backend ni SQL Server publican puertos. Solo el frontend (Nginx) en 127.0.0.1:8080, para un proxy HTTPS del
+#   servidor o el perfil "https" (Caddy, 80/443).
+# - FRONTEND_URL y API_BASE_URL del .env deben ser la URL pública https://dominio (enlaces de correo, CORS y Google).
+
+services:
+  backend:
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:?Definir GLUCOLUME_VERSION (p. ej. 1.0.0)}
+    environment:
+      API_ENV: production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+
+  lifecycle:
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:?Definir GLUCOLUME_VERSION (p. ej. 1.0.0)}
+    environment:
+      API_ENV: production
+    restart: always
+
+  frontend:
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/frontend:${GLUCOLUME_VERSION:?Definir GLUCOLUME_VERSION (p. ej. 1.0.0)}
+    restart: always
+
+  db:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # HTTPS con dominio propio: Let's Encrypt automático. Requiere GLUCOLUME_DOMAIN y los puertos 80/443 libres.
+  proxy:
+    profiles: ["https"]
+    image: caddy:2.11-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f   # fijada por digest (GL-13)
+    environment:
+      GLUCOLUME_DOMAIN: ${GLUCOLUME_DOMAIN:-localhost}   # definir el dominio real en .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  caddy-data:
+  caddy-config:

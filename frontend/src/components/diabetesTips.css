@@ -1,0 +1,98 @@
+/* «Consejos para diabéticos»: pensado para lectura cómoda (adultos y adultos mayores): letra de 17-18 px o más, alto contraste, botones grandes,
+   tarjetas con buen espacio y una sola columna en pantallas chicas. Usa los colores de GlucoLume (rojo institucional sobre fondos claros). */
+
+.dt-home, .dt-page { --dt-text: var(--ink-900, #0f1730); --dt-soft: var(--ink-700, #34405a); font-size: 17px; line-height: 1.55; }
+
+/* --- Categorías: un color suave por tema -------------------------------------------------------------------------------- */
+.dt-card-icon.is-alimentacion, .dt-badge.is-alimentacion { background: #fde6e8; color: #b3121e; }
+.dt-card-icon.is-hidratacion, .dt-badge.is-hidratacion { background: #e3f0ff; color: #1d4f91; }
+.dt-card-icon.is-actividad, .dt-badge.is-actividad { background: #e4f6ea; color: #17623a; }
+.dt-card-icon.is-control, .dt-badge.is-control { background: #efe6ff; color: #54238f; }
+.dt-card-icon.is-pies, .dt-badge.is-pies { background: #fff1d6; color: #7a4b00; }
+
+/* --- Inicio -------------------------------------------------------------------------------------------------------------- */
+.dt-home { display: grid; gap: 20px; padding: clamp(20px, 3vw, 30px); border-radius: 24px; border: 1px solid var(--line-soft); background: #fff; box-shadow: var(--shadow-soft); min-width: 0; }
+.dt-home-head { display: flex; align-items: center; gap: 16px; }
+.dt-home-head h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); line-height: 1.2; color: var(--dt-text); }
+.dt-home-head p { margin: 4px 0 0; color: var(--dt-soft); font-size: 17px; }
+.dt-home-icon { display: grid; place-items: center; flex: none; width: 56px; height: 56px; border-radius: 18px; background: var(--red-100); color: var(--red-600); }
+.dt-home-icon.is-large { width: 72px; height: 72px; border-radius: 22px; }
+
+/* --- Etiquetas ---------------------------------------------------------------------------------------------------------- */
+.dt-tags { display: flex; flex-wrap: wrap; gap: 12px; }
+.dt-tag { min-height: 52px; padding: 0 22px; border: 2px solid var(--line, #e6e8ee); border-radius: 999px; background: #fff; color: var(--dt-text); font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; }
+.dt-tag:hover { border-color: var(--red-600); color: var(--red-700); }
+.dt-tag:focus-visible, .dt-link:focus-visible, .dt-explore:focus-visible, .dt-back:focus-visible, .dt-source-link:focus-visible { outline: 3px solid #1d4f91; outline-offset: 3px; }
+.dt-tag.is-active { border-color: var(--red-600); background: var(--red-600); color: #fff; }
+
+/* --- Tarjetas ----------------------------------------------------------------------------------------------------------- */
+.dt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 20px; }
+.dt-grid.is-home { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: var(--gap-card, 20px); }
+.dt-card { display: flex; gap: 18px; align-items: flex-start; padding: 22px; border-radius: 22px; border: 1px solid var(--line-soft); background: #fff; box-shadow: var(--shadow-soft); min-width: 0; }
+.dt-card-icon { display: grid; place-items: center; flex: none; width: 76px; height: 76px; border-radius: 22px; }
+.dt-card-icon.is-large { width: 96px; height: 96px; border-radius: 28px; }
+.dt-card-body { display: grid; gap: 10px; justify-items: start; min-width: 0; }
+.dt-card h3 { margin: 0; font-size: 21px; line-height: 1.3; color: var(--dt-text); overflow-wrap: anywhere; }
+.dt-card p { margin: 0; color: var(--dt-soft); font-size: 17px; }
+.dt-badge { display: inline-block; padding: 5px 14px; border-radius: 999px; font-size: 14.5px; font-weight: 700; }
+.dt-link { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 22px; border-radius: 999px; background: var(--red-100); color: var(--red-700); font-size: 17px; font-weight: 700; text-decoration: none; }
+.dt-link:hover { background: #f9cfd4; }
+.dt-explore { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 60px; padding: 0 28px; border-radius: 18px; background: var(--red-600); color: #fff; font-size: 19px; font-weight: 700; text-decoration: none; }
+.dt-explore:hover { background: var(--red-700); }
+.dt-disclaimer { display: flex; align-items: flex-start; gap: 10px; margin: 0; color: var(--dt-soft); font-size: 15.5px; line-height: 1.5; }
+.dt-disclaimer.is-strong { padding: 16px 20px; border-radius: 16px; background: #fff8e6; border: 1px solid #f1dca5; color: #5c3d00; font-size: 17px; }
+.dt-disclaimer svg { flex: none; margin-top: 3px; }
+
+/* --- Página completa ------------------------------------------------------------------------------------------------------ */
+.dt-page { display: grid; gap: 24px; }
+.dt-page-head { display: flex; align-items: center; gap: 22px; }
+.dt-page-head h1 { margin: 0; font-size: clamp(30px, 4vw, 42px); line-height: 1.15; color: var(--dt-text); }
+.dt-intro { margin: 10px 0 0; max-width: 72ch; font-size: 18px; color: var(--dt-soft); }
+.dt-filters { display: grid; gap: 18px; padding: clamp(18px, 2.4vw, 26px); border-radius: 22px; border: 1px solid var(--line-soft); background: #fff; box-shadow: var(--shadow-soft); }
+.dt-search { display: grid; gap: 8px; }
+.dt-search label { font-size: 18px; font-weight: 700; color: var(--dt-text); }
+.dt-search-box { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 0 16px; border: 2px solid var(--line, #e6e8ee); border-radius: 16px; background: #fff; }
+.dt-search-box:focus-within { border-color: var(--red-600); }
+.dt-search-box svg { color: var(--ink-500); flex: none; }
+.dt-search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 18px; color: var(--dt-text); }
+.dt-clear { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: #f3f4f8; color: var(--dt-text); cursor: pointer; }
+.dt-category-note { margin: 0; color: var(--dt-soft); font-size: 17px; }
+.dt-count { margin: 0; font-size: 17px; font-weight: 600; color: var(--dt-soft); }
+.dt-empty { display: grid; justify-items: start; gap: 10px; padding: 30px; border-radius: 22px; border: 2px dashed #f0c2c8; background: #fffafa; }
+.dt-empty b { font-size: 20px; color: var(--dt-text); }
+.dt-empty p { margin: 0; color: var(--dt-soft); }
+
+/* --- Artículo --------------------------------------------------------------------------------------------------------------- */
+.dt-article { display: grid; gap: 26px; max-width: 880px; margin: 0 auto; font-size: 18px; line-height: 1.65; color: var(--dt-text); }
+.dt-back { display: inline-flex; align-items: center; gap: 10px; justify-self: start; min-height: 52px; padding: 0 22px; border-radius: 999px; border: 2px solid var(--red-600); background: #fff; color: var(--red-700); font-size: 17px; font-weight: 700; text-decoration: none; }
+.dt-back:hover { background: var(--red-50); }
+.dt-article-head { display: flex; align-items: center; gap: 24px; padding: 26px; border-radius: 26px; border: 1px solid var(--line-soft); background: linear-gradient(120deg, #fff 45%, #fdeef0 100%); }
+.dt-article-head > div { display: grid; gap: 10px; justify-items: start; min-width: 0; }
+.dt-article h1 { margin: 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.2; }
+.dt-article-lead { margin: 0; font-size: 19px; color: var(--dt-soft); }
+.dt-article-body { display: grid; gap: 16px; padding: clamp(20px, 3vw, 32px); border-radius: 24px; border: 1px solid var(--line-soft); background: #fff; box-shadow: var(--shadow-soft); }
+.dt-article-p { margin: 0; max-width: 68ch; }
+.dt-article-h { margin: 10px 0 0; font-size: 24px; line-height: 1.3; }
+.dt-article-list { display: grid; gap: 12px; margin: 0; padding-left: 26px; max-width: 68ch; }
+.dt-article-list li::marker { color: var(--red-600); }
+.dt-article-note { display: flex; gap: 14px; align-items: flex-start; padding: 16px 20px; border-radius: 16px; background: #eef4ff; border: 1px solid #d9e6fb; color: #1d3b6f; }
+.dt-article-note svg { flex: none; margin-top: 3px; }
+.dt-article-note p { margin: 0; }
+.dt-sources { display: grid; gap: 14px; padding: clamp(20px, 3vw, 28px); border-radius: 24px; border: 1px solid var(--line-soft); background: #fbf6f7; }
+.dt-sources h2 { margin: 0; font-size: 22px; }
+.dt-sources ul { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.dt-source { display: grid; gap: 4px; padding: 18px 20px; border-radius: 18px; background: #fff; border: 1px solid var(--line-soft); }
+.dt-source p { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.dt-source-date { color: var(--ink-500); font-size: 16px; }
+.dt-source-link { display: inline-flex; align-items: center; gap: 10px; justify-self: start; margin-top: 8px; min-height: 52px; padding: 0 22px; border-radius: 999px; background: var(--red-600); color: #fff; font-size: 17px; font-weight: 700; text-decoration: none; }
+.dt-source-link:hover { background: var(--red-700); }
+
+@media (max-width: 960px) { .dt-grid.is-home { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) {
+  .dt-card { flex-direction: column; }
+  .dt-card-icon { width: 64px; height: 64px; }
+  .dt-page-head, .dt-article-head { flex-direction: column; align-items: flex-start; }
+  .dt-tag { flex: 1 1 calc(50% - 12px); padding: 0 14px; }
+  .dt-link, .dt-source-link, .dt-back { width: 100%; justify-content: center; }
+  .dt-home-head { align-items: flex-start; }
+}

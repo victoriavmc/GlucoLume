@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}No se pudo completar una medición{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Una medición no pudo completarse, por lo que no se generó ningún resultado.</p>
+{{ m.datos([
+  ("Fecha y hora", fechaEvento|fechaHora),
+  ("Dispositivo", dispositivo if dispositivo is defined else none),
+]) }}
+<p style="{{ m.P }}"><strong>Antes de volver a intentar:</strong></p>
+{{ m.lista([
+  "Apoyá el dedo correctamente sobre el sensor y mantenelo quieto durante la medición.",
+  "Revisá la conexión del dispositivo (USB o Bluetooth).",
+  "Comprobá que el dispositivo esté encendido y funcionando.",
+  "Esperá unos minutos y volvé a intentarlo.",
+]) }}
+{% if urlAyuda is defined %}{{ m.boton(urlAyuda, "Ver ayuda", secundario=true) }}{% endif %}
+{% endblock %}

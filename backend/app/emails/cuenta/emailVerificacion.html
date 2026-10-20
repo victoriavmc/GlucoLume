@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Verificá tu correo electrónico{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Para activar tu cuenta de GlucoLume, confirmá que esta dirección de correo te pertenece.</p>
+{{ m.boton(urlVerificacion, "Verificar mi correo") }}
+{{ m.datos([("El enlace vence", fechaExpiracion|fechaHora)]) }}
+{% call m.aviso() %}El enlace dura <strong>{{ plazoHoras }} horas</strong> desde el registro y se puede usar una sola vez. Si la cuenta no se verifica dentro de ese plazo, el registro pendiente se eliminará y vas a tener que registrarte nuevamente. Pedir otro correo no extiende el plazo.{% endcall %}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br><a href="{{ urlVerificacion }}" style="color:{{ m.ROJO }};word-break:break-all;">{{ urlVerificacion }}</a></p>
+<p style="{{ m.P_SUAVE }}">Si no creaste una cuenta en GlucoLume, podés ignorar este correo.</p>
+{% endblock %}

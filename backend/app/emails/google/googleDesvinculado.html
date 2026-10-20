@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu cuenta de Google fue desvinculada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Tu cuenta de Google fue desvinculada de GlucoLume. Ya no vas a poder ingresar con «Continuar con Google».</p>
+{{ m.datos([("Fecha y hora", fechaEvento|fechaHora)]) }}
+{% if tieneContrasenaLocal %}
+<p style="{{ m.P }}">Podés seguir ingresando con tu correo electrónico o nombre de usuario y tu contraseña de GlucoLume.</p>
+{% else %}
+{% call m.aviso(alerta=true) %}Para seguir ingresando necesitás una contraseña de GlucoLume. Usá «Restablecer contraseña» desde la pantalla de inicio de sesión.{% endcall %}
+{% endif %}
+{{ m.boton(urlSeguridad, "Revisar seguridad") }}
+{% endblock %}

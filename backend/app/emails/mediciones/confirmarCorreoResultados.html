@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Confirmá tu correo para recibir tus resultados{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ institucion }} quiere enviarte por correo los resultados de las mediciones que te realice con GlucoLume.{% if incluyeResultado is defined and incluyeResultado %} Si confirmás, vas a recibir el resultado de tu medición.{% endif %}</p>
+<p style="{{ m.P }}">{% if guardaCorreo is defined and guardaCorreo %}Si confirmás, esta dirección queda registrada durante 12 meses para recibir cada nuevo resultado; podés pedirle a la institución que la quite cuando quieras.{% else %}Esta dirección no se guarda: solo se usa para este envío.{% endif %}</p>
+{{ m.boton(urlConfirmacion, "Confirmar mi correo") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">El enlace vence en {{ horas }} horas. Si no reconocés este pedido, ignorá este correo: no vas a recibir ningún resultado.</p>
+{% endblock %}

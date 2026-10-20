@@ -1,0 +1,6 @@
+# El archivo requirements.txt se genera a partir de requirements.in con el siguiente comando:
+# pip-compile --generate-hashes requirements.in -o requirements.txt
+#
+# Dependencias directas del servicio de adquisición física (aislado del backend).
+# Lock reproducible: pip-compile --generate-hashes requirements.in -o requirements.txt
+pyserial==3.5

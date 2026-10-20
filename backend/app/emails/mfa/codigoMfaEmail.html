@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block preheader %}Usá este código para completar el inicio de sesión.{% endblock %}
+{% block titulo %}Tu código de verificación{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Usá este código para completar el inicio de sesión en GlucoLume:</p>
+{{ m.codigo(codigoMfa) }}
+{{ m.datos([("Válido por", minutosValidez ~ " minutos")]) }}
+{% call m.aviso(alerta=true) %}El código es de un solo uso. <strong>Nunca lo compartas</strong>: el equipo de GlucoLume nunca te lo va a pedir.{% endcall %}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Si no estás intentando iniciar sesión, alguien podría conocer tu contraseña: cambiala y revisá la seguridad de tu cuenta.</p>
+{% endblock %}

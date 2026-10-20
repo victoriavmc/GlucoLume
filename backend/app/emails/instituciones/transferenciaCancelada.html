@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Transferencia cancelada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreOperador }}</strong> canceló la transferencia de un paciente de <strong>{{ nombreInstitucion }}</strong> que te había propuesto.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Paciente", identificadorPseudonimo), ("Operador", nombreOperador), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}">No tenés nada pendiente por responder sobre este paciente.</p>
+{{ m.boton(urlTransferencias, "Ver transferencias") }}
+{% endblock %}

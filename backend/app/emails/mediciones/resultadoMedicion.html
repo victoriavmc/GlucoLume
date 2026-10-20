@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% from "mediciones/detalle.html" import detalleMedicion with context %}
+{% block titulo %}Tu medición está disponible{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{% if urlMedicion is defined %}El resultado de tu medición ya está disponible en GlucoLume.{% else %}Te enviamos el resultado de tu medición realizada con GlucoLume.{% endif %}</p>
+{{ m.datos([
+  ("Fecha y hora", fechaMedicion|fechaHora),
+  ("Lugar de la medición", institucion if institucion is defined else none),
+  ("Dispositivo", dispositivo if dispositivo is defined else none),
+]) }}
+{{ detalleMedicion() }}
+{% if urlMedicion is defined %}{{ m.boton(urlMedicion, "Ver medición") }}{% endif %}
+{% endblock %}
+{% block complemento %}
+{% if urlMedicion is defined %}<p style="{{ m.P_SUAVE }}">Para consultar la información completa, iniciá sesión en GlucoLume.</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Transferencia aceptada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreOperador }}</strong> aceptó la transferencia del paciente de <strong>{{ nombreInstitucion }}</strong>.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Paciente", identificadorPseudonimo), ("Operador", nombreOperador), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}">El paciente y todas sus mediciones pasaron a su cargo; ya no figura entre tus pacientes.</p>
+{{ m.boton(urlTransferencias, "Ver transferencias") }}
+{% endblock %}

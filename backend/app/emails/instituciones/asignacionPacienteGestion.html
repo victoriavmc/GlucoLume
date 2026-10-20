@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Cambio de responsable de un paciente{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{% if propuesta %}<strong>{{ nombreGestor }}</strong> propuso que un paciente de <strong>{{ nombreInstitucion }}</strong> pase a <strong>{{ nombreOperador }}</strong>. El traspaso se concreta solo si {{ nombreOperador }} lo acepta.{% else %}<strong>{{ nombreGestor }}</strong> asignó un paciente de <strong>{{ nombreInstitucion }}</strong> a <strong>{{ nombreOperador }}</strong>.{% endif %}</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Paciente", identificadorPseudonimo), ("Nuevo responsable", nombreOperador), ("Realizado por", nombreGestor), ("Fecha", fechaEvento|fechaHora)]) }}
+{% if invitadoPorGestor %}<p style="{{ m.P }}"><strong>Atención:</strong> {{ nombreOperador }} fue incorporado a la institución por la misma persona que hizo este cambio. Conviene verificar que el traspaso sea legítimo.</p>{% endif %}
+<p style="{{ m.P }}">El responsable de un paciente es quien puede consultar sus mediciones individuales. Este aviso no contiene datos del paciente.</p>
+{{ m.boton(urlPaciente, "Ver el paciente") }}
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu invitación institucional fue rechazada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreInvitado }} rechazó la invitación para sumarse a <strong>{{ nombreInstitucion }}</strong>.</p>
+{{ m.datos([
+  ("Persona", nombreInvitado),
+  ("Institución", nombreInstitucion),
+  ("Rol propuesto", rol|rol),
+  ("Fecha", fechaEvento|fechaHora),
+]) }}
+<p style="{{ m.P }}">No se creó ningún vínculo ni se modificó la cuenta de la persona. Si fue un error, podés volver a invitarla.</p>
+{% endblock %}

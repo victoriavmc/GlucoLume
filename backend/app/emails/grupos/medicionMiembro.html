@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Un integrante de tu grupo se midió{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreIntegrante }} se midió en GlucoLume el {{ fechaMedicion|fechaHora }}.</p>
+{{ m.datos([("Integrante", nombreIntegrante), ("Grupo", nombreGrupo), ("Fecha y hora", fechaMedicion|fechaHora)]) }}
+{{ m.boton(urlGrupo, "Ver el grupo") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Este aviso no incluye el resultado de la medición. Recibís este correo porque {{ nombreIntegrante }} eligió avisar a su grupo cuando se mide.</p>
+{% endblock %}

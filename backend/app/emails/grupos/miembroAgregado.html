@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Se agregó un integrante al grupo{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreIntegrante }} se sumó al grupo <strong>«{{ nombreGrupo }}»</strong>.</p>
+{{ m.datos([("Integrante", nombreIntegrante), ("Grupo", nombreGrupo), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P_SUAVE }}">Recibís este aviso porque administrás el grupo.</p>
+{% endblock %}

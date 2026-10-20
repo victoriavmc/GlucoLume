@@ -1,0 +1,60 @@
+{#- Componentes comunes de los correos de GlucoLume. Estilos inline (compatibles con Gmail/Outlook). -#}
+{%- set ROJO = "#D41420" -%}
+{%- set ROJO_OSCURO = "#A80F19" -%}
+{%- set TEXTO = "#222222" -%}
+{%- set TEXTO_SUAVE = "#6B6B6B" -%}
+{%- set FUENTE = "Arial, Helvetica, sans-serif" -%}
+{%- set P = "margin:0 0 16px 0;font-family:" ~ FUENTE ~ ";font-size:15px;line-height:23px;color:" ~ TEXTO ~ ";" -%}
+{%- set P_SUAVE = "margin:0 0 12px 0;font-family:" ~ FUENTE ~ ";font-size:13px;line-height:20px;color:" ~ TEXTO_SUAVE ~ ";" -%}
+
+{%- macro boton(url, texto, secundario=false) -%}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="gl-btn" style="margin:8px 0 20px 0;">
+  <tr>
+    <td align="center" style="border-radius:6px;{% if secundario %}border:2px solid {{ ROJO }};background-color:#FFFFFF;{% else %}background-color:{{ ROJO }};{% endif %}">
+      <a href="{{ url }}" target="_blank" rel="noopener" style="display:inline-block;padding:13px 28px;font-family:{{ FUENTE }};font-size:15px;font-weight:bold;line-height:18px;text-decoration:none;border-radius:6px;{% if secundario %}color:{{ ROJO }};{% else %}color:#FFFFFF;{% endif %}">{{ texto }}</a>
+    </td>
+  </tr>
+</table>
+{%- endmacro -%}
+
+{%- macro datos(filas) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px 0;border:1px solid #EEE6E6;border-radius:6px;border-collapse:separate;">
+  {%- for etiqueta, valor in filas if valor is not none and valor != "" %}
+  <tr>
+    <td style="padding:10px 14px;font-family:{{ FUENTE }};font-size:13px;line-height:19px;color:{{ TEXTO_SUAVE }};width:40%;{% if not loop.first %}border-top:1px solid #EEE6E6;{% endif %}">{{ etiqueta }}</td>
+    <td style="padding:10px 14px;font-family:{{ FUENTE }};font-size:14px;line-height:19px;color:{{ TEXTO }};font-weight:bold;{% if not loop.first %}border-top:1px solid #EEE6E6;{% endif %}">{{ valor }}</td>
+  </tr>
+  {%- endfor %}
+</table>
+{%- endmacro -%}
+
+{%- macro aviso(alerta=false) -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px 0;">
+  <tr>
+    <td style="padding:14px 16px;border-left:4px solid {{ ROJO }};background-color:{% if alerta %}#FFF0F0{% else %}#FAF7F7{% endif %};font-family:{{ FUENTE }};font-size:14px;line-height:21px;color:{{ TEXTO }};">
+      {{ caller() }}
+    </td>
+  </tr>
+</table>
+{%- endmacro -%}
+
+{%- macro codigo(valor) -%}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px 0;">
+  <tr>
+    <td style="padding:16px 28px;border:2px dashed {{ ROJO }};border-radius:8px;font-family:'Courier New', Courier, monospace;font-size:32px;line-height:36px;letter-spacing:8px;font-weight:bold;color:{{ ROJO_OSCURO }};">{{ valor }}</td>
+  </tr>
+</table>
+{%- endmacro -%}
+
+{%- macro lista(items) -%}
+<ul style="margin:0 0 16px 0;padding-left:22px;font-family:{{ FUENTE }};font-size:15px;line-height:23px;color:{{ TEXTO }};">
+  {%- for item in items %}
+  <li style="margin:0 0 4px 0;">{{ item }}</li>
+  {%- endfor %}
+</ul>
+{%- endmacro -%}
+
+{%- macro noFuisteVos(url, texto="Proteger mi cuenta") -%}
+{% call aviso(alerta=true) %}<strong>¿No fuiste vos?</strong> Protegé tu cuenta: cambiá tu contraseña y revisá la actividad reciente desde GlucoLume.{% endcall %}
+{{ boton(url, texto) }}
+{%- endmacro -%}

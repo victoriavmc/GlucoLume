@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Paciente reasignado{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Un paciente que tenías a cargo en <strong>{{ nombreInstitucion }}</strong> pasó a <strong>{{ nombreOperador }}</strong>.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Paciente", identificadorPseudonimo), ("Nuevo responsable", nombreOperador), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}">Ya no figura entre tus pacientes. Sus mediciones se conservan sin cambios.</p>
+{{ m.boton(urlPaciente, "Ver pacientes") }}
+{% endblock %}

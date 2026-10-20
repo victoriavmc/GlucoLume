@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu grupo fue creado correctamente{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreCreador }}, creaste el grupo <strong>«{{ nombreGrupo }}»</strong> en GlucoLume.</p>
+{{ m.datos([
+  ("Grupo", nombreGrupo),
+  ("Creado por", nombreCreador),
+  ("Rol asignado", (rol|rol) ~ " (administrás el grupo)"),
+  ("Fecha y hora", fechaEvento|fechaHora),
+]) }}
+<p style="{{ m.P }}">Crear el grupo no comparte ninguno de tus datos: elegís qué compartir desde «Mi privacidad».</p>
+{{ m.boton(urlGrupo, "Ir al grupo") }}
+{% endblock %}

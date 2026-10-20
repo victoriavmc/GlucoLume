@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Pacientes pendientes de reasignación{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreOperador }} dejó de pertenecer a <strong>{{ nombreInstitucion }}</strong> y tenía {{ cantidad }} {{ "paciente" if cantidad == 1 else "pacientes" }} a su cargo.</p>
+{{ m.datos([("Operador/a anterior", nombreOperador), ("Pacientes pendientes", cantidad), ("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}Esos pacientes no tienen un operador responsable y nadie puede registrar mediciones para ellos hasta que elijas a quién se asignan. No se asigna a nadie de forma automática.{% endcall %}
+{{ m.boton(urlGestion, "Gestionar transferencia") }}
+<p style="{{ m.P_SUAVE }}">Recibís este aviso porque administrás los pacientes de la institución.</p>
+{% endblock %}

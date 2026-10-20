@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Se eliminó un operador{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ nombreOperador }} dejó de ser operador/a de <strong>{{ nombreInstitucion }}</strong>.</p>
+{{ m.datos([("Operador/a", nombreOperador), ("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}Esa persona ya no tiene acceso a la información de la institución.{% endcall %}
+<p style="{{ m.P_SUAVE }}">Recibís este aviso porque administrás la institución.</p>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu institución fue reactivada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreInstitucion }}</strong> volvió a estar activa en GlucoLume: su equipo puede operar nuevamente.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">La reactivación no levanta bloqueos de seguridad de cuentas individuales ni restablece sesiones que se hubieran cerrado: quien tenga una cuenta bloqueada o una sesión cerrada debe resolverlo por separado, y cada persona vuelve a iniciar sesión si hace falta.</p>
+{% endblock %}

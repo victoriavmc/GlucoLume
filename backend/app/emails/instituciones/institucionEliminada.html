@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}La institución fue eliminada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreInstitucion }}</strong> fue eliminada de GlucoLume.</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}Los accesos asociados a la institución quedaron revocados: ya no vas a poder ingresar a su información, dispositivos ni perfiles. Tu cuenta personal sigue activa.{% endcall %}
+{% endblock %}

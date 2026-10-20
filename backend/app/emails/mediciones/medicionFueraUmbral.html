@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% from "mediciones/detalle.html" import detalleMedicion with context %}
+{% block titulo %}Revisá una medición registrada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Se registró un valor que se encuentra fuera del rango configurado para las notificaciones de tu cuenta.</p>
+{{ m.datos([
+  ("Fecha y hora", fechaMedicion|fechaHora),
+  ("Dispositivo", dispositivo if dispositivo is defined else none),
+]) }}
+{{ detalleMedicion() }}
+{{ m.boton(urlMedicion, "Ver medición") }}
+{% call m.aviso() %}Consultá la información completa en GlucoLume y, ante dudas sobre tu salud, recurrí a un profesional.{% endcall %}
+{% endblock %}

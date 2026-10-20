@@ -1,0 +1,16 @@
+/* Accesos de la Administración de GlucoLume: una sola columna, sobria, sin la navegación pública */
+.pa-page { min-height: 100vh; background: linear-gradient(180deg, #fff3f4 0%, #fbfbfd 45%); }
+.pa-main { display: grid; place-items: center; min-height: 100vh; padding: 32px 16px; }
+.pa-main:focus { outline: none; }
+.pa-wrap { display: grid; gap: 22px; width: min(100%, 460px); justify-items: center; }
+.pa-wrap .pa-card { width: 100%; box-sizing: border-box; order: 0; } /* anula el order:-1 del acceso público en pantallas angostas */
+.pa-badge { display: inline-flex; align-items: center; gap: 8px; justify-self: start; padding: 6px 12px; border-radius: 999px; background: var(--red-50, #fdeced);
+  color: var(--red-700, #b00d18); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.pa-card .auth-title { font-size: clamp(24px, 4vw, 28px); }
+.pa-foot { margin: 0; max-width: 40ch; text-align: center; font-size: 13px; line-height: 1.5; color: var(--ink-500, #6b7080); }
+
+.pa-activate { margin: 0; text-align: center; font-size: 14px; color: var(--ink-700); }
+.pa-activate a { font-weight: 700; color: var(--red-600); }
+.pa-step { display: inline-flex; align-items: center; gap: 8px; justify-self: start; font-size: 13px; font-weight: 700; color: var(--ink-500); }
+.pa-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 520px) { .pa-two { grid-template-columns: minmax(0, 1fr); } }

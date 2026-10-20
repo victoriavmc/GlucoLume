@@ -1,0 +1,49 @@
+/* Cupos institucionales: barra de utilización y línea resumen. */
+.quota-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.quota-bar-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.quota-bar {
+  flex: 1 1 220px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line-soft);
+}
+
+.quota-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #1faa59;
+  transition: width 0.3s;
+}
+
+.quota-fill.is-warn {
+  background: #f0a020;
+}
+
+.quota-fill.is-denied {
+  background: var(--red-600, #e3101e);
+}
+
+.quota-line {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--red-50, #fdecec);
+}
+
+.quota-line p {
+  margin: 0;
+}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Una institución te invitó a GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreInstitucion }}</strong> te invitó a sumarte en GlucoLume con el rol de {{ rol|rol }}.</p>
+{{ m.datos([
+  ("Institución", nombreInstitucion),
+  ("Rol propuesto", rol|rol),
+  ("Invitación de", nombreInvitante if nombreInvitante is defined else none),
+  ("La invitación vence", fechaExpiracion|fechaHora),
+]) }}
+{{ m.boton(urlAceptar, "Aceptar invitación") }}
+{{ m.boton(urlRechazar, "Rechazar", secundario=true) }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Los enlaces son personales, se pueden usar una sola vez y vencen en la fecha indicada. Para responder vas a tener que iniciar sesión en GlucoLume. Si no esperabas esta invitación, podés ignorar este correo.</p>
+{% endblock %}

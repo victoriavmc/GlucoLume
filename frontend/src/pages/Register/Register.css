@@ -1,0 +1,280 @@
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-400);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stepper li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper-dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 13px;
+}
+
+.stepper .is-current {
+  color: var(--red-600);
+}
+
+.stepper .is-current .stepper-dot {
+  background: var(--red-600);
+  border-color: var(--red-600);
+  color: #fff;
+}
+
+.stepper .is-done {
+  color: var(--ink-700);
+}
+
+.stepper .is-done .stepper-dot {
+  background: var(--red-100);
+  border-color: var(--red-100);
+  color: var(--red-600);
+}
+
+.type-chooser {
+  display: grid;
+  gap: 18px;
+}
+
+.type-options {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.type-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 20px;
+  border: 1.5px solid #f3c9cd;
+  border-radius: 18px;
+  background: var(--red-50);
+  color: var(--ink-900);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.05s;
+}
+
+.type-option:hover {
+  border-color: var(--red-600);
+  box-shadow: var(--shadow-soft);
+}
+
+.type-option.is-institutional {
+  border-color: #cddcfb;
+  background: var(--blue-50);
+}
+
+.type-option.is-institutional:hover {
+  border-color: var(--blue-600);
+}
+
+.type-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--red-600);
+}
+
+.type-option.is-institutional .type-icon,
+.type-option.is-institutional .type-arrow {
+  color: var(--blue-700);
+}
+
+.type-text {
+  flex: 1;
+}
+
+.type-text b {
+  display: block;
+  font-size: 17px;
+}
+
+.type-text small {
+  display: block;
+  color: var(--ink-500);
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+.type-arrow {
+  flex: none;
+  color: var(--red-600);
+}
+
+.selected-type {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--red-50);
+  color: var(--red-700);
+  font-weight: 600;
+}
+
+.selected-type.is-institutional {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+
+.selected-type .btn-text {
+  margin-left: auto;
+}
+
+.form-section {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form-section legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--ink-900);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.form-section legend svg {
+  color: var(--red-600);
+}
+
+.form-section.is-institutional {
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: var(--blue-50);
+}
+
+.form-section.is-institutional legend {
+  float: left;
+  width: 100%;
+}
+
+.form-section.is-institutional legend svg {
+  color: var(--blue-700);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.optional {
+  color: var(--ink-500);
+  font-weight: 400;
+}
+
+.field-textarea.has-icon {
+  padding-left: 48px;
+}
+
+.field-icon-top {
+  top: 15px;
+}
+
+.password-rules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-500);
+  font-size: 13.5px;
+}
+
+.password-rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.password-rules .is-ok {
+  color: var(--success);
+}
+
+.register-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.register-success {
+  justify-items: center;
+  text-align: center;
+}
+
+.register-success h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.register-success p {
+  margin: 0;
+  color: var(--ink-700);
+}
+
+.success-icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: var(--success);
+}
+
+@media (max-width: 560px) {
+  .form-row,
+  .password-rules {
+    grid-template-columns: 1fr;
+  }
+
+  .type-option {
+    padding: 16px;
+  }
+
+  .type-icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+.success-icon.is-error {
+  background: var(--red-50);
+  color: var(--red-600);
+}

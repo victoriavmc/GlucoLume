@@ -1,0 +1,18 @@
+{% extends "base.html" %} {% import "macros.html" as m %} {% block titulo
+%}Nueva consulta desde GlucoLume{% endblock %} {% block contenido %}
+<p style="{{ m.P }}">
+  Se recibió una consulta desde el formulario de contacto de la página de
+  GlucoLume.
+</p>
+{{ m.datos([ ("Nombre", nombreRemitente), ("Correo electrónico",
+correoRemitente), ("Tipo de consulta", tipoConsulta), ("Asunto",
+asuntoConsulta), ("Fecha/hora", fechaEvento|fechaHora), ]) }}
+<p style="{{ m.P }}"><strong>Mensaje:</strong></p>
+<p
+  style="{{ m.P }}white-space:pre-wrap;padding:14px 16px;border:1px solid #EEE6E6;border-radius:6px;"
+>
+  {{ mensaje }}
+</p>
+{% call m.aviso() %}Para responder, usá «Responder» en tu cliente de correo: la
+respuesta va directamente a {{ correoRemitente }}. GlucoLume le envió una
+confirmación automática de recibido.{% endcall %} {% endblock %}

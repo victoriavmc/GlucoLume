@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Ya no pertenecés al grupo{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Ya no formás parte del grupo <strong>«{{ nombreGrupo }}»</strong>.</p>
+{{ m.datos([("Grupo", nombreGrupo), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}Tu historial personal de mediciones se conserva en tu cuenta conforme a las reglas de GlucoLume. Los integrantes del grupo dejan de ver la información que compartías.{% endcall %}
+{% endblock %}

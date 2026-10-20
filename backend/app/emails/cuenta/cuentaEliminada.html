@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Tu cuenta de GlucoLume fue eliminada{% endblock %}
+{% block contenido %}
+{% if motivoEliminacion is defined and motivoEliminacion %}
+<p style="{{ m.P }}">{{ motivoEliminacion }}</p>
+{% else %}
+<p style="{{ m.P }}">Completamos la eliminación de tu cuenta de GlucoLume.</p>
+{% endif %}
+{{ m.datos([("Fecha de eliminación", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}"><strong>Se eliminó la siguiente información personal:</strong></p>
+{{ m.lista(datosEliminados) }}
+{% if datosConservados is defined and datosConservados %}
+{% call m.aviso() %}Por reglas institucionales, algunas mediciones se conservan de forma <strong>desidentificada</strong>: sin tu nombre, apellido, correo ni otros datos que te identifiquen directamente. Solo se mantienen:{% endcall %}
+{{ m.lista(datosConservados) }}
+{% endif %}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Gracias por haber usado GlucoLume.</p>
+{% endblock %}

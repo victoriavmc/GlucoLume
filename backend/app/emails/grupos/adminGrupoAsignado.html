@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Ahora administrás el grupo{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Ahora administrás el grupo <strong>«{{ nombreGrupo }}»</strong>.</p>
+{{ m.datos([("Grupo", nombreGrupo), ("Fecha", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}"><strong>Como administrador/a podés:</strong></p>
+{{ m.lista([
+  "Invitar integrantes y quitar a quienes ya no deban participar.",
+  "Asignar roles dentro del grupo.",
+  "Mantener actualizados los datos del grupo.",
+]) }}
+<p style="{{ m.P_SUAVE }}">La información de salud de cada integrante sigue siendo suya: solo podés ver lo que cada persona decida compartir.</p>
+{% if urlGrupo is defined %}{{ m.boton(urlGrupo, "Ver grupo") }}{% endif %}
+{% endblock %}

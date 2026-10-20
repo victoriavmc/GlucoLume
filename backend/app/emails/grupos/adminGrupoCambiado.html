@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Cambió el administrador del grupo{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">El grupo <strong>«{{ nombreGrupo }}»</strong> tiene una nueva persona a cargo de su administración.</p>
+{{ m.datos([
+  ("Grupo", nombreGrupo),
+  ("Administrador/a", nombreNuevoAdministrador),
+  ("Fecha", fechaEvento|fechaHora),
+]) }}
+{% endblock %}

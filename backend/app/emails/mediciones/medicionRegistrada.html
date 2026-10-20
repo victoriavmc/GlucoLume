@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% from "mediciones/detalle.html" import detalleMedicion with context %}
+{% block titulo %}Nueva medición registrada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Se registró una nueva medición en tu cuenta de GlucoLume.</p>
+{{ m.datos([
+  ("Fecha y hora", fechaMedicion|fechaHora),
+  ("Dispositivo", dispositivo if dispositivo is defined else none),
+  ("Estado", estadoRegistro),
+]) }}
+{{ detalleMedicion() }}
+{{ m.boton(urlMedicion, "Ver medición") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Para ver la información completa, ingresá a GlucoLume.</p>
+{% endblock %}

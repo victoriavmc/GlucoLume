@@ -1,0 +1,17 @@
+# OPCIONAL - Arduino conectado a un host LINUX que ejecuta Docker. Se suma a los demás archivos:
+#
+#   docker compose -f compose.yaml -f compose.serial.yaml up -d backend
+#
+# El backend es quien abre el puerto serie (pySerial, POST /api/v1/acquisition/connect); aquí solo se le da acceso al
+# dispositivo del host. En Windows / Docker Desktop NO funciona (los puertos COM no se pueden pasar a un contenedor
+# Linux): ahí el backend corre nativo (ver docs/DOCKER.md, "Adquisición"). El Arduino puede estar desconectado: la API
+# y el frontend funcionan igual.
+#
+# SERIAL_DEVICE: nodo del host (USB: /dev/ttyUSB0 o /dev/ttyACM0; HC-06 enlazado: /dev/rfcomm0).
+
+services:
+  backend:
+    devices:
+      - "${SERIAL_DEVICE:-/dev/ttyACM0}:${SERIAL_DEVICE:-/dev/ttyACM0}"
+    group_add:
+      - "${SERIAL_GROUP_ID:-20}"   # grupo "dialout" del host: getent group dialout

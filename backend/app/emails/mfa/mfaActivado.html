@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}La verificación en dos pasos fue activada{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Activaste la verificación en dos pasos en tu cuenta. Desde ahora, además de tu contraseña o tu cuenta de Google, vamos a pedirte un código para iniciar sesión.</p>
+{{ m.datos([
+  ("Fecha y hora", fechaEvento|fechaHora),
+  ("Método", metodo|metodoMfa),
+]) }}
+{% call m.aviso() %}Guardá tus códigos de recuperación en un lugar seguro: te permiten ingresar si perdés acceso a tu método de verificación.{% endcall %}
+{{ m.boton(urlSeguridad, "Revisar seguridad", secundario=true) }}
+{% endblock %}

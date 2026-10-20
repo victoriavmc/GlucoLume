@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Ahora sos el administrador de GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Tu rol en la plataforma GlucoLume cambió: pasaste de <strong>moderador del sistema</strong> a <strong>administrador del sistema</strong>. Quien administraba antes dejó de serlo y sus sesiones se cerraron.</p>
+{{ m.datos([("Fecha del cambio", fechaEvento|fechaHora), ("Rol anterior", "Moderador del sistema"), ("Rol actual", "Administrador del sistema")]) }}
+{{ m.boton(urlAcceso, "Ingresar a la administración") }}
+<p style="{{ m.P_SUAVE }}">Volvé a iniciar sesión con tu usuario, tu contraseña y tu código de verificación en dos pasos: las sesiones abiertas se cerraron para que se aplique el nuevo rol.</p>
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Este correo no incluye contraseñas ni códigos y nadie te los va a pedir. Si no esperabas este cambio, comunicate de inmediato con quien administra el servidor de GlucoLume.</p>
+{% endblock %}

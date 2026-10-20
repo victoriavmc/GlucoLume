@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}El grupo fue eliminado{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">El grupo <strong>«{{ nombreGrupo }}»</strong> fue eliminado.</p>
+{{ m.datos([("Grupo", nombreGrupo), ("Fecha", fechaEvento|fechaHora)]) }}
+{% call m.aviso() %}La eliminación del grupo no elimina las mediciones personales de sus integrantes: cada persona conserva su historial en su propia cuenta.{% endcall %}
+{% endblock %}

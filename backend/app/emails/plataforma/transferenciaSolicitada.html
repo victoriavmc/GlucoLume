@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Te ofrecen la administración de GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}"><strong>{{ nombreAdministrador }}</strong> quiere transferirte el control principal de GlucoLume. Hasta que aceptes no cambia ningún permiso.</p>
+{{ m.datos([("Solicitada por", nombreAdministrador), ("Fecha", fechaEvento|fechaHora)]) }}
+{{ m.boton(urlTransferencia, "Ver la solicitud") }}
+<p style="{{ m.P_SUAVE }}">Para aceptar o rechazar tenés que iniciar sesión y confirmar con tu verificación en dos pasos. Si aceptás, pasás a ser el administrador del sistema y quien te la ofreció queda como moderador.</p>
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Si no esperabas esta solicitud, rechazala desde la plataforma o avisale a quien la envió.</p>
+{% endblock %}

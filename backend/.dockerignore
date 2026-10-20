@@ -1,0 +1,19 @@
+# Fuera de la imagen: secretos, caches, pruebas y herramientas de desarrollo.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+tests/
+requirements-dev.in
+requirements-dev.txt
+*.md
+Dockerfile
+.dockerignore

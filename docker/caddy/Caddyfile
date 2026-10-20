@@ -1,0 +1,7 @@
+# HTTPS automático (Let's Encrypt) delante del frontend. Perfil "https" de compose.prod.yaml.
+# GLUCOLUME_DOMAIN (p. ej. app.midominio.com) debe apuntar por DNS a este servidor, con 80 y 443 abiertos.
+{$GLUCOLUME_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:8080
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}

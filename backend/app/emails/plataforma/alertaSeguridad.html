@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Actividad sospechosa en GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">El monitor de seguridad detectó {{ descripcion }}. No se bloqueó a nadie automáticamente: revisá el detalle en la auditoría.</p>
+{{ m.datos([("Patrón", patron), ("Cantidad", cantidad), ("Ventana", ventanaMinutos ~ " minutos"), ("Fecha", fechaEvento|fechaHora)]) }}
+{{ m.boton(urlAuditoria, "Ver la auditoría de seguridad") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Este correo no incluye la dirección IP ni datos de cuentas: están en la consola. Se envía como máximo uno por hora y por patrón.</p>
+{% endblock %}

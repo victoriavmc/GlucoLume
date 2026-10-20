@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}La verificación en dos pasos fue desactivada{% endblock %}
+{% block contenido %}
+{% if porRecuperacion is defined and porRecuperacion %}
+<p style="{{ m.P }}">La verificación en dos pasos de tu cuenta de GlucoLume fue desactivada mediante el proceso de recuperación por pérdida de la aplicación autenticadora. Por seguridad, cerramos todas las sesiones anteriores.</p>
+<p style="{{ m.P }}">Si realizaste esta acción, no necesitás hacer nada. Podés volver a activarla desde Seguridad con un nuevo autenticador.</p>
+{% call m.aviso(alerta=true) %}Si no reconocés este cambio, modificá tu contraseña y contactá con soporte.{% endcall %}
+{% else %}
+<p style="{{ m.P }}">La verificación en dos pasos de tu cuenta fue desactivada. A partir de ahora, tu cuenta depende solamente de tu contraseña o de tu cuenta de Google.</p>
+{% endif %}
+{{ m.datos([("Fecha y hora", fechaEvento|fechaHora)]) }}
+{{ m.noFuisteVos(urlSeguridad, "Proteger mi cuenta") }}
+{% endblock %}

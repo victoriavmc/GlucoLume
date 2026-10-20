@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Nuevo inicio de sesión en GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Se registró un nuevo inicio de sesión en tu cuenta.</p>
+{{ m.datos([
+  ("Fecha y hora", fechaEvento|fechaHora),
+  ("Método", metodo if metodo is defined else none),
+  ("Navegador", navegador if navegador is defined else none),
+  ("Sistema operativo", sistemaOperativo if sistemaOperativo is defined else none),
+  ("Dispositivo", dispositivo if dispositivo is defined else none),
+]) }}
+<p style="{{ m.P }}">Si fuiste vos, no necesitás realizar ninguna acción.</p>
+{% call m.aviso(alerta=true) %}Si no reconocés este acceso, cambiá tu contraseña y revisá la seguridad de tu cuenta.{% endcall %}
+{{ m.boton(urlSeguridad, "Revisar seguridad", secundario=true) }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">¿No querés recibir este aviso cada vez que iniciás sesión? <a href="{{ urlDesuscribir }}" style="color:{{ m.TEXTO_SUAVE }};text-decoration:underline;">Dejar de recibir avisos de inicio de sesión</a>. Podés volver a activarlos desde la seguridad de tu cuenta. Las alertas de actividad sospechosa se envían siempre.</p>
+{% endblock %}
