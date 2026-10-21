@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlucoLume — Seguimiento del desarrollo</title>
+<style>
+  :root {
+    --fondo: #f4f6f9; --panel: #ffffff; --borde: #dde3ea; --texto: #1d2733; --suave: #5b6878; --acento: #c8102e;
+    --pendiente: #7a8594; --analisis: #8a5cf6; --desarrollo: #2f7de1; --pruebas: #e08a00; --completado: #1f9d55;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; background: var(--fondo); color: var(--texto); }
+  header { padding: 22px 28px 14px; background: var(--panel); border-bottom: 1px solid var(--borde); display: flex; justify-content: space-between;
+           align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: .2px; }
+  h1 span { color: var(--acento); }
+  .bajada { margin: 6px 0 0; color: var(--suave); font-size: 13.5px; max-width: 980px; line-height: 1.45; }
+  .meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--suave); }
+  .chip { background: #eef2f6; border: 1px solid var(--borde); border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+  button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--borde); background: var(--panel); cursor: pointer; }
+  button:hover { border-color: var(--suave); }
+  main { display: grid; grid-template-columns: repeat(4, minmax(200px, 1fr)) minmax(600px, 3fr); gap: 14px; padding: 18px 28px 28px; align-items: start; }
+  .columna { background: #e9edf2; border-radius: 12px; padding: 10px; min-height: 160px; }
+  .columna h2 { margin: 2px 4px 10px; font-size: 14.5px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: .6px; }
+  .columna h2 .punto { width: 10px; height: 10px; border-radius: 50%; }
+  .columna h2 .cuenta { margin-left: auto; background: var(--panel); border-radius: 999px; padding: 1px 9px; font-size: 12.5px; color: var(--suave); }
+  .tarjetas { display: grid; gap: 8px; min-height: 60px; }
+  .columna[data-estado="Completado"] .tarjetas { grid-template-columns: repeat(3, 1fr); }
+  .columna.sobre { outline: 2px dashed var(--suave); outline-offset: -4px; }
+  .tarjeta { background: var(--panel); border: 1px solid var(--borde); border-left: 4px solid var(--color); border-radius: 9px; padding: 8px 10px;
+             cursor: grab; box-shadow: 0 1px 2px rgba(20, 30, 45, .05); }
+  .tarjeta:active { cursor: grabbing; }
+  .tarjeta h3 { margin: 0 0 5px; font-size: 13.4px; line-height: 1.3; }
+  .tarjeta p { margin: 0 0 6px; font-size: 12px; color: var(--suave); line-height: 1.35; }
+  .pie { display: flex; justify-content: space-between; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .area { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--fondo-area); color: var(--texto-area); }
+  .fecha { font-size: 11.2px; color: var(--suave); }
+  .fecha.sin { font-style: italic; opacity: .85; }
+  .vacia { font-size: 12.5px; color: var(--suave); text-align: center; padding: 18px 8px; border: 1px dashed #c4ccd6; border-radius: 9px; }
+  footer { padding: 0 28px 22px; color: var(--suave); font-size: 12px; line-height: 1.5; }
+  footer .nota { font-style: italic; margin-right: 6px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } .columna[data-estado="Completado"] .tarjetas { grid-template-columns: 1fr; } }
+  .etapa { font-size: 10.5px; font-weight: 600; color: #3d4a59; border: 1px solid #cfd6df; border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+  .pie > span:first-child { display: inline-flex; }
+  #evolucion { margin: 0 28px 18px; background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 16px 18px 14px; }
+  #evolucion h2 { margin: 0 0 4px; font-size: 18px; }
+  #evolucion .aclaracion { margin: 0 0 14px; color: var(--suave); font-size: 12.8px; line-height: 1.45; max-width: 1500px; }
+  .etapas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0,1fr) 46px) minmax(0,1fr); gap: 0; counter-reset: etapa; }
+  .etapas li { position: relative; background: #f7f9fb; border: 1px solid var(--borde); border-top: 4px solid var(--c); border-radius: 10px;
+               padding: 12px 12px 10px; }
+  .etapas li.paso { background: none; border: 0; padding: 16px 0 0; display: flex; flex-direction: column; align-items: center; gap: 6px;
+               color: var(--suave); }
+  .etapas li.paso .flecha { font-weight: 700; line-height: 1; }
+  .etapas li.paso .rep { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #3d4a59;
+               color: #fff; font-weight: 700; font-size: 12px; }
+  .etapas li.paso .txt { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 600; color: #3d4a59; }
+  .etapas .ciclo { color: #3d4a59; font-weight: 600; }
+  .etapas .n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff;
+               font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+  .etapas h3 { margin: 0 0 6px; font-size: 13.6px; line-height: 1.3; }
+  .etapas p { margin: 0 0 6px; font-size: 12px; color: var(--texto); line-height: 1.38; }
+  .etapas .evid { color: var(--suave); font-size: 11.4px; border-top: 1px dashed #d3dae3; padding-top: 6px; margin: 0; }
+  body.solo-secuencia header, body.solo-secuencia main, body.solo-secuencia footer { display: none; }
+  body.solo-secuencia #evolucion { margin-top: 22px; }
+  body.solo-tablero #evolucion { display: none; }
+  @media (max-width: 1100px) { .etapas { grid-template-columns: 1fr; gap: 8px; } .etapas li.paso { flex-direction: row; padding: 0 12px; } .etapas li.paso .txt { writing-mode: horizontal-tb; transform: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>GlucoLume <span>—</span> Seguimiento del desarrollo</h1>
+    <p class="bajada">Tablero Kanban (enfoque iterativo e incremental, desarrollo individual) <strong>reconstruido el 20/10/2026 a partir del
+      historial disponible</strong>: README.md, docs/HISTORIAL.md, docs/PENDIENTES.md, documentación funcional, pruebas y los 16 commits del
+      repositorio Glucolume-web (05/10 – 19/10/2026). No es un registro
+      mantenido desde el inicio del proyecto. Las fechas son <strong>evidencias</strong> (commits del repositorio antecedente Glucolume-web y registros del historial técnico),
+      no fechas exactas de inicio; sin evidencia se indica «sin fecha registrada». «Completado» sigue el orden del desarrollo.</p>
+  </div>
+  <div class="meta">
+    <span class="chip" id="total"></span>
+    <span class="chip">Prototipo académico · TIF</span>
+    <button type="button" id="restablecer" title="Vuelve a los estados reconstruidos desde la documentación">Restablecer</button>
+  </div>
+</header>
+<main id="tablero"></main>
+<section id="evolucion" aria-labelledby="titulo-evolucion">
+  <h2 id="titulo-evolucion">Evolución iterativa e incremental del desarrollo</h2>
+  <p class="aclaracion">Orden predominante recordado por la autora; las etapas pueden superponerse y no forman una dependencia estrictamente
+    lineal. Sin duraciones ni fechas de inicio: las fechas citadas son evidencias (primer commit en el repositorio antecedente Glucolume-web o
+    registro del historial técnico), no el día en que empezó cada actividad. <span class="ciclo">↻2</span>: al terminar cada etapa se volvió a la
+    etapa 2 (pruebas y correcciones de lo construido) antes de pasar a la siguiente. GlucoLume — Seguimiento del desarrollo.</p>
+  <ol class="etapas">
+    <li style="--c:#1b6b3a"><span class="n">1</span><h3>Componentes principales del backend</h3>
+      <p>API, modelo de datos, cuentas, instituciones, grupos, mediciones y adquisición.</p>
+      <p class="evid">Primer commit con contenido: 06/10 (221 archivos, trabajo previo agrupado); módulos en 07/10 y 09/10.</p></li>
+    <li class="paso" aria-hidden="true"><span class="flecha">→</span></li>
+    <li style="--c:#3d4a59"><span class="n">2</span><h3>Pruebas y correcciones por módulo</h3>
+      <p>Pruebas automatizadas de cada módulo del backend y sus correcciones. <span class="ciclo">Se repite después de cada etapa siguiente (↻2).</span></p>
+      <p class="evid">Las pruebas ya figuran en el commit del 06/10 (83 archivos): el commit no permite separar las etapas 1 a 3.</p></li>
+    <li class="paso" aria-hidden="true"><span class="flecha">→</span></li>
+    <li style="--c:#9a3e00"><span class="n">3</span><h3>Incorporación de MFA</h3>
+      <p>Segundo factor TOTP, códigos de recuperación y flujo de verificación.</p>
+      <p class="evid">El código de MFA aparece en el commit del 06/10 junto con lo anterior: es la fecha del commit, no la del desarrollo.</p></li>
+    <li class="paso" aria-label="Vuelta a la etapa 2: pruebas y correcciones"><span class="flecha">→</span><span class="rep">↻2</span><span class="txt">pruebas y correcciones</span></li>
+    <li style="--c:#9c2154"><span class="n">4</span><h3>Frontend React</h3>
+      <p>Desarrollo de la interfaz e integración con el backend.</p>
+      <p class="evid">Primer commit del frontend: 07/10; vistas adaptables en 15/10.</p></li>
+    <li class="paso" aria-label="Vuelta a la etapa 2: pruebas y correcciones"><span class="flecha">→</span><span class="rep">↻2</span><span class="txt">pruebas y correcciones</span></li>
+    <li style="--c:#14607f"><span class="n">5</span><h3>Contenerización con Docker</h3>
+      <p>Compose, redes, perfiles y puente serie de Windows.</p>
+      <p class="evid">Historial: 10/10; commits: 12/10 y 14/10.</p></li>
+    <li class="paso" aria-label="Vuelta a la etapa 2: pruebas y correcciones"><span class="flecha">→</span><span class="rep">↻2</span><span class="txt">pruebas y correcciones</span></li>
+    <li style="--c:#8a5200"><span class="n">6</span><h3>Optimización del firmware Arduino</h3>
+      <p>Variante optimizada sobre un firmware base que ya existía.</p>
+      <p class="evid">Base en el commit del 09/10; variante optimizada en el commit del 17/10, compilada ese día (historial).</p></li>
+    <li class="paso" aria-label="Vuelta a la etapa 2: pruebas y correcciones"><span class="flecha">→</span><span class="rep">↻2</span><span class="txt">pruebas y correcciones</span></li>
+    <li style="--c:#a61b1b"><span class="n">7</span><h3>Pruebas, análisis y auditorías de ciberseguridad</h3>
+      <p>Auditorías, pruebas de seguridad y concurrencia, y sus correcciones.</p>
+      <p class="evid">Historial: 16/10 a 20/10 (controles, módulo de auditoría, auditoría de ciberseguridad y remediación).</p></li>
+  </ol>
+</section>
+<footer><span class="nota">Tablero reconstruido a partir de documentación, historial técnico y commits disponibles.</span> Arrastrá una tarjeta a otra columna para actualizar su estado (se guarda en este navegador). Áreas: investigación y diseño,
+  electrónica y firmware, adquisición, backend, frontend, base de datos, autenticación, instituciones, pruebas, seguridad y documentación.</footer>
+
+<script>
+  const ESTADOS = [
+    ["Pendiente", "var(--pendiente)"], ["En análisis", "var(--analisis)"], ["En desarrollo", "var(--desarrollo)"],
+    ["En pruebas", "var(--pruebas)"], ["Completado", "var(--completado)"],
+  ];
+  const AREAS = {
+    "Investigación": ["#efe9ff", "#4b2e9a"], "Electrónica": ["#fff1d6", "#8a5200"], "Adquisición": ["#e3f3ff", "#0b5394"],
+    "Backend": ["#e6f4ea", "#1b6b3a"], "Frontend": ["#fde8ef", "#9c2154"], "SQL Server": ["#e8eefc", "#1f3f8f"],
+    "Autenticación": ["#fff0e6", "#9a3e00"], "Instituciones": ["#e7f7f5", "#0f6b61"], "Pruebas": ["#f1f3f5", "#3d4a59"],
+    "Seguridad": ["#fdecec", "#a61b1b"], "Documentación": ["#f3f0e8", "#5c4a1e"], "Infraestructura": ["#eaf6fb", "#14607f"],
+  };
+  // Estado y fecha según la documentación del proyecto (fuente entre paréntesis en cada descripción).
+  const TAREAS = [
+    { id: 1, t: "Investigación y diseño del prototipo", d: "Sensado óptico, oximetría y estimación experimental de glucosa; alcance académico y no clínico (README).", a: "Investigación", e: "Completado", f: null, s: "Previa" },
+    { id: 6, t: "Modelo de datos inicial en SQL Server", d: "Implementación inicial del backend: primer esquema y versión v2 en Glucolume-web (antecedente), reemplazado después por v5.", a: "SQL Server", e: "Completado", f: "Primeros commits 06–09/10/2026", s: "Etapa 1 · inicial" },
+    { id: 13, t: "Instituciones, personal y pacientes", d: "Implementación inicial: propietario, moderador, operador y aislamiento institucional. Ampliación posterior: eliminación administrativa (HISTORIAL 18/10).", a: "Instituciones", e: "Completado", f: "Primer commit 07/10 · historial 18/10/2026", s: "Etapa 1 · ampliada en 7" },
+    { id: 11, t: "Mediciones, historial y matrices de referencia", d: "Implementación inicial del backend: sesión de medición con estabilidad, historial, gráficos y matrices de glucosa.", a: "Backend", e: "Completado", f: "Primeros commits 09–14/10/2026", s: "Etapa 1 · inicial" },
+    { id: 12, t: "Grupo familiar con privacidad por integrante", d: "Implementación inicial del backend: grupos con permisos revalidados en cada consulta; vistas ajustadas después.", a: "Backend", e: "Completado", f: "Primeros commits 09–15/10/2026", s: "Etapa 1 · inicial" },
+    { id: 3, t: "Protocolo serie e identificación del dispositivo", d: "Implementación inicial de la adquisición: formato de líneas del firmware e identificación del equipo (docs/DISPOSITIVOS_Y_ADQUISICION).", a: "Adquisición", e: "Completado", f: "Primer commit 09/10/2026", s: "Etapa 1 · inicial" },
+    { id: 18, t: "Pruebas automatizadas y de concurrencia", d: "Pruebas y correcciones por módulo del backend (etapa 2), repetidas después de MFA, frontend, Docker y firmware; luego, pruebas de concurrencia en SQL Server, 480/480 y 560/560 (etapa 7, HISTORIAL 16/10).", a: "Pruebas", e: "Completado", f: "Commit 06/10 · historial 16/10/2026", s: "Etapa 2 (recurrente) y 7" },
+    { id: 8, t: "Autenticación y cuentas", d: "Registro y acceso en la implementación inicial; MFA TOTP incorporado después de las pruebas por módulo; Google OAuth con PKCE y eliminación de cuenta. Verificado tras el despliegue (HISTORIAL 20/10).", a: "Autenticación", e: "Completado", f: "Primeros commits 06–07/10 · historial 20/10/2026", s: "Etapas 1 y 3" },
+    { id: 9, t: "Frontend React: acceso, landing y diseño responsive", d: "Desarrollo e integración del frontend con el backend: acceso, landing y vistas adaptables.", a: "Frontend", e: "Completado", f: "Commits 07–15/10/2026", s: "Etapa 4" },
+    { id: 15, t: "Contenerización con Docker y escaneo de imágenes", d: "Contenerización con Compose, redes y perfiles; línea base de CVE de las imágenes.", a: "Infraestructura", e: "Completado", f: "Historial 10/10 · commits 12–14/10/2026", s: "Etapa 5" },
+    { id: 4, t: "Puente serie de Windows", d: "Puente y su instalador, desarrollados junto con la contenerización; pruebas de puertos, hashes, ACL e instancia única (HISTORIAL 13/10).", a: "Adquisición", e: "Completado", f: "Commits 12–14/10 · historial 13/10/2026", s: "Etapa 5" },
+    { id: 2, t: "Firmware y montaje: Arduino UNO + MAX30100/MAX30102", d: "El sketch base existía antes; la variante optimizada se hizo después de la contenerización y ambos se compilaron con Arduino CLI. Falta cargarlos y validarlos en la placa (PENDIENTES).", a: "Electrónica", e: "En pruebas", f: "Commit base 09/10 · variante optimizada 17/10/2026", s: "Base previa · etapa 6" },
+    { id: 16, t: "Consentimientos y política de privacidad", d: "Ampliación: POLITICA_PRIVACIDAD y DATOS_EXPERIMENTALES; documento de privacidad (HISTORIAL 13/10).", a: "Documentación", e: "Completado", f: "Historial 13/10 · commit 14/10/2026", s: "Ampliación" },
+    { id: 14, t: "Ciclo de vida de cuentas institucionales", d: "Ampliación del backend: período de gracia de 30 días y servicio lifecycle (HISTORIAL 16/10).", a: "Instituciones", e: "Completado", f: "Historial y commit 16/10/2026", s: "Ampliación" },
+    { id: 10, t: "Modernización visual y accesibilidad", d: "Ampliación del frontend: tokens, componentes compartidos, contraste sin fallos y dashboard del paciente (HISTORIAL 17/10).", a: "Frontend", e: "Completado", f: "Historial y commit 17/10/2026", s: "Ampliación (frontend)" },
+    { id: 17, t: "Endurecimiento de seguridad previo a la entrega", d: "Auditoría de 20 controles (H-01 a H-05) y bloques de corrección 1–7 (HISTORIAL 16/10 y 17/10).", a: "Seguridad", e: "Completado", f: "Historial y commits 16–17/10/2026", s: "Etapa 7" },
+    { id: 19, t: "Módulo de auditoría administrativa", d: "Profundización de la auditoría: tres ámbitos, accesos fallidos con motivo, contexto e indicadores (HISTORIAL 18/10).", a: "Seguridad", e: "Completado", f: "Commit 09/10 · historial 18/10/2026", s: "Etapa 7" },
+    { id: 20, t: "Retención y anonimización de pacientes", d: "Profundización: cohorte anónima y 12 meses desde la última medición (HISTORIAL 18/10).", a: "Backend", e: "Completado", f: "Commit 09/10 · historial 18/10/2026", s: "Etapa 7" },
+    { id: 5, t: "Dispositivo compartido con control temporal (DEC-01)", d: "Corrección surgida de la auditoría (GL-01): «Usar dispositivo», lecturas y órdenes solo para quien controla; probado con puente simulado (HISTORIAL 19/10).", a: "Adquisición", e: "Completado", f: "Commit 09/10 · historial 19/10/2026", s: "Etapa 7" },
+    { id: 7, t: "Esquema SQL consolidado v5 (DEC-02)", d: "Corrección de la auditoría: esquema único, con restricciones e índices verificados contra la base instalada (HISTORIAL 19/10).", a: "SQL Server", e: "Completado", f: "Historial 19/10/2026", s: "Etapa 7" },
+    { id: 21, t: "Remediación de la auditoría de ciberseguridad", d: "Informe del 19/10 (commit Glucolume-web) y hallazgos GL-01 a GL-23 corregidos o clasificados según el alcance (HISTORIAL, SEGURIDAD).", a: "Seguridad", e: "Completado", f: "Historial 19/10/2026", s: "Etapa 7" },
+    { id: 22, t: "Respaldos cifrados y restauración de prueba", d: "Respaldo AES-256 automatizado y restauración verificada (HISTORIAL).", a: "SQL Server", e: "Completado", f: "Historial 19/10/2026", s: "Etapa 7" },
+    { id: 23, t: "Protección de la auditoría con permisos SQL", d: "La cuenta de la aplicación inserta eventos pero no los modifica ni borra (HISTORIAL).", a: "Seguridad", e: "Completado", f: "Historial 20/10/2026", s: "Etapa 7" },
+    { id: 24, t: "Documentación técnica consolidada", d: "Primera documentación y consolidación en docs/: seguridad, base de datos, despliegue, dispositivos e historial (commit Glucolume-web 12/10, HISTORIAL 19/10).", a: "Documentación", e: "Completado", f: "Commit 12/10 · historial 19/10/2026", s: "Transversal" },
+    { id: 25, t: "Plazo de conservación total de la auditoría", d: "Propuesta de 24–36 meses sujeta a aprobación legal (PENDIENTES, GL-16).", a: "Seguridad", e: "En análisis", f: null, s: "Decisión externa" },
+    { id: 26, t: "Revisión de la política de privacidad", d: "Revisión por cátedra o tutor y, si corresponde, asesoría legal (PENDIENTES).", a: "Documentación", e: "En análisis", f: null, s: "Decisión externa" },
+    { id: 27, t: "Estimador de glucosa del servidor", d: "Pendiente intencional, fuera del cierre del TIF: hoy es solo un punto de integración (PENDIENTES).", a: "Backend", e: "Pendiente", f: null, s: "Pendiente intencional" },
+    { id: 28, t: "Suscripciones y pagos", d: "Pendiente intencional, fuera del cierre del TIF: pantallas en «Próximamente» (PENDIENTES).", a: "Backend", e: "Pendiente", f: null, s: "Pendiente intencional" },
+    { id: 29, t: "Exportaciones auditadas", d: "Pendiente intencional, fuera del cierre del TIF: deberán pasar por auditedExport (PENDIENTES).", a: "Backend", e: "Pendiente", f: null, s: "Pendiente intencional" },
+    { id: 30, t: "Interfaz avanzada de la política de retención", d: "Pendiente intencional, fuera del cierre del TIF (PENDIENTES).", a: "Frontend", e: "Pendiente", f: null, s: "Pendiente intencional" },
+  ];
+
+  const CLAVE = "glucolume-kanban-estados-v4";
+  let estados = {};
+  try { estados = JSON.parse(localStorage.getItem(CLAVE) || "{}"); } catch { estados = {}; }
+  const estadoDe = (tarea) => estados[tarea.id] || tarea.e;
+
+  function dibujar() {
+    const tablero = document.getElementById("tablero");
+    tablero.innerHTML = "";
+    for (const [nombre, color] of ESTADOS) {
+      const columna = document.createElement("section");
+      columna.className = "columna";
+      columna.dataset.estado = nombre;
+      const tareas = TAREAS.filter((t) => estadoDe(t) === nombre);
+      columna.innerHTML = `<h2><span class="punto" style="background:${color}"></span>${nombre}<span class="cuenta">${tareas.length}</span></h2>`;
+      const lista = document.createElement("div");
+      lista.className = "tarjetas";
+      if (!tareas.length) lista.innerHTML = `<div class="vacia">Sin tareas en este estado al cierre del período reconstruido</div>`;
+      for (const t of tareas) {
+        const [fondo, texto] = AREAS[t.a];
+        const tarjeta = document.createElement("article");
+        tarjeta.className = "tarjeta";
+        tarjeta.draggable = true;
+        tarjeta.style.setProperty("--color", color);
+        tarjeta.innerHTML = `<h3>${t.t}</h3><p>${t.d}</p><div class="pie">
+          <span class="area" style="--fondo-area:${fondo};--texto-area:${texto}">${t.a}</span>${t.s ? `<span class="etapa">${t.s}</span>` : ""}
+          <span class="fecha ${t.f ? "" : "sin"}">${t.f || "sin fecha registrada"}</span></div>`;
+        tarjeta.addEventListener("dragstart", (ev) => ev.dataTransfer.setData("text/plain", String(t.id)));
+        lista.appendChild(tarjeta);
+      }
+      columna.appendChild(lista);
+      columna.addEventListener("dragover", (ev) => { ev.preventDefault(); columna.classList.add("sobre"); });
+      columna.addEventListener("dragleave", () => columna.classList.remove("sobre"));
+      columna.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        const id = Number(ev.dataTransfer.getData("text/plain"));
+        estados[id] = nombre;
+        try { localStorage.setItem(CLAVE, JSON.stringify(estados)); } catch { /* sin almacenamiento: solo en esta sesión */ }
+        dibujar();
+      });
+      tablero.appendChild(columna);
+    }
+    document.getElementById("total").textContent = `${TAREAS.length} tareas`;
+  }
+
+  document.getElementById("restablecer").addEventListener("click", () => {
+    estados = {};
+    try { localStorage.removeItem(CLAVE); } catch { /* sin almacenamiento */ }
+    dibujar();
+  });
+  dibujar();
+  // ?vista=secuencia o ?vista=tablero muestran una sola sección (una captura para cada una); sin parámetro, ambas.
+  const vista = new URLSearchParams(location.search).get("vista");
+  if (vista === "secuencia") document.body.classList.add("solo-secuencia");
+  if (vista === "tablero") document.body.classList.add("solo-tablero");
+</script>
+</body>
+</html>

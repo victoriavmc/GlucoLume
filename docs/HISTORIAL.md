@@ -3,6 +3,23 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 20/10/2026 — Revisión de lo corregido y reglas de negocio
+
+- **Falla encontrada y corregida (retención institucional):** el aislamiento de errores del 19/10 hacía `rollback()` ante un perfil que
+  fallaba, pero `anonymizeProfile` no confirma: se deshacían también los perfiles ya anonimizados del mismo lote, que se contaban igual y
+  se volvían a procesar (el total y el evento `ANONIMIZAR_PACIENTES` quedaban inflados; los datos terminaban bien). Ahora cada perfil va en
+  un punto de guardado (`begin_nested`). La prueba se reescribió con la falla a mitad de lote y después de haber cambiado datos: cuenta 2 de
+  3, el que falla queda intacto y el evento registra 2 (con la lógica anterior daba 3). `services/institutionalRetention.py`,
+  `tests/test_retention_anonymization.py`: 38/38 en los archivos de retención. El job es manual (`purgeInstitutionalRetention`); la imagen
+  del backend desplegada todavía tiene la versión anterior de ese job, que no se ejecuta solo.
+- **Revisado sin fallas:** confirmación del correo de resultados (token, zona horaria, idempotencia), límite del puente, códigos cortos,
+  envío del enlace de recuperación después del commit, baja anónima de cuentas vencidas, guarda de compilación del frontend.
+- **Reglas de negocio en la base real** (15 conteos de solo lectura, todos en 0): un administrador vigente; cuentas de plataforma activas
+  con MFA; cuentas eliminadas sin datos personales ni sesiones; correo y usuario únicos; factores MFA confirmados; sin vínculos activos en
+  instituciones cerradas; instituciones activas con propietario y dentro de su capacidad; una matriz activa por ámbito; DEMO sin estimación;
+  sin correos de resultados vencidos; pacientes depurados sin identificación; una reasignación pendiente por paciente; auditoría válida.
+- Frontend completo 683/683 (cambio de `vite.config.js`).
+
 ## 20/10/2026 — Protección de auditoría aplicada en la base real (GL-03)
 
 - **Antes:** la cuenta `glucolume_app` tenía `UPDATE` y `DELETE` sobre `Auditoria` y `AuditoriaContexto` (verificado: «permitido»).
@@ -19,7 +36,8 @@ está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe
   cambios. Backend en ejecución (sin recrear): login con credenciales incorrectas → 401 y nuevo evento `LOGIN_LOCAL FALLO` (32 → 33
   eventos); ningún error de permisos en sus registros; `schemaCheck` desde el contenedor sin diferencias. Los inicios con Google y MFA
   ya se habían comprobado con la imagen nueva (`LOGIN_GOOGLE_MFA_PENDIENTE` y `LOGIN_GOOGLE_MFA`, 20/10 00:02–00:03).
-- **Reversión:** `sqlcmd -S localhost\GLUCOLUME -E -C -I -d GlucoLume -i databaseeference\GlucoLume_permisos_revertir.sql -v CONFIRMAR=REVERTIR_PERMISOS_GLUCOLUME`.
+- **Reversión:** `sqlcmd -S localhost\GLUCOLUME -E -C -I -d GlucoLume -i database
+eference\GlucoLume_permisos_revertir.sql -v CONFIRMAR=REVERTIR_PERMISOS_GLUCOLUME`.
 
 ## 20/10/2026 — Inicio de sesión con Google roto tras el despliegue
 

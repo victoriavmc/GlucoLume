@@ -13,6 +13,7 @@
 #     a pacientes activos.
 #   · Estadísticas institucionales coherentes con pacientes anonimizados y operadores eliminados.
 
+import json
 import uuid
 from datetime import timedelta
 
@@ -390,21 +391,29 @@ def test_el_job_manual_de_retencion_exige_nombrar_la_base(monkeypatch):
 
 
 def test_un_perfil_que_falla_no_frena_a_los_demas_y_se_reintenta(db, mails, team, monkeypatch):
-    # Recuperación ante errores: el que falla queda para la próxima pasada; el resto se anonimiza y se audita.
-    first, second = newPatient(db, team, dni="20111333"), newPatient(db, team, dni="20111444")
+    # Recuperación ante errores: el que falla (a mitad de lote y después de haber cambiado algo) se deshace solo él; los demás se
+    # anonimizan, se cuentan una vez y se auditan con la cantidad exacta. La próxima pasada lo completa.
+    patients = [newPatient(db, team, dni=f"2011{n}555") for n in range(3)]
     institutions.deleteInstitution(db, team.owner, team.id, deletion())
-    now = reload(db, MeasurementProfile, first.idPerfilMedicion).fechaExpiracionDatosPersonales + timedelta(minutes=1)
+    now = reload(db, MeasurementProfile, patients[0].idPerfilMedicion).fechaExpiracionDatosPersonales + timedelta(minutes=1)
     original = measurementRetention.anonymizeProfile
+    calls, failedId = [], []
 
     def flaky(session, idPerfil, moment):
-        if idPerfil == first.idPerfilMedicion:
+        calls.append(idPerfil)
+        result = original(session, idPerfil, moment)
+        if len(calls) == 2:  # el segundo del lote falla después de haber anonimizado
+            failedId.append(idPerfil)
             raise RuntimeError("falla simulada")
-        return original(session, idPerfil, moment)
+        return result
 
     monkeypatch.setattr(measurementRetention, "anonymizeProfile", flaky)
-    assert purgeExpiredPatientData(db, now=now) == 1
-    assert reload(db, MeasurementProfile, second.idPerfilMedicion).nombre is None
-    assert reload(db, MeasurementProfile, first.idPerfilMedicion).fechaDepuracionDatosPersonales is None  # sin cambios a medias
+    assert purgeExpiredPatientData(db, now=now) == 2
+    failed = reload(db, MeasurementProfile, failedId[0])
+    assert failed.fechaDepuracionDatosPersonales is None and failed.nombre is not None  # sin cambios a medias
+    assert sum(reload(db, MeasurementProfile, p.idPerfilMedicion).nombre is None for p in patients) == 2
+    [event] = db.scalars(select(Audit).where(Audit.accion == "ANONIMIZAR_PACIENTES")).all()
+    assert json.loads(event.datosNuevos)["perfilesAnonimizados"] == 2
     monkeypatch.setattr(measurementRetention, "anonymizeProfile", original)
     assert purgeExpiredPatientData(db, now=now) == 1  # la próxima pasada lo completa
     assert purgeExpiredPatientData(db, now=now) == 0

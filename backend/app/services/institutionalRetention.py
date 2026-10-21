@@ -50,9 +50,11 @@ def purgeExpiredPatientData(db: Session, now: datetime | None = None, batchSize:
         if anonymize:
             for idPerfil in list(ids):
                 try:
-                    measurementRetention.anonymizeProfile(db, idPerfil, now)
+                    # Punto de guardado por perfil: si uno falla se deshace solo ese (anonymizeProfile no confirma); los anteriores del
+                    # lote siguen y se confirman juntos abajo.
+                    with db.begin_nested():
+                        measurementRetention.anonymizeProfile(db, idPerfil, now)
                 except Exception:  # noqa: BLE001 - se informa y se sigue con el resto
-                    db.rollback()
                     failed.add(idPerfil)
                     ids.remove(idPerfil)
                     logger.exception("No se pudo anonimizar el perfil %s; se reintenta en la próxima pasada.", idPerfil)
