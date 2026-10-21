@@ -1,0 +1,565 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3465 2228" width="3465" height="2228" font-family="Segoe UI, Arial, sans-serif">
+<style>
+.fondo{fill:#fafbfc}
+.rel path{fill:none;stroke:#5b6676;stroke-width:1.4}
+.rel line,.rel circle{stroke:#5b6676;stroke-width:1.4;fill:none}
+.rel circle.hueco{fill:#fff}
+.rel{cursor:pointer}
+.rel .area{stroke:transparent;stroke-width:14}
+.rel:hover path.vis,.rel.on path.vis{stroke:#e0301e;stroke-width:2.4}
+.rel:hover line,.rel:hover circle,.rel.on line,.rel.on circle{stroke:#e0301e;stroke-width:2.2}
+.tabla rect.caja{fill:#fff;stroke:#c5ccd6;stroke-width:1.2}
+.tabla text{font-size:12px;fill:#222}
+.tabla .tipo{fill:#7a8594;font-size:11px}
+.tabla .pk{font-weight:700}
+.tabla .sep{stroke:#e5e8ec}
+.tabla.dim{opacity:.25}.rel.dim{opacity:.12}
+.titulo{font-size:30px;font-weight:700;fill:#1b2430}.sub{font-size:14px;fill:#5b6676}
+.leyenda text{font-size:13px;fill:#222}
+</style>
+<rect class="fondo" width="3465" height="2228"/>
+<text class="titulo" x="60" y="52">GlucoLume — Diagrama entidad-relación</text>
+<text class="sub" x="60" y="78">33 tablas · 49 claves foráneas · generado desde GlucoLume_DB_v5.sql</text>
+<g class="leyenda">
+<rect x="60" y="92" width="14" height="14" rx="3" fill="#2f6fed"/><text x="80" y="104">Cuenta y seguridad</text>
+<rect x="235.6" y="92" width="14" height="14" rx="3" fill="#16a085"/><text x="255.6" y="104">Instituciones y grupos</text>
+<rect x="440.0" y="92" width="14" height="14" rx="3" fill="#d9822b"/><text x="460.0" y="104">Mediciones</text>
+<rect x="558.0" y="92" width="14" height="14" rx="3" fill="#8e44ad"/><text x="578.0" y="104">Suscripción y pagos</text>
+<rect x="740.8" y="92" width="14" height="14" rx="3" fill="#6c7a89"/><text x="760.8" y="104">Auditoría</text>
+</g>
+<g id="relaciones">
+<g class="rel" data-h="Auditoria" data-p="Institucion" data-d="0.0" data-o="1" data-u="0"><title>FK_Auditoria_Institucion: Auditoria(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M2181.0 1365.3 Q1909.5 1335.5 1693.0 1311.7"/><path class="vis" d="M2181.0 1365.3 Q1909.5 1335.5 1693.0 1311.7"/><line x1="2167.1" y1="1363.8" x2="2180.2" y2="1372.3"/><line x1="2167.1" y1="1363.8" x2="2181.0" y2="1365.3"/><line x1="2167.1" y1="1363.8" x2="2181.8" y2="1358.4"/><circle cx="2159.1" cy="1362.9" r="4" class="hueco"/><line x1="1704.3" y1="1319.0" x2="1705.6" y2="1307.1"/><circle cx="1713.9" cy="1314.0" r="4" class="hueco"/></g>
+<g class="rel" data-h="Auditoria" data-p="Usuario" data-d="0.0" data-o="1" data-u="0"><title>FK_Auditoria_Usuario: Auditoria(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M2181.0 1327.1 Q1689.0 1141.0 1214.0 961.3"/><path class="vis" d="M2181.0 1327.1 Q1689.0 1141.0 1214.0 961.3"/><line x1="2167.9" y1="1322.1" x2="2178.5" y2="1333.6"/><line x1="2167.9" y1="1322.1" x2="2181.0" y2="1327.1"/><line x1="2167.9" y1="1322.1" x2="2183.5" y2="1320.6"/><circle cx="2160.4" cy="1319.3" r="4" class="hueco"/><line x1="1223.1" y1="971.2" x2="1227.3" y2="960.0"/><circle cx="1233.6" cy="968.8" r="4" class="hueco"/></g>
+<g class="rel" data-h="AuditoriaContexto" data-p="Auditoria" data-d="0.0" data-o="0" data-u="1"><title>FK_AuditoriaContexto_Auditoria: AuditoriaContexto(idAuditoria) → Auditoria(idAuditoria)</title><path class="area" d="M2536.0 1458.2 Q2501.0 1445.5 2466.0 1432.8"/><path class="vis" d="M2536.0 1458.2 Q2501.0 1445.5 2466.0 1432.8"/><line x1="2526.8" y1="1448.5" x2="2522.7" y2="1459.8"/><line x1="2475.2" y1="1442.5" x2="2479.3" y2="1431.2"/><line x1="2479.9" y1="1444.2" x2="2484.0" y2="1432.9"/></g>
+<g class="rel" data-h="CodigoRecuperacionMfa" data-p="FactorMfa" data-d="0.0" data-o="0" data-u="0"><title>FK_CodigoRecuperacionMfa_FactorMfa: CodigoRecuperacionMfa(idFactorMfa) → FactorMfa(idFactorMfa)</title><path class="area" d="M414.0 726.0 Q631.0 669.5 862.0 609.4"/><path class="vis" d="M414.0 726.0 Q631.0 669.5 862.0 609.4"/><line x1="427.5" y1="722.4" x2="412.2" y2="719.2"/><line x1="427.5" y1="722.4" x2="414.0" y2="726.0"/><line x1="427.5" y1="722.4" x2="415.8" y2="732.7"/><line x1="433.9" y1="727.0" x2="430.9" y2="715.4"/><line x1="848.9" y1="606.6" x2="851.9" y2="618.2"/><line x1="844.0" y1="607.9" x2="847.1" y2="619.5"/></g>
+<g class="rel" data-h="ConfiguracionNotificacion" data-p="Usuario" data-d="0.0" data-o="0" data-u="1"><title>FK_ConfiguracionNotificacion_Usuario: ConfiguracionNotificacion(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M715.1 636.0 Q826.5 723.0 895.0 776.5"/><path class="vis" d="M715.1 636.0 Q826.5 723.0 895.0 776.5"/><line x1="720.8" y1="648.1" x2="728.2" y2="638.7"/><line x1="889.2" y1="764.4" x2="881.8" y2="773.8"/><line x1="885.3" y1="761.3" x2="877.9" y2="770.7"/></g>
+<g class="rel" data-h="ConsentimientoUsuario" data-p="Usuario" data-d="0.0" data-o="0" data-u="0"><title>FK_ConsentimientoUsuario_Usuario: ConsentimientoUsuario(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M1030.4 388.0 Q1040.8 608.0 1047.3 747.0"/><path class="vis" d="M1030.4 388.0 Q1040.8 608.0 1047.3 747.0"/><line x1="1031.1" y1="402.0" x2="1037.4" y2="387.7"/><line x1="1031.1" y1="402.0" x2="1030.4" y2="388.0"/><line x1="1031.1" y1="402.0" x2="1023.4" y2="388.3"/><line x1="1025.3" y1="407.3" x2="1037.3" y2="406.7"/><line x1="1052.7" y1="734.7" x2="1040.7" y2="735.3"/><line x1="1052.5" y1="729.7" x2="1040.5" y2="730.3"/></g>
+<g class="rel" data-h="CredencialLocal" data-p="Usuario" data-d="0.0" data-o="0" data-u="1"><title>FK_CredencialLocal_Usuario: CredencialLocal(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M824.0 905.6 Q854.2 905.0 895.0 904.2"/><path class="vis" d="M824.0 905.6 Q854.2 905.0 895.0 904.2"/><line x1="836.1" y1="911.4" x2="835.9" y2="899.4"/><line x1="882.9" y1="898.4" x2="883.1" y2="910.4"/><line x1="877.9" y1="898.5" x2="878.1" y2="910.5"/></g>
+<g class="rel" data-h="Dispositivo" data-p="Institucion" data-d="0.0" data-o="1" data-u="0"><title>FK_Dispositivo_Institucion: Dispositivo(idInstitucionAsignada) → Institucion(idInstitucion)</title><path class="area" d="M2191.8 666.0 Q1909.5 919.0 1677.4 1127.0"/><path class="vis" d="M2191.8 666.0 Q1909.5 919.0 1677.4 1127.0"/><line x1="2181.4" y1="675.3" x2="2196.5" y2="671.2"/><line x1="2181.4" y1="675.3" x2="2191.8" y2="666.0"/><line x1="2181.4" y1="675.3" x2="2187.2" y2="660.8"/><circle cx="2175.4" cy="680.7" r="4" class="hueco"/><line x1="1690.3" y1="1123.5" x2="1682.3" y2="1114.5"/><circle cx="1693.0" cy="1113.0" r="4" class="hueco"/></g>
+<g class="rel" data-h="Dispositivo" data-p="InstitucionUsuario" data-d="0.0" data-o="1" data-u="0"><title>FK_Dispositivo_Responsable: Dispositivo(idInstitucionUsuarioResponsable) → InstitucionUsuario(idInstitucionUsuario)</title><path class="area" d="M2119.0 604.2 Q1895.8 665.5 1652.0 732.5"/><path class="vis" d="M2119.0 604.2 Q1895.8 665.5 1652.0 732.5"/><line x1="2105.5" y1="607.9" x2="2120.9" y2="610.9"/><line x1="2105.5" y1="607.9" x2="2119.0" y2="604.2"/><line x1="2105.5" y1="607.9" x2="2117.1" y2="597.4"/><circle cx="2097.8" cy="610.0" r="4" class="hueco"/><line x1="1665.2" y1="735.1" x2="1662.0" y2="723.5"/><circle cx="1672.2" cy="726.9" r="4" class="hueco"/></g>
+<g class="rel" data-h="EnvioResultado" data-p="Medicion" data-d="0.0" data-o="0" data-u="0"><title>FK_EnvioResultado_Medicion: EnvioResultado(idMedicion) → Medicion(idMedicion)</title><path class="area" d="M3118.6 934.0 Q3008.5 782.0 3009.0 782.7"/><path class="vis" d="M3118.6 934.0 Q3008.5 782.0 3009.0 782.7"/><line x1="3110.4" y1="922.7" x2="3112.9" y2="938.1"/><line x1="3110.4" y1="922.7" x2="3118.6" y2="934.0"/><line x1="3110.4" y1="922.7" x2="3124.3" y2="929.9"/><line x1="3112.3" y1="915.1" x2="3102.6" y2="922.1"/><line x1="3006.8" y1="769.5" x2="2997.1" y2="776.5"/><line x1="3003.9" y1="765.4" x2="2994.2" y2="772.4"/></g>
+<g class="rel" data-h="FactorMfa" data-p="Usuario" data-d="0.0" data-o="0" data-u="1"><title>FK_FactorMfa_Usuario: FactorMfa(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M1034.6 676.0 Q1039.8 734.0 1040.9 747.0"/><path class="vis" d="M1034.6 676.0 Q1039.8 734.0 1040.9 747.0"/><line x1="1029.7" y1="688.5" x2="1041.7" y2="687.4"/><line x1="1045.8" y1="734.5" x2="1033.9" y2="735.6"/><line x1="1045.4" y1="729.5" x2="1033.4" y2="730.6"/></g>
+<g class="rel" data-h="GrupoUsuario" data-p="Grupo" data-d="0.0" data-o="0" data-u="0"><title>FK_GrupoUsuario_Grupo: GrupoUsuario(idGrupo) → Grupo(idGrupo)</title><path class="area" d="M1883.1 381.0 Q1880.5 359.5 1869.0 266.0"/><path class="vis" d="M1883.1 381.0 Q1880.5 359.5 1869.0 266.0"/><line x1="1881.4" y1="367.1" x2="1876.2" y2="381.9"/><line x1="1881.4" y1="367.1" x2="1883.1" y2="381.0"/><line x1="1881.4" y1="367.1" x2="1890.1" y2="380.1"/><line x1="1886.8" y1="361.4" x2="1874.9" y2="362.9"/><line x1="1864.5" y1="278.6" x2="1876.4" y2="277.2"/><line x1="1865.1" y1="283.6" x2="1877.0" y2="282.1"/></g>
+<g class="rel" data-h="GrupoUsuario" data-p="Usuario" data-d="0.0" data-o="0" data-u="0"><title>FK_GrupoUsuario_Usuario: GrupoUsuario(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M1755.0 590.7 Q1477.8 713.5 1214.0 830.3"/><path class="vis" d="M1755.0 590.7 Q1477.8 713.5 1214.0 830.3"/><line x1="1742.2" y1="596.3" x2="1757.8" y2="597.1"/><line x1="1742.2" y1="596.3" x2="1755.0" y2="590.7"/><line x1="1742.2" y1="596.3" x2="1752.2" y2="584.3"/><line x1="1735.2" y1="592.9" x2="1740.1" y2="603.9"/><line x1="1227.4" y1="831.0" x2="1222.5" y2="820.0"/><line x1="1232.0" y1="828.9" x2="1227.1" y2="818.0"/></g>
+<g class="rel" data-h="IdentidadExterna" data-p="Usuario" data-d="0.0" data-o="0" data-u="0"><title>FK_IdentidadExterna_Usuario: IdentidadExterna(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M693.9 383.0 Q842.5 596.5 947.3 747.0"/><path class="vis" d="M693.9 383.0 Q842.5 596.5 947.3 747.0"/><line x1="701.9" y1="394.5" x2="699.6" y2="379.0"/><line x1="701.9" y1="394.5" x2="693.9" y2="383.0"/><line x1="701.9" y1="394.5" x2="688.1" y2="387.0"/><line x1="699.8" y1="402.0" x2="709.6" y2="395.2"/><line x1="945.3" y1="733.7" x2="935.5" y2="740.6"/><line x1="942.5" y1="729.6" x2="932.6" y2="736.5"/></g>
+<g class="rel" data-h="Institucion" data-p="Usuario" data-d="0.0" data-o="1" data-u="0"><title>FK_Institucion_cierreAdministrativo_Usuario: Institucion(idUsuarioCierreAdministrativo) → Usuario(idUsuario)</title><path class="area" d="M1310.7 1127.0 Q1275.0 1095.5 1214.0 1041.7"/><path class="vis" d="M1310.7 1127.0 Q1275.0 1095.5 1214.0 1041.7"/><line x1="1300.2" y1="1117.7" x2="1306.1" y2="1132.2"/><line x1="1300.2" y1="1117.7" x2="1310.7" y2="1127.0"/><line x1="1300.2" y1="1117.7" x2="1315.3" y2="1121.8"/><circle cx="1294.2" cy="1112.4" r="4" class="hueco"/><line x1="1219.0" y1="1054.1" x2="1227.0" y2="1045.1"/><circle cx="1229.7" cy="1055.6" r="4" class="hueco"/></g>
+<g class="rel" data-h="InstitucionUsuario" data-p="Institucion" data-d="0.0" data-o="0" data-u="0"><title>FK_InstitucionUsuario_Institucion: InstitucionUsuario(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M1476.8 946.0 Q1481.8 1036.5 1486.7 1127.0"/><path class="vis" d="M1476.8 946.0 Q1481.8 1036.5 1486.7 1127.0"/><line x1="1477.6" y1="960.0" x2="1483.8" y2="945.6"/><line x1="1477.6" y1="960.0" x2="1476.8" y2="946.0"/><line x1="1477.6" y1="960.0" x2="1469.9" y2="946.4"/><line x1="1471.9" y1="965.3" x2="1483.9" y2="964.6"/><line x1="1492.0" y1="1114.7" x2="1480.0" y2="1115.3"/><line x1="1491.7" y1="1109.7" x2="1479.7" y2="1110.3"/></g>
+<g class="rel" data-h="InstitucionUsuario" data-p="Usuario" data-d="-23.0" data-o="0" data-u="0"><title>FK_InstitucionUsuario_Invitado: InstitucionUsuario(idUsuarioInvitado) → Usuario(idUsuario)</title><path class="area" d="M1284.0 880.8 Q1273.9 886.2 1214.0 890.3"/><path class="vis" d="M1284.0 880.8 Q1273.9 886.2 1214.0 890.3"/><line x1="1271.6" y1="887.4" x2="1287.3" y2="887.0"/><line x1="1271.6" y1="887.4" x2="1284.0" y2="880.8"/><line x1="1271.6" y1="887.4" x2="1280.7" y2="874.7"/><line x1="1264.4" y1="884.5" x2="1270.0" y2="895.1"/><line x1="1226.4" y1="895.4" x2="1225.6" y2="883.5"/><line x1="1231.4" y1="895.1" x2="1230.6" y2="883.1"/></g>
+<g class="rel" data-h="InstitucionUsuario" data-p="Usuario" data-d="23.0" data-o="1" data-u="0"><title>FK_InstitucionUsuario_Invitador: InstitucionUsuario(idUsuarioInvitador) → Usuario(idUsuario)</title><path class="area" d="M1284.0 795.4 Q1248.6 797.8 1214.0 816.2"/><path class="vis" d="M1284.0 795.4 Q1248.6 797.8 1214.0 816.2"/><line x1="1270.0" y1="796.3" x2="1284.5" y2="802.4"/><line x1="1270.0" y1="796.3" x2="1284.0" y2="795.4"/><line x1="1270.0" y1="796.3" x2="1283.5" y2="788.4"/><circle cx="1262.0" cy="796.9" r="4" class="hueco"/><line x1="1227.4" y1="815.8" x2="1221.8" y2="805.2"/><circle cx="1232.5" cy="806.3" r="4" class="hueco"/></g>
+<g class="rel" data-h="Matriz" data-p="Institucion" data-d="0.0" data-o="1" data-u="0"><title>FK_Matriz_Institucion: Matriz(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M2670.0 1039.4 Q2154.0 1149.5 1693.0 1247.9"/><path class="vis" d="M2670.0 1039.4 Q2154.0 1149.5 1693.0 1247.9"/><line x1="2656.3" y1="1042.3" x2="2671.5" y2="1046.3"/><line x1="2656.3" y1="1042.3" x2="2670.0" y2="1039.4"/><line x1="2656.3" y1="1042.3" x2="2668.5" y2="1032.6"/><circle cx="2648.5" cy="1044.0" r="4" class="hueco"/><line x1="1706.0" y1="1251.2" x2="1703.5" y2="1239.5"/><circle cx="1713.5" cy="1243.5" r="4" class="hueco"/></g>
+<g class="rel" data-h="Medicion" data-p="Dispositivo" data-d="0.0" data-o="0" data-u="0"><title>FK_Medicion_Dispositivo: Medicion(idDispositivo) → Dispositivo(idDispositivo)</title><path class="area" d="M2669.0 548.0 Q2581.2 548.0 2528.0 548.0"/><path class="vis" d="M2669.0 548.0 Q2581.2 548.0 2528.0 548.0"/><line x1="2655.0" y1="548.0" x2="2669.0" y2="555.0"/><line x1="2655.0" y1="548.0" x2="2669.0" y2="548.0"/><line x1="2655.0" y1="548.0" x2="2669.0" y2="541.0"/><line x1="2650.0" y1="542.0" x2="2650.0" y2="554.0"/><line x1="2540.0" y1="554.0" x2="2540.0" y2="542.0"/><line x1="2545.0" y1="554.0" x2="2545.0" y2="542.0"/></g>
+<g class="rel" data-h="Medicion" data-p="Matriz" data-d="0.0" data-o="1" data-u="0"><title>FK_Medicion_Matriz: Medicion(idMatriz) → Matriz(idMatriz)</title><path class="area" d="M2822.9 828.0 Q2825.8 778.5 2818.8 900.0"/><path class="vis" d="M2822.9 828.0 Q2825.8 778.5 2818.8 900.0"/><line x1="2823.7" y1="814.0" x2="2815.9" y2="827.6"/><line x1="2823.7" y1="814.0" x2="2822.9" y2="828.0"/><line x1="2823.7" y1="814.0" x2="2829.9" y2="828.4"/><circle cx="2824.2" cy="806.0" r="4" class="hueco"/><line x1="2825.4" y1="888.4" x2="2813.5" y2="887.7"/><circle cx="2820.0" cy="879.0" r="4" class="hueco"/></g>
+<g class="rel" data-h="Medicion" data-p="PerfilMedicion" data-d="0.0" data-o="0" data-u="0"><title>FK_Medicion_Perfil: Medicion(idPerfilMedicion) → PerfilMedicion(idPerfilMedicion)</title><path class="area" d="M2669.0 692.6 Q2616.2 737.5 2598.0 753.0"/><path class="vis" d="M2669.0 692.6 Q2616.2 737.5 2598.0 753.0"/><line x1="2658.3" y1="701.7" x2="2673.5" y2="698.0"/><line x1="2658.3" y1="701.7" x2="2669.0" y2="692.6"/><line x1="2658.3" y1="701.7" x2="2664.5" y2="687.3"/><line x1="2650.6" y1="700.4" x2="2658.4" y2="709.5"/><line x1="2611.0" y1="749.8" x2="2603.3" y2="740.7"/><line x1="2614.8" y1="746.6" x2="2607.1" y2="737.4"/></g>
+<g class="rel" data-h="Medicion" data-p="ReglaMatriz" data-d="0.0" data-o="1" data-u="0"><title>FK_Medicion_ReglaMatriz: Medicion(idReglaMatriz) → ReglaMatriz(idReglaMatriz)</title><path class="area" d="M3009.0 538.5 Q3035.5 537.0 3079.0 534.6"/><path class="vis" d="M3009.0 538.5 Q3035.5 537.0 3079.0 534.6"/><line x1="3023.0" y1="537.7" x2="3008.6" y2="531.5"/><line x1="3023.0" y1="537.7" x2="3009.0" y2="538.5"/><line x1="3023.0" y1="537.7" x2="3009.4" y2="545.5"/><circle cx="3031.0" cy="537.3" r="4" class="hueco"/><line x1="3066.7" y1="529.2" x2="3067.4" y2="541.2"/><circle cx="3058.0" cy="535.7" r="4" class="hueco"/></g>
+<g class="rel" data-h="MedicionReferenciaCapilar" data-p="Medicion" data-d="0.0" data-o="0" data-u="1"><title>FK_MedicionReferenciaCapilar_Medicion: MedicionReferenciaCapilar(idMedicion) → Medicion(idMedicion)</title><path class="area" d="M2493.6 358.0 Q2591.8 412.0 2669.0 454.5"/><path class="vis" d="M2493.6 358.0 Q2591.8 412.0 2669.0 454.5"/><line x1="2501.2" y1="369.0" x2="2507.0" y2="358.5"/><line x1="2661.4" y1="443.5" x2="2655.6" y2="454.0"/><line x1="2657.0" y1="441.0" x2="2651.2" y2="451.6"/></g>
+<g class="rel" data-h="MuestraSensor" data-p="Medicion" data-d="0.0" data-o="0" data-u="0"><title>FK_MuestraSensor_Medicion: MuestraSensor(idMedicion) → Medicion(idMedicion)</title><path class="area" d="M3110.5 716.0 Q3033.8 668.5 3009.0 653.2"/><path class="vis" d="M3110.5 716.0 Q3033.8 668.5 3009.0 653.2"/><line x1="3098.6" y1="708.6" x2="3106.8" y2="722.0"/><line x1="3098.6" y1="708.6" x2="3110.5" y2="716.0"/><line x1="3098.6" y1="708.6" x2="3114.2" y2="710.0"/><line x1="3097.5" y1="700.9" x2="3091.2" y2="711.1"/><line x1="3016.0" y1="664.6" x2="3022.4" y2="654.4"/><line x1="3020.3" y1="667.2" x2="3026.6" y2="657.0"/></g>
+<g class="rel" data-h="PerfilMedicion" data-p="Institucion" data-d="0.0" data-o="1" data-u="0"><title>FK_PerfilMedicion_Institucion: PerfilMedicion(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M2189.0 1009.7 Q1944.5 1108.5 1693.0 1210.2"/><path class="vis" d="M2189.0 1009.7 Q1944.5 1108.5 1693.0 1210.2"/><line x1="2176.0" y1="1014.9" x2="2191.6" y2="1016.2"/><line x1="2176.0" y1="1014.9" x2="2189.0" y2="1009.7"/><line x1="2176.0" y1="1014.9" x2="2186.4" y2="1003.2"/><circle cx="2168.6" cy="1017.9" r="4" class="hueco"/><line x1="1706.4" y1="1211.2" x2="1701.9" y2="1200.1"/><circle cx="1712.5" cy="1202.3" r="4" class="hueco"/></g>
+<g class="rel" data-h="PerfilMedicion" data-p="InstitucionUsuario" data-d="0.0" data-o="1" data-u="0"><title>FK_PerfilMedicion_Responsable: PerfilMedicion(idInstitucionUsuarioResponsable) → InstitucionUsuario(idInstitucionUsuario)</title><path class="area" d="M2189.0 895.2 Q1930.8 855.0 1652.0 811.6"/><path class="vis" d="M2189.0 895.2 Q1930.8 855.0 1652.0 811.6"/><line x1="2175.2" y1="893.0" x2="2187.9" y2="902.1"/><line x1="2175.2" y1="893.0" x2="2189.0" y2="895.2"/><line x1="2175.2" y1="893.0" x2="2190.1" y2="888.3"/><circle cx="2167.3" cy="891.8" r="4" class="hueco"/><line x1="1662.9" y1="819.4" x2="1664.8" y2="807.5"/><circle cx="1672.8" cy="814.9" r="4" class="hueco"/></g>
+<g class="rel" data-h="PerfilMedicion" data-p="Usuario" data-d="0.0" data-o="1" data-u="0"><title>FK_PerfilMedicion_Usuario: PerfilMedicion(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M2189.0 923.0 Q1724.0 914.0 1214.0 904.1"/><path class="vis" d="M2189.0 923.0 Q1724.0 914.0 1214.0 904.1"/><line x1="2175.0" y1="922.8" x2="2188.9" y2="930.0"/><line x1="2175.0" y1="922.8" x2="2189.0" y2="923.0"/><line x1="2175.0" y1="922.8" x2="2189.1" y2="916.0"/><circle cx="2167.0" cy="922.6" r="4" class="hueco"/><line x1="1225.9" y1="910.3" x2="1226.1" y2="898.3"/><circle cx="1235.0" cy="904.5" r="4" class="hueco"/></g>
+<g class="rel" data-h="PeriodoPrueba" data-p="Institucion" data-d="0.0" data-o="1" data-u="0"><title>FK_PeriodoPrueba_Institucion: PeriodoPrueba(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M1228.0 1318.9 Q1287.0 1312.5 1298.0 1311.3"/><path class="vis" d="M1228.0 1318.9 Q1287.0 1312.5 1298.0 1311.3"/><line x1="1241.9" y1="1317.4" x2="1227.2" y2="1311.9"/><line x1="1241.9" y1="1317.4" x2="1228.0" y2="1318.9"/><line x1="1241.9" y1="1317.4" x2="1228.8" y2="1325.8"/><circle cx="1249.9" cy="1316.5" r="4" class="hueco"/><line x1="1285.4" y1="1306.6" x2="1286.7" y2="1318.6"/><circle cx="1277.1" cy="1313.6" r="4" class="hueco"/></g>
+<g class="rel" data-h="PeriodoPrueba" data-p="Usuario" data-d="0.0" data-o="1" data-u="0"><title>FK_PeriodoPrueba_Usuario: PeriodoPrueba(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M1073.5 1244.0 Q1066.5 1118.0 1063.0 1055.0"/><path class="vis" d="M1073.5 1244.0 Q1066.5 1118.0 1063.0 1055.0"/><line x1="1072.7" y1="1230.0" x2="1066.5" y2="1244.4"/><line x1="1072.7" y1="1230.0" x2="1073.5" y2="1244.0"/><line x1="1072.7" y1="1230.0" x2="1080.5" y2="1243.6"/><circle cx="1072.3" cy="1222.0" r="4" class="hueco"/><line x1="1057.7" y1="1067.3" x2="1069.7" y2="1066.7"/><circle cx="1064.2" cy="1076.0" r="4" class="hueco"/></g>
+<g class="rel" data-h="ReasignacionPaciente" data-p="InstitucionUsuario" data-d="-23.0" data-o="0" data-u="0"><title>FK_ReasignacionPaciente_Anterior: ReasignacionPaciente(idOperadorAnterior) → InstitucionUsuario(idInstitucionUsuario)</title><path class="area" d="M1793.5 1194.0 Q1667.6 1082.2 1576.7 946.0"/><path class="vis" d="M1793.5 1194.0 Q1667.6 1082.2 1576.7 946.0"/><line x1="1783.0" y1="1184.7" x2="1788.8" y2="1199.2"/><line x1="1783.0" y1="1184.7" x2="1793.5" y2="1194.0"/><line x1="1783.0" y1="1184.7" x2="1798.1" y2="1188.8"/><line x1="1783.2" y1="1176.9" x2="1775.3" y2="1185.9"/><line x1="1578.4" y1="959.3" x2="1588.4" y2="952.7"/><line x1="1581.2" y1="963.5" x2="1591.1" y2="956.8"/></g>
+<g class="rel" data-h="ReasignacionPaciente" data-p="InstitucionUsuario" data-d="23.0" data-o="1" data-u="0"><title>FK_ReasignacionPaciente_Nuevo: ReasignacionPaciente(idOperadorNuevo) → InstitucionUsuario(idInstitucionUsuario)</title><path class="area" d="M1851.8 1194.0 Q1736.9 1021.8 1651.6 946.0"/><path class="vis" d="M1851.8 1194.0 Q1736.9 1021.8 1651.6 946.0"/><line x1="1844.0" y1="1182.4" x2="1846.0" y2="1197.9"/><line x1="1844.0" y1="1182.4" x2="1851.8" y2="1194.0"/><line x1="1844.0" y1="1182.4" x2="1857.6" y2="1190.1"/><circle cx="1839.6" cy="1175.7" r="4" class="hueco"/><line x1="1656.6" y1="958.5" x2="1664.5" y2="949.5"/><circle cx="1667.3" cy="959.9" r="4" class="hueco"/></g>
+<g class="rel" data-h="ReasignacionPaciente" data-p="Institucion" data-d="0.0" data-o="0" data-u="0"><title>FK_ReasignacionPaciente_Institucion: ReasignacionPaciente(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M1763.0 1308.8 Q1716.0 1305.5 1693.0 1303.9"/><path class="vis" d="M1763.0 1308.8 Q1716.0 1305.5 1693.0 1303.9"/><line x1="1749.0" y1="1307.8" x2="1762.5" y2="1315.8"/><line x1="1749.0" y1="1307.8" x2="1763.0" y2="1308.8"/><line x1="1749.0" y1="1307.8" x2="1763.5" y2="1301.8"/><line x1="1744.5" y1="1301.5" x2="1743.6" y2="1313.5"/><line x1="1704.5" y1="1310.7" x2="1705.4" y2="1298.7"/><line x1="1709.5" y1="1311.1" x2="1710.4" y2="1299.1"/></g>
+<g class="rel" data-h="ReasignacionPaciente" data-p="PerfilMedicion" data-d="0.0" data-o="0" data-u="0"><title>FK_ReasignacionPaciente_Perfil: ReasignacionPaciente(idPerfilMedicion) → PerfilMedicion(idPerfilMedicion)</title><path class="area" d="M2083.8 1194.0 Q2165.0 1124.0 2189.0 1103.3"/><path class="vis" d="M2083.8 1194.0 Q2165.0 1124.0 2189.0 1103.3"/><line x1="2094.4" y1="1184.9" x2="2079.2" y2="1188.7"/><line x1="2094.4" y1="1184.9" x2="2083.8" y2="1194.0"/><line x1="2094.4" y1="1184.9" x2="2088.4" y2="1199.3"/><line x1="2102.1" y1="1186.1" x2="2094.3" y2="1177.0"/><line x1="2176.0" y1="1106.6" x2="2183.8" y2="1115.7"/><line x1="2172.2" y1="1109.9" x2="2180.0" y2="1119.0"/></g>
+<g class="rel" data-h="ReasignacionPaciente" data-p="Usuario" data-d="0.0" data-o="1" data-u="0"><title>FK_ReasignacionPaciente_Resolutor: ReasignacionPaciente(idUsuarioResolutor) → Usuario(idUsuario)</title><path class="area" d="M1763.0 1238.4 Q1495.5 1111.0 1214.0 977.0"/><path class="vis" d="M1763.0 1238.4 Q1495.5 1111.0 1214.0 977.0"/><line x1="1750.4" y1="1232.4" x2="1760.0" y2="1244.7"/><line x1="1750.4" y1="1232.4" x2="1763.0" y2="1238.4"/><line x1="1750.4" y1="1232.4" x2="1766.0" y2="1232.1"/><circle cx="1743.1" cy="1228.9" r="4" class="hueco"/><line x1="1222.3" y1="987.5" x2="1227.4" y2="976.7"/><circle cx="1233.0" cy="986.0" r="4" class="hueco"/></g>
+<g class="rel" data-h="ReglaMatriz" data-p="Matriz" data-d="0.0" data-o="0" data-u="0"><title>FK_ReglaMatriz_Matriz: ReglaMatriz(idMatriz) → Matriz(idMatriz)</title><path class="area" d="M3129.5 644.0 Q3022.2 767.5 2907.2 900.0"/><path class="vis" d="M3129.5 644.0 Q3022.2 767.5 2907.2 900.0"/><line x1="3120.3" y1="654.6" x2="3134.8" y2="648.6"/><line x1="3120.3" y1="654.6" x2="3129.5" y2="644.0"/><line x1="3120.3" y1="654.6" x2="3124.2" y2="639.4"/><line x1="3112.5" y1="654.4" x2="3121.6" y2="662.3"/><line x1="2919.6" y1="894.9" x2="2910.5" y2="887.0"/><line x1="2922.8" y1="891.1" x2="2913.8" y2="883.2"/></g>
+<g class="rel" data-h="SesionUsuario" data-p="Usuario" data-d="0.0" data-o="0" data-u="0"><title>FK_SesionUsuario_Usuario: SesionUsuario(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M1343.7 548.0 Q1229.0 688.0 1180.7 747.0"/><path class="vis" d="M1343.7 548.0 Q1229.0 688.0 1180.7 747.0"/><line x1="1334.8" y1="558.8" x2="1349.1" y2="552.4"/><line x1="1334.8" y1="558.8" x2="1343.7" y2="548.0"/><line x1="1334.8" y1="558.8" x2="1338.3" y2="543.6"/><line x1="1327.0" y1="558.9" x2="1336.3" y2="566.5"/><line x1="1192.9" y1="741.5" x2="1183.6" y2="733.9"/><line x1="1196.1" y1="737.7" x2="1186.8" y2="730.0"/></g>
+<g class="rel" data-h="Suscripcion" data-p="Institucion" data-d="0.0" data-o="1" data-u="0"><title>FK_Suscripcion_Institucion: Suscripcion(idInstitucion) → Institucion(idInstitucion)</title><path class="area" d="M1097.0 1589.9 Q1219.8 1497.5 1298.0 1438.6"/><path class="vis" d="M1097.0 1589.9 Q1219.8 1497.5 1298.0 1438.6"/><line x1="1108.2" y1="1581.5" x2="1092.8" y2="1584.3"/><line x1="1108.2" y1="1581.5" x2="1097.0" y2="1589.9"/><line x1="1108.2" y1="1581.5" x2="1101.2" y2="1595.5"/><circle cx="1114.6" cy="1576.6" r="4" class="hueco"/><line x1="1284.8" y1="1441.0" x2="1292.0" y2="1450.6"/><circle cx="1281.2" cy="1451.2" r="4" class="hueco"/></g>
+<g class="rel" data-h="Suscripcion" data-p="PlanSuscripcion" data-d="0.0" data-o="0" data-u="0"><title>FK_Suscripcion_Plan: Suscripcion(idPlan) → PlanSuscripcion(idPlan)</title><path class="area" d="M852.9 1823.0 Q822.0 1863.0 798.1 1894.0"/><path class="vis" d="M852.9 1823.0 Q822.0 1863.0 798.1 1894.0"/><line x1="844.3" y1="1834.1" x2="858.4" y2="1827.3"/><line x1="844.3" y1="1834.1" x2="852.9" y2="1823.0"/><line x1="844.3" y1="1834.1" x2="847.3" y2="1818.7"/><line x1="836.5" y1="1834.4" x2="846.0" y2="1841.7"/><line x1="810.1" y1="1888.2" x2="800.6" y2="1880.8"/><line x1="813.2" y1="1884.2" x2="803.7" y2="1876.9"/></g>
+<g class="rel" data-h="Suscripcion" data-p="Usuario" data-d="0.0" data-o="1" data-u="0"><title>FK_Suscripcion_Titular: Suscripcion(idUsuarioTitular) → Usuario(idUsuario)</title><path class="area" d="M960.2 1587.0 Q999.2 1303.0 1033.3 1055.0"/><path class="vis" d="M960.2 1587.0 Q999.2 1303.0 1033.3 1055.0"/><line x1="962.1" y1="1573.1" x2="953.3" y2="1586.0"/><line x1="962.1" y1="1573.1" x2="960.2" y2="1587.0"/><line x1="962.1" y1="1573.1" x2="967.2" y2="1588.0"/><circle cx="963.2" cy="1565.2" r="4" class="hueco"/><line x1="1025.8" y1="1066.1" x2="1037.6" y2="1067.7"/><circle cx="1030.5" cy="1075.8" r="4" class="hueco"/></g>
+<g class="rel" data-h="SuscripcionUsuario" data-p="Suscripcion" data-d="0.0" data-o="0" data-u="0"><title>FK_SuscripcionUsuario_Suscripcion: SuscripcionUsuario(idSuscripcion) → Suscripcion(idSuscripcion)</title><path class="area" d="M733.0 1298.0 Q817.2 1460.5 882.8 1587.0"/><path class="vis" d="M733.0 1298.0 Q817.2 1460.5 882.8 1587.0"/><line x1="739.5" y1="1310.4" x2="739.2" y2="1294.8"/><line x1="739.5" y1="1310.4" x2="733.0" y2="1298.0"/><line x1="739.5" y1="1310.4" x2="726.8" y2="1301.2"/><line x1="736.4" y1="1317.6" x2="747.1" y2="1312.1"/><line x1="882.6" y1="1573.6" x2="872.0" y2="1579.1"/><line x1="880.3" y1="1569.1" x2="869.7" y2="1574.7"/></g>
+<g class="rel" data-h="SuscripcionUsuario" data-p="Usuario" data-d="0.0" data-o="0" data-u="0"><title>FK_SuscripcionUsuario_Usuario: SuscripcionUsuario(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M785.3 1134.0 Q872.5 1058.5 895.0 1039.0"/><path class="vis" d="M785.3 1134.0 Q872.5 1058.5 895.0 1039.0"/><line x1="795.8" y1="1124.8" x2="780.7" y2="1128.7"/><line x1="795.8" y1="1124.8" x2="785.3" y2="1134.0"/><line x1="795.8" y1="1124.8" x2="789.8" y2="1139.3"/><line x1="803.5" y1="1126.1" x2="795.7" y2="1117.0"/><line x1="882.0" y1="1042.3" x2="889.9" y2="1051.4"/><line x1="878.2" y1="1045.6" x2="886.1" y2="1054.7"/></g>
+<g class="rel" data-h="TokenCuenta" data-p="Usuario" data-d="0.0" data-o="0" data-u="0"><title>FK_TokenCuenta_Usuario: TokenCuenta(idUsuario) → Usuario(idUsuario)</title><path class="area" d="M414.0 973.0 Q663.0 945.0 895.0 918.9"/><path class="vis" d="M414.0 973.0 Q663.0 945.0 895.0 918.9"/><line x1="427.9" y1="971.4" x2="413.2" y2="966.0"/><line x1="427.9" y1="971.4" x2="414.0" y2="973.0"/><line x1="427.9" y1="971.4" x2="414.8" y2="979.9"/><line x1="433.6" y1="976.8" x2="432.2" y2="964.9"/><line x1="882.4" y1="914.3" x2="883.7" y2="926.2"/><line x1="877.4" y1="914.9" x2="878.8" y2="926.8"/></g>
+<g class="rel" data-h="TransaccionPago" data-p="ProveedorPago" data-d="0.0" data-o="0" data-u="0"><title>FK_TransaccionPago_Proveedor: TransaccionPago(idProveedorPago) → ProveedorPago(idProveedorPago)</title><path class="area" d="M1169.0 1584.1 Q1015.8 1537.0 856.0 1487.9"/><path class="vis" d="M1169.0 1584.1 Q1015.8 1537.0 856.0 1487.9"/><line x1="1155.6" y1="1580.0" x2="1166.9" y2="1590.8"/><line x1="1155.6" y1="1580.0" x2="1169.0" y2="1584.1"/><line x1="1155.6" y1="1580.0" x2="1171.1" y2="1577.4"/><line x1="1152.6" y1="1572.8" x2="1149.1" y2="1584.2"/><line x1="865.7" y1="1497.2" x2="869.2" y2="1485.7"/><line x1="870.5" y1="1498.7" x2="874.0" y2="1487.2"/></g>
+<g class="rel" data-h="TransaccionPago" data-p="Suscripcion" data-d="0.0" data-o="0" data-u="0"><title>FK_TransaccionPago_Suscripcion: TransaccionPago(idSuscripcion) → Suscripcion(idSuscripcion)</title><path class="area" d="M1169.0 1661.9 Q1134.5 1668.5 1097.0 1675.7"/><path class="vis" d="M1169.0 1661.9 Q1134.5 1668.5 1097.0 1675.7"/><line x1="1155.3" y1="1664.5" x2="1170.3" y2="1668.8"/><line x1="1155.3" y1="1664.5" x2="1169.0" y2="1661.9"/><line x1="1155.3" y1="1664.5" x2="1167.7" y2="1655.0"/><line x1="1149.2" y1="1659.6" x2="1151.5" y2="1671.4"/><line x1="1109.9" y1="1679.3" x2="1107.7" y2="1667.5"/><line x1="1114.8" y1="1678.4" x2="1112.6" y2="1666.6"/></g>
+<g class="rel" data-h="TransferenciaAdministracion" data-p="Usuario" data-d="-23.0" data-o="0" data-u="0"><title>FK_TransferenciaAdministracion_destino: TransferenciaAdministracion(idUsuarioDestino) → Usuario(idUsuario)</title><path class="area" d="M1723.0 855.9 Q1492.0 903.8 1214.0 902.0"/><path class="vis" d="M1723.0 855.9 Q1492.0 903.8 1214.0 902.0"/><line x1="1709.3" y1="858.8" x2="1724.4" y2="862.8"/><line x1="1709.3" y1="858.8" x2="1723.0" y2="855.9"/><line x1="1709.3" y1="858.8" x2="1721.6" y2="849.1"/><line x1="1703.2" y1="853.9" x2="1705.6" y2="865.7"/><line x1="1226.0" y1="908.1" x2="1226.0" y2="896.1"/><line x1="1231.0" y1="908.1" x2="1231.0" y2="896.1"/></g>
+<g class="rel" data-h="TransferenciaAdministracion" data-p="Usuario" data-d="23.0" data-o="0" data-u="0"><title>FK_TransferenciaAdministracion_origen: TransferenciaAdministracion(idUsuarioOrigen) → Usuario(idUsuario)</title><path class="area" d="M1723.0 813.7 Q1483.0 812.2 1214.0 868.0"/><path class="vis" d="M1723.0 813.7 Q1483.0 812.2 1214.0 868.0"/><line x1="1709.0" y1="813.7" x2="1723.0" y2="820.7"/><line x1="1709.0" y1="813.7" x2="1723.0" y2="813.7"/><line x1="1709.0" y1="813.7" x2="1723.0" y2="806.7"/><line x1="1704.0" y1="807.6" x2="1704.0" y2="819.6"/><line x1="1227.0" y1="871.4" x2="1224.5" y2="859.6"/><line x1="1231.9" y1="870.4" x2="1229.4" y2="858.6"/></g>
+<g class="rel" data-h="TransferenciaPerfil" data-p="InstitucionUsuario" data-d="0.0" data-o="0" data-u="0"><title>FK_TransferenciaPerfil_Destino: TransferenciaPerfil(idOperadorDestino) → InstitucionUsuario(idInstitucionUsuario)</title><path class="area" d="M1786.5 960.0 Q1701.0 912.5 1652.0 885.3"/><path class="vis" d="M1786.5 960.0 Q1701.0 912.5 1652.0 885.3"/><line x1="1774.2" y1="953.2" x2="1783.1" y2="966.1"/><line x1="1774.2" y1="953.2" x2="1786.5" y2="960.0"/><line x1="1774.2" y1="953.2" x2="1789.9" y2="953.9"/><line x1="1772.8" y1="945.5" x2="1766.9" y2="956.0"/><line x1="1659.6" y1="896.3" x2="1665.4" y2="885.9"/><line x1="1663.9" y1="898.8" x2="1669.8" y2="888.3"/></g>
+<g class="rel" data-h="TransferenciaPerfil" data-p="PerfilMedicion" data-d="0.0" data-o="0" data-u="0"><title>FK_TransferenciaPerfil_Perfil: TransferenciaPerfil(idPerfilMedicion) → PerfilMedicion(idPerfilMedicion)</title><path class="area" d="M2104.0 999.5 Q2163.8 984.5 2189.0 978.2"/><path class="vis" d="M2104.0 999.5 Q2163.8 984.5 2189.0 978.2"/><line x1="2117.6" y1="996.1" x2="2102.3" y2="992.7"/><line x1="2117.6" y1="996.1" x2="2104.0" y2="999.5"/><line x1="2117.6" y1="996.1" x2="2105.7" y2="1006.2"/><line x1="2123.9" y1="1000.7" x2="2121.0" y2="989.0"/><line x1="2175.9" y1="975.3" x2="2178.8" y2="986.9"/><line x1="2171.1" y1="976.5" x2="2174.0" y2="988.1"/></g>
+</g><g id="tablas">
+<g class="tabla" data-n="Auditoria" data-x="2181" data-y="1209" data-w="285" data-h="344"><rect class="caja" x="2181" y="1209" width="285" height="344" rx="6"/><path d="M2181 1239 V1215 a6 6 0 0 1 6 -6 H2460 a6 6 0 0 1 6 6 V1239 Z" fill="#6c7a89"/><text x="2191" y="1229" style="fill:#fff;font-weight:700;font-size:14px">Auditoria</text>
+<text x="2189" y="1256" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2211" y="1256" class="pk">idAuditoria</text><text class="tipo" x="2458" y="1256" text-anchor="end">uniqueidentifier</text>
+<text x="2189" y="1274" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2211" y="1274">idUsuario</text><text class="tipo" x="2458" y="1274" text-anchor="end">uniqueidentifier ?</text>
+<text x="2211" y="1292">tipoEvento</text><text class="tipo" x="2458" y="1292" text-anchor="end">nvarchar(20)</text>
+<text x="2211" y="1310">accion</text><text class="tipo" x="2458" y="1310" text-anchor="end">nvarchar(50)</text>
+<text x="2211" y="1328">tablaAfectada</text><text class="tipo" x="2458" y="1328" text-anchor="end">nvarchar(128) ?</text>
+<text x="2211" y="1346">idRegistro</text><text class="tipo" x="2458" y="1346" text-anchor="end">uniqueidentifier ?</text>
+<text x="2211" y="1364">tablaRelacionada</text><text class="tipo" x="2458" y="1364" text-anchor="end">nvarchar(128) ?</text>
+<text x="2211" y="1382">idRelacionado</text><text class="tipo" x="2458" y="1382" text-anchor="end">uniqueidentifier ?</text>
+<text x="2211" y="1400">datosPrevios</text><text class="tipo" x="2458" y="1400" text-anchor="end">nvarchar(max) ?</text>
+<text x="2211" y="1418">datosNuevos</text><text class="tipo" x="2458" y="1418" text-anchor="end">nvarchar(max) ?</text>
+<text x="2211" y="1436">resultado</text><text class="tipo" x="2458" y="1436" text-anchor="end">nvarchar(10)</text>
+<text x="2211" y="1454">fechaHora</text><text class="tipo" x="2458" y="1454" text-anchor="end">datetime2(3)</text>
+<text x="2211" y="1472">observacion</text><text class="tipo" x="2458" y="1472" text-anchor="end">nvarchar(1000) ?</text>
+<text x="2211" y="1490">detalle</text><text class="tipo" x="2458" y="1490" text-anchor="end">nvarchar(max) ?</text>
+<text x="2189" y="1508" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2211" y="1508">idInstitucion</text><text class="tipo" x="2458" y="1508" text-anchor="end">uniqueidentifier ?</text>
+<text x="2211" y="1526">modulo</text><text class="tipo" x="2458" y="1526" text-anchor="end">nvarchar(30) ?</text>
+<text x="2211" y="1544">tipoCuentaActor</text><text class="tipo" x="2458" y="1544" text-anchor="end">nvarchar(40) ?</text>
+</g>
+<g class="tabla" data-n="AuditoriaContexto" data-x="2536" data-y="1437" data-w="285" data-h="146"><rect class="caja" x="2536" y="1437" width="285" height="146" rx="6"/><path d="M2536 1467 V1443 a6 6 0 0 1 6 -6 H2815 a6 6 0 0 1 6 6 V1467 Z" fill="#6c7a89"/><text x="2546" y="1457" style="fill:#fff;font-weight:700;font-size:14px">AuditoriaContexto</text>
+<text x="2544" y="1484" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2566" y="1484" class="pk">idAuditoria</text><text class="tipo" x="2813" y="1484" text-anchor="end">uniqueidentifier</text>
+<text x="2566" y="1502">idCorrelacion</text><text class="tipo" x="2813" y="1502" text-anchor="end">nvarchar(64) ?</text>
+<text x="2566" y="1520">ipOrigen</text><text class="tipo" x="2813" y="1520" text-anchor="end">nvarchar(45) ?</text>
+<text x="2566" y="1538">agenteUsuario</text><text class="tipo" x="2813" y="1538" text-anchor="end">nvarchar(100) ?</text>
+<text x="2566" y="1556">motivo</text><text class="tipo" x="2813" y="1556" text-anchor="end">nvarchar(40) ?</text>
+<text x="2566" y="1574">identificadorHash</text><text class="tipo" x="2813" y="1574" text-anchor="end">nvarchar(32) ?</text>
+</g>
+<g class="tabla" data-n="AuditoriaTecnicaMedicion" data-x="2352" data-y="1669" data-w="257" data-h="182"><rect class="caja" x="2352" y="1669" width="257" height="182" rx="6"/><path d="M2352 1699 V1675 a6 6 0 0 1 6 -6 H2603 a6 6 0 0 1 6 6 V1699 Z" fill="#6c7a89"/><text x="2362" y="1689" style="fill:#fff;font-weight:700;font-size:14px">AuditoriaTecnicaMedicion</text>
+<text x="2360" y="1716" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2382" y="1716" class="pk">idEvento</text><text class="tipo" x="2601" y="1716" text-anchor="end">uniqueidentifier</text>
+<text x="2382" y="1734">fechaHora</text><text class="tipo" x="2601" y="1734" text-anchor="end">datetime2(0)</text>
+<text x="2382" y="1752">tipoOperacion</text><text class="tipo" x="2601" y="1752" text-anchor="end">nvarchar(30)</text>
+<text x="2382" y="1770">estadoFinal</text><text class="tipo" x="2601" y="1770" text-anchor="end">nvarchar(12)</text>
+<text x="2382" y="1788">motivo</text><text class="tipo" x="2601" y="1788" text-anchor="end">nvarchar(40)</text>
+<text x="2382" y="1806">modeloSensor</text><text class="tipo" x="2601" y="1806" text-anchor="end">nvarchar(20) ?</text>
+<text x="2382" y="1824">duracionSegundos</text><text class="tipo" x="2601" y="1824" text-anchor="end">int ?</text>
+<text x="2382" y="1842">codigoError</text><text class="tipo" x="2601" y="1842" text-anchor="end">nvarchar(40) ?</text>
+</g>
+<g class="tabla" data-n="CodigoRecuperacionMfa" data-x="60" data-y="708" data-w="354" data-h="128"><rect class="caja" x="60" y="708" width="354" height="128" rx="6"/><path d="M60 738 V714 a6 6 0 0 1 6 -6 H408 a6 6 0 0 1 6 6 V738 Z" fill="#2f6fed"/><text x="70" y="728" style="fill:#fff;font-weight:700;font-size:14px">CodigoRecuperacionMfa</text>
+<text x="68" y="755" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="90" y="755" class="pk">idCodigoRecuperacionMfa</text><text class="tipo" x="406" y="755" text-anchor="end">uniqueidentifier</text>
+<text x="68" y="773" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="90" y="773">idFactorMfa</text><text class="tipo" x="406" y="773" text-anchor="end">uniqueidentifier</text>
+<text x="90" y="791">codigoHash</text><text class="tipo" x="406" y="791" text-anchor="end">nvarchar(255)</text>
+<text x="90" y="809">fechaCreacion</text><text class="tipo" x="406" y="809" text-anchor="end">datetime2(3)</text>
+<text x="90" y="827">fechaUso</text><text class="tipo" x="406" y="827" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="ConfiguracionNotificacion" data-x="408" data-y="454" data-w="381" data-h="182"><rect class="caja" x="408" y="454" width="381" height="182" rx="6"/><path d="M408 484 V460 a6 6 0 0 1 6 -6 H783 a6 6 0 0 1 6 6 V484 Z" fill="#2f6fed"/><text x="418" y="474" style="fill:#fff;font-weight:700;font-size:14px">ConfiguracionNotificacion</text>
+<text x="416" y="501" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="438" y="501" class="pk">idConfiguracionNotificacion</text><text class="tipo" x="781" y="501" text-anchor="end">uniqueidentifier</text>
+<text x="416" y="519" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="438" y="519">idUsuario</text><text class="tipo" x="781" y="519" text-anchor="end">uniqueidentifier</text>
+<text x="438" y="537">habilitada</text><text class="tipo" x="781" y="537" text-anchor="end">bit</text>
+<text x="438" y="555">intervaloMinutos</text><text class="tipo" x="781" y="555" text-anchor="end">int</text>
+<text x="438" y="573">horaInicio</text><text class="tipo" x="781" y="573" text-anchor="end">time(0) ?</text>
+<text x="438" y="591">horaFin</text><text class="tipo" x="781" y="591" text-anchor="end">time(0) ?</text>
+<text x="438" y="609">canal</text><text class="tipo" x="781" y="609" text-anchor="end">nvarchar(20)</text>
+<text x="438" y="627">fechaActualizacion</text><text class="tipo" x="781" y="627" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="ConsentimientoUsuario" data-x="874" data-y="242" data-w="306" data-h="146"><rect class="caja" x="874" y="242" width="306" height="146" rx="6"/><path d="M874 272 V248 a6 6 0 0 1 6 -6 H1174 a6 6 0 0 1 6 6 V272 Z" fill="#2f6fed"/><text x="884" y="262" style="fill:#fff;font-weight:700;font-size:14px">ConsentimientoUsuario</text>
+<text x="882" y="289" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="904" y="289" class="pk">idConsentimiento</text><text class="tipo" x="1172" y="289" text-anchor="end">uniqueidentifier</text>
+<text x="882" y="307" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="904" y="307">idUsuario</text><text class="tipo" x="1172" y="307" text-anchor="end">uniqueidentifier</text>
+<text x="904" y="325">tipo</text><text class="tipo" x="1172" y="325" text-anchor="end">nvarchar(30)</text>
+<text x="904" y="343">version</text><text class="tipo" x="1172" y="343" text-anchor="end">nvarchar(20)</text>
+<text x="904" y="361">estado</text><text class="tipo" x="1172" y="361" text-anchor="end">nvarchar(20)</text>
+<text x="904" y="379">fechaHora</text><text class="tipo" x="1172" y="379" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="CredencialLocal" data-x="484" data-y="800" data-w="340" data-h="218"><rect class="caja" x="484" y="800" width="340" height="218" rx="6"/><path d="M484 830 V806 a6 6 0 0 1 6 -6 H818 a6 6 0 0 1 6 6 V830 Z" fill="#2f6fed"/><text x="494" y="820" style="fill:#fff;font-weight:700;font-size:14px">CredencialLocal</text>
+<text x="492" y="847" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="514" y="847" class="pk">idCredencialLocal</text><text class="tipo" x="816" y="847" text-anchor="end">uniqueidentifier</text>
+<text x="492" y="865" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="514" y="865">idUsuario</text><text class="tipo" x="816" y="865" text-anchor="end">uniqueidentifier</text>
+<text x="514" y="883">passwordHash</text><text class="tipo" x="816" y="883" text-anchor="end">nvarchar(255)</text>
+<text x="514" y="901">requiereCambioPassword</text><text class="tipo" x="816" y="901" text-anchor="end">bit</text>
+<text x="514" y="919">intentosFallidosConsecutivos</text><text class="tipo" x="816" y="919" text-anchor="end">tinyint</text>
+<text x="514" y="937">fechaUltimoIntentoFallido</text><text class="tipo" x="816" y="937" text-anchor="end">datetime2(3) ?</text>
+<text x="514" y="955">bloqueadoHasta</text><text class="tipo" x="816" y="955" text-anchor="end">datetime2(3) ?</text>
+<text x="514" y="973">fechaUltimoCambioPassword</text><text class="tipo" x="816" y="973" text-anchor="end">datetime2(3) ?</text>
+<text x="514" y="991">fechaCreacion</text><text class="tipo" x="816" y="991" text-anchor="end">datetime2(3)</text>
+<text x="514" y="1009">fechaActualizacion</text><text class="tipo" x="816" y="1009" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="Dispositivo" data-x="2119" data-y="430" data-w="409" data-h="236"><rect class="caja" x="2119" y="430" width="409" height="236" rx="6"/><path d="M2119 460 V436 a6 6 0 0 1 6 -6 H2522 a6 6 0 0 1 6 6 V460 Z" fill="#d9822b"/><text x="2129" y="450" style="fill:#fff;font-weight:700;font-size:14px">Dispositivo</text>
+<text x="2127" y="477" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2149" y="477" class="pk">idDispositivo</text><text class="tipo" x="2520" y="477" text-anchor="end">uniqueidentifier</text>
+<text x="2149" y="495">codigoDispositivo</text><text class="tipo" x="2520" y="495" text-anchor="end">nvarchar(100)</text>
+<text x="2149" y="513">nombre</text><text class="tipo" x="2520" y="513" text-anchor="end">nvarchar(100) ?</text>
+<text x="2149" y="531">modelo</text><text class="tipo" x="2520" y="531" text-anchor="end">nvarchar(100) ?</text>
+<text x="2149" y="549">modeloSensor</text><text class="tipo" x="2520" y="549" text-anchor="end">nvarchar(20)</text>
+<text x="2149" y="567">versionFirmware</text><text class="tipo" x="2520" y="567" text-anchor="end">nvarchar(50) ?</text>
+<text x="2149" y="585">estado</text><text class="tipo" x="2520" y="585" text-anchor="end">nvarchar(30)</text>
+<text x="2127" y="603" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2149" y="603">idInstitucionAsignada</text><text class="tipo" x="2520" y="603" text-anchor="end">uniqueidentifier ?</text>
+<text x="2127" y="621" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2149" y="621">idInstitucionUsuarioResponsable</text><text class="tipo" x="2520" y="621" text-anchor="end">uniqueidentifier ?</text>
+<text x="2149" y="639">fechaRegistro</text><text class="tipo" x="2520" y="639" text-anchor="end">datetime2(3)</text>
+<text x="2149" y="657">fechaAsignacionInstitucional</text><text class="tipo" x="2520" y="657" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="EnvioResultado" data-x="3025" data-y="934" data-w="306" data-h="164"><rect class="caja" x="3025" y="934" width="306" height="164" rx="6"/><path d="M3025 964 V940 a6 6 0 0 1 6 -6 H3325 a6 6 0 0 1 6 6 V964 Z" fill="#d9822b"/><text x="3035" y="954" style="fill:#fff;font-weight:700;font-size:14px">EnvioResultado</text>
+<text x="3033" y="981" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="3055" y="981" class="pk">idEnvioResultado</text><text class="tipo" x="3323" y="981" text-anchor="end">uniqueidentifier</text>
+<text x="3033" y="999" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="3055" y="999">idMedicion</text><text class="tipo" x="3323" y="999" text-anchor="end">uniqueidentifier</text>
+<text x="3055" y="1017">correoDestino</text><text class="tipo" x="3323" y="1017" text-anchor="end">nvarchar(254) ?</text>
+<text x="3055" y="1035">estadoEnvio</text><text class="tipo" x="3323" y="1035" text-anchor="end">nvarchar(20)</text>
+<text x="3055" y="1053">fechaSolicitud</text><text class="tipo" x="3323" y="1053" text-anchor="end">datetime2(3)</text>
+<text x="3055" y="1071">fechaEnvio</text><text class="tipo" x="3323" y="1071" text-anchor="end">datetime2(3) ?</text>
+<text x="3055" y="1089">detalleError</text><text class="tipo" x="3323" y="1089" text-anchor="end">nvarchar(500) ?</text>
+</g>
+<g class="tabla" data-n="FactorMfa" data-x="862" data-y="458" data-w="326" data-h="218"><rect class="caja" x="862" y="458" width="326" height="218" rx="6"/><path d="M862 488 V464 a6 6 0 0 1 6 -6 H1182 a6 6 0 0 1 6 6 V488 Z" fill="#2f6fed"/><text x="872" y="478" style="fill:#fff;font-weight:700;font-size:14px">FactorMfa</text>
+<text x="870" y="505" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="892" y="505" class="pk">idFactorMfa</text><text class="tipo" x="1180" y="505" text-anchor="end">uniqueidentifier</text>
+<text x="870" y="523" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="892" y="523">idUsuario</text><text class="tipo" x="1180" y="523" text-anchor="end">uniqueidentifier</text>
+<text x="892" y="541">tipo</text><text class="tipo" x="1180" y="541" text-anchor="end">nvarchar(20)</text>
+<text x="892" y="559">secretoCifrado</text><text class="tipo" x="1180" y="559" text-anchor="end">nvarchar(500)</text>
+<text x="892" y="577">habilitado</text><text class="tipo" x="1180" y="577" text-anchor="end">bit</text>
+<text x="892" y="595">ultimoPasoUsado</text><text class="tipo" x="1180" y="595" text-anchor="end">bigint ?</text>
+<text x="892" y="613">intentosFallidosConsecutivos</text><text class="tipo" x="1180" y="613" text-anchor="end">tinyint</text>
+<text x="892" y="631">bloqueadoHasta</text><text class="tipo" x="1180" y="631" text-anchor="end">datetime2(3) ?</text>
+<text x="892" y="649">fechaCreacion</text><text class="tipo" x="1180" y="649" text-anchor="end">datetime2(3)</text>
+<text x="892" y="667">fechaConfirmacion</text><text class="tipo" x="1180" y="667" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="Grupo" data-x="1714" data-y="120" data-w="292" data-h="146"><rect class="caja" x="1714" y="120" width="292" height="146" rx="6"/><path d="M1714 150 V126 a6 6 0 0 1 6 -6 H2000 a6 6 0 0 1 6 6 V150 Z" fill="#16a085"/><text x="1724" y="140" style="fill:#fff;font-weight:700;font-size:14px">Grupo</text>
+<text x="1722" y="167" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1744" y="167" class="pk">idGrupo</text><text class="tipo" x="1998" y="167" text-anchor="end">uniqueidentifier</text>
+<text x="1744" y="185">nombre</text><text class="tipo" x="1998" y="185" text-anchor="end">nvarchar(100)</text>
+<text x="1744" y="203">descripcion</text><text class="tipo" x="1998" y="203" text-anchor="end">nvarchar(500) ?</text>
+<text x="1744" y="221">estado</text><text class="tipo" x="1998" y="221" text-anchor="end">nvarchar(30)</text>
+<text x="1744" y="239">fechaCreacion</text><text class="tipo" x="1998" y="239" text-anchor="end">datetime2(3)</text>
+<text x="1744" y="257">fechaActualizacion</text><text class="tipo" x="1998" y="257" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="GrupoUsuario" data-x="1755" data-y="381" data-w="292" data-h="290"><rect class="caja" x="1755" y="381" width="292" height="290" rx="6"/><path d="M1755 411 V387 a6 6 0 0 1 6 -6 H2041 a6 6 0 0 1 6 6 V411 Z" fill="#16a085"/><text x="1765" y="401" style="fill:#fff;font-weight:700;font-size:14px">GrupoUsuario</text>
+<text x="1763" y="428" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1785" y="428" class="pk">idGrupoUsuario</text><text class="tipo" x="2039" y="428" text-anchor="end">uniqueidentifier</text>
+<text x="1763" y="446" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1785" y="446">idGrupo</text><text class="tipo" x="2039" y="446" text-anchor="end">uniqueidentifier</text>
+<text x="1763" y="464" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1785" y="464">idUsuario</text><text class="tipo" x="2039" y="464" text-anchor="end">uniqueidentifier</text>
+<text x="1785" y="482">rolGrupo</text><text class="tipo" x="2039" y="482" text-anchor="end">nvarchar(30)</text>
+<text x="1785" y="500">estadoRelacion</text><text class="tipo" x="2039" y="500" text-anchor="end">nvarchar(30)</text>
+<text x="1785" y="518">nivelComparticion</text><text class="tipo" x="2039" y="518" text-anchor="end">nvarchar(30)</text>
+<text x="1785" y="536">fechaInvitacion</text><text class="tipo" x="2039" y="536" text-anchor="end">datetime2(3)</text>
+<text x="1785" y="554">fechaIncorporacion</text><text class="tipo" x="2039" y="554" text-anchor="end">datetime2(3) ?</text>
+<text x="1785" y="572">fechaBaja</text><text class="tipo" x="2039" y="572" text-anchor="end">datetime2(3) ?</text>
+<text x="1785" y="590">visualiza</text><text class="tipo" x="2039" y="590" text-anchor="end">bit</text>
+<text x="1785" y="608">compartePerfil</text><text class="tipo" x="2039" y="608" text-anchor="end">bit</text>
+<text x="1785" y="626">comparteUltimaMedicion</text><text class="tipo" x="2039" y="626" text-anchor="end">bit</text>
+<text x="1785" y="644">comparteHistorial</text><text class="tipo" x="2039" y="644" text-anchor="end">bit</text>
+<text x="1785" y="662">notificaMedicion</text><text class="tipo" x="2039" y="662" text-anchor="end">bit</text>
+</g>
+<g class="tabla" data-n="IdentidadExterna" data-x="471" data-y="201" data-w="319" data-h="182"><rect class="caja" x="471" y="201" width="319" height="182" rx="6"/><path d="M471 231 V207 a6 6 0 0 1 6 -6 H784 a6 6 0 0 1 6 6 V231 Z" fill="#2f6fed"/><text x="481" y="221" style="fill:#fff;font-weight:700;font-size:14px">IdentidadExterna</text>
+<text x="479" y="248" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="501" y="248" class="pk">idIdentidadExterna</text><text class="tipo" x="782" y="248" text-anchor="end">uniqueidentifier</text>
+<text x="479" y="266" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="501" y="266">idUsuario</text><text class="tipo" x="782" y="266" text-anchor="end">uniqueidentifier</text>
+<text x="501" y="284">proveedor</text><text class="tipo" x="782" y="284" text-anchor="end">nvarchar(30)</text>
+<text x="501" y="302">subjectProveedor</text><text class="tipo" x="782" y="302" text-anchor="end">nvarchar(255)</text>
+<text x="501" y="320">emailProveedor</text><text class="tipo" x="782" y="320" text-anchor="end">nvarchar(254) ?</text>
+<text x="501" y="338">emailVerificado</text><text class="tipo" x="782" y="338" text-anchor="end">bit</text>
+<text x="501" y="356">fechaVinculacion</text><text class="tipo" x="782" y="356" text-anchor="end">datetime2(3)</text>
+<text x="501" y="374">ultimoAcceso</text><text class="tipo" x="782" y="374" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="Institucion" data-x="1298" data-y="1127" data-w="395" data-h="326"><rect class="caja" x="1298" y="1127" width="395" height="326" rx="6"/><path d="M1298 1157 V1133 a6 6 0 0 1 6 -6 H1687 a6 6 0 0 1 6 6 V1157 Z" fill="#16a085"/><text x="1308" y="1147" style="fill:#fff;font-weight:700;font-size:14px">Institucion</text>
+<text x="1306" y="1174" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1328" y="1174" class="pk">idInstitucion</text><text class="tipo" x="1685" y="1174" text-anchor="end">uniqueidentifier</text>
+<text x="1328" y="1192">tipoIdentificadorLegal</text><text class="tipo" x="1685" y="1192" text-anchor="end">nvarchar(30)</text>
+<text x="1328" y="1210">identificadorLegal</text><text class="tipo" x="1685" y="1210" text-anchor="end">nvarchar(50)</text>
+<text x="1328" y="1228">nombre</text><text class="tipo" x="1685" y="1228" text-anchor="end">nvarchar(150)</text>
+<text x="1328" y="1246">tipoInstitucion</text><text class="tipo" x="1685" y="1246" text-anchor="end">nvarchar(30)</text>
+<text x="1328" y="1264">descripcion</text><text class="tipo" x="1685" y="1264" text-anchor="end">nvarchar(500) ?</text>
+<text x="1328" y="1282">estado</text><text class="tipo" x="1685" y="1282" text-anchor="end">nvarchar(30)</text>
+<text x="1328" y="1300">fechaCreacion</text><text class="tipo" x="1685" y="1300" text-anchor="end">datetime2(3)</text>
+<text x="1328" y="1318">fechaActualizacion</text><text class="tipo" x="1685" y="1318" text-anchor="end">datetime2(3)</text>
+<text x="1328" y="1336">cantidadReaperturas</text><text class="tipo" x="1685" y="1336" text-anchor="end">int</text>
+<text x="1328" y="1354">fechaUltimaReapertura</text><text class="tipo" x="1685" y="1354" text-anchor="end">datetime2(3) ?</text>
+<text x="1328" y="1372">capacidadMaximaUsuarios</text><text class="tipo" x="1685" y="1372" text-anchor="end">int</text>
+<text x="1328" y="1390">cierreAdministrativo</text><text class="tipo" x="1685" y="1390" text-anchor="end">bit</text>
+<text x="1328" y="1408">fechaCierreAdministrativo</text><text class="tipo" x="1685" y="1408" text-anchor="end">datetime2(3) ?</text>
+<text x="1306" y="1426" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1328" y="1426">idUsuarioCierreAdministrativo</text><text class="tipo" x="1685" y="1426" text-anchor="end">uniqueidentifier ?</text>
+<text x="1328" y="1444">motivoCierreAdministrativo</text><text class="tipo" x="1685" y="1444" text-anchor="end">nvarchar(300) ?</text>
+</g>
+<g class="tabla" data-n="InstitucionUsuario" data-x="1284" data-y="620" data-w="368" data-h="326"><rect class="caja" x="1284" y="620" width="368" height="326" rx="6"/><path d="M1284 650 V626 a6 6 0 0 1 6 -6 H1646 a6 6 0 0 1 6 6 V650 Z" fill="#16a085"/><text x="1294" y="640" style="fill:#fff;font-weight:700;font-size:14px">InstitucionUsuario</text>
+<text x="1292" y="667" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1314" y="667" class="pk">idInstitucionUsuario</text><text class="tipo" x="1644" y="667" text-anchor="end">uniqueidentifier</text>
+<text x="1292" y="685" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1314" y="685">idInstitucion</text><text class="tipo" x="1644" y="685" text-anchor="end">uniqueidentifier</text>
+<text x="1292" y="703" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1314" y="703">idUsuarioInvitado</text><text class="tipo" x="1644" y="703" text-anchor="end">uniqueidentifier</text>
+<text x="1314" y="721">rolInstitucion</text><text class="tipo" x="1644" y="721" text-anchor="end">nvarchar(30)</text>
+<text x="1314" y="739">matriculaProfesional</text><text class="tipo" x="1644" y="739" text-anchor="end">nvarchar(100) ?</text>
+<text x="1314" y="757">legajoInstitucional</text><text class="tipo" x="1644" y="757" text-anchor="end">nvarchar(100) ?</text>
+<text x="1314" y="775">estadoRelacion</text><text class="tipo" x="1644" y="775" text-anchor="end">nvarchar(30)</text>
+<text x="1314" y="793">origenVinculo</text><text class="tipo" x="1644" y="793" text-anchor="end">nvarchar(30)</text>
+<text x="1292" y="811" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1314" y="811">idUsuarioInvitador</text><text class="tipo" x="1644" y="811" text-anchor="end">uniqueidentifier ?</text>
+<text x="1314" y="829">fechaInvitacion</text><text class="tipo" x="1644" y="829" text-anchor="end">datetime2(3)</text>
+<text x="1314" y="847">fechaIncorporacion</text><text class="tipo" x="1644" y="847" text-anchor="end">datetime2(3) ?</text>
+<text x="1314" y="865">fechaBaja</text><text class="tipo" x="1644" y="865" text-anchor="end">datetime2(3) ?</text>
+<text x="1314" y="883">nombreProfesionalHistorico</text><text class="tipo" x="1644" y="883" text-anchor="end">nvarchar(100) ?</text>
+<text x="1314" y="901">apellidoProfesionalHistorico</text><text class="tipo" x="1644" y="901" text-anchor="end">nvarchar(100) ?</text>
+<text x="1314" y="919">funcionProfesional</text><text class="tipo" x="1644" y="919" text-anchor="end">nvarchar(30) ?</text>
+<text x="1314" y="937">fechaMinimizacionDatos</text><text class="tipo" x="1644" y="937" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="Matriz" data-x="2670" data-y="900" data-w="285" data-h="218"><rect class="caja" x="2670" y="900" width="285" height="218" rx="6"/><path d="M2670 930 V906 a6 6 0 0 1 6 -6 H2949 a6 6 0 0 1 6 6 V930 Z" fill="#d9822b"/><text x="2680" y="920" style="fill:#fff;font-weight:700;font-size:14px">Matriz</text>
+<text x="2678" y="947" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2700" y="947" class="pk">idMatriz</text><text class="tipo" x="2947" y="947" text-anchor="end">uniqueidentifier</text>
+<text x="2678" y="965" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2700" y="965">idInstitucion</text><text class="tipo" x="2947" y="965" text-anchor="end">uniqueidentifier ?</text>
+<text x="2700" y="983">nombre</text><text class="tipo" x="2947" y="983" text-anchor="end">nvarchar(100)</text>
+<text x="2700" y="1001">version</text><text class="tipo" x="2947" y="1001" text-anchor="end">nvarchar(50)</text>
+<text x="2700" y="1019">ambito</text><text class="tipo" x="2947" y="1019" text-anchor="end">nvarchar(20)</text>
+<text x="2700" y="1037">fechaVigenciaDesde</text><text class="tipo" x="2947" y="1037" text-anchor="end">date</text>
+<text x="2700" y="1055">fechaVigenciaHasta</text><text class="tipo" x="2947" y="1055" text-anchor="end">date ?</text>
+<text x="2700" y="1073">descripcion</text><text class="tipo" x="2947" y="1073" text-anchor="end">nvarchar(500) ?</text>
+<text x="2700" y="1091">estado</text><text class="tipo" x="2947" y="1091" text-anchor="end">nvarchar(30)</text>
+<text x="2700" y="1109">fechaCreacion</text><text class="tipo" x="2947" y="1109" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="Medicion" data-x="2669" data-y="268" data-w="340" data-h="560"><rect class="caja" x="2669" y="268" width="340" height="560" rx="6"/><path d="M2669 298 V274 a6 6 0 0 1 6 -6 H3003 a6 6 0 0 1 6 6 V298 Z" fill="#d9822b"/><text x="2679" y="288" style="fill:#fff;font-weight:700;font-size:14px">Medicion</text>
+<text x="2677" y="315" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2699" y="315" class="pk">idMedicion</text><text class="tipo" x="3001" y="315" text-anchor="end">uniqueidentifier</text>
+<text x="2677" y="333" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2699" y="333">idPerfilMedicion</text><text class="tipo" x="3001" y="333" text-anchor="end">uniqueidentifier</text>
+<text x="2677" y="351" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2699" y="351">idDispositivo</text><text class="tipo" x="3001" y="351" text-anchor="end">uniqueidentifier</text>
+<text x="2677" y="369" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2699" y="369">idMatriz</text><text class="tipo" x="3001" y="369" text-anchor="end">uniqueidentifier ?</text>
+<text x="2699" y="387">modoMedicion</text><text class="tipo" x="3001" y="387" text-anchor="end">nvarchar(30)</text>
+<text x="2699" y="405">estadoMedicion</text><text class="tipo" x="3001" y="405" text-anchor="end">nvarchar(30)</text>
+<text x="2699" y="423">fechaHoraInicio</text><text class="tipo" x="3001" y="423" text-anchor="end">datetime2(3)</text>
+<text x="2699" y="441">fechaHoraFin</text><text class="tipo" x="3001" y="441" text-anchor="end">datetime2(3) ?</text>
+<text x="2699" y="459">fechaHoraUltimaComida</text><text class="tipo" x="3001" y="459" text-anchor="end">datetime2(3) ?</text>
+<text x="2699" y="477">condicionComida</text><text class="tipo" x="3001" y="477" text-anchor="end">nvarchar(30)</text>
+<text x="2699" y="495">edadAlMomento</text><text class="tipo" x="3001" y="495" text-anchor="end">smallint ?</text>
+<text x="2699" y="513">sexoModelo</text><text class="tipo" x="3001" y="513" text-anchor="end">nvarchar(30) ?</text>
+<text x="2699" y="531">versionFirmwareAlMomento</text><text class="tipo" x="3001" y="531" text-anchor="end">nvarchar(50) ?</text>
+<text x="2699" y="549">modeloSensorAlMomento</text><text class="tipo" x="3001" y="549" text-anchor="end">nvarchar(20) ?</text>
+<text x="2699" y="567">versionAlgoritmo</text><text class="tipo" x="3001" y="567" text-anchor="end">nvarchar(50) ?</text>
+<text x="2699" y="585">calidadSenal</text><text class="tipo" x="3001" y="585" text-anchor="end">decimal(6,3) ?</text>
+<text x="2699" y="603">spo2</text><text class="tipo" x="3001" y="603" text-anchor="end">decimal(5,2) ?</text>
+<text x="2699" y="621">frecuenciaCardiaca</text><text class="tipo" x="3001" y="621" text-anchor="end">smallint ?</text>
+<text x="2699" y="639">glucosaEstimada</text><text class="tipo" x="3001" y="639" text-anchor="end">decimal(8,2) ?</text>
+<text x="2699" y="657">observacion</text><text class="tipo" x="3001" y="657" text-anchor="end">nvarchar(500) ?</text>
+<text x="2699" y="675">minutosDesdeUltimaComida</text><text class="tipo" x="3001" y="675" text-anchor="end">calculada ?</text>
+<text x="2699" y="693">duracionMs</text><text class="tipo" x="3001" y="693" text-anchor="end">calculada ?</text>
+<text x="2699" y="711">origenGlucosa</text><text class="tipo" x="3001" y="711" text-anchor="end">nvarchar(20) ?</text>
+<text x="2699" y="729">glucosaDispositivo</text><text class="tipo" x="3001" y="729" text-anchor="end">decimal(8,2) ?</text>
+<text x="2699" y="747">unidadGlucosa</text><text class="tipo" x="3001" y="747" text-anchor="end">nvarchar(10) ?</text>
+<text x="2699" y="765">indiceOptico</text><text class="tipo" x="3001" y="765" text-anchor="end">decimal(10,5) ?</text>
+<text x="2699" y="783">lecturasEstabilizadas</text><text class="tipo" x="3001" y="783" text-anchor="end">smallint ?</text>
+<text x="2677" y="801" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2699" y="801">idReglaMatriz</text><text class="tipo" x="3001" y="801" text-anchor="end">uniqueidentifier ?</text>
+<text x="2699" y="819">fechaVencimientoRetencion</text><text class="tipo" x="3001" y="819" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="MedicionReferenciaCapilar" data-x="2178" data-y="194" data-w="333" data-h="164"><rect class="caja" x="2178" y="194" width="333" height="164" rx="6"/><path d="M2178 224 V200 a6 6 0 0 1 6 -6 H2505 a6 6 0 0 1 6 6 V224 Z" fill="#d9822b"/><text x="2188" y="214" style="fill:#fff;font-weight:700;font-size:14px">MedicionReferenciaCapilar</text>
+<text x="2186" y="241" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2208" y="241" class="pk">idMedicionReferencia</text><text class="tipo" x="2503" y="241" text-anchor="end">uniqueidentifier</text>
+<text x="2186" y="259" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2208" y="259">idMedicion</text><text class="tipo" x="2503" y="259" text-anchor="end">uniqueidentifier</text>
+<text x="2208" y="277">glucosaReferencia</text><text class="tipo" x="2503" y="277" text-anchor="end">decimal(8,2)</text>
+<text x="2208" y="295">fechaHoraReferencia</text><text class="tipo" x="2503" y="295" text-anchor="end">datetime2(3)</text>
+<text x="2208" y="313">marcaGlucometro</text><text class="tipo" x="2503" y="313" text-anchor="end">nvarchar(100) ?</text>
+<text x="2208" y="331">modeloGlucometro</text><text class="tipo" x="2503" y="331" text-anchor="end">nvarchar(100) ?</text>
+<text x="2208" y="349">observacion</text><text class="tipo" x="2503" y="349" text-anchor="end">nvarchar(500) ?</text>
+</g>
+<g class="tabla" data-n="MuestraSensor" data-x="3079" data-y="716" data-w="299" data-h="146"><rect class="caja" x="3079" y="716" width="299" height="146" rx="6"/><path d="M3079 746 V722 a6 6 0 0 1 6 -6 H3372 a6 6 0 0 1 6 6 V746 Z" fill="#d9822b"/><text x="3089" y="736" style="fill:#fff;font-weight:700;font-size:14px">MuestraSensor</text>
+<text x="3087" y="763" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="3109" y="763" class="pk">idMuestraSensor</text><text class="tipo" x="3370" y="763" text-anchor="end">uniqueidentifier</text>
+<text x="3087" y="781" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="3109" y="781">idMedicion</text><text class="tipo" x="3370" y="781" text-anchor="end">uniqueidentifier</text>
+<text x="3109" y="799">numeroMuestra</text><text class="tipo" x="3370" y="799" text-anchor="end">int</text>
+<text x="3109" y="817">tiempoRelativoMs</text><text class="tipo" x="3370" y="817" text-anchor="end">int ?</text>
+<text x="3109" y="835">valorRed</text><text class="tipo" x="3370" y="835" text-anchor="end">int</text>
+<text x="3109" y="853">valorIR</text><text class="tipo" x="3370" y="853" text-anchor="end">int</text>
+</g>
+<g class="tabla" data-n="PerfilMedicion" data-x="2189" data-y="737" data-w="409" data-h="380"><rect class="caja" x="2189" y="737" width="409" height="380" rx="6"/><path d="M2189 767 V743 a6 6 0 0 1 6 -6 H2592 a6 6 0 0 1 6 6 V767 Z" fill="#d9822b"/><text x="2199" y="757" style="fill:#fff;font-weight:700;font-size:14px">PerfilMedicion</text>
+<text x="2197" y="784" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="2219" y="784" class="pk">idPerfilMedicion</text><text class="tipo" x="2590" y="784" text-anchor="end">uniqueidentifier</text>
+<text x="2219" y="802">tipoPerfil</text><text class="tipo" x="2590" y="802" text-anchor="end">nvarchar(30)</text>
+<text x="2197" y="820" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2219" y="820">idUsuario</text><text class="tipo" x="2590" y="820" text-anchor="end">uniqueidentifier ?</text>
+<text x="2197" y="838" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2219" y="838">idInstitucionUsuarioResponsable</text><text class="tipo" x="2590" y="838" text-anchor="end">uniqueidentifier ?</text>
+<text x="2219" y="856">identificadorPseudonimo</text><text class="tipo" x="2590" y="856" text-anchor="end">nvarchar(100) ?</text>
+<text x="2219" y="874">nombre</text><text class="tipo" x="2590" y="874" text-anchor="end">nvarchar(100) ?</text>
+<text x="2219" y="892">apellido</text><text class="tipo" x="2590" y="892" text-anchor="end">nvarchar(100) ?</text>
+<text x="2219" y="910">dni</text><text class="tipo" x="2590" y="910" text-anchor="end">nvarchar(20) ?</text>
+<text x="2219" y="928">fechaNacimiento</text><text class="tipo" x="2590" y="928" text-anchor="end">date ?</text>
+<text x="2219" y="946">edadDeclarada</text><text class="tipo" x="2590" y="946" text-anchor="end">smallint ?</text>
+<text x="2219" y="964">sexoModelo</text><text class="tipo" x="2590" y="964" text-anchor="end">nvarchar(30) ?</text>
+<text x="2219" y="982">fechaCreacion</text><text class="tipo" x="2590" y="982" text-anchor="end">datetime2(3)</text>
+<text x="2219" y="1000">fechaUltimaMedicion</text><text class="tipo" x="2590" y="1000" text-anchor="end">datetime2(3) ?</text>
+<text x="2219" y="1018">fechaExpiracionDatosPersonales</text><text class="tipo" x="2590" y="1018" text-anchor="end">datetime2(3) ?</text>
+<text x="2219" y="1036">fechaDepuracionDatosPersonales</text><text class="tipo" x="2590" y="1036" text-anchor="end">datetime2(3) ?</text>
+<text x="2219" y="1054">correoResultados</text><text class="tipo" x="2590" y="1054" text-anchor="end">nvarchar(254) ?</text>
+<text x="2219" y="1072">fechaAutorizacionCorreo</text><text class="tipo" x="2590" y="1072" text-anchor="end">datetime2(3) ?</text>
+<text x="2219" y="1090">fechaExpiracionCorreo</text><text class="tipo" x="2590" y="1090" text-anchor="end">datetime2(3) ?</text>
+<text x="2197" y="1108" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="2219" y="1108">idInstitucion</text><text class="tipo" x="2590" y="1108" text-anchor="end">uniqueidentifier ?</text>
+</g>
+<g class="tabla" data-n="PeriodoPrueba" data-x="929" data-y="1244" data-w="299" data-h="182"><rect class="caja" x="929" y="1244" width="299" height="182" rx="6"/><path d="M929 1274 V1250 a6 6 0 0 1 6 -6 H1222 a6 6 0 0 1 6 6 V1274 Z" fill="#8e44ad"/><text x="939" y="1264" style="fill:#fff;font-weight:700;font-size:14px">PeriodoPrueba</text>
+<text x="937" y="1291" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="959" y="1291" class="pk">idPeriodoPrueba</text><text class="tipo" x="1220" y="1291" text-anchor="end">uniqueidentifier</text>
+<text x="937" y="1309" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="959" y="1309">idUsuario</text><text class="tipo" x="1220" y="1309" text-anchor="end">uniqueidentifier ?</text>
+<text x="937" y="1327" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="959" y="1327">idInstitucion</text><text class="tipo" x="1220" y="1327" text-anchor="end">uniqueidentifier ?</text>
+<text x="959" y="1345">numeroPeriodo</text><text class="tipo" x="1220" y="1345" text-anchor="end">tinyint</text>
+<text x="959" y="1363">origen</text><text class="tipo" x="1220" y="1363" text-anchor="end">nvarchar(30)</text>
+<text x="959" y="1381">fechaInicio</text><text class="tipo" x="1220" y="1381" text-anchor="end">datetime2(3)</text>
+<text x="959" y="1399">fechaFin</text><text class="tipo" x="1220" y="1399" text-anchor="end">datetime2(3)</text>
+<text x="959" y="1417">estado</text><text class="tipo" x="1220" y="1417" text-anchor="end">nvarchar(20)</text>
+</g>
+<g class="tabla" data-n="PlanSuscripcion" data-x="575" data-y="1894" data-w="250" data-h="254"><rect class="caja" x="575" y="1894" width="250" height="254" rx="6"/><path d="M575 1924 V1900 a6 6 0 0 1 6 -6 H819 a6 6 0 0 1 6 6 V1924 Z" fill="#8e44ad"/><text x="585" y="1914" style="fill:#fff;font-weight:700;font-size:14px">PlanSuscripcion</text>
+<text x="583" y="1941" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="605" y="1941" class="pk">idPlan</text><text class="tipo" x="817" y="1941" text-anchor="end">uniqueidentifier</text>
+<text x="605" y="1959">nombre</text><text class="tipo" x="817" y="1959" text-anchor="end">nvarchar(100)</text>
+<text x="605" y="1977">tipoCliente</text><text class="tipo" x="817" y="1977" text-anchor="end">nvarchar(30)</text>
+<text x="605" y="1995">tipoPlan</text><text class="tipo" x="817" y="1995" text-anchor="end">nvarchar(30)</text>
+<text x="605" y="2013">cupoUsuarios</text><text class="tipo" x="817" y="2013" text-anchor="end">int ?</text>
+<text x="605" y="2031">precioBase</text><text class="tipo" x="817" y="2031" text-anchor="end">decimal(12,2) ?</text>
+<text x="605" y="2049">moneda</text><text class="tipo" x="817" y="2049" text-anchor="end">char(3) ?</text>
+<text x="605" y="2067">requiereCanalVentas</text><text class="tipo" x="817" y="2067" text-anchor="end">bit</text>
+<text x="605" y="2085">estado</text><text class="tipo" x="817" y="2085" text-anchor="end">nvarchar(20)</text>
+<text x="605" y="2103">fechaVigenciaDesde</text><text class="tipo" x="817" y="2103" text-anchor="end">date</text>
+<text x="605" y="2121">fechaVigenciaHasta</text><text class="tipo" x="817" y="2121" text-anchor="end">date ?</text>
+<text x="605" y="2139">descripcion</text><text class="tipo" x="817" y="2139" text-anchor="end">nvarchar(500) ?</text>
+</g>
+<g class="tabla" data-n="ProveedorPago" data-x="557" data-y="1369" data-w="299" data-h="146"><rect class="caja" x="557" y="1369" width="299" height="146" rx="6"/><path d="M557 1399 V1375 a6 6 0 0 1 6 -6 H850 a6 6 0 0 1 6 6 V1399 Z" fill="#8e44ad"/><text x="567" y="1389" style="fill:#fff;font-weight:700;font-size:14px">ProveedorPago</text>
+<text x="565" y="1416" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="587" y="1416" class="pk">idProveedorPago</text><text class="tipo" x="848" y="1416" text-anchor="end">uniqueidentifier</text>
+<text x="587" y="1434">codigo</text><text class="tipo" x="848" y="1434" text-anchor="end">nvarchar(40)</text>
+<text x="587" y="1452">nombre</text><text class="tipo" x="848" y="1452" text-anchor="end">nvarchar(100)</text>
+<text x="587" y="1470">estado</text><text class="tipo" x="848" y="1470" text-anchor="end">nvarchar(20)</text>
+<text x="587" y="1488">entorno</text><text class="tipo" x="848" y="1488" text-anchor="end">nvarchar(20)</text>
+<text x="587" y="1506">fechaAlta</text><text class="tipo" x="848" y="1506" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="ReasignacionPaciente" data-x="1763" data-y="1194" data-w="347" data-h="254"><rect class="caja" x="1763" y="1194" width="347" height="254" rx="6"/><path d="M1763 1224 V1200 a6 6 0 0 1 6 -6 H2104 a6 6 0 0 1 6 6 V1224 Z" fill="#16a085"/><text x="1773" y="1214" style="fill:#fff;font-weight:700;font-size:14px">ReasignacionPaciente</text>
+<text x="1771" y="1241" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1793" y="1241" class="pk">idReasignacionPaciente</text><text class="tipo" x="2102" y="1241" text-anchor="end">uniqueidentifier</text>
+<text x="1771" y="1259" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1793" y="1259">idInstitucion</text><text class="tipo" x="2102" y="1259" text-anchor="end">uniqueidentifier</text>
+<text x="1771" y="1277" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1793" y="1277">idPerfilMedicion</text><text class="tipo" x="2102" y="1277" text-anchor="end">uniqueidentifier</text>
+<text x="1771" y="1295" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1793" y="1295">idOperadorAnterior</text><text class="tipo" x="2102" y="1295" text-anchor="end">uniqueidentifier</text>
+<text x="1771" y="1313" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1793" y="1313">idOperadorNuevo</text><text class="tipo" x="2102" y="1313" text-anchor="end">uniqueidentifier ?</text>
+<text x="1793" y="1331">estado</text><text class="tipo" x="2102" y="1331" text-anchor="end">nvarchar(20)</text>
+<text x="1793" y="1349">motivo</text><text class="tipo" x="2102" y="1349" text-anchor="end">nvarchar(30)</text>
+<text x="1793" y="1367">fechaCreacion</text><text class="tipo" x="2102" y="1367" text-anchor="end">datetime2(3)</text>
+<text x="1793" y="1385">fechaResolucion</text><text class="tipo" x="2102" y="1385" text-anchor="end">datetime2(3) ?</text>
+<text x="1771" y="1403" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1793" y="1403">idUsuarioResolutor</text><text class="tipo" x="2102" y="1403" text-anchor="end">uniqueidentifier ?</text>
+<text x="1793" y="1421">resultado</text><text class="tipo" x="2102" y="1421" text-anchor="end">nvarchar(30) ?</text>
+<text x="1793" y="1439">observacion</text><text class="tipo" x="2102" y="1439" text-anchor="end">nvarchar(500) ?</text>
+</g>
+<g class="tabla" data-n="ReglaMatriz" data-x="3079" data-y="408" data-w="306" data-h="236"><rect class="caja" x="3079" y="408" width="306" height="236" rx="6"/><path d="M3079 438 V414 a6 6 0 0 1 6 -6 H3379 a6 6 0 0 1 6 6 V438 Z" fill="#d9822b"/><text x="3089" y="428" style="fill:#fff;font-weight:700;font-size:14px">ReglaMatriz</text>
+<text x="3087" y="455" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="3109" y="455" class="pk">idReglaMatriz</text><text class="tipo" x="3377" y="455" text-anchor="end">uniqueidentifier</text>
+<text x="3087" y="473" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="3109" y="473">idMatriz</text><text class="tipo" x="3377" y="473" text-anchor="end">uniqueidentifier</text>
+<text x="3109" y="491">codigoRegla</text><text class="tipo" x="3377" y="491" text-anchor="end">nvarchar(50)</text>
+<text x="3109" y="509">sexoModelo</text><text class="tipo" x="3377" y="509" text-anchor="end">nvarchar(30)</text>
+<text x="3109" y="527">edadDesde</text><text class="tipo" x="3377" y="527" text-anchor="end">smallint ?</text>
+<text x="3109" y="545">edadHasta</text><text class="tipo" x="3377" y="545" text-anchor="end">smallint ?</text>
+<text x="3109" y="563">condicionComida</text><text class="tipo" x="3377" y="563" text-anchor="end">nvarchar(30)</text>
+<text x="3109" y="581">minutosComidaMin</text><text class="tipo" x="3377" y="581" text-anchor="end">int ?</text>
+<text x="3109" y="599">minutosComidaMax</text><text class="tipo" x="3377" y="599" text-anchor="end">int ?</text>
+<text x="3109" y="617">glucosaMinReferencia</text><text class="tipo" x="3377" y="617" text-anchor="end">decimal(8,2)</text>
+<text x="3109" y="635">glucosaMaxReferencia</text><text class="tipo" x="3377" y="635" text-anchor="end">decimal(8,2)</text>
+</g>
+<g class="tabla" data-n="SesionUsuario" data-x="1261" data-y="402" data-w="285" data-h="146"><rect class="caja" x="1261" y="402" width="285" height="146" rx="6"/><path d="M1261 432 V408 a6 6 0 0 1 6 -6 H1540 a6 6 0 0 1 6 6 V432 Z" fill="#2f6fed"/><text x="1271" y="422" style="fill:#fff;font-weight:700;font-size:14px">SesionUsuario</text>
+<text x="1269" y="449" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1291" y="449" class="pk">idSesion</text><text class="tipo" x="1538" y="449" text-anchor="end">uniqueidentifier</text>
+<text x="1269" y="467" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1291" y="467">idUsuario</text><text class="tipo" x="1538" y="467" text-anchor="end">uniqueidentifier</text>
+<text x="1291" y="485">refreshTokenHash</text><text class="tipo" x="1538" y="485" text-anchor="end">nvarchar(255)</text>
+<text x="1291" y="503">fechaCreacion</text><text class="tipo" x="1538" y="503" text-anchor="end">datetime2(3)</text>
+<text x="1291" y="521">fechaExpiracion</text><text class="tipo" x="1538" y="521" text-anchor="end">datetime2(3)</text>
+<text x="1291" y="539">fechaRevocacion</text><text class="tipo" x="1538" y="539" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="Suscripcion" data-x="791" data-y="1587" data-w="306" data-h="236"><rect class="caja" x="791" y="1587" width="306" height="236" rx="6"/><path d="M791 1617 V1593 a6 6 0 0 1 6 -6 H1091 a6 6 0 0 1 6 6 V1617 Z" fill="#8e44ad"/><text x="801" y="1607" style="fill:#fff;font-weight:700;font-size:14px">Suscripcion</text>
+<text x="799" y="1634" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="821" y="1634" class="pk">idSuscripcion</text><text class="tipo" x="1089" y="1634" text-anchor="end">uniqueidentifier</text>
+<text x="799" y="1652" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="821" y="1652">idPlan</text><text class="tipo" x="1089" y="1652" text-anchor="end">uniqueidentifier</text>
+<text x="799" y="1670" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="821" y="1670">idUsuarioTitular</text><text class="tipo" x="1089" y="1670" text-anchor="end">uniqueidentifier ?</text>
+<text x="799" y="1688" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="821" y="1688">idInstitucion</text><text class="tipo" x="1089" y="1688" text-anchor="end">uniqueidentifier ?</text>
+<text x="821" y="1706">estado</text><text class="tipo" x="1089" y="1706" text-anchor="end">nvarchar(30)</text>
+<text x="821" y="1724">fechaInicio</text><text class="tipo" x="1089" y="1724" text-anchor="end">datetime2(3)</text>
+<text x="821" y="1742">fechaFin</text><text class="tipo" x="1089" y="1742" text-anchor="end">datetime2(3) ?</text>
+<text x="821" y="1760">renovacionAutomatica</text><text class="tipo" x="1089" y="1760" text-anchor="end">bit</text>
+<text x="821" y="1778">origenContratacion</text><text class="tipo" x="1089" y="1778" text-anchor="end">nvarchar(30)</text>
+<text x="821" y="1796">referenciaContrato</text><text class="tipo" x="1089" y="1796" text-anchor="end">nvarchar(100) ?</text>
+<text x="821" y="1814">fechaCreacion</text><text class="tipo" x="1089" y="1814" text-anchor="end">datetime2(3)</text>
+</g>
+<g class="tabla" data-n="SuscripcionUsuario" data-x="524" data-y="1134" data-w="333" data-h="164"><rect class="caja" x="524" y="1134" width="333" height="164" rx="6"/><path d="M524 1164 V1140 a6 6 0 0 1 6 -6 H851 a6 6 0 0 1 6 6 V1164 Z" fill="#8e44ad"/><text x="534" y="1154" style="fill:#fff;font-weight:700;font-size:14px">SuscripcionUsuario</text>
+<text x="532" y="1181" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="554" y="1181" class="pk">idSuscripcionUsuario</text><text class="tipo" x="849" y="1181" text-anchor="end">uniqueidentifier</text>
+<text x="532" y="1199" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="554" y="1199">idSuscripcion</text><text class="tipo" x="849" y="1199" text-anchor="end">uniqueidentifier</text>
+<text x="532" y="1217" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="554" y="1217">idUsuario</text><text class="tipo" x="849" y="1217" text-anchor="end">uniqueidentifier</text>
+<text x="554" y="1235">esTitular</text><text class="tipo" x="849" y="1235" text-anchor="end">bit</text>
+<text x="554" y="1253">estadoRelacion</text><text class="tipo" x="849" y="1253" text-anchor="end">nvarchar(20)</text>
+<text x="554" y="1271">fechaIncorporacion</text><text class="tipo" x="849" y="1271" text-anchor="end">datetime2(3)</text>
+<text x="554" y="1289">fechaBaja</text><text class="tipo" x="849" y="1289" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="TokenCuenta" data-x="129" data-y="907" data-w="285" data-h="164"><rect class="caja" x="129" y="907" width="285" height="164" rx="6"/><path d="M129 937 V913 a6 6 0 0 1 6 -6 H408 a6 6 0 0 1 6 6 V937 Z" fill="#2f6fed"/><text x="139" y="927" style="fill:#fff;font-weight:700;font-size:14px">TokenCuenta</text>
+<text x="137" y="954" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="159" y="954" class="pk">idTokenCuenta</text><text class="tipo" x="406" y="954" text-anchor="end">uniqueidentifier</text>
+<text x="137" y="972" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="159" y="972">idUsuario</text><text class="tipo" x="406" y="972" text-anchor="end">uniqueidentifier</text>
+<text x="159" y="990">tipo</text><text class="tipo" x="406" y="990" text-anchor="end">nvarchar(40)</text>
+<text x="159" y="1008">tokenHash</text><text class="tipo" x="406" y="1008" text-anchor="end">nvarchar(255)</text>
+<text x="159" y="1026">fechaCreacion</text><text class="tipo" x="406" y="1026" text-anchor="end">datetime2(3)</text>
+<text x="159" y="1044">fechaExpiracion</text><text class="tipo" x="406" y="1044" text-anchor="end">datetime2(3)</text>
+<text x="159" y="1062">fechaUso</text><text class="tipo" x="406" y="1062" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="TransaccionPago" data-x="1169" data-y="1523" data-w="312" data-h="218"><rect class="caja" x="1169" y="1523" width="312" height="218" rx="6"/><path d="M1169 1553 V1529 a6 6 0 0 1 6 -6 H1475 a6 6 0 0 1 6 6 V1553 Z" fill="#8e44ad"/><text x="1179" y="1543" style="fill:#fff;font-weight:700;font-size:14px">TransaccionPago</text>
+<text x="1177" y="1570" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1199" y="1570" class="pk">idTransaccionPago</text><text class="tipo" x="1473" y="1570" text-anchor="end">uniqueidentifier</text>
+<text x="1177" y="1588" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1199" y="1588">idSuscripcion</text><text class="tipo" x="1473" y="1588" text-anchor="end">uniqueidentifier</text>
+<text x="1177" y="1606" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1199" y="1606">idProveedorPago</text><text class="tipo" x="1473" y="1606" text-anchor="end">uniqueidentifier</text>
+<text x="1199" y="1624">idOperacionProveedor</text><text class="tipo" x="1473" y="1624" text-anchor="end">nvarchar(150)</text>
+<text x="1199" y="1642">monto</text><text class="tipo" x="1473" y="1642" text-anchor="end">decimal(12,2)</text>
+<text x="1199" y="1660">moneda</text><text class="tipo" x="1473" y="1660" text-anchor="end">char(3)</text>
+<text x="1199" y="1678">estado</text><text class="tipo" x="1473" y="1678" text-anchor="end">nvarchar(30)</text>
+<text x="1199" y="1696">fechaCreacion</text><text class="tipo" x="1473" y="1696" text-anchor="end">datetime2(3)</text>
+<text x="1199" y="1714">fechaConfirmacion</text><text class="tipo" x="1473" y="1714" text-anchor="end">datetime2(3) ?</text>
+<text x="1199" y="1732">detalleProveedor</text><text class="tipo" x="1473" y="1732" text-anchor="end">nvarchar(max) ?</text>
+</g>
+<g class="tabla" data-n="TransferenciaAdministracion" data-x="1723" data-y="742" data-w="395" data-h="146"><rect class="caja" x="1723" y="742" width="395" height="146" rx="6"/><path d="M1723 772 V748 a6 6 0 0 1 6 -6 H2112 a6 6 0 0 1 6 6 V772 Z" fill="#16a085"/><text x="1733" y="762" style="fill:#fff;font-weight:700;font-size:14px">TransferenciaAdministracion</text>
+<text x="1731" y="789" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1753" y="789" class="pk">idTransferenciaAdministracion</text><text class="tipo" x="2110" y="789" text-anchor="end">uniqueidentifier</text>
+<text x="1731" y="807" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1753" y="807">idUsuarioOrigen</text><text class="tipo" x="2110" y="807" text-anchor="end">uniqueidentifier</text>
+<text x="1731" y="825" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1753" y="825">idUsuarioDestino</text><text class="tipo" x="2110" y="825" text-anchor="end">uniqueidentifier</text>
+<text x="1753" y="843">estado</text><text class="tipo" x="2110" y="843" text-anchor="end">nvarchar(20)</text>
+<text x="1753" y="861">fechaSolicitud</text><text class="tipo" x="2110" y="861" text-anchor="end">datetime2(3)</text>
+<text x="1753" y="879">fechaRespuesta</text><text class="tipo" x="2110" y="879" text-anchor="end">datetime2(3) ?</text>
+</g>
+<g class="tabla" data-n="TransferenciaPerfil" data-x="1764" data-y="960" data-w="340" data-h="164"><rect class="caja" x="1764" y="960" width="340" height="164" rx="6"/><path d="M1764 990 V966 a6 6 0 0 1 6 -6 H2098 a6 6 0 0 1 6 6 V990 Z" fill="#16a085"/><text x="1774" y="980" style="fill:#fff;font-weight:700;font-size:14px">TransferenciaPerfil</text>
+<text x="1772" y="1007" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="1794" y="1007" class="pk">idTransferenciaPerfil</text><text class="tipo" x="2096" y="1007" text-anchor="end">uniqueidentifier</text>
+<text x="1772" y="1025" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1794" y="1025">idPerfilMedicion</text><text class="tipo" x="2096" y="1025" text-anchor="end">uniqueidentifier</text>
+<text x="1772" y="1043" style="font-size:9.5px;font-weight:700;fill:#2f6fed">FK</text>
+<text x="1794" y="1043">idOperadorDestino</text><text class="tipo" x="2096" y="1043" text-anchor="end">uniqueidentifier</text>
+<text x="1794" y="1061">estado</text><text class="tipo" x="2096" y="1061" text-anchor="end">nvarchar(20)</text>
+<text x="1794" y="1079">fechaPeticion</text><text class="tipo" x="2096" y="1079" text-anchor="end">datetime2(3)</text>
+<text x="1794" y="1097">fechaTransferencia</text><text class="tipo" x="2096" y="1097" text-anchor="end">datetime2(3) ?</text>
+<text x="1794" y="1115">observacion</text><text class="tipo" x="2096" y="1115" text-anchor="end">nvarchar(500) ?</text>
+</g>
+<g class="tabla" data-n="Usuario" data-x="895" data-y="747" data-w="319" data-h="308"><rect class="caja" x="895" y="747" width="319" height="308" rx="6"/><path d="M895 777 V753 a6 6 0 0 1 6 -6 H1208 a6 6 0 0 1 6 6 V777 Z" fill="#2f6fed"/><text x="905" y="767" style="fill:#fff;font-weight:700;font-size:14px">Usuario</text>
+<text x="903" y="794" style="font-size:9.5px;font-weight:700;fill:#c18401">PK</text>
+<text x="925" y="794" class="pk">idUsuario</text><text class="tipo" x="1206" y="794" text-anchor="end">uniqueidentifier</text>
+<text x="925" y="812">nombre</text><text class="tipo" x="1206" y="812" text-anchor="end">nvarchar(100) ?</text>
+<text x="925" y="830">apellido</text><text class="tipo" x="1206" y="830" text-anchor="end">nvarchar(100) ?</text>
+<text x="925" y="848">correoElectronico</text><text class="tipo" x="1206" y="848" text-anchor="end">nvarchar(254) ?</text>
+<text x="925" y="866">usuario</text><text class="tipo" x="1206" y="866" text-anchor="end">nvarchar(50) ?</text>
+<text x="925" y="884">tipoCuenta</text><text class="tipo" x="1206" y="884" text-anchor="end">nvarchar(40)</text>
+<text x="925" y="902">estado</text><text class="tipo" x="1206" y="902" text-anchor="end">nvarchar(30)</text>
+<text x="925" y="920">fechaCreacion</text><text class="tipo" x="1206" y="920" text-anchor="end">datetime2(3)</text>
+<text x="925" y="938">fechaActualizacion</text><text class="tipo" x="1206" y="938" text-anchor="end">datetime2(3)</text>
+<text x="925" y="956">fechaEliminacion</text><text class="tipo" x="1206" y="956" text-anchor="end">datetime2(3) ?</text>
+<text x="925" y="974">fechaNacimiento</text><text class="tipo" x="1206" y="974" text-anchor="end">date ?</text>
+<text x="925" y="992">sexo</text><text class="tipo" x="1206" y="992" text-anchor="end">nvarchar(30) ?</text>
+<text x="925" y="1010">notificarNuevoInicioSesion</text><text class="tipo" x="1206" y="1010" text-anchor="end">bit</text>
+<text x="925" y="1028">fechaInicioGracia</text><text class="tipo" x="1206" y="1028" text-anchor="end">datetime2(3) ?</text>
+<text x="925" y="1046">fechaVencimientoGracia</text><text class="tipo" x="1206" y="1046" text-anchor="end">datetime2(3) ?</text>
+</g>
+</g></svg>
