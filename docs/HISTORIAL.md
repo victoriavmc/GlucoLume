@@ -10,7 +10,7 @@ Estado completo por hallazgo en [SEGURIDAD.md](SEGURIDAD.md) §2.0.1. Un commit 
 - **Código y configuración:** H-07 (`API_ENV` obligatorio en la imagen), H-08 (`JWT_PREVIOUS_SECRET`), H-11 (límite por IP con sesión), H-12
   (Argon2 fijado), H-13 (HKDF en el HMAC de identificadores), H-14 (Nginx sin query en el log), H-15 (`ErrorBoundary` y 500 auditado),
   H-16 (plazo del token anterior del puente), H-17 (React 19.1.10), H-01 (`-CopiaExterna`), H-04 (advertencia de arranque).
-- **Documentado como riesgo aceptado o pendiente:** H-05, H-06, H-09, H-10; acciones humanas: H-01 (destino), H-02, H-03, H-04, H-08.
+- **Documentado como abierto o pendiente (ningún riesgo fue aceptado en esta remediación):** H-05, H-06, H-09, H-10; acciones humanas: H-01 (destino), H-02, H-03, H-04, H-08.
 - **Pruebas:** nuevas en `test_security_config.py`, `test_security_hardening.py`, `test_telemetry.py`, `test_unhandled_errors.py` y
   `ErrorBoundary.test.jsx`; frontend 685/685 con React 19.1.10. La prueba `test_en_produccion_se_verifica_el_certificado_de_sql_server` falla en
   Linux con o sin estos cambios (usa una ruta de Windows).

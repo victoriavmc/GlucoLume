@@ -105,11 +105,11 @@ Segundo informe (`docs/seguridad/auditorias/Auditoria de Ciberseguridad - GlucoL
 | H-02 | Permisos de mínimo privilegio de BD sin aplicar | Medio | **Pendiente en la instancia real (acción humana):** procedimiento en §5.1 paso 3 |
 | H-03 | Datos en reposo sin cifrar (SQL Server Express) | Medio | **Pendiente (infraestructura):** BitLocker y respaldos AES-256 (§5.1); TDE al pasar a una edición que lo admita |
 | H-04 | Retención sin plazo aprobado | Medio | **Pendiente de decisión legal:** producción advierte al arrancar si `AUDIT_RETENTION_MONTHS` o `PERSONNEL_RETENTION_MONTHS` siguen en 0. No se fijaron valores por defecto ni se programó `purgeInstitutionalRetention` (borra datos reales: requiere autorización) |
-| H-05 | Canal Bluetooth sin cifrado ni autenticidad; PIN débil | Medio | **Riesgo aceptado del prototipo (opción a del informe), ver §4.** La firma por línea en el firmware y el cambio del PIN requieren el hardware para probarse: pendientes |
-| H-06 | Rate limiting en memoria | Medio | **Aceptado con una réplica** (§4, punto 1); Redis solo si se escala |
+| H-05 | Canal Bluetooth sin cifrado ni autenticidad; PIN débil | Medio | **Riesgo declarado en §4 (punto 9), SIN ACEPTAR: requiere aceptación expresa de la persona responsable del proyecto.** Mientras no la dé, sigue abierto. La firma por línea en el firmware y el cambio del PIN requieren el hardware para probarse: sin implementar |
+| H-06 | Rate limiting en memoria | Medio | **Abierto.** El proyecto ya lo tenía anotado como aceptable con una réplica (GL-15, §4 punto 1); la aceptación vigente debe reconfirmarse. Redis solo si se escala |
 | H-07 | `API_ENV` con valor por defecto `development` | Medio | **Corregido:** la imagen Docker no arranca sin `API_ENV` explícito (`GLUCOLUME_RUNTIME=container`); prueba en `test_security_config.py` |
 | H-08 | Rotación de secretos sin procedimiento | Medio | **Corregido:** `JWT_PREVIOUS_SECRET` (rotación sin cerrar sesiones) y procedimiento completo en §5.1. Falta ejecutar la rotación real (acción humana) |
-| H-09 | Refresh token en Web Storage | Medio | **Riesgo aceptado (GL-14).** Pasarlo a cookie `HttpOnly` cambia la autenticación entre orígenes, CORS y CSRF: requiere decisión y diseño propios |
+| H-09 | Refresh token en Web Storage | Medio | **Abierto.** El proyecto lo tenía registrado como riesgo aceptado (GL-14); no lo reconfirmé ni lo acepté de nuevo. Pasarlo a cookie `HttpOnly` cambia la autenticación entre orígenes, CORS y CSRF: requiere decisión y diseño propios |
 | H-10 | CVE alta de `zlib` sin parche | Medio-bajo | **Pendiente de Debian** (§4, punto 8): reconstruir la imagen y repetir el escaneo cuando exista la corrección |
 | H-11 | Sin límite por IP en endpoints autenticados | Bajo | **Corregido:** límite `authenticated` (1800 por minuto y por IP) en `getAuthContext`; prueba en `test_security_hardening.py` |
 | H-12 | Parámetros de Argon2 sin fijar | Bajo | **Corregido:** m = 64 MiB, t = 3, p = 4 explícitos; prueba de formato y de rehash |
@@ -198,8 +198,8 @@ columna; si no, el vigente). Los eventos anteriores se infieren: solo cambian de
 7. Las dependencias y las imágenes base acumulan CVE nuevas: el escaneo se repite.
 8. La imagen del backend tiene una vulnerabilidad alta de `zlib` (Debian) sin corrección publicada: se reconstruye cuando Debian la publique.
 9. **Canal Bluetooth del dispositivo (H-05).** El firmware transmite BPM, SpO₂, glucosa estimada y PPG por un HC-05/HC-06 sin cifrado ni autenticidad de
-   los datos, con emparejamiento de PIN conocido (1234/0000). Un atacante a pocos metros podría escuchar o inyectar líneas. **Riesgo aceptado para el
-   prototipo**, con estas atenuantes: alcance físico de Bluetooth clásico, validación estricta de cada línea en el backend (rangos, repetidos,
+   los datos, con emparejamiento de PIN conocido (1234/0000). Un atacante a pocos metros podría escuchar o inyectar líneas. **Riesgo declarado; pendiente de aceptación
+   expresa** (no fue aceptado por quien implementó los cambios), con estas atenuantes: alcance físico de Bluetooth clásico, validación estricta de cada línea en el backend (rangos, repetidos,
    truncados), token del puente (`X-Bridge-Token`), control de sesión por cuenta y conexión alternativa por USB. Para uso real: cambiar el PIN por uno
    aleatorio por unidad (comando AT del módulo), firmar cada línea con un HMAC truncado cuya clave se provisione por dispositivo, o pasar a BLE con cifrado
    propio. No se implementó la firma por línea: requiere probarse con el hardware.
