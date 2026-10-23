@@ -123,3 +123,11 @@ def test_el_esquema_consolidado_no_repite_objetos(referenceSchema):
     # Un script regenerado puede duplicar bloques enteros: en una instalación nueva, el segundo ADD CONSTRAINT fallaría por nombre repetido.
     created = re.findall(r"(?:ADD\s+CONSTRAINT|CREATE (?:UNIQUE )?NONCLUSTERED INDEX|CREATE TABLE)\s+\[(?:dbo\]\.\[)?(\w+)\]", referenceSchema)
     assert len(created) > 250 and [name for name in set(created) if created.count(name) > 1] == []
+
+
+def test_el_esquema_consolidado_no_incluye_usuarios_roles_ni_membresias(referenceSchema):
+    # H-02: un script exportado de una base real trajo CREATE USER [glucolume_app] y la cuenta en db_datareader/db_datawriter. En una instalación nueva eso
+    # falla si el login no existe y, si existe, le da SELECT/DELETE sobre todo. Eso lo decide GlucoLume_permisos.sql, no el esquema.
+    upper = referenceSchema.upper()
+    for forbidden in ("CREATE USER", "CREATE ROLE", "ALTER ROLE", "DB_DATAWRITER", "DB_DATAREADER", "GLUCOLUME_APP", "GRANT ", "DENY "):
+        assert forbidden not in upper, forbidden

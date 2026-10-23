@@ -102,7 +102,7 @@ Segundo informe (`docs/seguridad/auditorias/Auditoria de Ciberseguridad - GlucoL
 | ID | Hallazgo | Riesgo | Estado |
 |---|---|---|---|
 | H-01 | Respaldos y clave en un único equipo | Alto | **Código listo; falta configurarlo (acción humana):** `GlucoLume_respaldo.ps1 -CopiaExterna` copia y verifica el respaldo cifrado fuera del equipo ([BASE_DE_DATOS.md](BASE_DE_DATOS.md) §Respaldos). Hay que elegir el destino, agregarlo a la tarea programada y guardar la frase aparte. El script no se pudo ejecutar en el entorno de desarrollo (sin PowerShell) |
-| H-02 | Permisos de mínimo privilegio de BD sin aplicar | Medio | **Pendiente en la instancia real (acción humana):** procedimiento en §5.1 paso 3 |
+| H-02 | Permisos de mínimo privilegio sin aplicar | Medio | **Corregido en los scripts y verificado de forma estática; NO ejecutado en ningún SQL Server (acción humana):** `GlucoLume_permisos.sql` ya no concede DELETE sobre todo el esquema, solo sobre 14 tablas que el código realmente borra (el resto se da de baja con estados); la API sigue sin poder tocar la auditoría ni las credenciales de puente; nuevo paso reversible `GlucoLume_permisos_quitar_roles_fijos.sql` (quita `db_datareader`/`db_datawriter`, que dan SELECT/DELETE en todo: el esquema exportado de la base real muestra que `glucolume_app` los tiene) con su `..._restaurar_roles_fijos.sql`; `..._verificar.sql` comprueba DELETE rechazados y roles. Verificación automática: durante toda la suite, una fixture falla si el código borra una tabla sin concesión (ya detectó una omisión). El esquema v5 dejó de incluir usuarios, roles y membresías. Riesgo residual: T-SQL sin compilar ni probar (no hay SQL Server en el entorno); un permiso faltante aparece como error 229 en producción, por eso el orden obligatorio es copia restaurada primero |
 | H-03 | Datos en reposo sin cifrar (SQL Server Express) | Medio | **Pendiente (infraestructura):** BitLocker y respaldos AES-256 (§5.1); TDE al pasar a una edición que lo admita |
 | H-04 | Retención sin plazo aprobado | Medio | **Salvaguardas implementadas y probadas; los plazos siguen pendientes de decisión legal (no se fijó ninguno):** `RETENTION_APPROVAL_REFERENCE` es obligatoria para que `AUDIT_RETENTION_MONTHS` y `PERSONNEL_RETENTION_MONTHS` tengan efecto; simulación sin cambios (`python -m app.jobs.retention previsualizar`, `purgeInstitutionalRetention --simular`); tope contra eliminaciones masivas accidentales; ejecución manual que exige nombrar la base y confirmar las cantidades exactas; eventos de inicio, fin, falla, omisión y error parcial (sin identificadores ni el mensaje de la excepción). La ejecución automática sigue sin habilitarse y `purgeInstitutionalRetention` sigue siendo manual. Riesgo residual: la aprobación es una referencia declarada (el código no puede verificar que el dictamen exista); la minimización de IP (90 días) y los intentos sin cuenta (12 meses) son política ya publicada y no requieren la referencia; los respaldos conservan lo eliminado hasta que rotan |
 | H-05 | Canal Bluetooth sin cifrado ni autenticidad; PIN débil | Medio | **Riesgo declarado en §4 (punto 9), SIN ACEPTAR: requiere aceptación expresa de la persona responsable del proyecto.** Mientras no la dé, sigue abierto. La firma por línea en el firmware y el cambio del PIN requieren el hardware para probarse: sin implementar |
@@ -231,11 +231,18 @@ exigen los índices filtrados). Respaldo previo verificado:
    (ídem frontend) y el mismo `up -d`; la base no cambia con el despliegue.
 2. **`.env`**: quitar la línea `MFA_ENCRYPTION_KEY` cuya huella es `b15fb16d` (no descifra ningún factor; `python -m app.cli.mfaKeys` lo
    confirma) y la línea `DATABASE_URL`. Copia cifrada del `.env` anterior en `C:\GlucoLumeRespaldos\env_pre_remediacion_*.gpg`.
-3. **Permisos de auditoría** (después del paso 1): crear el login de conservación como `sysadmin`
-   (`CREATE LOGIN glucolume_retencion WITH PASSWORD = '<nueva>', CHECK_POLICY = ON`), ejecutar
-   `sqlcmd -S localhost\GLUCOLUME -E -d GlucoLume -i database\reference\GlucoLume_permisos.sql -v API_LOGIN=glucolume_app JOBS_LOGIN=glucolume_retencion CONFIRMAR=APLICAR_PERMISOS_GLUCOLUME`,
-   agregar `DB_JOBS_USER`/`DB_JOBS_PASSWORD` al `.env` y recrear `backend` (y `lifecycle` si se usa). Verificar un inicio de sesión. Reversión:
-   `ALTER ROLE rol_glucolume_api DROP MEMBER glucolume_app; DROP ROLE rol_glucolume_api;` (ídem retención); no toca datos.
+3. **Permisos de mínimo privilegio (GL-03, H-02)**, en una **copia restaurada primero** y recién después en la base real (respaldo verificado antes):
+   a. Crear el login de conservación como `sysadmin` (`CREATE LOGIN glucolume_retencion WITH PASSWORD = '<nueva>', CHECK_POLICY = ON`) o usar `JOBS_LOGIN=NINGUNA`.
+   b. `sqlcmd -S localhost\GLUCOLUME -E -C -I -d GlucoLume -i database\reference\GlucoLume_permisos.sql -v API_LOGIN=glucolume_app JOBS_LOGIN=glucolume_retencion CONFIRMAR=APLICAR_PERMISOS_GLUCOLUME`
+      (idempotente; revoca el DELETE de esquema que concedió una versión anterior). Agregar `DB_JOBS_USER`/`DB_JOBS_PASSWORD` al `.env` y recrear `backend` y `lifecycle`.
+   c. `sqlcmd … -i database\reference\GlucoLume_permisos_verificar.sql -v API_LOGIN=glucolume_app`: el INSERT en auditoría debe estar «permitido»; UPDATE/DELETE de
+      auditoría, `DELETE Institucion` y `DELETE PerfilMedicion`, «rechazado 229»; `DELETE SesionUsuario`, «permitido». Si algún «no debe poder» sale «permitido», la cuenta
+      conserva un rol fijo: seguir con el paso d.
+   d. **Recorrer la aplicación completa** (inicio de sesión con y sin MFA, registro y cuentas sin verificar, mediciones y datos de prueba, instituciones, pacientes, reglas de
+      matriz, puente) y recién después `sqlcmd … -i database\reference\GlucoLume_permisos_quitar_roles_fijos.sql -v API_LOGIN=glucolume_app CONFIRMAR=QUITAR_ROLES_FIJOS_GLUCOLUME`;
+      volver a correr la verificación y repetir el recorrido. Un error 229 indica que falta una concesión en `GlucoLume_permisos.sql` (se corrige ahí, no se devuelve el rol).
+   e. **Reversión**, en este orden: `GlucoLume_permisos_restaurar_roles_fijos.sql -v CONFIRMAR=RESTAURAR_ROLES_FIJOS_GLUCOLUME` (devuelve solo los roles que quitó el script) y luego
+      `GlucoLume_permisos_revertir.sql -v CONFIRMAR=REVERTIR_PERMISOS_GLUCOLUME` (se niega a correr si falta el paso anterior). Ninguna reversión toca datos.
 
 
 4. *(Mejora productiva)* **Certificado de SQL Server (GL-07)**, como administrador de Windows: crear o importar un certificado de servidor con el nombre o la IP que

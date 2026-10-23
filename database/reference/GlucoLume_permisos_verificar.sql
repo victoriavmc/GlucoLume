@@ -31,6 +31,15 @@ BEGIN TRY UPDATE TOP (0) dbo.AuditoriaContexto SET ipOrigen = ipOrigen; INSERT I
 BEGIN CATCH INSERT INTO @r VALUES (N'UPDATE AuditoriaContexto', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
 BEGIN TRY DELETE TOP (0) FROM dbo.AuditoriaContexto; INSERT INTO @r VALUES (N'DELETE AuditoriaContexto', N'permitido'); END TRY
 BEGIN CATCH INSERT INTO @r VALUES (N'DELETE AuditoriaContexto', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+-- Minimo privilegio (H-02): DELETE sobre una tabla que el codigo nunca borra debe estar rechazado (error 229). Si resulta «permitido», la cuenta
+-- conserva un rol fijo (db_datawriter) u otro permiso amplio: ver el listado de roles al final y GlucoLume_permisos_quitar_roles_fijos.sql.
+BEGIN TRY DELETE TOP (0) FROM dbo.Institucion; INSERT INTO @r VALUES (N'DELETE Institucion (no debe poder)', N'permitido'); END TRY
+BEGIN CATCH INSERT INTO @r VALUES (N'DELETE Institucion (no debe poder)', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+BEGIN TRY DELETE TOP (0) FROM dbo.PerfilMedicion; INSERT INTO @r VALUES (N'DELETE PerfilMedicion (no debe poder)', N'permitido'); END TRY
+BEGIN CATCH INSERT INTO @r VALUES (N'DELETE PerfilMedicion (no debe poder)', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+BEGIN TRY DELETE TOP (0) FROM dbo.SesionUsuario; INSERT INTO @r VALUES (N'DELETE SesionUsuario (si debe poder)', N'permitido'); END TRY
+BEGIN CATCH INSERT INTO @r VALUES (N'DELETE SesionUsuario (si debe poder)', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+
 -- Credenciales de los puentes (H-16): la API no puede crear ni borrar; solo lee y anota el último uso (UPDATE TOP (0) no toca filas).
 IF OBJECT_ID(N'dbo.PuenteCredencial', N'U') IS NOT NULL
 BEGIN
@@ -48,3 +57,11 @@ REVERT;
 SELECT prueba, resultado FROM @r;
 SELECT N'Filas de auditoria sin cambios: ' + CASE WHEN @antes = (SELECT COUNT_BIG(*) FROM dbo.Auditoria) + (SELECT COUNT_BIG(*) FROM dbo.AuditoriaContexto)
        THEN N'SI' ELSE N'NO' END AS control;
+
+-- Roles de los que la cuenta de la API es miembro: solo debe figurar rol_glucolume_api (db_datareader/db_datawriter dan SELECT/DELETE en todo;
+-- db_owner, db_ddladmin y db_securityadmin ademas ignoran los limites de este esquema).
+SELECT r.name AS rolDeLaCuenta
+FROM sys.database_role_members AS rm
+JOIN sys.database_principals AS r ON r.principal_id = rm.role_principal_id
+JOIN sys.database_principals AS m ON m.principal_id = rm.member_principal_id
+WHERE m.name = N'$(API_LOGIN)';
