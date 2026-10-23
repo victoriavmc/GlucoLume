@@ -2,15 +2,17 @@
 import os, sqlite3, sys, tempfile, uuid
 from pathlib import Path
 
-os.environ.update({
+for _k, _v in {
     "API_ENV": "development", "DB_HOST": "localhost", "DB_NAME": "GlucoLumeTest", "DB_USER": "test", "DB_PASSWORD": "test",
     "JWT_SECRET": "x" * 40, "FRONTEND_URL": "http://localhost:5173", "PLATFORM_MFA_REQUIRED": "false",
     "API_BASE_URL": "http://localhost:8000", "SESSION_SECRET": "s" * 40,
-})
+}.items():
+    os.environ.setdefault(_k, _v)  # lo que ya esté definido (p. ej. RATE_LIMIT_*) manda
 from cryptography.fernet import Fernet
 os.environ["MFA_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
-sys.path.insert(0, "BACKEND")
-os.chdir("BACKEND")
+BACKEND = str(Path(__file__).resolve().parents[3] / "backend")
+sys.path.insert(0, BACKEND)
+os.chdir(BACKEND)
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from tests.test_account_deletion import _sqliteMetadata, _isJson, makeUser
@@ -38,4 +40,4 @@ def testDb():
     with Session() as s:
         yield s
 app.dependency_overrides[getDb] = testDb
-uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "8000")), log_level="warning")
