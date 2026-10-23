@@ -340,6 +340,7 @@ ACTION_LABELS = {
     classification.ACCION_LIMITE_SOLICITUDES: "Límite de solicitudes superado",
     classification.ACCION_RAFAGA_AUTORIZACION: "Ráfaga de solicitudes rechazadas (401/403)",
     classification.ACCION_RAFAGA_VALIDACION: "Ráfaga de entradas rechazadas por validación",
+    classification.ACCION_ERROR_INESPERADO: "Error inesperado del servidor",
     classification.ACCION_EXPORT_SOLICITADA: "Exportación de datos solicitada",
     classification.ACCION_EXPORT_COMPLETADA: "Exportación de datos completada",
     classification.ACCION_EXPORT_FALLIDA: "Exportación de datos fallida o rechazada",
