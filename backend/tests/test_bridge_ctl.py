@@ -113,7 +113,8 @@ def test_setup_valida_el_backend_y_no_guarda_si_el_token_no_coincide(home, monke
 
 
 @pytest.mark.parametrize("status,body,level,fragment", [
-    (403, {}, "error", "no coincide"),
+    (403, {}, "error", "rechazó el token"),
+    (403, {"codigo": "PUENTE_FUERA_DE_ALCANCE"}, "error", "no corresponde al dispositivo"),
     (503, {}, "error", "no tiene BRIDGE_TOKEN"),
     (404, {}, "error", "anterior a esta versión"),
     (500, {}, "error", "respondió 500"),

@@ -33,7 +33,7 @@ CMD ["npx", "vite", "--host", "0.0.0.0"]
 
 FROM deps AS build
 ARG VITE_API_BASE_URL=/
-# Orígenes públicos del login y de la aplicación (vacíos = sin separación). Ver docs/DOCKER.md.
+# Orígenes públicos del login y de la aplicación (vacíos = sin separación). Ver docs/DESPLIEGUE.md.
 ARG VITE_LOGIN_ORIGIN=
 ARG VITE_APP_ORIGIN=
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}

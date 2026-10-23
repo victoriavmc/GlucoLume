@@ -8,11 +8,12 @@
 # (acquisition/bridge/glucolume_bridge.py): envía a ingest() las líneas con el MISMO formato que escribe el firmware.
 # Es un mecanismo de prueba separado de la conexión real: el servidor no tiene ningún modo «simulado». El reloj del
 # estado en vivo (hub.clock) es falso para probar plazos sin esperar. La base es la SQLite temporal del resto de las
-# pruebas (esquema generado desde los modelos): ver docs/DOCKER.md para la validación de la migración en SQL Server.
+# pruebas (esquema generado desde los modelos): ver docs/DESPLIEGUE.md para la validación de la migración en SQL Server.
 
 import threading
 import time
 import uuid
+from datetime import timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -21,12 +22,13 @@ from sqlalchemy.orm import sessionmaker
 
 from app.acquisition import telemetry
 from app.acquisition.telemetry import Notice, Reading, TelemetryError, hub, parseLine
-from app.core.config import getSettings
+from app.core.config import Settings, getSettings
 from app.core.exceptions import AuthError
 from app.models.measurement import Measurement
 from app.schemas.acquisition import BridgeIngest, BridgeLine, ConnectRequest, DeviceConnectConfirm, TelemetrySessionStart
 from app.schemas.resultDelivery import ResultSendRequest
 from app.services import acquisition as acquisitionService
+from app.utils.timeZone import nowArgentina
 from app.services import deviceConnection
 from app.services import institutionPatients as patients
 from app.services import measurement as measurements
@@ -304,6 +306,7 @@ def test_el_puente_bloquea_la_ip_que_falla_el_token_y_acepta_el_anterior_al_rota
     url, body = "/api/v1/acquisition/bridge/ingest", payload(bridge, [line()])
     previous = "p" * 40
     monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN", previous)
+    monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN_UNTIL", (nowArgentina() + timedelta(hours=2)).replace(tzinfo=None).isoformat(timespec="seconds"))
     getSettings.cache_clear()
     assert client.post(url, json=body, headers={"X-Bridge-Token": previous}).status_code == 200
     for _ in range(rateLimit.BRIDGE_FAILURES[0]):
@@ -318,20 +321,29 @@ def test_el_puente_bloquea_la_ip_que_falla_el_token_y_acepta_el_anterior_al_rota
 
 
 def test_el_token_anterior_del_puente_vence_en_su_plazo(api, consumer, bridge, monkeypatch):
-    # H-16: BRIDGE_PREVIOUS_TOKEN_UNTIL fija el máximo de la ventana de rotación; vencido, el token anterior deja de valer y el vigente sigue.
+    # H-16: BRIDGE_PREVIOUS_TOKEN_UNTIL es obligatorio con el token anterior, está acotado y, vencido, el token anterior deja de valer.
+    from app.api import rateLimit
+
     user, _ = consumer
     client = api(user)
     url, body = "/api/v1/acquisition/bridge/ingest", payload(bridge, [line()])
     previous = "p" * 40
     monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN", previous)
-    for until, expected in (("2999-01-01T00:00", 200), ("2000-01-01T00:00", 403)):
-        monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN_UNTIL", until)
+    for hours, expected in ((2, 200), (-1, 403)):
+        monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN_UNTIL", (nowArgentina() + timedelta(hours=hours)).replace(tzinfo=None).isoformat(timespec="seconds"))
         getSettings.cache_clear()
+        rateLimit.resetLimits()
         assert client.post(url, json=body, headers={"X-Bridge-Token": previous}).status_code == expected
         assert client.post(url, json=body, headers={"X-Bridge-Token": TOKEN}).status_code == 200
     monkeypatch.delenv("BRIDGE_PREVIOUS_TOKEN_UNTIL")
-    getSettings.cache_clear()
-    assert any("BRIDGE_PREVIOUS_TOKEN_UNTIL" in warning for warning in getSettings().securityWarnings())
+    monkeypatch.delenv("BRIDGE_PREVIOUS_TOKEN")
+    base = {"_env_file": None, "DB_HOST": "h", "DB_NAME": "n", "DB_USER": "u", "DB_PASSWORD": "p", "JWT_SECRET": "j" * 40, "BRIDGE_TOKEN": TOKEN}
+    with pytest.raises(ValidationError, match="BRIDGE_PREVIOUS_TOKEN_UNTIL"):  # sin plazo, el token anterior no se acepta
+        Settings(**base, BRIDGE_PREVIOUS_TOKEN=previous)
+    with pytest.raises(ValidationError, match="horas"):
+        Settings(**base, BRIDGE_PREVIOUS_TOKEN=previous, BRIDGE_PREVIOUS_TOKEN_UNTIL=(nowArgentina() + timedelta(days=30)).replace(tzinfo=None))
+    with pytest.raises(ValidationError, match="igual"):
+        Settings(**base, BRIDGE_PREVIOUS_TOKEN=TOKEN, BRIDGE_PREVIOUS_TOKEN_UNTIL=(nowArgentina() + timedelta(hours=2)).replace(tzinfo=None))
 
 
 def test_estado_http_solo_para_cuentas_que_miden(api, db, mails, consumer, bridge):

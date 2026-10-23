@@ -136,6 +136,18 @@ def _dueDischarged(db: Session, now: datetime) -> list[uuid.UUID]:
     return [profileId for profileId, last in rows if addMonths(last, RETENTION_MONTHS) <= now]
 
 
+def plan(db: Session, now: datetime | None = None) -> dict:
+    """Simulación, SIN modificar nada: cuántas mediciones borraría hoy el job (las de pacientes de baja cuya última medición cumplió 12 meses y las
+    anonimizadas con el vencimiento ya cumplido). Cuenta cada medición una sola vez."""
+    if not ready(db):
+        return {"medicionesAEliminar": 0}
+    now = now or nowForDb()
+    discharged = _dueDischarged(db, now)
+    fromDischarged = (db.scalar(select(func.count()).select_from(_M).where(_M.c.idPerfilMedicion.in_(discharged))) or 0) if discharged else 0
+    sealed = db.scalar(select(func.count()).select_from(_M).where(_M.c.fechaVencimientoRetencion <= now)) or 0
+    return {"medicionesAEliminar": fromDischarged + sealed}
+
+
 def purgeExpiredMeasurements(db: Session, now: datetime | None = None, batchSize: int = BATCH) -> int:
     """Borra las mediciones conservadas (de pacientes de baja o ya anonimizados) a los 12 meses de la última medición de esa persona.
     Devuelve cuántas. Auditoría: un evento por pasada con la cantidad, sin identificadores ni datos."""

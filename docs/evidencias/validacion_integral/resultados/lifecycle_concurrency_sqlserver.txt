@@ -1,0 +1,11 @@
+R1 aceptar invitación vs eliminación automática (20 rondas)
+   resultados: {'incorporada': 3, 'eliminada': 17}
+R2 crear una institución vs eliminación automática (20 rondas)
+   resultados: {'propietaria': 5, 'eliminada': 15}
+R3 dos pasadas de eliminación simultáneas (20 rondas)
+R4 nueva invitación vs depuración de la cuenta invitada sin salida (20 rondas)
+   resultados: {'invitacion_gano': 2, 'depuracion_gano': 18}
+R5 reenvío de una invitación vencida vs depuración de la cuenta invitada (20 rondas)
+   resultados: {'reenvio_gano': 2, 'depuracion_gano': 18}
+
+120/120 comprobaciones correctas; marca de datos sintéticos: zz-conc-79ac2e39

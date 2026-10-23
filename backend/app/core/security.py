@@ -174,17 +174,16 @@ def _encodeJwt(claims: dict, expiresIn: timedelta) -> str:
 def _decodeJwt(token: str, expectedType: str) -> dict:
     """Decodifica con el algoritmo configurado (nunca el que declara el token). Lanza jwt.InvalidTokenError.
 
-    Durante una rotación (JWT_PREVIOUS_SECRET, H-08) un token cuya firma no coincide con JWT_SECRET se reintenta con el secreto anterior;
-    solo la firma inválida habilita el reintento: un token vencido, de otro tipo o mal formado se rechaza igual con cualquiera de los dos."""
+    Durante una rotación (H-08) un token cuya firma no coincide con JWT_SECRET se reintenta con JWT_PREVIOUS_SECRET, pero solo hasta
+    JWT_PREVIOUS_SECRET_UNTIL (Settings.jwtVerificationSecrets). Solo la firma inválida habilita el reintento: un token vencido, de otro tipo
+    o mal formado se rechaza igual con cualquiera de los dos. La revocación no depende del secreto: el access token se valida contra la sesión."""
     settings = getSettings()
-    secrets_ = [settings.JWT_SECRET.get_secret_value()]
-    if settings.JWT_PREVIOUS_SECRET is not None:
-        secrets_.append(settings.JWT_PREVIOUS_SECRET.get_secret_value())
-    for position, secret in enumerate(secrets_):
+    verificationSecrets = settings.jwtVerificationSecrets
+    for position, secret in enumerate(verificationSecrets):
         try:
             claims = jwt.decode(
                 token,
-                secret,
+                secret.get_secret_value(),
                 algorithms=[settings.JWT_ALGORITHM],
                 audience=JWT_AUDIENCE,
                 issuer=JWT_ISSUER,
@@ -192,7 +191,7 @@ def _decodeJwt(token: str, expectedType: str) -> dict:
             )
             break
         except jwt.InvalidSignatureError:
-            if position == len(secrets_) - 1:
+            if position == len(verificationSecrets) - 1:
                 raise
     if claims["typ"] != expectedType:
         raise jwt.InvalidTokenError("Tipo de token inesperado.")

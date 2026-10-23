@@ -1,19 +1,20 @@
 // Estado de sesión de la aplicación.
 //
 // status: 'loading' (recuperando la sesión al abrir), 'authenticated' o 'anonymous'.
-// Al abrir la app, si hay refresh token guardado, se renueva la sesión y se carga /auth/me.
+// Al abrir la app, si hay marca de sesión, se renueva con la cookie HttpOnly del refresh token y se carga /auth/me (H-09: el JavaScript
+// no guarda ni lee el refresh token).
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import * as authApi from '../api/authApi.js';
 import { onSessionExpired } from '../api/client.js';
 import { goToApp, isOnLoginOrigin } from './originGuard.js';
-import { clearTokens, getRefreshToken, saveTokens } from './tokenStore.js';
+import { clearTokens, hasSessionHint, saveTokens } from './tokenStore.js';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [status, setStatus] = useState(() => (getRefreshToken() ? 'loading' : 'anonymous'));
+  const [status, setStatus] = useState(() => (hasSessionHint() ? 'loading' : 'anonymous'));
   const [account, setAccount] = useState(null);
   // Aviso de una sola pantalla ({ message, path }): sobrevive a las redirecciones del login y se descarta al
   // navegar a otra ruta (lo limpia AuthenticatedLayout).
@@ -26,7 +27,7 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  // Si el refresh token deja de ser válido mientras se usa la app, la sesión local se cierra y las rutas
+  // Si la cookie del refresh token deja de ser válido mientras se usa la app, la sesión local se cierra y las rutas
   // protegidas redirigen al login.
   useEffect(() => {
     onSessionExpired(() => {
@@ -68,7 +69,7 @@ export function AuthProvider({ children }) {
       }
       if (isOnLoginOrigin()) {
         // Login hecho en localhost: la sesión no se queda aquí. Se pide un código de un solo uso, se cierra esta sesión
-        // (el refresh token nunca llega a guardarse) y la aplicación en su propio origen abre una sesión nueva.
+        // (la cookie del refresh token se borra con ese logout) y la aplicación en su propio origen abre una sesión nueva.
         saveTokens(response.tokens, false);
         try {
           const { code } = await authApi.sessionTransfer();
@@ -88,19 +89,19 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async (identificador, password, remember) =>
-      handleLoginResponse(await authApi.login(identificador, password), remember),
+      handleLoginResponse(await authApi.login(identificador, password, remember), remember),
     [handleLoginResponse],
   );
 
   const completeMfa = useCallback(
     async (challengeToken, factor, remember) =>
-      handleLoginResponse(await authApi.verifyMfa(challengeToken, factor), remember),
+      handleLoginResponse(await authApi.verifyMfa(challengeToken, factor, remember), remember),
     [handleLoginResponse],
   );
 
   const completeMfaRecovery = useCallback(
     async (recoveryToken, codigo, remember) =>
-      handleLoginResponse(await authApi.verifyMfaRecovery(recoveryToken, codigo), remember),
+      handleLoginResponse(await authApi.verifyMfaRecovery(recoveryToken, codigo, remember), remember),
     [handleLoginResponse],
   );
 
@@ -115,7 +116,7 @@ export function AuthProvider({ children }) {
   const acceptLogin = useCallback(async (response, remember = false) => handleLoginResponse(response, remember), [handleLoginResponse]);
 
   const completeGoogle = useCallback(
-    async (code, remember) => handleLoginResponse(await authApi.exchangeGoogleCode(code), remember),
+    async (code, remember) => handleLoginResponse(await authApi.exchangeGoogleCode(code, remember), remember),
     [handleLoginResponse],
   );
 

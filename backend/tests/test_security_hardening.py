@@ -220,10 +220,12 @@ def test_nginx_sobrescribe_x_forwarded_for_y_no_lo_acumula():
 
 
 def test_nginx_no_registra_la_query_de_los_enlaces_con_token():
-    """H-14: los enlaces de correo llevan un token de un solo uso en «?token=»; el log de accesos registra la ruta ($uri), no el pedido completo."""
+    """H-14: los enlaces de correo llevan un token de un solo uso en «?token=»; el log de accesos registra la ruta original sin query ($log_path), no el pedido completo."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
     format_ = re.search(r"^log_format sin_query (.+);$", conf, re.M).group(1)
-    assert "$uri" in format_ and not re.search(r"\$(request|request_uri|args|query_string)\b", format_)
+    assert "$log_path" in format_ and not re.search(r"\$(request|request_uri|args|query_string|uri)\b", format_)
+    # $log_path sale de $request_uri cortado en el «?» (la captura no admite «?»); $uri se evita: try_files lo reescribe a /index.html
+    assert re.search(r'map \$request_uri \$log_path \{\s*"~\^\(\?<ruta>\[\^\?\]\*\)" \$ruta;', conf)
     assert "access_log /dev/stdout sin_query;" in conf
     assert not re.search(r"access_log\s+(?!off\b)(?!/dev/stdout sin_query;)", conf)  # ningún otro access_log con el formato por defecto
 

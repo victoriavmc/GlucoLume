@@ -1,0 +1,26 @@
+OK    [sin Recordarme] el cuerpo del login no trae el refresh token {"estado":"AUTENTICADO","tokens":{"accessToken":"<jwt-sintetico>
+OK    [sin Recordarme] existe la cookie glucolume_refresh 
+OK    [sin Recordarme] HttpOnly, SameSite=Strict, Path=/api/v1/auth {'httpOnly': True, 'sameSite': 'Strict', 'path': '/api/v1/auth', 'secure': False, 'expires': -1}
+OK    [sin Recordarme] de sesión expires=-1
+OK    [sin Recordarme] document.cookie no la ve 
+OK    [sin Recordarme] el valor de la cookie no está en Web Storage [{},{"glucolume.sessionHint":"1"}]
+OK    [sin Recordarme] al recargar sigue la sesión 
+OK    [sin Recordarme] la cookie se rotó al recargar 
+OK    [sin Recordarme] el cierre de sesión borra la cookie 
+OK    [sin Recordarme] tras cerrar sesión, recargar no la recupera 
+OK    [con Recordarme] el cuerpo del login no trae el refresh token {"estado":"AUTENTICADO","tokens":{"accessToken":"<jwt-sintetico>
+OK    [con Recordarme] existe la cookie glucolume_refresh 
+OK    [con Recordarme] HttpOnly, SameSite=Strict, Path=/api/v1/auth {'httpOnly': True, 'sameSite': 'Strict', 'path': '/api/v1/auth', 'secure': False, 'expires': 1793343976.055409}
+OK    [con Recordarme] persistente expires=1793343976.055409
+OK    [con Recordarme] document.cookie no la ve 
+OK    [con Recordarme] el valor de la cookie no está en Web Storage [{"glucolume.sessionHint":"1"},{}]
+OK    [con Recordarme] al recargar sigue la sesión 
+OK    [con Recordarme] la cookie se rotó al recargar 
+OK    [con Recordarme] el cierre de sesión borra la cookie 
+OK    [con Recordarme] tras cerrar sesión, recargar no la recupera 
+OK    [CSRF] fetch con credenciales desde otro sitio queda bloqueado por CORS bloqueado: Failed to fetch
+OK    [CSRF] el formulario de otro sitio no lleva la cookie ['accept', 'content-type', 'origin', 'referer', 'upgrade-insecure-requests', 'user-agent', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform']
+OK    [CSRF] y el backend lo rechaza (sin sesión) status 422
+OK    [CSRF] la sesión legítima no se vio afectada 
+
+RESUMEN: 24 ok / 24 ; fallas: 0

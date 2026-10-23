@@ -52,7 +52,7 @@ def run() -> dict:
         result["pendientesDepuradas"] = None
     try:
         with getJobsSessionFactory()() as db:
-            result["relacionesMinimizadas"] = personnelRetention.minimizeExpired(db, settings.PERSONNEL_RETENTION_MONTHS)
+            result["relacionesMinimizadas"] = personnelRetention.minimizeExpired(db, settings.PERSONNEL_RETENTION_MONTHS, guarded=True)
     except Exception:  # noqa: BLE001
         logger.exception("Falló la minimización de datos históricos del personal")
         result["relacionesMinimizadas"] = None

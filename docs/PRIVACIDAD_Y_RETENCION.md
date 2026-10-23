@@ -77,6 +77,18 @@ Con el código de retención y anonimización activo (`measurementRetention.read
 4. **Job** `python -m app.jobs.purgeInstitutionalRetention`: borra lo vencido → anonimiza lo que venció → borra lo que nació vencido. Un evento
    por pasada (`DEPURAR_MEDICIONES_RETENCION`, `ANONIMIZAR_PACIENTES`) con cantidades, sin identificadores.
 
+   **Cómo se ejecuta (H-04), en dos pasos y solo a mano:** `python -m app.jobs.purgeInstitutionalRetention --simular` informa cuántos perfiles se
+   anonimizarían y cuántas mediciones se eliminarían sin modificar nada; la ejecución exige `--confirmo-base <DB_NAME> --confirmo-perfiles <A>
+   --confirmo-mediciones <B>` con esas cantidades exactas (si cambiaron, no hace nada). Un error parcial deja el evento
+   `ANONIMIZAR_PACIENTES_PARCIAL` (cantidades, sin identificadores) y se reintenta en la próxima pasada. No se programa solo.
+
+   **Auditoría y personal histórico (H-04):** `AUDIT_RETENTION_MONTHS` y `PERSONNEL_RETENTION_MONTHS` están en 0 y **este proyecto no propone ni fija
+   valores**: son una decisión legal. Aun con un valor mayor que 0 no se aplican sin `RETENTION_APPROVAL_REFERENCE` (la referencia del dictamen o acta;
+   queda en cada evento). Una pasada automática que alcance más de `RETENTION_MAX_DELETE_FRACTION` de la tabla (y más de `RETENTION_GUARD_MIN_ROWS`
+   filas) se omite y deja `DEPURAR_AUDITORIA_OMITIDA`/`MINIMIZAR_DATOS_PERSONAL_OMITIDA`. Para revisarlo y, con autorización, ejecutarlo:
+   `python -m app.jobs.retention previsualizar` y luego `python -m app.jobs.retention ejecutar --confirmo-base <DB_NAME> --confirmo-eventos <N>
+   --confirmo-personal <M>`. Cada pasada deja `..._INICIADA` antes de borrar, el evento final con la política y la aprobación, o `..._FALLIDA`.
+
 Sin esas columnas, la baja es la anterior: 12 meses y desidentificación por el job.
 
 **Documento único por institución:** normalización (sin puntos, guiones ni espacios; mayúsculas; 6 a 12 caracteres;

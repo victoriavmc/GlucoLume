@@ -29,26 +29,33 @@ Navegador ──HTTPS──▶ Caddy (opcional) ──▶ Nginx + React (SPA) �
 |---|---|
 | `backend/` | API FastAPI + SQLAlchemy (SQL Server); servicios, trabajos programados (`app/jobs`), CLI de administración (`app/cli`) y pruebas |
 | `frontend/` | Aplicación React (Vite) servida por Nginx |
-| `database/reference/` | Esquema SQL consolidado `GlucoLume_DB_v5.sql` (DEC-02), matriz global `MATRIZ.SQL` y `BorrarRap.sql` (vacía datos: no es instalación) |
+| `database/reference/` | Esquema SQL consolidado `GlucoLume_DB_v5.sql` (DEC-02, 34 tablas), matriz global `MATRIZ.SQL`, scripts de permisos (H-02) y de actualización de bases instaladas, y `BorrarRap.sql` (vacía datos: no es instalación) |
 | `acquisition/` | Puente serie de Windows (`bridge/`) y dependencias |
 | `firmware/` | Sketches de Arduino (`GlucoLume_MAX30100/` y variante optimizada) |
-| `docker/`, `compose*.yaml` | Contenerización (Nginx, Caddy, SQL Server opcional, compilación de firmware) |
+| `docker/`, `compose*.yaml` | Contenerización (Nginx, Caddy, SQL Server y Redis opcionales, compilación de firmware) |
 | `docs/` | Documentación |
 
 ## Inicio rápido
 
 Requiere Docker y un `.env` (copiar `.env.example` y generar los secretos con los comandos que incluye). Docker no crea ni migra la base:
-prepararla antes con el esquema v5 ([docs/BASE_DE_DATOS.md](docs/BASE_DE_DATOS.md)).
+prepararla antes con el esquema v5 ([docs/BASE_DE_DATOS.md](docs/BASE_DE_DATOS.md) §2: instalación nueva; §3: actualización sin pérdida de datos).
+**Guía paso a paso para Windows (PowerShell, Docker Desktop):** [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md) §3.0.
 
 ```bash
 docker compose up --build -d              # backend + lifecycle + frontend → http://glucolume.local
-docker compose up -d backend frontend     # sin el servicio lifecycle (que elimina y anonimiza cuentas vencidas)
+docker compose up -d backend frontend     # SIN lifecycle (que elimina y anonimiza cuentas vencidas): recomendado mientras se prepara una instalación
+docker compose --profile db up -d db      # opcional: SQL Server en contenedor, con volumen persistente y sin puertos publicados
 docker compose logs -f backend
 docker compose down
 ```
 
-Desarrollo con recarga: `docker compose -f compose.yaml -f compose.dev.yaml up --build`. Producción, variables, `glucolume.local`, operación y
+Redis opcional para los límites compartidos: `compose.redis.yaml`. Desarrollo con recarga: `docker compose -f compose.yaml -f compose.dev.yaml up --build`. Producción, variables, `glucolume.local`, operación y
 problemas frecuentes: [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md). Pruebas: `cd backend && python -m pytest` y `cd frontend && npm test`.
+
+## Estado (23/10/2026)
+
+La remediación del informe de ciberseguridad del 21/10/2026 (H-01 a H-17) está integrada en `master`; **la auditoría no se considera aprobada**: siguen abiertos H-03 (cifrado en reposo), H-05 (canal Bluetooth) y H-10 (`zlib` sin corrección publicada), y quedan verificaciones que solo pueden hacerse en Windows, con la placa real o con decisión legal.
+Detalle por hallazgo: [docs/SEGURIDAD.md](docs/SEGURIDAD.md) §2.0.1–§2.0.3; pendientes: [docs/PENDIENTES.md](docs/PENDIENTES.md).
 
 ## Documentación
 
@@ -65,7 +72,8 @@ problemas frecuentes: [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md). Pruebas: `cd bac
 | [docs/HISTORIAL.md](docs/HISTORIAL.md) | Cambios, correcciones, decisiones y pruebas, en orden cronológico |
 | [docs/PENDIENTES.md](docs/PENDIENTES.md) | Problemas abiertos y validaciones necesarias |
 | [docs/seguridad/auditorias/](docs/seguridad/auditorias/) | Auditorías de ciberseguridad (PDF, evidencia fechada) |
-| [docs/evidencias/](docs/evidencias/) | Evidencias históricas (escaneo de imágenes, pruebas de concurrencia) |
+| [docs/seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](docs/seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md) | Qué se verificó (entorno, resultado, evidencia) y qué falta en Windows |
+| [docs/evidencias/](docs/evidencias/) | Evidencias: escaneo de imágenes, pruebas de concurrencia y la [validación integral del 23/10/2026](docs/evidencias/validacion_integral/README.md) (scripts reproducibles y resultados) |
 
 **Cómo mantenerla:** cada funcionalidad nueva actualiza su documento; cada problema resuelto y verificado se registra en
 [HISTORIAL.md](docs/HISTORIAL.md) y sale de [PENDIENTES.md](docs/PENDIENTES.md). No se crean documentos nuevos por cada corrección.

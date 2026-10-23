@@ -34,6 +34,14 @@
 //   DEMO,OFF      Desactiva el valor sintetico (GluExp_mgdl sera NA sin calibracion).
 //   ID            Vuelve a informar el identificador persistente (GLUCOLUME,ID=<uuid>,...).
 //   PPG,ON / PPG,OFF  Activa o desactiva el envio de la senal de pulso (ver abajo). Por defecto ON.
+//   KEY,<32 hex>  (SOLO POR USB) Guarda en la EEPROM la clave de 128 bits que firma las lineas (ver "Firma de las lineas").
+//   KEYCLR        (SOLO POR USB) Borra la clave: vuelve a enviar lineas sin firma.   KEY?   Informa si hay clave (nunca la muestra).
+//
+// Firma de las lineas (H-05, opcional): con una clave provisionada cada linea que sale por USB y Bluetooth termina en
+//   *<arranque>.<contador>.<etiqueta de 16 hex>     (etiqueta = SipHash-2-4 de "GL1|<arranque>.<contador>|<linea>", 64 bits)
+// y el puente (acquisition/bridge/linkauth.py) descarta lo que no verifica o repite un contador. <arranque> sube en cada reinicio (EEPROM).
+// Con clave, las ordenes recibidas por Bluetooth se IGNORAN (salvo ID): el sistema solo recibe por ese canal, nunca lo usa para ordenar; asi un
+// intruso emparejado no puede cambiar la calibracion ni el modo DEMO. NO cifra: las lecturas siguen viajando en claro.
 //
 // Senal de pulso (PPG), ademas de la linea de metricas de cada segundo:
 //   PPG,<seq>,<mascara>,<v0>,<v1>,...,<v9>
@@ -52,6 +60,7 @@
 #include <EEPROM.h>
 #include <math.h>
 #include <avr/pgmspace.h>  // Constantes del protocolo y mensajes en Flash (SRAM libre).
+#include "GlucoLumeEnlace.h"  // salida firmada de las lineas (usa GlucoLumeSipHash.h) (H-05)
 
 // Pines Bluetooth: RX = Pin 10, TX = Pin 11
 SoftwareSerial miBluetooth(10, 11);
@@ -211,18 +220,37 @@ static CalData cal;
 static bool    calOk = false;                  // hay recta ajustada
 static float   calA = 0, calB = 0;             // G = calA + calB * x
 
-static char pcBuf[24], btBuf[24];
+#define CMD_MAX_BT           23              // las ordenes por Bluetooth son cortas
+#define CMD_MAX_USB          39              // KEY,<32 hex> llega solo por USB
+static char pcBuf[CMD_MAX_USB + 1], btBuf[CMD_MAX_BT + 1];
 static uint8_t pcLen = 0, btLen = 0;
+
+// --- Firma de las lineas (H-05) ------------------------------------------------------------------------------
+// La clave (128 bits) se provisiona UNA vez por USB (KEY,<32 hex>) y vive en la EEPROM; nunca se imprime ni se repite por Bluetooth. Sin clave todo
+// funciona como antes (lineas sin firma). El contador de arranque sube en cada reinicio y se guarda: asi (arranque, contador) nunca se repite.
+// La clase de salida (LinkOut) y el estado de la clave estan en GlucoLumeEnlace.h.
+#define LINK_EEPROM_ADDR     130             // despues de DevId (100..118)
+
+static void saveLinkAuth() { linkAuth.check = linkCheck(linkAuth); EEPROM.put(LINK_EEPROM_ADDR, linkAuth); }
+
+static void loadLinkAuth() {
+  EEPROM.get(LINK_EEPROM_ADDR, linkAuth);
+  linkOn = (linkAuth.magic == LINK_MAGIC && linkAuth.check == linkCheck(linkAuth));
+  if (!linkOn) { memset(&linkAuth, 0, sizeof(linkAuth)); return; }
+  linkAuth.boot++;                             // un arranque mas: las lineas de esta sesion llevan un valor nuevo
+  saveLinkAuth();
+}
+
+static void putBoth(uint8_t c) { Serial.write(c); miBluetooth.write(c); }
+static LinkOut out(putBoth);                   // unica salida de lineas: firma (si hay clave) y reparte a USB y Bluetooth
 
 // --- Utilidades ----------------------------------------------------------------------------------------------
 // Respuestas dinámicas (buffer RAM) y constantes residentes en Flash.
 static void say(const char *msg) {
-  Serial.println(msg);
-  miBluetooth.println(msg);
+  out.println(msg);
 }
 static void say(const __FlashStringHelper *msg) {
-  Serial.println(msg);
-  miBluetooth.println(msg);
+  out.println(msg);
 }
 
 static void lcdRow(uint8_t row, const char *text) {
@@ -301,7 +329,7 @@ static void saveCalibration() { EEPROM.put(0, cal); }
 // al arrancar, ante el comando ID y cada ID_PERIOD_MS (por Bluetooth no hay reinicio al abrir el puerto). Es una linea
 // aparte de la de metricas: no cambia el formato de medicion. Borrar la EEPROM o cargar un firmware que la reescriba
 // genera otro identificador (otro dispositivo para el inventario).
-#define FW_VERSION           "1.1.0"
+#define FW_VERSION           "1.2.0"
 #define ID_EEPROM_ADDR       100             // despues de CalData (67 bytes desde la direccion 0)
 #define ID_MAGIC             0x4944
 #define ID_PERIOD_MS         10000UL
@@ -351,8 +379,8 @@ static void loadIdentity() {
 }
 
 static void sendIdentity() {
-  Print *ports[2] = { &Serial, &miBluetooth };
-  for (uint8_t i = 0; i < 2; i++) {
+  Print *ports[1] = { &out };  // una sola salida: firma (si hay clave) y reparte a USB y Bluetooth
+  for (uint8_t i = 0; i < 1; i++) {
     ports[i]->print(F("GLUCOLUME,ID="));
     ports[i]->print(devIdText);
     ports[i]->print(F(",SENSOR=MAX30100,FW="));
@@ -363,8 +391,53 @@ static void sendIdentity() {
   tsLastId = millis();
 }
 
-static void handleCommand(const char *line) {
+static bool hexByte(const char *p, uint8_t &out8) {
+  uint8_t v = 0;
+  for (uint8_t i = 0; i < 2; i++) {
+    char c = p[i]; uint8_t n;
+    if (c >= '0' && c <= '9') n = c - '0';
+    else if (c >= 'a' && c <= 'f') n = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F') n = c - 'A' + 10;
+    else return false;
+    v = (uint8_t)((v << 4) | n);
+  }
+  out8 = v;
+  return true;
+}
+
+static void handleCommand(char *line, bool fromUsb) {
   if (strcmp_P(line, PSTR("ID")) == 0) { sendIdentity(); return; }   // vuelve a informar el identificador
+  // Con clave, el canal Bluetooth solo SALE (H-05): una orden recibida por ahi no la envia nadie legitimo, asi que se ignora.
+  if (linkOn && !fromUsb) { say(F("CMD:SOLO_POR_USB")); return; }
+  // Provision de la clave: solo por USB (acceso fisico). Nunca se muestra, ni se devuelve, ni se reenvia por Bluetooth.
+  if (strncmp_P(line, PSTR("KEY,"), 4) == 0) {
+    uint8_t key[16]; bool good = fromUsb && strlen(line) == 36;
+    for (uint8_t i = 0; good && i < 16; i++) good = hexByte(line + 4 + 2 * i, key[i]);
+    memset(line, 0, strlen(line));                                    // la clave no queda en el buffer de ordenes
+    if (!good) { memset(key, 0, sizeof(key)); say(F("KEY:ERROR,se espera KEY,<32 hex> por USB")); return; }
+    memcpy(linkAuth.key, key, 16); memset(key, 0, sizeof(key));
+    linkAuth.magic = LINK_MAGIC;
+    linkAuth.boot++;                                                  // epoca nueva: el puente ve un (arranque, contador) mayor
+    lineCounter = 0;
+    saveLinkAuth();
+    linkOn = true;
+    say(F("KEY:OK"));
+    return;
+  }
+  if (strcmp_P(line, PSTR("KEYCLR")) == 0) {
+    if (!fromUsb) { say(F("KEY:SOLO_POR_USB")); return; }
+    say(F("KEY:BORRADA"));                                            // se avisa firmada, y recien despues se apaga la firma
+    memset(linkAuth.key, 0, sizeof(linkAuth.key));
+    linkAuth.magic = 0;
+    saveLinkAuth();
+    linkOn = false;
+    return;
+  }
+  if (strcmp_P(line, PSTR("KEY?")) == 0) {
+    if (linkOn) { out.print(F("KEY:ACTIVA,ARRANQUE=")); out.println(linkAuth.boot); }
+    else say(F("KEY:SIN_CLAVE"));
+    return;
+  }
   char msg[48];
   if (strcmp_P(line, PSTR("DEMO,ON")) == 0) {
     modoGlucoDemo = true;
@@ -409,11 +482,11 @@ static void handleCommand(const char *line) {
 
 // Acumula bytes de una línea; al recibir '\n' ejecuta el comando si lo es. No consume el byte: el puente
 // serial de abajo sigue reenviando todo igual que antes (para configurar el HC-06 con comandos AT).
-static void feedCommandByte(char c, char *buf, uint8_t &len) {
+static void feedCommandByte(char c, char *buf, uint8_t &len, uint8_t maxLen, bool fromUsb) {
   if (c == '\n' || c == '\r') {
-    if (len > 0) { buf[len] = 0; handleCommand(buf); }
+    if (len > 0) { buf[len] = 0; handleCommand(buf, fromUsb); }
     len = 0;
-  } else if (len < 23) {
+  } else if (len < maxLen) {
     buf[len++] = c;
   } else {
     len = 0;                                   // línea demasiado larga: no es un comando
@@ -446,8 +519,8 @@ static void ppgPush(float ac) {
 }
 
 static void sendPpg() {
-  Print *ports[2] = { &Serial, &miBluetooth };
-  for (uint8_t i = 0; i < 2; i++) {
+  Print *ports[1] = { &out };  // una sola salida: firma (si hay clave) y reparte a USB y Bluetooth
+  for (uint8_t i = 0; i < 1; i++) {
     ports[i]->print(F("PPG,"));
     ports[i]->print(ppgSeq);
     ports[i]->print(',');
@@ -590,6 +663,7 @@ void setup() {
   }
   loadCalibration();
   loadIdentity();
+  loadLinkAuth();
 
   lcd.clear();
   Serial.println(F("Sistema listo."));
@@ -597,6 +671,8 @@ void setup() {
   if (modoGlucoDemo) Serial.println(F("AVISO: GLUCOSA DEMO SINTETICA. NO ES MEDICION."));
   if (!calOk) Serial.println(F("Indice experimental SIN CALIBRAR: use CAL con glucometro (minimo 3 puntos)."));
   Serial.println(F("ADVERTENCIA: Gexp NO es un valor clinico de glucosa."));
+  Serial.println(linkOn ? F("Enlace FIRMADO (SipHash-2-4). KEY? informa el estado; la clave no se muestra.")
+                        : F("AVISO: enlace SIN firmar (sin clave). Provisionar con KEY,<32 hex> por USB."));
   sendIdentity();
 }
 
@@ -639,8 +715,8 @@ void loop() {
     float outGlucosa = outGluDemo ? valorGlucosaDemo() : glucose;
 
     // --- Envío por Serial USB (PC / Serial Plotter) y Bluetooth (Celular / App) ---
-    Print *ports[2] = { &Serial, &miBluetooth };
-    for (uint8_t i = 0; i < 2; i++) {
+    Print *ports[1] = { &out };  // una sola salida: firma (si hay clave) y reparte a USB y Bluetooth
+    for (uint8_t i = 0; i < 1; i++) {
       ports[i]->print(F("BPM:"));
       ports[i]->print(outBpm);
       ports[i]->print(F(",SpO2:"));
@@ -704,12 +780,15 @@ void loop() {
   while (miBluetooth.available() > 0) {
     char c = miBluetooth.read();
     Serial.write(c);
-    feedCommandByte(c, btBuf, btLen);
+    feedCommandByte(c, btBuf, btLen, CMD_MAX_BT, false);
   }
 
   while (Serial.available() > 0) {
     char c = Serial.read();
-    miBluetooth.write(c);
-    feedCommandByte(c, pcBuf, pcLen);
+    feedCommandByte(c, pcBuf, pcLen, CMD_MAX_USB, true);
+    // La linea KEY,<clave> no se reenvia por Bluetooth: ya se ejecuto y el buffer quedo en cero (pcLen = 0), o aun se esta acumulando y empieza
+    // con "KEY,". Todo lo demas se reenvia como siempre (configuracion AT del HC-06 desde la PC).
+    bool secret = pcLen >= 4 && memcmp_P(pcBuf, PSTR("KEY,"), 4) == 0;
+    if (!secret) miBluetooth.write(c);
   }
 }

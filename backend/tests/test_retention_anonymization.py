@@ -378,16 +378,21 @@ def test_sin_la_031_nada_cambia(db, mails, team, monkeypatch, dni):
     assert db.scalar(select(func.count()).select_from(Measurement).where(Measurement.idPerfilMedicion == kept.idPerfilMedicion)) == 1
 
 
-def test_el_job_manual_de_retencion_exige_nombrar_la_base(monkeypatch):
-    # Sin --confirmo-base exacto no abre ninguna sesión ni modifica nada.
+def test_el_job_manual_de_retencion_exige_nombrar_la_base_y_confirmar_las_cantidades(monkeypatch):
+    # Sin --confirmo-base exacto no abre ninguna sesión ni modifica nada; con la base, además exige las cantidades que informó --simular (H-04).
+    from contextlib import nullcontext
+
     from app.jobs import purgeInstitutionalRetention as job
 
     monkeypatch.setattr(job, "run", lambda: (_ for _ in ()).throw(AssertionError("no debía correr")))
+    monkeypatch.setattr(job, "getJobsSessionFactory", lambda: (_ for _ in ()).throw(AssertionError("no debía abrir una sesión")))
     assert job.main([]) == 2
     assert job.main(["--confirmo-base", "otra"]) == 2
+    monkeypatch.setattr(job, "getJobsSessionFactory", lambda: lambda: nullcontext())
+    monkeypatch.setattr(job, "plan", lambda db: {"perfilesAAnonimizar": 0, "medicionesAEliminar": 0})
+    assert job.main(["--confirmo-base", job.getSettings().DB_NAME]) == 2  # sin confirmar las cantidades
     monkeypatch.setattr(job, "run", lambda: 0)
-    assert job.main(["--confirmo-base", job.getSettings().DB_NAME]) == 0
-
+    assert job.main(["--confirmo-base", job.getSettings().DB_NAME, "--confirmo-perfiles", "0", "--confirmo-mediciones", "0"]) == 0
 
 
 def test_un_perfil_que_falla_no_frena_a_los_demas_y_se_reintenta(db, mails, team, monkeypatch):

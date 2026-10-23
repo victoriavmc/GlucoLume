@@ -1,7 +1,7 @@
 # Config - Configuración de la aplicación leída desde variables de entorno / .env
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -13,6 +13,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT_DIR = Path(__file__).resolve().parents[3]
 # Archivo de configuración: el .env de la raíz. GLUCOLUME_ENV_FILE lo reemplaza (las pruebas usan backend/tests/test.env, GL-12).
 ENV_FILE = Path(os.environ.get("GLUCOLUME_ENV_FILE") or ROOT_DIR / ".env")
+
+# Ventana máxima de rotación de JWT_SECRET (H-08): cubre el access token (30 min) y los enlaces de correo firmados de hasta 72 h (confirmación
+# del correo de resultados); los de baja de avisos (30 días) emitidos antes de la rotación dejan de valer y se piden de nuevo.
+JWT_ROTATION_MAX_HOURS = 72
 
 # Algoritmos HMAC permitidos. No se mezclan con algoritmos asimétricos.
 JWT_ALLOWED_ALGORITHMS = ("HS256", "HS384", "HS512")
@@ -55,14 +59,21 @@ class Settings(BaseSettings):
 
     # JWT de acceso
     JWT_SECRET: SecretStr
-    # Secreto anterior durante una rotación (H-08): firma solo JWT_SECRET; los tokens firmados con el anterior se siguen aceptando hasta que
-    # vencen. Quitarlo pasada la vigencia del token más largo (docs/SEGURIDAD.md, «Rotación de secretos»).
+    # Rotación de JWT_SECRET (H-08). El secreto anterior solo VERIFICA (siempre firma JWT_SECRET) y únicamente hasta JWT_PREVIOUS_SECRET_UNTIL,
+    # que es obligatorio con él y no puede estar a más de JWT_ROTATION_MAX_HOURS de ahora: ningún secreto viejo se acepta indefinidamente.
+    # Pasado el plazo se ignora aunque siga en el .env. Hora de Argentina si no lleva zona. Procedimiento: docs/SEGURIDAD.md, «Rotación de secretos».
     JWT_PREVIOUS_SECRET: SecretStr | None = None
+    JWT_PREVIOUS_SECRET_UNTIL: datetime | None = None
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Sesiones y autenticación
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # Refresh token en cookie HttpOnly (H-09, app/api/sessionCookie.py). REFRESH_COOKIE_SECURE=None -> Secure en producción o con FRONTEND_URL https.
+    # REFRESH_TOKEN_IN_BODY: mientras sea true, un cliente SIN la cabecera X-GlucoLume-CSRF (puentes, scripts, pruebas) recibe y manda el refresh token en
+    # el cuerpo, como antes. En false toda sesión nueva es solo-cookie y /refresh rechaza el cuerpo. El navegador de GlucoLume ya no lo necesita.
+    REFRESH_COOKIE_SECURE: bool | None = None
+    REFRESH_TOKEN_IN_BODY: bool = True
     AUTH_LOCKOUT_MINUTES: int = 15
     # Plazo para verificar una cuenta local desde Usuario.fechaCreacion (los reenvíos no lo extienden).
     # Vencido, la cuenta pendiente se elimina (app/services/unverifiedAccounts.py).
@@ -103,14 +114,27 @@ class Settings(BaseSettings):
     # Sin valor, el formulario responde que el contacto no está disponible.
     CONTACT_EMAIL: str | None = None
 
+    # Límites de solicitudes compartidos entre réplicas (H-06, app/services/rateLimiter.py). Sin RATE_LIMIT_REDIS_URL los contadores viven en la
+    # memoria de cada proceso (exactos con UNA réplica; con varias, el límite efectivo se multiplica). Con ella (redis://… o rediss://… —TLS—;
+    # puede llevar contraseña, por eso es secreta) todas las réplicas cuentan en el mismo Redis. RATE_LIMIT_ON_FAILURE: qué hacer si Redis no
+    # responde — «local» sigue contando en memoria (nunca más débil que sin Redis), «deny» rechaza (más seguro contra abuso, pero una caída de
+    # Redis deja sin acceso a los endpoints protegidos, incluido el inicio de sesión).
+    RATE_LIMIT_REDIS_URL: SecretStr | None = None
+    RATE_LIMIT_ON_FAILURE: Literal["local", "deny"] = "local"
+    RATE_LIMIT_REDIS_TIMEOUT_SECONDS: float = 0.25
+    RATE_LIMIT_REDIS_RETRY_SECONDS: float = 10.0
+
     # Puente serie (acquisition/bridge): token compartido con el servicio que lee el Arduino en el equipo anfitrión
     # (Windows) y envía las lecturas por POST /acquisition/bridge/ingest. Sin valor, la recepción queda deshabilitada.
     BRIDGE_TOKEN: SecretStr | None = None
     # Rotación sin corte (GL-11): el token anterior se sigue aceptando mientras se actualiza el puente; quitarlo apenas el puente use el nuevo.
     BRIDGE_PREVIOUS_TOKEN: SecretStr | None = None
-    # Plazo máximo explícito de ese token anterior (H-16), p. ej. 2026-11-03T18:00 (hora de Argentina si no lleva zona): vencido, se ignora.
-    # Sin plazo sigue valiendo hasta que se lo quite (se advierte al arrancar).
+    # Plazo del token anterior (H-16), obligatorio con él y de hasta JWT_ROTATION_MAX_HOURS desde ahora, p. ej. 2026-11-03T18:00 (hora de
+    # Argentina si no lleva zona): vencido, se ignora aunque siga en el .env.
     BRIDGE_PREVIOUS_TOKEN_UNTIL: datetime | None = None
+    # Credenciales individuales por puente (H-16, tabla PuenteCredencial, administradas con `python -m app.cli.bridgeTokens`). El BRIDGE_TOKEN
+    # compartido sigue aceptándose por compatibilidad; con false solo valen las individuales (atadas a un dispositivo, con vencimiento y revocables).
+    BRIDGE_ALLOW_SHARED_TOKEN: bool = True
     # Transitorio (equipo único compartido): permite que las cuentas individuales midan y den órdenes al puente con un dispositivo asignado a
     # una institución. NO cambia su propiedad ni los permisos de los operadores. Por defecto apagado; quitarlo cuando cada contexto tenga su equipo.
     ALLOW_INDIVIDUAL_ON_INSTITUTIONAL_DEVICE: bool = False
@@ -146,6 +170,16 @@ class Settings(BaseSettings):
     AUDIT_CONTEXT_RETENTION_DAYS: int = 90
     AUDIT_ANONYMOUS_RETENTION_MONTHS: int = 12
     AUDIT_RETENTION_MONTHS: int = 0
+    # Aprobación de los plazos que ELIMINAN o suprimen datos por política (H-04): AUDIT_RETENTION_MONTHS y PERSONNEL_RETENTION_MONTHS solo
+    # tienen efecto si esta referencia (p. ej. el número de dictamen u acta de la aprobación legal) está definida. Sin ella esas depuraciones
+    # NO corren aunque el plazo sea mayor que 0 (se advierte al arrancar). La referencia queda en cada evento de depuración. No hay valor por
+    # defecto a propósito: la aprobación la aporta quien tiene la autoridad, no el código.
+    RETENTION_APPROVAL_REFERENCE: str | None = None
+    # Tope contra eliminaciones masivas accidentales (p. ej. un plazo mal tipeado): una pasada automática que alcance más de esta fracción de
+    # la tabla (y más de RETENTION_GUARD_MIN_ROWS filas) no corre; hay que revisarla con `python -m app.jobs.retention previsualizar` y ejecutarla
+    # a mano confirmando la cantidad exacta.
+    RETENTION_MAX_DELETE_FRACTION: float = 0.25
+    RETENTION_GUARD_MIN_ROWS: int = 100
 
     # URL pública del frontend: destino de los botones de los correos (ingresar, revisar seguridad...).
     FRONTEND_URL: str = "http://localhost:5173"
@@ -164,12 +198,67 @@ class Settings(BaseSettings):
             raise ValueError("El token del puente debe tener al menos 32 caracteres.")
         return value
 
+    @field_validator("RETENTION_APPROVAL_REFERENCE")
+    @classmethod
+    def validarReferenciaDeAprobacion(cls, value: str | None) -> str | None:
+        value = value.strip() if value else None
+        if value is not None and not 4 <= len(value) <= 200:
+            raise ValueError("RETENTION_APPROVAL_REFERENCE debe tener entre 4 y 200 caracteres (p. ej. el número del dictamen).")
+        return value
+
+    @field_validator("RETENTION_MAX_DELETE_FRACTION")
+    @classmethod
+    def validarFraccionDeDepuracion(cls, value: float) -> float:
+        if not 0 < value <= 1:
+            raise ValueError("RETENTION_MAX_DELETE_FRACTION debe ser mayor que 0 y como máximo 1.")
+        return value
+
+    @field_validator("RATE_LIMIT_REDIS_URL")
+    @classmethod
+    def validarUrlDeLimites(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and urlsplit(value.get_secret_value()).scheme not in ("redis", "rediss", "unix"):
+            raise ValueError("RATE_LIMIT_REDIS_URL debe empezar con redis://, rediss:// o unix://.")
+        return value
+
+    @field_validator("RATE_LIMIT_REDIS_TIMEOUT_SECONDS", "RATE_LIMIT_REDIS_RETRY_SECONDS")
+    @classmethod
+    def validarTiemposDeLimites(cls, value: float) -> float:
+        if not 0.05 <= value <= 60:
+            raise ValueError("Los tiempos de RATE_LIMIT_REDIS_* deben estar entre 0,05 y 60 segundos.")
+        return value
+
     @field_validator("JWT_SECRET", "JWT_PREVIOUS_SECRET")
     @classmethod
     def validarSecreto(cls, value: SecretStr | None, info) -> SecretStr | None:
         if value is not None and len(value.get_secret_value()) < 32:
             raise ValueError(f"{info.field_name} debe tener al menos 32 caracteres.")
         return value
+
+    @model_validator(mode="after")
+    def validarVentanaDeRotacionJwt(self) -> "Settings":
+        """El secreto anterior de JWT exige un plazo explícito, distinto del vigente y acotado a JWT_ROTATION_MAX_HOURS (H-08)."""
+        if self.JWT_PREVIOUS_SECRET is None:
+            return self
+        if self.JWT_PREVIOUS_SECRET.get_secret_value() == self.JWT_SECRET.get_secret_value():
+            raise ValueError("JWT_PREVIOUS_SECRET es igual a JWT_SECRET: no hay rotación.")
+        if self.JWT_PREVIOUS_SECRET_UNTIL is None:
+            raise ValueError("JWT_PREVIOUS_SECRET exige JWT_PREVIOUS_SECRET_UNTIL: el secreto anterior no se acepta sin plazo.")
+        from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+        if withArgentinaZone(self.JWT_PREVIOUS_SECRET_UNTIL) > nowArgentina() + timedelta(hours=JWT_ROTATION_MAX_HOURS):
+            raise ValueError(f"JWT_PREVIOUS_SECRET_UNTIL no puede superar las {JWT_ROTATION_MAX_HOURS} horas desde ahora.")
+        return self
+
+    @property
+    def jwtVerificationSecrets(self) -> list[SecretStr]:
+        """Secretos con los que se verifica ahora un JWT: el vigente y, solo mientras no venza su plazo, el anterior (H-08)."""
+        secrets = [self.JWT_SECRET]
+        if self.JWT_PREVIOUS_SECRET is not None and self.JWT_PREVIOUS_SECRET_UNTIL is not None:
+            from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+            if nowArgentina() < withArgentinaZone(self.JWT_PREVIOUS_SECRET_UNTIL):
+                secrets.append(self.JWT_PREVIOUS_SECRET)
+        return secrets
 
     @property
     def trustServerCertificate(self) -> bool:
@@ -233,14 +322,37 @@ class Settings(BaseSettings):
             warnings.append("DATABASE_URL está definida pero ninguna parte de GlucoLume la usa: duplica la contraseña de la base; quitala.")
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             warnings.append("BRIDGE_PREVIOUS_TOKEN está definido: el puente acepta dos tokens. Quitalo cuando el puente use BRIDGE_TOKEN.")
-            if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
-                warnings.append("BRIDGE_PREVIOUS_TOKEN sin BRIDGE_PREVIOUS_TOKEN_UNTIL: fijá un plazo máximo para la ventana de rotación (H-16).")
+        if self.BRIDGE_TOKEN is not None and self.BRIDGE_ALLOW_SHARED_TOKEN and self.API_ENV == "production":
+            warnings.append("BRIDGE_TOKEN compartido activo: pasá cada puente a su credencial individual (python -m app.cli.bridgeTokens) y "
+                            "poné BRIDGE_ALLOW_SHARED_TOKEN=false (H-16).")
+        if self.RATE_LIMIT_REDIS_URL is not None:
+            parts = urlsplit(self.RATE_LIMIT_REDIS_URL.get_secret_value())
+            if self.API_ENV == "production" and parts.scheme == "redis" and parts.hostname not in ("localhost", "127.0.0.1", "::1", None):
+                warnings.append("RATE_LIMIT_REDIS_URL usa redis:// hacia otra máquina: el tráfico (y la contraseña) viajan sin cifrar. "
+                                "Usá rediss:// o una red interna aislada.")
+            if self.RATE_LIMIT_ON_FAILURE == "deny":
+                warnings.append("RATE_LIMIT_ON_FAILURE=deny: si Redis no responde, los endpoints con límite (incluido el inicio de sesión) rechazan todo.")
+        if self.API_ENV == "production" and self.REFRESH_COOKIE_SECURE is False:
+            warnings.append("REFRESH_COOKIE_SECURE=false en producción: la cookie del refresh token viajaría también por HTTP. Dejala sin definir (Secure) "
+                            "y servilo por HTTPS (H-09).")
+        if self.API_ENV == "production" and self.REFRESH_TOKEN_IN_BODY:
+            warnings.append("REFRESH_TOKEN_IN_BODY=true: los clientes sin la cabecera X-GlucoLume-CSRF reciben el refresh token en el cuerpo. El frontend usa la "
+                            "cookie HttpOnly; poné REFRESH_TOKEN_IN_BODY=false cuando no quede ningún cliente heredado (H-09).")
         if self.JWT_PREVIOUS_SECRET is not None:
-            warnings.append("JWT_PREVIOUS_SECRET está definido: la API acepta tokens firmados con dos secretos. Quitalo cuando venzan los "
-                            "tokens firmados con el anterior (docs/SEGURIDAD.md, «Rotación de secretos»).")
+            if len(self.jwtVerificationSecrets) > 1:
+                warnings.append("JWT_PREVIOUS_SECRET vigente: la API acepta tokens firmados con dos secretos hasta JWT_PREVIOUS_SECRET_UNTIL. "
+                                "Quitá ambas variables al terminar la rotación (docs/SEGURIDAD.md, «Rotación de secretos»).")
+            else:
+                warnings.append("JWT_PREVIOUS_SECRET ya venció (JWT_PREVIOUS_SECRET_UNTIL) y se ignora: quitá ambas variables del .env.")
+        elif self.JWT_PREVIOUS_SECRET_UNTIL is not None:
+            warnings.append("JWT_PREVIOUS_SECRET_UNTIL está definido sin JWT_PREVIOUS_SECRET: no tiene efecto, quitalo.")
         if self.API_ENV == "production" and self.DB_JOBS_USER is None:
             warnings.append("Sin DB_JOBS_USER: la API y la conservación de la auditoría comparten cuenta de base, así que no se le puede negar "
                             "UPDATE/DELETE sobre Auditoria a la API (GL-03).")
+        configured = [name for name in ("AUDIT_RETENTION_MONTHS", "PERSONNEL_RETENTION_MONTHS") if getattr(self, name) > 0]
+        if configured and not self.RETENTION_APPROVAL_REFERENCE:
+            warnings.append(f"{', '.join(configured)} definido(s) sin RETENTION_APPROVAL_REFERENCE: esa depuración NO corre hasta que se informe la "
+                            "referencia de la aprobación legal (H-04).")
         if self.API_ENV == "production":
             pending = [name for name in ("AUDIT_RETENTION_MONTHS", "PERSONNEL_RETENTION_MONTHS") if getattr(self, name) == 0]
             if pending:
@@ -310,15 +422,32 @@ class Settings(BaseSettings):
                 raise ValueError(f"Clave Fernet inválida en {', '.join(invalid)}.")
         return self
 
+    @model_validator(mode="after")
+    def validarVentanaDelTokenAnteriorDelPuente(self) -> "Settings":
+        """Como con JWT (H-08): el token anterior del puente exige plazo explícito, acotado, y distinto del vigente."""
+        if self.BRIDGE_PREVIOUS_TOKEN is None:
+            return self
+        if self.BRIDGE_TOKEN is not None and self.BRIDGE_PREVIOUS_TOKEN.get_secret_value() == self.BRIDGE_TOKEN.get_secret_value():
+            raise ValueError("BRIDGE_PREVIOUS_TOKEN es igual a BRIDGE_TOKEN: no hay rotación.")
+        if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
+            raise ValueError("BRIDGE_PREVIOUS_TOKEN exige BRIDGE_PREVIOUS_TOKEN_UNTIL: el token anterior no se acepta sin plazo.")
+        from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+        if withArgentinaZone(self.BRIDGE_PREVIOUS_TOKEN_UNTIL) > nowArgentina() + timedelta(hours=JWT_ROTATION_MAX_HOURS):
+            raise ValueError(f"BRIDGE_PREVIOUS_TOKEN_UNTIL no puede superar las {JWT_ROTATION_MAX_HOURS} horas desde ahora.")
+        return self
+
     @property
     def bridgeTokens(self) -> list[SecretStr]:
         """Tokens del puente que se aceptan ahora: el vigente y, mientras no venza su plazo (H-16), el anterior."""
+        if not self.BRIDGE_ALLOW_SHARED_TOKEN:
+            return []
         tokens = [token for token in (self.BRIDGE_TOKEN,) if token is not None]
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             from app.utils.timeZone import nowArgentina, withArgentinaZone
 
             until = self.BRIDGE_PREVIOUS_TOKEN_UNTIL
-            if until is None or nowArgentina() < withArgentinaZone(until):
+            if until is not None and nowArgentina() < withArgentinaZone(until):
                 tokens.append(self.BRIDGE_PREVIOUS_TOKEN)
         return tokens
 

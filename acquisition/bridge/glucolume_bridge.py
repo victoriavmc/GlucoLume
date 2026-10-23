@@ -16,7 +16,9 @@ el USB del Arduino). Es el ÚNICO proceso que abre ese puerto. Lee las líneas q
   * Informa al backend los puertos que VE en este equipo y la causa técnica de un fallo del puerto, y acepta solo órdenes de
     una lista cerrada (CONFIGURAR puerto/medio entre los que él mismo informó, PAUSAR, REANUDAR, DETENER, REINICIAR). Ninguna
     escribe en el Arduino ni ejecuta programas.
-  * Registro en %LOCALAPPDATA%\\GlucoLume\\bridge\\bridge.log (rotativo) y estado en status.json. El token nunca se registra.
+  * Autenticación del enlace con el dispositivo (H-05, opcional): con BRIDGE_DEVICE_KEY el puente exige que cada línea del firmware lleve una
+    firma (SipHash-2-4, contador anti-repetición) y descarta lo que no verifica. Ver linkauth.py y docs/SEGURIDAD.md; NO cifra el enlace.
+  * Registro en %LOCALAPPDATA%\\GlucoLume\\bridge\\bridge.log (rotativo) y estado en status.json. El token y la clave nunca se registran.
 
 Configuración por variables de entorno o archivo (bridge.env junto a este script se carga solo; --env-file lo cambia):
   SERIAL_PORT          puerto COM, p. ej. COM4 (NO está en el código)           [obligatoria]
@@ -25,6 +27,7 @@ Configuración por variables de entorno o archivo (bridge.env junto a este scrip
   BRIDGE_API_URL       URL del backend                                          [http://localhost:8000]
   BRIDGE_TOKEN         token compartido con el backend (>= 32 caracteres)       [obligatoria]
   BRIDGE_DEVICE_CODE   código del dispositivo en el inventario de GlucoLume     [obligatoria]
+  BRIDGE_DEVICE_KEY    clave de 128 bits (32 hex) que firma las líneas del Arduino [opcional; sin ella el enlace NO está autenticado]
   BRIDGE_LOCK_PORT     puerto TCP local usado como candado de instancia única   [47831]
   GLUCOLUME_BRIDGE_HOME carpeta de registro y estado                            [%LOCALAPPDATA%\\GlucoLume\\bridge]
 Requiere pyserial (acquisition/requirements.txt). Detener con Ctrl+C, con `bridge_ctl.py stop` o desde GlucoLume.
@@ -51,9 +54,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
-VERSION = "1.2.0"
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))  # linkauth.py vive junto a este script
+import linkauth  # noqa: E402
+
+VERSION = "1.3.0"
 BAUD = {"USB": 115200, "BLUETOOTH": 9600}  # los del firmware: USB 115200, Bluetooth HC-05/HC-06 9600
-ENV_KEYS = ("SERIAL_PORT", "SERIAL_MEDIUM", "SERIAL_BAUDRATE", "BRIDGE_API_URL", "BRIDGE_TOKEN", "BRIDGE_DEVICE_CODE",
+ENV_KEYS = ("SERIAL_PORT", "SERIAL_MEDIUM", "SERIAL_BAUDRATE", "BRIDGE_API_URL", "BRIDGE_TOKEN", "BRIDGE_DEVICE_CODE", "BRIDGE_DEVICE_KEY",
             "BRIDGE_LOCK_PORT", "BRIDGE_ALLOW_INSECURE", "GLUCOLUME_BRIDGE_HOME")
 INGEST_PATH = "/api/v1/acquisition/bridge/ingest"
 MAX_BUFFER = 1000  # líneas conservadas si el servidor no responde (~16 minutos a 1 por segundo)
@@ -82,6 +90,7 @@ class Config:
     token: str
     deviceCode: str
     lockPort: int
+    deviceKey: bytes | None = None  # clave que firma las líneas del Arduino (H-05); None = enlace sin autenticar
 
     @property
     def ingestUrl(self) -> str:
@@ -185,7 +194,7 @@ def loadEnvFile(path: str) -> None:
 def persistConfig(path: str, values: dict[str, str | None]) -> None:
     """Actualiza solo claves del puente en el archivo de configuración conservando el resto (None borra la clave). Se usa
     cuando el usuario elige otro puerto o medio desde GlucoLume, para que el cambio sobreviva al reinicio."""
-    allowed = {key: value for key, value in values.items() if key in ENV_KEYS and key != "BRIDGE_TOKEN"}
+    allowed = {key: value for key, value in values.items() if key in ENV_KEYS and key not in ("BRIDGE_TOKEN", "BRIDGE_DEVICE_KEY")}
     lines = Path(path).read_text(encoding="utf-8").splitlines() if Path(path).exists() else []
     seen: set[str] = set()
     output: list[str] = []
@@ -228,7 +237,13 @@ def readConfig(env: dict[str, str] | None = None) -> Config:
     if parts.scheme == "http" and parts.hostname not in LOOPBACK and env.get("BRIDGE_ALLOW_INSECURE") != "1":
         raise ConfigError("BRIDGE_API_URL usa HTTP hacia otra máquina: el token viajaría sin cifrar. Usá HTTPS "
                           "(o BRIDGE_ALLOW_INSECURE=1 solo en una red local de confianza).")
-    return Config(need("SERIAL_PORT"), medium, baud, apiUrl, token, need("BRIDGE_DEVICE_CODE"), lockPort)
+    deviceKey = None
+    if (env.get("BRIDGE_DEVICE_KEY") or "").strip():
+        try:
+            deviceKey = linkauth.parseKey(env["BRIDGE_DEVICE_KEY"])
+        except linkauth.KeyError_ as error:
+            raise ConfigError(str(error)) from None
+    return Config(need("SERIAL_PORT"), medium, baud, apiUrl, token, need("BRIDGE_DEVICE_CODE"), lockPort, deviceKey)
 
 
 class SingleInstance:
@@ -457,9 +472,11 @@ class SerialReader(threading.Thread):
     (el usuario liberó el puerto)."""
 
     def __init__(self, cfg: Config, buffer: LineBuffer, opener=None, clock=time.monotonic, stop: threading.Event | None = None,
-                 silenceSeconds: float = SILENCE_REOPEN_SECONDS, backoff: Backoff | None = None) -> None:
+                 silenceSeconds: float = SILENCE_REOPEN_SECONDS, backoff: Backoff | None = None,
+                 authenticator: "linkauth.LineAuthenticator | None" = None) -> None:
         super().__init__(name="glucolume-serial", daemon=True)
         self.cfg, self.buffer, self.clock = cfg, buffer, clock
+        self.authenticator = authenticator  # con clave de dispositivo: solo pasan las líneas con firma válida y contador nuevo (H-05)
         self.stop = stop or threading.Event()
         self.silenceSeconds = silenceSeconds
         self.backoff = backoff or Backoff()
@@ -574,6 +591,9 @@ class SerialReader(threading.Thread):
             if raw:
                 lastData = now
                 text = (raw.decode("ascii", errors="replace") if isinstance(raw, bytes) else str(raw)).strip()
+                if text and self.authenticator is not None:
+                    verdict = self.authenticator.verify(text[:512])
+                    text = verdict.payload or ""  # descartada: no llega al backend (se cuenta y se registra sin su contenido)
                 if text:
                     self.buffer.add(text[:512], now)
             elif now - lastData > self.silenceSeconds:
@@ -722,8 +742,11 @@ class Uplink:
                 self.commands.handle(body["comando"])
             return 0.0 if len(self.buffer) >= MAX_BATCH else SEND_INTERVAL
         code = (body or {}).get("codigo")
+        if code == "PUENTE_FUERA_DE_ALCANCE":
+            raise Fatal(EXIT_REJECTED, "La credencial de este puente no corresponde al dispositivo configurado (BRIDGE_DEVICE_CODE).")
         if status == 403 or code in ("PUENTE_NO_AUTORIZADO",):
-            raise Fatal(EXIT_REJECTED, "El servidor rechazó el token del puente (BRIDGE_TOKEN distinto del del backend).")
+            raise Fatal(EXIT_REJECTED, "El servidor rechazó el token del puente (distinto del vigente, revocado o vencido): pedí uno nuevo "
+                                       "a quien administra GlucoLume.")
         if status == 409 and code == "PUENTE_DUPLICADO":
             raise Fatal(EXIT_DUPLICATE, "Ya hay otro puente activo para este dispositivo: este se detiene.")
         if status == 422 and lines:
@@ -766,6 +789,8 @@ def publishStatus(status: StatusFile | None, cfg: Config, reader: SerialReader, 
         "backend": cfg.apiUrl, "backendOk": not uplink.serverDown, "errorBackend": uplink.lastBackendError,
         "lineasEnviadas": uplink.sent, "lineasEnCola": len(buffer), "ultimaLinea": buffer.lastLineAt,
         "pausado": reader.paused.is_set(), "puertosVistos": len(scanner.snapshot()) if scanner is not None else None,
+        "enlaceAutenticado": reader.authenticator is not None,
+        "autenticacionEnlace": reader.authenticator.summary() if reader.authenticator is not None else None,
     })
 
 
@@ -776,7 +801,10 @@ def run(cfg: Config, stop: threading.Event, opener=None, post=None, envFile: str
         log.error("Ya hay un puente de GlucoLume en ejecución en este equipo.")
         return EXIT_DUPLICATE
     buffer = LineBuffer()
-    reader = SerialReader(cfg, buffer, opener=opener, stop=stop)
+    authenticator = linkauth.LineAuthenticator(cfg.deviceKey, dataDir() / "linkauth.json") if cfg.deviceKey is not None else None
+    if authenticator is None:
+        log.warning("Sin BRIDGE_DEVICE_KEY: el enlace con el dispositivo NO está autenticado (las líneas pueden ser falsificadas o repetidas).")
+    reader = SerialReader(cfg, buffer, opener=opener, stop=stop, authenticator=authenticator)
     commands = CommandHandler(reader, scanner, stop, envFile)
     uplink = Uplink(cfg, reader, buffer, post=post, scanner=scanner, commands=commands)
     log.info("Puente %s v%s: %s (%s) -> %s, dispositivo %s", uplink.bridgeId[:8], VERSION, cfg.port, cfg.medium, cfg.ingestUrl, cfg.deviceCode)
@@ -800,6 +828,8 @@ def run(cfg: Config, stop: threading.Event, opener=None, post=None, envFile: str
     finally:
         stop.set()
         reader.join(timeout=3)  # cierra el COM antes del último latido
+        if authenticator is not None:
+            authenticator.flush()
         reader._set("DESCONECTADO", 0, "Puente detenido.")
         try:
             uplink.flush(stopping=True)  # último latido: el backend sabe enseguida que el puerto quedó libre
@@ -859,7 +889,7 @@ def main(argv: list[str] | None = None) -> int:
         setupLogging(args.service, args.verbose)
         log.error("%s Ver acquisition/bridge/README.md o ejecutá bridge_ctl.py setup.", error)
         return EXIT_CONFIG
-    setupLogging(args.service, args.verbose, secrets=(cfg.token,))
+    setupLogging(args.service, args.verbose, secrets=tuple(s for s in (cfg.token, cfg.deviceKey.hex() if cfg.deviceKey else None) if s))
     stop = threading.Event()
     for name in ("SIGINT", "SIGTERM", "SIGBREAK"):
         if hasattr(signal, name):

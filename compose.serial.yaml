@@ -4,7 +4,7 @@
 #
 # El backend es quien abre el puerto serie (pySerial, POST /api/v1/acquisition/connect); aquí solo se le da acceso al
 # dispositivo del host. En Windows / Docker Desktop NO funciona (los puertos COM no se pueden pasar a un contenedor
-# Linux): ahí el backend corre nativo (ver docs/DOCKER.md, "Adquisición"). El Arduino puede estar desconectado: la API
+# Linux): ahí el backend corre nativo (ver docs/DISPOSITIVOS_Y_ADQUISICION.md). El Arduino puede estar desconectado: la API
 # y el frontend funcionan igual.
 #
 # SERIAL_DEVICE: nodo del host (USB: /dev/ttyUSB0 o /dev/ttyACM0; HC-06 enlazado: /dev/rfcomm0).

@@ -1,0 +1,18 @@
+# Salida final de las suites completas (23/10/2026), sin modificar salvo recortes
+
+## Backend (pytest, SQL Server real descartable activado)
+```text
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 10 durations =============================
+3.19s setup    tests/test_patient_analytics.py::test_alimentacion_desconocida_no_se_interpreta_como_ayuno
+3.13s setup    tests/test_operator_panel.py::test_los_graficos_coinciden_con_los_indicadores_y_separan_demo
+1983 passed, 1 warning in 1031.69s (0:17:11)
+```
+
+## Frontend (vitest run)
+```text
+ Test Files  52 passed (52)
+      Tests  695 passed (695)
+   Duration  90.55s (tests 69%, environment 12%, import 9%, transform 6%, setup 5%)
+```

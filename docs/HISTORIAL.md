@@ -3,6 +3,31 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 23/10/2026 — Integración final en `master` y stack Docker verificado
+
+PR #2 (rama `claude/vigilant-shannon-legfop`, 0 commits por detrás de `master`, sin conflictos) fusionado con un merge commit de GitHub, sin `force push` y **sin borrar la rama**. La auditoría
+**no** se declara aprobada: H-03, H-05 y H-10 siguen abiertos y hay verificaciones pendientes en Windows ([seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md)).
+
+- **Base de datos:** instalación nueva en el contenedor `db` con los scripts oficiales (v5 + `MATRIZ.SQL` + permisos): 34 tablas, 49 FK, 127 `CHECK`, 33 índices `IX_`/`UX_`, 27 reglas de matriz, `PuenteCredencial`. **Defecto encontrado y corregido:**
+  `GlucoLume_actualizar_instalada.sql` no restauraba los 31 índices que el v5 de `master` había perdido; ahora los crea de forma idempotente. Ensayo de actualización sin pérdida de datos (16/16).
+- **Docker:** `compose.redis.yaml` (Redis opcional, H-06). Stack completo en ejecución (`db`, `backend`, `frontend`, `redis`, y `proxy` Caddy en producción) con healthchecks, redes `edge`/`data`, volumen persistente, sin publicar SQL Server ni Redis, sin `lifecycle`.
+  Modo desarrollo 49/49 y producción por HTTPS 50/50. El `backend/Dockerfile` y la etapa `build` del `frontend/Dockerfile` oficiales **no se pudieron construir** en el entorno (red); se usó una imagen de ensayo documentada.
+- **Documentación revisada:** `README.md`, `DESPLIEGUE.md` (guía de Windows, Redis, estado real de cada servicio), `BASE_DE_DATOS.md` (instalación, actualización, permisos), `SEGURIDAD.md` (§2.0.3), `PENDIENTES.md` y el checklist de Windows.
+  Contradicciones corregidas: v5 ya no crea usuarios ni agrega roles fijos; "todavía no se ensayó" v5; versión de Caddy; cantidad de tablas e índices.
+
+## 23/10/2026 — Validación integral de la remediación (entorno descartable)
+
+Evidencia y scripts: [evidencias/validacion_integral](evidencias/validacion_integral/README.md). Matriz por hallazgo: [SEGURIDAD.md](SEGURIDAD.md) §2.0.2. Pendiente en Windows: [seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md).
+
+- **Qué se hizo:** con Docker, SQL Server 2022 (imagen fijada), Redis 7, Nginx (sistema e imagen fijada), Chromium, PowerShell 7 en Linux, simavr y Trivy, todo **descartable y con datos sintéticos**, se
+  validaron H-02/H-16 contra SQL Server real (76/76 y, con la API real y las cuentas restringidas, 51/51), H-06 con dos procesos de la API y Redis real (12/12), H-09 en Chromium con el build de producción
+  detrás de la plantilla real de Nginx (24/24), H-14 con Nginx real (20/20 y 23/23), H-01 con los `.ps1` reales (33/33), H-04 por simulación y la concurrencia del ciclo de vida de cuentas en SQL Server (120/120).
+- **Defectos reales encontrados y corregidos (un commit cada uno):** (1) H-14: las rutas de la SPA se registraban como `/index.html` en el log de Nginx; ahora la ruta original sin query; (2) `opentelemetry-api`
+  1.45.0 → 1.45.1 (CVE-2026-114603, transitiva de FastAPI) con `pip-audit` y Trivy sin hallazgos; (3) la prueba del certificado de SQL Server dependía del sistema operativo.
+- **Resuelto como limitación del entorno:** las pruebas que fallaban sin `libodbc` (instalado el ODBC 18) pasan; las cuatro que dependían de `tests/test.env`/`.env` pasan con el sintético.
+- **Sigue abierto, sin aceptar:** H-05 (confidencialidad, PIN, placa real), H-10 (zlib y 44 HIGH del sistema base sin corrección publicada, ver Trivy) y H-03 (no tocado).
+- **No se pudo:** construir la imagen del backend (`deb.debian.org` bloqueado) ni `npm ci`/`apk upgrade` dentro de Docker; validar nada específico de Windows (DPAPI, Programador de tareas) ni de la placa.
+
 ## 23/10/2026 — Remediación del informe de auditoría del 21/10 (H-01 a H-17)
 
 Estado completo por hallazgo en [SEGURIDAD.md](SEGURIDAD.md) §2.0.1. Un commit por hallazgo.
@@ -10,7 +35,7 @@ Estado completo por hallazgo en [SEGURIDAD.md](SEGURIDAD.md) §2.0.1. Un commit 
 - **Código y configuración:** H-07 (`API_ENV` obligatorio en la imagen), H-08 (`JWT_PREVIOUS_SECRET`), H-11 (límite por IP con sesión), H-12
   (Argon2 fijado), H-13 (HKDF en el HMAC de identificadores), H-14 (Nginx sin query en el log), H-15 (`ErrorBoundary` y 500 auditado),
   H-16 (plazo del token anterior del puente), H-17 (React 19.1.10), H-01 (`-CopiaExterna`), H-04 (advertencia de arranque).
-- **Documentado como riesgo aceptado o pendiente:** H-05, H-06, H-09, H-10; acciones humanas: H-01 (destino), H-02, H-03, H-04, H-08.
+- **Documentado como abierto o pendiente (ningún riesgo fue aceptado en esta remediación):** H-05, H-06, H-09, H-10; acciones humanas: H-01 (destino), H-02, H-03, H-04, H-08.
 - **Pruebas:** nuevas en `test_security_config.py`, `test_security_hardening.py`, `test_telemetry.py`, `test_unhandled_errors.py` y
   `ErrorBoundary.test.jsx`; frontend 685/685 con React 19.1.10. La prueba `test_en_produccion_se_verifica_el_certificado_de_sql_server` falla en
   Linux con o sin estos cambios (usa una ruta de Windows).

@@ -1,0 +1,118 @@
+Microsoft SQL Server 2022 (RTM-CU16) (KB5048033) - 16.0.4165.4 (X64) 
+	Nov  6 2024 19:24:49 
+== 1. Esquema v5 en una base nueva (Modern_Spanish_CI_AS)
+OK    CREATE DATABASE
+OK    GlucoLume_DB_v5.sql se ejecuta sin errores
+   tablas: 34
+   índices IX_*+UX_*: 33
+OK    v5 trae dbo.PuenteCredencial
+OK    MATRIZ.SQL (matriz global de referencia)
+== 2. Estado heredado de la base real: cuenta de la API en db_datareader/db_datawriter
+OK    logins sintéticos
+OK    glucolume_app con roles fijos (como la base real)
+
+(1 rows affected)
+OK    evento de auditoría sintético
+OK    ANTES: la API puede borrar Institucion (riesgo H-02 reproducido)
+OK    ANTES: la API puede borrar Auditoria (riesgo GL-03 reproducido)
+== 3. Permisos de mínimo privilegio (GlucoLume_permisos.sql)
+OK    permisos aplicados
+OK    idempotente: segunda ejecución sin errores
+OK    sin CONFIRMAR exacto no ejecuta nada
+   con db_datawriter aún presente, DELETE ajeno sigue posible (por eso existe el paso aparte):
+OK    con rol fijo todavía puede borrar Institucion (esperado antes del paso 4)
+OK    el DENY sobre Auditoria prevalece incluso sobre db_datawriter
+OK    UPDATE de Auditoria rechazado (229)
+== 4. Quitar roles fijos (paso aparte y reversible)
+OK    roles fijos quitados
+OK    la API ya no es miembro de db_datareader/db_datawriter/db_owner
+OK    DELETE Institucion rechazado (229)
+OK    DELETE PerfilMedicion rechazado (229)
+OK    DELETE Grupo rechazado (229)
+OK    DELETE Dispositivo rechazado (229)
+OK    DELETE AuditoriaTecnicaMedicion permitido (el código lo necesita)
+OK    DELETE CodigoRecuperacionMfa permitido (el código lo necesita)
+OK    DELETE ConsentimientoUsuario permitido (el código lo necesita)
+OK    DELETE CredencialLocal permitido (el código lo necesita)
+OK    DELETE EnvioResultado permitido (el código lo necesita)
+OK    DELETE FactorMfa permitido (el código lo necesita)
+OK    DELETE IdentidadExterna permitido (el código lo necesita)
+OK    DELETE Medicion permitido (el código lo necesita)
+OK    DELETE MedicionReferenciaCapilar permitido (el código lo necesita)
+OK    DELETE MuestraSensor permitido (el código lo necesita)
+OK    DELETE ReglaMatriz permitido (el código lo necesita)
+OK    DELETE SesionUsuario permitido (el código lo necesita)
+OK    DELETE TokenCuenta permitido (el código lo necesita)
+OK    DELETE Usuario permitido (el código lo necesita)
+OK    DELETE Auditoria rechazado
+OK    UPDATE Auditoria rechazado
+OK    DELETE AuditoriaContexto rechazado
+OK    UPDATE AuditoriaContexto rechazado
+OK    SELECT sobre el esquema (rol_glucolume_api)
+OK    INSERT en Auditoria permitido
+OK    la API no puede cambiar el esquema (CREATE TABLE)
+OK    la API no puede ALTER TABLE
+OK    el esquema no cambió
+== 5. Script de verificación del proyecto
+idPuenteCredencial nombre tokenHash codigoDispositivo fechaCreacion fechaExpiracion fechaRevocacion fechaUltimoUso
+------------------ ------ --------- ----------------- ------------- --------------- --------------- --------------
+prueba resultado
+------ ---------
+INSERT (Auditoria y contexto) permitido
+UPDATE Auditoria rechazado 229
+DELETE Auditoria rechazado 229
+UPDATE AuditoriaContexto rechazado 229
+DELETE AuditoriaContexto rechazado 229
+DELETE Institucion (no debe poder) rechazado 229
+DELETE PerfilMedicion (no debe poder) rechazado 229
+DELETE SesionUsuario (si debe poder) permitido
+SELECT PuenteCredencial permitido
+DELETE PuenteCredencial rechazado 229
+UPDATE tokenHash rechazado 230
+UPDATE fechaUltimoUso permitido
+control
+-------
+Filas de auditoria sin cambios: SI
+rolDeLaCuenta
+-------------
+rol_glucolume_api
+OK    verificar: auditoría sin cambios
+OK    verificar: DELETE Institucion rechazado
+OK    verificar: DELETE SesionUsuario permitido
+== 6. Cuenta de conservación
+OK    conservación puede depurar Auditoria
+OK    conservación no puede borrar Institucion
+OK    conservación no puede cambiar el esquema
+== 7. H-16: PuenteCredencial con la API
+OK    API lee PuenteCredencial
+OK    API no puede borrar credenciales de puente
+OK    API no puede cambiar tokenHash
+OK    API puede anotar fechaUltimoUso (GRANT de columna)
+OK    API no puede crear credenciales
+OK    conservación (CLI bridgeTokens) puede revocar/rotar: UPDATE
+OK    conservación puede crear credenciales: INSERT
+OK    nadie borra credenciales: se revocan (mínimo privilegio, DELETE no concedido)
+== 8. Reversión del paso 4 (restaurar roles fijos) y repetición
+OK    restaurar ejecutado
+OK    restaurados db_datareader y db_datawriter
+OK    aun restaurados, la auditoría sigue protegida por el DENY
+OK    quitar otra vez (idempotente)
+== 9. Reversión total de permisos
+OK    revertir permisos
+OK    roles de GlucoLume eliminados
+OK    estado previo recuperado (la API vuelve a poder modificar auditoría)
+== 10. Datos intactos tras todo el ciclo
+OK    el evento sintético sigue ahí (ningún script borra datos)
+OK    permisos reaplicados tras revertir
+== 11. H-16: migración sobre una base instalada antes (sin PuenteCredencial)
+OK    se simula una base anterior (tabla ausente)
+OK    sin CONFIRMAR exacto no crea nada
+OK    migración aplicada
+OK    migración idempotente
+OK    permisos reaplicados cubren la tabla nueva
+OK    API sin DELETE en la tabla migrada
+OK    columnas de la tabla migrada = v5
+OK    índices de la tabla migrada = v5
+OK    CHECK de la tabla migrada = v5
+
+RESUMEN: 76 correctas, 0 con falla

@@ -1,5 +1,7 @@
 # Despliegue y operación
 
+> Última revisión: 23/10/2026, contrastada con una ejecución real del stack (SQL Server, backend, Nginx, Redis y Caddy en contenedores): ver §8 y [evidencias/validacion_integral](evidencias/validacion_integral/README.md).
+
 Contenerización con Docker Compose para desarrollo en Windows y para un servidor Linux. Base de datos: [BASE_DE_DATOS.md](BASE_DE_DATOS.md).
 Puente y Arduino: [DISPOSITIVOS_Y_ADQUISICION.md](DISPOSITIVOS_Y_ADQUISICION.md). Controles de seguridad: [SEGURIDAD.md](SEGURIDAD.md).
 
@@ -7,8 +9,8 @@ Puente y Arduino: [DISPOSITIVOS_Y_ADQUISICION.md](DISPOSITIVOS_Y_ADQUISICION.md)
 
 ```text
 navegador ──HTTPS──▶ proxy Caddy (perfil https) ──HTTP──▶ frontend (Nginx + SPA, 127.0.0.1:8080) ──/api──▶ backend (FastAPI :8000)
-                                                                                                          │ ODBC 18 (red data)
-                                                                                    SQL Server externo  ◀─┴─▶  db (perfil db)
+                                                                                                          │ ODBC 18 (red data)      │ (opcional)
+                                                                                    SQL Server externo  ◀─┴─▶  db (perfil db)       └─▶ redis (perfil redis)
 ```
 
 | Servicio | Origen | Responsabilidad | Puertos | Redes |
@@ -17,7 +19,8 @@ navegador ──HTTPS──▶ proxy Caddy (perfil https) ──HTTP──▶ fr
 | `lifecycle` | Misma imagen (`python -m app.jobs.accountLifecycle --loop`) | Único programador del ciclo de vida de cuentas institucionales y de la retención de la auditoría | Ninguno | data |
 | `frontend` | `frontend/Dockerfile` (build Vite → Nginx 1.30 alpine-slim sin privilegios, usuario 101) | Sirve la SPA, reenvía `/api/` y pone las cabeceras de seguridad | 8080 → `127.0.0.1:${FRONTEND_PORT}` | edge |
 | `db` (perfil `db`) | `docker/mssql/Dockerfile` (SQL Server 2022 CU16 parcheado) | SQL Server opcional con volumen `mssql-data` | Ninguno (dev: 127.0.0.1:1433) | data |
-| `proxy` (perfil `https`) | `caddy:2.9-alpine` | Dominio y HTTPS automático (Let's Encrypt, HSTS) | 80, 443 | edge |
+| `proxy` (perfil `https` de `compose.prod.yaml`) | `caddy:2.11-alpine` (digest fijo) | Dominio y HTTPS automático (Let's Encrypt, HSTS) | 80, 443 | edge |
+| `redis` (perfil `redis` de `compose.redis.yaml`) | `redis:7-alpine` (digest fijo) | **Opcional**: límites de solicitudes compartidos entre réplicas (H-06). Sin contraseña no arranca, sin persistencia | Ninguno | data |
 | `firmware` (perfil `firmware`) | `docker/firmware/Dockerfile` (Arduino CLI) | Compila el sketch y termina | Ninguno | Ninguna |
 
 Imágenes base fijadas por digest (backend, frontend, SQL Server, firmware y Caddy 2.11; GL-13). `restart: unless-stopped` vuelve a levantar
@@ -87,6 +90,49 @@ descartable: `docker build --target dev -t glucolume-frontend-test frontend` y `
 pruebas de backend usan SQLite temporal, bloquean SMTP y fijan el modo del dispositivo; las que necesitan SQL Server exigen una base
 descartable ([BASE_DE_DATOS.md](BASE_DE_DATOS.md) §6).
 
+### 3.0 Guía rápida para Windows (PowerShell, Docker Desktop)
+
+Dos formas de tener la base; **no restaurar ni ejecutar nada sobre tu SQL Server Express real sin respaldo y sin ensayarlo antes en una copia** ([BASE_DE_DATOS.md](BASE_DE_DATOS.md) §2–§3).
+
+**A. Con tu SQL Server Express de Windows (instalación existente)** — el backend en Docker se conecta a la instancia del equipo:
+
+```powershell
+cd C:\ruta\a\GlucoLume
+git fetch origin; git checkout master; git pull --ff-only                  # versión integrada
+Copy-Item .env.example .env                                                # solo la primera vez; completar con tus valores (nunca subirlo a Git)
+# En .env: DOCKER_DB_HOST=host.docker.internal, DB_NAME/DB_USER/DB_PASSWORD, API_ENV=development, ACCOUNT_LIFECYCLE_INTERVAL_SECONDS=0
+docker compose build backend frontend                                      # construye las imágenes desde el código
+docker compose up -d backend frontend                                      # SIN lifecycle (no elimina ni anonimiza nada)
+docker compose ps                                                          # los dos deben figurar «healthy»
+Start-Process "http://localhost:8080"                                      # o http://glucolume.local si resolviste el nombre (§3.1)
+```
+
+**B. Con SQL Server en contenedor (base nueva y aislada, volumen persistente `mssql-data`)** — ideal para ensayar:
+
+```powershell
+Copy-Item .env.example .env; Copy-Item docker\db.env.example docker\db.env          # completar: contraseña de sa en db.env; DB_HOST=db en .env
+docker compose --profile db up -d db                                       # SQL Server (sin puertos publicados); esperar «healthy»
+# Crear la base y aplicar los scripts oficiales: BASE_DE_DATOS.md §2 (v5, matriz, logins y permisos)
+docker compose --profile db up -d backend frontend
+```
+
+Redis es **opcional** (solo con más de una réplica): `docker compose -f compose.yaml -f compose.redis.yaml --profile db --profile redis up -d`, con `REDIS_PASSWORD` y
+`RATE_LIMIT_REDIS_URL=redis://:<contraseña>@redis:6379/0` en el `.env` (`compose.redis.yaml` no publica el puerto).
+
+Detener, reiniciar, reconstruir y verificar:
+
+```powershell
+docker compose stop                                   # detiene todo y conserva los datos (si el .env apunta a la base real, hacerlo antes de cerrar Docker Desktop)
+docker compose start                                  # lo vuelve a iniciar
+docker compose up -d --build backend frontend         # reconstruye con el código actual
+docker compose down                                   # quita contenedores y redes; CONSERVA el volumen mssql-data (nunca usar «down -v» con datos reales)
+docker compose ps; docker compose logs --tail 50 backend
+Invoke-RestMethod http://localhost:8080/nginx-health  # «ok»
+curl.exe -s -o NUL -w "%{http_code}`n" http://localhost:8080/api/v1/auth/me                # 401: la API responde detrás de Nginx
+```
+
+Respaldo y restauración de prueba del volumen/base: [BASE_DE_DATOS.md](BASE_DE_DATOS.md) §4.
+
 ### 3.1 Acceso por `glucolume.local`
 
 Nginx es el único punto de entrada, en el puerto 80 del equipo: `/` (SPA), `/api/v1/…` (API) y `/docs`, `/redoc`, `/openapi.json`
@@ -143,8 +189,8 @@ Salud: backend `GET /healthz` (no consulta la base, para no reiniciar en bucle s
 
 ## 6. Imágenes y dependencias
 
-Escaneo con Docker Scout del 10/10/2026: tras las correcciones, 0 críticas en las cuatro imágenes (backend 0/1, frontend 0/0,
-firmware-build 0/1, mssql 0/0). Alta aceptada: `zlib` CVE-2026-85091 en backend y firmware (sin parche en Debian). Línea base anterior:
+Escaneo con Trivy del 23/10/2026 ([resultados](evidencias/validacion_integral/resultados/ESCANEO_TRIVY_2026-10-23.md)): base de Nginx y imagen del frontend 0 vulnerabilidades y 0 secretos; dependencias de Python y de npm 0; la base del backend (Debian 13.7) tiene `zlib` y 44 HIGH del sistema **sin corrección publicada** (H-10, abierto). Escaneo con Docker Scout del 10/10/2026: tras las correcciones, 0 críticas en las cuatro imágenes (backend 0/1, frontend 0/0,
+firmware-build 0/1, mssql 0/0). Alta abierta: `zlib` CVE-2026-85091 en backend y firmware (sin parche en Debian al 23/10/2026: [evidencias/CVE_ZLIB_2026-10-23.md](evidencias/CVE_ZLIB_2026-10-23.md)). Línea base anterior:
 [evidencias/CVE_LINEA_BASE_2026-10-10.md](evidencias/CVE_LINEA_BASE_2026-10-10.md).
 
 Mantenimiento: reconstruir con `--pull` al menos una vez por mes y antes de cada despliegue; escanear la imagen etiquetada que se despliega;
@@ -172,3 +218,22 @@ Las bases se fijan por etiqueta de rama para recibir parches; fijarlas por diges
 | Recarga lenta en Windows | Mantener el repositorio dentro de Windows (no en `\\wsl$`) |
 | SQL Server en contenedor se reinicia | Necesita ≥ 2 GB de RAM y una contraseña de `sa` que cumpla la política |
 | El Arduino no aparece en Docker | Esperado: usar el puente de Windows |
+| «Sin DB_JOBS_USER» al arrancar el backend en producción | Esperado en Docker: Compose no entrega `DB_JOBS_USER` a la API (solo al servicio `lifecycle` y a las herramientas de línea de comandos) |
+| `docker compose run lifecycle …` | Crea un contenedor de un solo uso con la cuenta de conservación (p. ej. `--entrypoint python lifecycle -m app.cli.bridgeTokens listar`); no levanta el bucle de `lifecycle` |
+
+## 8. Qué se ejecutó de verdad (23/10/2026) y qué no
+
+Con Docker 29.9 en un entorno cloud aislado (Linux), datos sintéticos y contraseñas generadas en cada corrida. **No** es tu instalación de Windows.
+
+| Pieza | Estado | Cómo se comprobó |
+|---|---|---|
+| `db` (perfil `db`) | **Construida con el `docker/mssql/Dockerfile` oficial** y en ejecución, sin puertos publicados, volumen `mssql-data`, `healthy`; esquema v5 + permisos aplicados con los scripts del repositorio (34 tablas); persistió a `down`/`up` | `stack_funcional.py` secciones 1 y 7 |
+| `frontend` (Nginx) | Imagen de **runtime** construida con la **misma base fijada y plantilla** y el build de producción hecho en el host; en ejecución, `healthy`, sin privilegios, `read_only` | idem; la etapa `build` del Dockerfile (`npm ci` dentro de Docker) y `apk upgrade` **no se pudieron ejecutar** en el entorno (proxy de salida / `dl-cdn.alpinelinux.org` bloqueado) |
+| `backend` | En ejecución en contenedor, `healthy`, `read_only`, `cap_drop ALL`, usuario 10001, conectado a SQL Server como `glucolume_app` (sin roles fijos). **Imagen de ensayo** (`evidencias/validacion_integral/docker/Dockerfile.backend-entorno-cloud`): el `backend/Dockerfile` oficial **no se pudo construir** porque `deb.debian.org` está bloqueado, así que los paquetes del sistema (ODBC 18, unixODBC, Kerberos) se instalaron como `.deb` de Ubuntu/Microsoft sobre la misma base Debian fijada | idem |
+| `redis` (`compose.redis.yaml`) | En ejecución, `healthy`, con contraseña, sin puertos; el backend lo usa para los límites; caída y recuperación comprobadas | idem sección 6 |
+| `proxy` (Caddy, `compose.prod.yaml --profile https`) | En ejecución con `API_ENV=production`: HTTPS con la CA interna de Caddy para `localhost`, HSTS, cookie `Secure`, certificado de SQL Server **verificado** (fijado con `DB_SERVER_CERTIFICATE`), token compartido del puente desactivado | `stack_funcional.py` contra `https://localhost:18444` |
+| `lifecycle` | **Nunca se levantó** (`ACCOUNT_LIFECYCLE_INTERVAL_SECONDS=0` y solo contenedores de un solo uso para la CLI de puentes) | comprobado en la sección 5 |
+| `firmware` | No se construyó (necesita Arduino CLI desde GitHub/Debian) | — |
+
+**Pendiente en tu equipo:** `docker compose build` **completo** de `backend` y `frontend` (con el Dockerfile oficial), Docker Desktop/WSL2, tu SQL Server Express, `glucolume.local`, Google y SMTP reales.
+

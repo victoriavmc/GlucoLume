@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from './auth/tokenStore.js';
+import { clearTokens, getAccessToken, hasSessionHint, saveTokens } from './auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from './test/helpers.js';
 import { renderAt } from './test/renderApp.jsx';
 
@@ -56,13 +56,16 @@ describe('Login local', () => {
     expect(await screen.findByRole('heading', { name: 'Hola, Victoria' })).toBeInTheDocument();
     expect(calls[0].body).toEqual({ identificador: 'victoria', password: 'Clave#2026' });
     expect(calls[1].options.headers.Authorization).toBe('Bearer access-1');
-    // Sin Recordarme: refresh token solo en sessionStorage.
-    expect(window.sessionStorage.getItem('glucolume.refreshToken')).toBe('refresh-1');
-    expect(window.localStorage.getItem('glucolume.refreshToken')).toBeNull();
+    // Sin Recordarme: solo la marca de sesión, en sessionStorage; el refresh token no pasa por el JavaScript (cookie HttpOnly, H-09).
+    expect(window.sessionStorage.getItem('glucolume.sessionHint')).toBe('1');
+    expect(window.localStorage.getItem('glucolume.sessionHint')).toBeNull();
+    expect(calls[0].options.credentials).toBe('include');
+    expect(calls[0].options.headers['X-GlucoLume-Recordarme']).toBeUndefined();
+    expect(JSON.stringify({ ...window.localStorage }) + JSON.stringify({ ...window.sessionStorage })).not.toMatch(/refresh/i);
   });
 
-  it('con Recordarme guarda el refresh token en localStorage', async () => {
-    mockApi({
+  it('con Recordarme pide la cookie persistente y deja la marca en localStorage', async () => {
+    const { calls } = mockApi({
       'POST /auth/login': jsonResponse(200, { estado: 'AUTENTICADO', tokens: TOKENS }),
       'GET /auth/me': jsonResponse(200, ACCOUNT),
     });
@@ -72,7 +75,9 @@ describe('Login local', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Recordarme' }));
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
     await screen.findByRole('heading', { name: 'Hola, Victoria' });
-    expect(window.localStorage.getItem('glucolume.refreshToken')).toBe('refresh-1');
+    expect(window.localStorage.getItem('glucolume.sessionHint')).toBe('1');
+    expect(calls[0].options.headers['X-GlucoLume-Recordarme']).toBe('1');
+    expect(window.localStorage.getItem('glucolume.refreshToken')).toBeNull();
   });
 
   it('muestra un error amigable y limpia la contraseña si las credenciales son incorrectas', async () => {
@@ -305,7 +310,9 @@ describe('Google', () => {
     expect(exchanges).toHaveLength(1);
     expect(exchanges[0].body).toEqual({ code: 'codigo-unico' });
     expect(window.location.hash).toBe('');
-    expect(window.localStorage.getItem('glucolume.refreshToken')).toBe('refresh-1');
+    expect(window.localStorage.getItem('glucolume.sessionHint')).toBe('1');
+    expect(exchanges[0].options.headers['X-GlucoLume-Recordarme']).toBe('1');
+    expect(window.localStorage.getItem('glucolume.refreshToken')).toBeNull();
   });
 
   it('el callback con error muestra un mensaje amigable', async () => {
@@ -355,28 +362,46 @@ describe('Sesión', () => {
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
   });
 
-  it('al recargar recupera la sesión con el refresh token guardado', async () => {
-    window.localStorage.setItem('glucolume.refreshToken', 'guardado');
+  it('al recargar recupera la sesión con la cookie del refresh token (sin leerla ni enviarla desde JavaScript)', async () => {
+    window.localStorage.setItem('glucolume.sessionHint', '1');
     const { calls } = mockApi({
-      'POST /auth/refresh': jsonResponse(200, { ...TOKENS, refreshToken: 'rotado' }),
+      'POST /auth/refresh': jsonResponse(200, TOKENS),
       'GET /auth/me': jsonResponse(200, ACCOUNT),
     });
     renderAt('/app');
     await screen.findByRole('heading', { name: 'Hola, Victoria' });
-    expect(calls[0]).toMatchObject({ key: 'POST /auth/refresh', body: { refreshToken: 'guardado' } });
-    expect(window.localStorage.getItem('glucolume.refreshToken')).toBe('rotado');
+    expect(calls[0]).toMatchObject({ key: 'POST /auth/refresh', body: undefined });
+    expect(calls[0].options.credentials).toBe('include');
+    expect(window.localStorage.getItem('glucolume.sessionHint')).toBe('1');  // sigue «recordado»
+    expect(window.localStorage.getItem('glucolume.refreshToken')).toBeNull();
   });
 
   it('un refresh token revocado deja la sesión cerrada', async () => {
-    window.sessionStorage.setItem('glucolume.refreshToken', 'revocado');
+    window.sessionStorage.setItem('glucolume.sessionHint', '1');
     mockApi({ 'POST /auth/refresh': jsonResponse(401, { codigo: 'TOKEN_INVALIDO', detail: 'Sesión inválida.' }) });
     renderAt('/app');
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
-    expect(getRefreshToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
+  });
+
+  it('sin marca de sesión no se llama a /auth/refresh al abrir la app', async () => {
+    const { calls } = mockApi({});
+    renderAt('/app');
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('un refresh token que quedó en Web Storage por la versión anterior se descarta y no abre sesión', async () => {
+    window.localStorage.setItem('glucolume.refreshToken', 'viejo');
+    const { calls } = mockApi({});
+    renderAt('/app');
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
+    expect(window.localStorage.getItem('glucolume.refreshToken')).toBeNull();
   });
 
   it('con sesión, /login lleva directo a /app', async () => {
-    window.sessionStorage.setItem('glucolume.refreshToken', 'r');
+    window.sessionStorage.setItem('glucolume.sessionHint', '1');
     mockApi({
       'POST /auth/refresh': jsonResponse(200, TOKENS),
       'GET /auth/me': jsonResponse(200, ACCOUNT),
@@ -391,7 +416,6 @@ describe('Sesión', () => {
       'GET /auth/me': jsonResponse(200, { ...ACCOUNT, requiereCompletarPerfil: true, camposFaltantes: ['fechaNacimiento'] }),
       'POST /auth/logout': { ok: true, status: 204, json: async () => null },
     });
-    window.localStorage.setItem('glucolume.refreshToken', 'refresh-1');
     const user = userEvent.setup();
     renderAt('/app');
     // Recupera la sesión con /auth/me usando el access token en memoria.
@@ -404,7 +428,8 @@ describe('Sesión', () => {
     const logout = calls.find((c) => c.key === 'POST /auth/logout');
     expect(logout.options.headers.Authorization).toBe('Bearer access-1');
     expect(getAccessToken()).toBeNull();
-    expect(getRefreshToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
+    expect(logout.options.credentials).toBe('include');  // la respuesta borra la cookie HttpOnly
   });
 
   it('si el backend no responde al cerrar sesión, igual se cierra localmente', async () => {
@@ -416,7 +441,7 @@ describe('Sesión', () => {
     const user = userEvent.setup();
     renderAt('/app');
     await user.click(await screen.findByRole('button', { name: 'Cerrar sesión' }));
-    await waitFor(() => expect(getRefreshToken()).toBeNull());
+    await waitFor(() => expect(hasSessionHint()).toBe(false));
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
   });
 });

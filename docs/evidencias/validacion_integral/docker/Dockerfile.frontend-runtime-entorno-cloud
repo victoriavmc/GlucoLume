@@ -1,0 +1,13 @@
+# Etapa runtime IDÉNTICA a frontend/Dockerfile (menos «apk upgrade», que necesita dl-cdn.alpinelinux.org, bloqueado en el entorno), con el build
+# de producción generado en el host en lugar de la etapa build (npm ci no completa dentro del contenedor tras el proxy de salida del entorno).
+ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:1.30-alpine-slim@sha256:5d8bb9437d74a600ec5dbf90c035451c724dc33eac8d3a71078f6f8612c345f6
+FROM ${NGINX_IMAGE} AS runtime
+USER 101
+COPY --from=nginxconf default.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=distctx . /usr/share/nginx/html
+ENV BACKEND_UPSTREAM=backend:8080 \
+    DNS_RESOLVER=127.0.0.11 \
+    TRUSTED_PROXY_CIDR=172.16.0.0/12
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/nginx-health"]

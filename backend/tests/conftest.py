@@ -56,6 +56,55 @@ def auditAppendOnly():
     assert not violations, "La aplicación modificó o borró auditoría fuera de auditRetention.py (GL-03): " + "; ".join(violations)
 
 
+def _grantedDeletes() -> dict[str, set[str]]:
+    """Tablas con GRANT DELETE por rol en database/reference/GlucoLume_permisos.sql (lectura del script, nunca de una base)."""
+    import re
+    from pathlib import Path
+
+    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_permisos.sql").read_text(encoding="utf-8")
+    granted: dict[str, set[str]] = {}
+    for table, role in re.findall(r"^GRANT DELETE ON OBJECT::dbo\.(\w+) TO (\w+);", script, re.M):
+        granted.setdefault(role, set()).add(table)
+    return granted
+
+
+@pytest.fixture(autouse=True)
+def deleteGrants():
+    """H-02 (minimo privilegio): el script de permisos concede DELETE tabla por tabla. Falla la prueba en la que el codigo de app/ emita un DELETE
+    sobre una tabla que el rol correspondiente no tiene concedida en GlucoLume_permisos.sql: en produccion esa operacion fallaria con el error 229.
+    La depuracion de la auditoria (services/auditRetention.py) se compara con el rol de conservacion; todo lo demas, con el de la API."""
+    import re
+    import traceback
+
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    pattern = re.compile(r'^\s*DELETE\s+FROM\s+(?:\[?dbo\]?\.)?["\[]?(\w+)["\]]?', re.IGNORECASE)
+    found: list[tuple[str, str, str]] = []  # (tabla, rol, origen)
+
+    def check(conn, cursor, statement, parameters, context, executemany):
+        match = pattern.match(statement)
+        if not match:
+            return
+        for frame in reversed(traceback.extract_stack()[:-1]):
+            path = frame.filename.replace("\\", "/")
+            if "/site-packages/" in path:
+                continue
+            if "/backend/tests/" in path:
+                return  # preparar datos en una prueba no es el codigo de la aplicacion
+            if "/backend/app/" in path:
+                role = "rol_glucolume_retencion" if path.endswith("/app/services/auditRetention.py") else "rol_glucolume_api"
+                found.append((match.group(1), role, f"{path.split('/backend/', 1)[1]}:{frame.lineno}"))
+                return
+
+    event.listen(Engine, "before_cursor_execute", check)
+    yield
+    event.remove(Engine, "before_cursor_execute", check)
+    granted = _grantedDeletes()
+    missing = [f"{origin}: DELETE sobre {table} sin GRANT para {role}" for table, role, origin in found if table not in granted.get(role, set())]
+    assert not missing, "El codigo borra tablas sin permiso en GlucoLume_permisos.sql (H-02): " + "; ".join(sorted(set(missing)))
+
+
 @pytest.fixture(autouse=True)
 def isolateSecurityMonitor(monkeypatch):
     """El monitor de ráfagas (services/securityMonitor.py) cuenta en memoria y, al cruzar un umbral, escribe en la base: ninguna prueba debe

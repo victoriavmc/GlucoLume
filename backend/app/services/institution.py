@@ -75,7 +75,7 @@ from app.services import mfa
 from app.services import notifications
 from app.services import quota, schemaCompat
 from app.services.audit import registerEvent
-from app.services.contact import RateLimiter
+from app.services.rateLimiter import RateLimiter
 from app.services import invitedAccounts
 from app.services.invitedAccounts import isInvitedPendingAccount
 from app.utils.dbRetry import retryOnDeadlock
@@ -172,7 +172,7 @@ PENDING_INVITATION_MESSAGE = "Este usuario ya tiene una invitación pendiente de
 # Búsquedas e invitaciones por cuenta: evita usar la búsqueda para recorrer correos.
 LOOKUP_LIMIT_MAX = 20
 LOOKUP_LIMIT_WINDOW_SECONDS = 10 * 60
-_lookupLimiter = RateLimiter(LOOKUP_LIMIT_MAX, LOOKUP_LIMIT_WINDOW_SECONDS)
+_lookupLimiter = RateLimiter(LOOKUP_LIMIT_MAX, LOOKUP_LIMIT_WINDOW_SECONDS, name="institucion:consulta")
 
 
 @dataclass(frozen=True)

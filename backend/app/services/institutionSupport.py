@@ -22,7 +22,7 @@ from app.services.audit import registerEvent
 
 ACTION = "SOLICITAR_SOPORTE_INSTITUCION"
 # Límite por cuenta (además del límite por IP del servicio de contacto): evita usar la casilla de soporte para enviar en masa.
-_limiter = contactService.RateLimiter(3, 60 * 60)
+_limiter = contactService.RateLimiter(3, 60 * 60, name="soporte-institucion")
 SUBJECT_PREFIX = "[Institución pausada] "
 
 

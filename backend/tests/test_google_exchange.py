@@ -177,8 +177,10 @@ def test_cors_solo_admite_el_origen_del_frontend(engine):
 
     [cors] = [m for m in app.user_middleware if m.cls is CORSMiddleware]
     assert cors.kwargs["allow_origins"] == [settings.frontendOrigin]
-    assert cors.kwargs["allow_credentials"] is False
+    # H-09: con cookie HttpOnly hace falta allow_credentials, y solo es válido con un origen explícito (nunca «*»).
+    assert cors.kwargs["allow_credentials"] is True and "*" not in cors.kwargs["allow_origins"]
     assert "Authorization" in cors.kwargs["allow_headers"]
+    assert {"X-GlucoLume-CSRF", "X-GlucoLume-Recordarme"} <= set(cors.kwargs["allow_headers"])
 
 
 # --- Tipos de TokenCuenta: Python y SQL Server sincronizados -------------------------------

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Sustituto de sqlcmd.exe SOLO PARA ENSAYO en Linux: reenvía -Q/-i al sqlcmd de un SQL Server descartable en Docker.
+# Ignora -S y traduce -E (autenticación integrada de Windows) a un login sa SINTÉTICO del contenedor de prueba. No existe en Windows.
+args=(); q=""
+while [ $# -gt 0 ]; do case "$1" in -S) shift 2;; -E) shift;; -C|-b|-I) args+=("$1"); shift;; -Q) q="$2"; shift 2;; *) args+=("$1"); shift;; esac; done
+exec docker exec "${GL_SQL_CONTAINER:?}" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "${GL_SQL_PW:?}" "${args[@]}" ${q:+-Q "$q"}

@@ -39,7 +39,7 @@ const consentStatus = (aceptado) => ({
 export const CONSENTS_ACCEPTED = { POLITICA_PRIVACIDAD: consentStatus(true), DATOS_EXPERIMENTALES: consentStatus(true) };
 export const CONSENTS_PENDING = { POLITICA_PRIVACIDAD: consentStatus(true), DATOS_EXPERIMENTALES: consentStatus(false) };
 
-export const TOKENS = { accessToken: 'access-1', refreshToken: 'refresh-1', tokenType: 'bearer', expiresIn: 1800 };
+export const TOKENS = { accessToken: 'access-1', refreshToken: null, tokenType: 'bearer', expiresIn: 1800 };
 
 export const ACCOUNT = {
   usuario: {

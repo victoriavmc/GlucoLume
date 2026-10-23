@@ -1,9 +1,10 @@
 # Telemetry - Rutas de la telemetría procesada del dispositivo (/api/v1/acquisition/...)
 #
 # Solo traduce HTTP <-> app/services/telemetry.py. Dos clientes distintos:
-#   - el PUENTE SERIE (acquisition/bridge, en el equipo con el Arduino): POST /bridge/ingest, autenticado con el token
-#     compartido BRIDGE_TOKEN en el encabezado X-Bridge-Token (comparación en tiempo constante). Sin token configurado la
-#     recepción queda deshabilitada (503). El puente nunca recibe datos de usuarios ni comandos para el Arduino.
+#   - el PUENTE SERIE (acquisition/bridge, en el equipo con el Arduino): POST /bridge/ingest, autenticado en el encabezado
+#     X-Bridge-Token con su credencial INDIVIDUAL (atada a un dispositivo, con vencimiento, revocable; H-16) o, por compatibilidad,
+#     con el BRIDGE_TOKEN compartido (comparación en tiempo constante). Sin ninguno la recepción queda deshabilitada (503). El puente
+#     nunca recibe datos de usuarios ni comandos para el Arduino.
 #   - React, con la sesión del usuario (Bearer): estado, flujo en vivo (SSE), sesión de medición, guardar y cancelar.
 
 import asyncio
@@ -40,34 +41,47 @@ from app.schemas.acquisition import (
     TelemetryStatus,
 )
 from app.schemas.measurement import MeasurementDetail
-from app.services import deviceConnection
+from app.services import bridgeCredentials, deviceConnection
+from app.services.bridgeCredentials import BridgeIdentity
 from app.services import telemetry as telemetryService
 from app.services.acquisition import _requireMeasurer
 
 router = APIRouter(prefix="/acquisition", tags=["acquisition-telemetry"])
 
 
-def requireBridge(request: Request, token: Annotated[str | None, Header(alias="X-Bridge-Token")] = None) -> None:
+def requireBridge(request: Request, db: DbSession, token: Annotated[str | None, Header(alias="X-Bridge-Token")] = None) -> BridgeIdentity:
+    """Autentica al puente (X-Bridge-Token). Primero la credencial INDIVIDUAL (atada a un dispositivo, con vencimiento y revocable, H-16) y,
+    si el token no corresponde a ninguna, el BRIDGE_TOKEN compartido mientras BRIDGE_ALLOW_SHARED_TOKEN lo permita. Devuelve la identidad: el
+    endpoint comprueba después que el dispositivo informado esté dentro de su alcance (bridgeCredentials.enforceScope)."""
     settings = getSettings()
-    if settings.BRIDGE_TOKEN is None:
+    if not bridgeCredentials.anyActive(db) and not settings.bridgeTokens:
         raise AuthError("PUENTE_NO_CONFIGURADO", "La recepción de datos del puente serie no está habilitada en este servidor.")
     ip = rateLimit.clientIp(request)
     if rateLimit.bridgeFailures.exceeded(ip):
         raise AuthError("DEMASIADAS_SOLICITUDES", rateLimit.TOO_MANY_REQUESTS, retryAfterSeconds=rateLimit.BRIDGE_FAILURES[1],
                         motivo="bridgeAuth")
-    accepted = [secret.get_secret_value().encode() for secret in settings.bridgeTokens]
     given = (token or "").encode()
+    try:
+        identity = bridgeCredentials.authenticate(db, token) if token else None
+    except AuthError:
+        rateLimit.bridgeFailures.allow(ip)
+        raise
+    if identity is not None:
+        return identity
     # Se comparan todos (sin cortar en el primero) para no revelar por tiempo cuál coincide.
+    accepted = [secret.get_secret_value().encode() for secret in settings.bridgeTokens]
     if not token or not any([hmac.compare_digest(given, secret) for secret in accepted]):
         rateLimit.bridgeFailures.allow(ip)
         raise AuthError("PUENTE_NO_AUTORIZADO", "El puente serie no está autorizado.")
+    return bridgeCredentials.BridgeIdentity(credentialId=None, deviceCode=None, shared=True)
 
 
 @router.post("/bridge/ingest", response_model=BridgeIngestRead, summary="Recepción de lecturas del puente serie",
              description="Latido y líneas del firmware tal como las escribe el Arduino (hasta 200 por pedido). Idempotente: "
              "un `seq` ya recibido se cuenta como duplicado. Autenticado con X-Bridge-Token; no usa la sesión de un usuario. "
              "409 `PUENTE_DUPLICADO` si otro puente activo ya atiende el dispositivo.")
-def ingest(data: BridgeIngest, db: DbSession, _: Annotated[None, Depends(requireBridge)]):
+def ingest(data: BridgeIngest, db: DbSession, bridge: Annotated[BridgeIdentity, Depends(requireBridge)]):
+    bridgeCredentials.enforceScope(db, bridge, data.codigoDispositivo)
     return telemetryService.ingest(db, data)
 
 
@@ -75,7 +89,8 @@ def ingest(data: BridgeIngest, db: DbSession, _: Annotated[None, Depends(require
              dependencies=[rateLimit.rateLimit("bridgeCheck")],
              description="Para la instalación del puente: indica si el código figura en el inventario y está operativo. Autenticado con "
              "X-Bridge-Token; no devuelve datos de personas.")
-def bridgeCheck(data: BridgeCheckRequest, db: DbSession, _: Annotated[None, Depends(requireBridge)]):
+def bridgeCheck(data: BridgeCheckRequest, db: DbSession, bridge: Annotated[BridgeIdentity, Depends(requireBridge)]):
+    bridgeCredentials.enforceScope(db, bridge, data.codigoDispositivo)
     return telemetryService.check(db, data)
 
 

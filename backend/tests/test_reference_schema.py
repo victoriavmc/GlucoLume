@@ -110,10 +110,24 @@ def test_schema_check_prepara_validaciones_que_solo_cuentan():
     from app.cli import schemaCheck
 
     expected = schemaCheck.expected()
-    assert len(expected["tablas"]) == 33 and len(expected["pk"]) == 33 and len(expected["indices"]) == 16
+    assert len(expected["tablas"]) == 34 and len(expected["pk"]) == 34 and len(expected["indices"]) == 16
     queries = schemaCheck.validationQueries({"check": {"faltan": ["CK_Medicion_lecturas"], "sobran": []},
                                              "unicos": {"faltan": ["UX_Usuario_administradorUnico"], "sobran": []}})
     assert len(queries) == 2 and all(q.startswith("SELECT N'") and "COUNT_BIG(*)" in q for q in queries)
     assert all(not re.search(r"\b(UPDATE|DELETE|INSERT|ALTER|CREATE|DROP)\b", q) for q in queries)
     [unique] = [q for q in queries if "UX_Usuario_administradorUnico" in q]
     assert "HAVING COUNT_BIG(*) > 1" in unique and "[estado]<>N'ELIMINADO'" in unique
+
+
+def test_el_esquema_consolidado_no_repite_objetos(referenceSchema):
+    # Un script regenerado puede duplicar bloques enteros: en una instalación nueva, el segundo ADD CONSTRAINT fallaría por nombre repetido.
+    created = re.findall(r"(?:ADD\s+CONSTRAINT|CREATE (?:UNIQUE )?NONCLUSTERED INDEX|CREATE TABLE)\s+\[(?:dbo\]\.\[)?(\w+)\]", referenceSchema)
+    assert len(created) > 250 and [name for name in set(created) if created.count(name) > 1] == []
+
+
+def test_el_esquema_consolidado_no_incluye_usuarios_roles_ni_membresias(referenceSchema):
+    # H-02: un script exportado de una base real trajo CREATE USER [glucolume_app] y la cuenta en db_datareader/db_datawriter. En una instalación nueva eso
+    # falla si el login no existe y, si existe, le da SELECT/DELETE sobre todo. Eso lo decide GlucoLume_permisos.sql, no el esquema.
+    upper = referenceSchema.upper()
+    for forbidden in ("CREATE USER", "CREATE ROLE", "ALTER ROLE", "DB_DATAWRITER", "DB_DATAREADER", "GLUCOLUME_APP", "GRANT ", "DENY "):
+        assert forbidden not in upper, forbidden

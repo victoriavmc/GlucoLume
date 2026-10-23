@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '../../auth/tokenStore.js';
+import { clearTokens, getAccessToken, hasSessionHint, saveTokens } from '../../auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../test/helpers.js';
 import { renderAt } from '../../test/renderApp.jsx';
 
@@ -79,7 +79,7 @@ describe('Layout autenticado', () => {
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
     expect(calls.some((c) => c.key === 'POST /auth/logout')).toBe(true);
     expect(getAccessToken()).toBeNull();
-    expect(getRefreshToken()).toBeNull();
+    expect(hasSessionHint()).toBe(false);
   });
 
   it('si el refresh token es rechazado durante el uso, vuelve al login', async () => {

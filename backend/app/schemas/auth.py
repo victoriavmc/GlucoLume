@@ -92,7 +92,8 @@ class LoginRequest(BaseModel):
 
 class TokenPair(BaseModel):
     accessToken: str
-    refreshToken: str
+    # None en modo cookie (H-09): el refresh token viaja solo en la cookie HttpOnly, nunca en el cuerpo.
+    refreshToken: str | None = None
     tokenType: Literal["bearer"] = "bearer"
     expiresIn: int
 

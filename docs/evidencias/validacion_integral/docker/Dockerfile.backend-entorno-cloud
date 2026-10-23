@@ -1,0 +1,37 @@
+# SOLO PARA EL ENTORNO CLOUD DE VALIDACIÓN — NO REEMPLAZA a backend/Dockerfile.
+#
+# En el entorno de desarrollo en la nube deb.debian.org está bloqueado, así que backend/Dockerfile (apt-get de Debian) no se puede construir. Esta imagen
+# reproduce lo mismo que el Dockerfile oficial (misma base fijada por digest, mismo lock de dependencias con hashes, ODBC Driver 18, usuario sin privilegios,
+# pip quitado, mismo HEALTHCHECK y comando) pero obtiene los paquetes del sistema de otro modo:
+#   - dependencias de Python: instaladas en el host con `uv pip install --require-hashes -r backend/requirements.txt --target` y copiadas (contexto «site»);
+#   - msodbcsql18, unixodbc y bibliotecas de Kerberos: paquetes .deb de Ubuntu 24.04 / repositorio de Microsoft descargados en el host (contexto «debs»)
+#     e instalados con dpkg sobre Debian 13 (mezcla que el Dockerfile oficial NO hace).
+# Por eso valida el funcionamiento del SERVICIO en contenedor (arranque, red, healthcheck, sistema de archivos de solo lectura, conexión a SQL Server),
+# pero NO valida que el Dockerfile oficial construya ni el contenido final de su imagen: eso queda pendiente en Windows (docs/DESPLIEGUE.md).
+ARG PYTHON_IMAGE=python:3.14-slim-trixie@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+FROM ${PYTHON_IMAGE}
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    GLUCOLUME_RUNTIME=container
+COPY debs /tmp/debs
+RUN ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive dpkg -i --force-depends /tmp/debs/*.deb \
+    && rm -rf /tmp/debs \
+    && odbcinst -q -d
+RUN python -m venv /opt/venv
+COPY site/ /opt/venv/lib/python3.14/site-packages/
+# `uv pip install --target` no genera los ejecutables: se crea el de uvicorn (el venv oficial lo trae de pip).
+RUN printf '#!/opt/venv/bin/python\nimport sys\nfrom uvicorn.main import main\nsys.exit(main())\n' > /opt/venv/bin/uvicorn && chmod 755 /opt/venv/bin/uvicorn
+RUN rm -rf /opt/venv/lib/python*/site-packages/pip* /opt/venv/bin/pip* \
+           /usr/local/lib/python*/site-packages/pip* /usr/local/lib/python*/site-packages/setuptools* \
+           /usr/local/lib/python*/site-packages/wheel* /usr/local/lib/python*/site-packages/pkg_resources* \
+           /usr/local/bin/pip* /usr/local/bin/wheel
+RUN groupadd --system --gid 10001 glucolume \
+    && useradd --system --uid 10001 --gid glucolume --no-create-home --shell /usr/sbin/nologin glucolume
+WORKDIR /srv/backend
+COPY --chown=root:root backend/app ./app
+USER glucolume
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--no-server-header"]
