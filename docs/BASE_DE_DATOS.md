@@ -1,5 +1,7 @@
 # Base de datos
 
+> Última revisión: 23/10/2026. Contrastada con una instalación y una actualización reales en SQL Server 2022 (contenedor descartable, datos sintéticos): §2.1, §3.1 y §6. No se tocó ninguna base real.
+
 Esquema de SQL Server, estrategia de esquema único (**DEC-02**), instalación, actualización, respaldo y permisos. Docker nunca crea, borra
 ni migra bases: todo lo de este documento se hace a mano, con un usuario administrador de SQL Server (no el de la API).
 
@@ -11,10 +13,11 @@ ni migra bases: todo lo de este documento se hace a mano, con un usuario adminis
 
 | Qué | Dónde |
 |---|---|
-| Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026; 33 tablas, claves, `CHECK`, índices únicos y filtrados; crea el usuario `glucolume_app`) |
+| Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026 y corregido el 23/10/2026; **34 tablas** —incluye `PuenteCredencial`, H-16—, 49 claves foráneas, 127 `CHECK` y los **31 índices** que el export original había perdido; **no crea usuarios, roles ni permisos**: los aplican los scripts de permisos) |
 | Matriz global de referencia | `database/reference/MATRIZ.SQL`: carga la matriz global (27 reglas: 3 sexos × 3 rangos de edad × 3 condiciones de comida) y el procedimiento `usp_GlucoLume_CompararGlucosa`; sus cambios de esquema sobre `ReglaMatriz` ya están en v5 (v5 no contiene filas de datos) |
 | Vaciado de datos (no es instalación) | `database/reference/BorrarRap.sql`: borra todas las filas; exige `-v BASE=<base> CONFIRMAR_BORRADO=<base>` iguales a la base conectada; nunca sobre una base con datos reales |
-| Permisos de mínimo privilegio (no es instalación) | `database/reference/GlucoLume_permisos.sql`: roles de API y de conservación, `DENY UPDATE, DELETE` sobre la auditoría para la API; exige `CONFIRMAR=APLICAR_PERMISOS_GLUCOLUME`. Preparado, no aplicado (§5) |
+| Permisos de mínimo privilegio (no es instalación) | `GlucoLume_permisos.sql` (roles de API y de conservación; `DELETE` solo en 14 tablas; `DENY UPDATE, DELETE` sobre la auditoría), `GlucoLume_permisos_quitar_roles_fijos.sql` (quita `db_datareader`/`db_datawriter`; reversible con `…_restaurar_roles_fijos.sql`), `GlucoLume_permisos_verificar.sql` (solo comprueba) y `GlucoLume_permisos_revertir.sql`. Validados en SQL Server 2022 descartable; **no aplicados a tu instancia** (§5) |
+| Actualización de una base ya instalada | `GlucoLume_actualizar_instalada.sql` (6 `CK_Medicion_*` y los 31 índices, idempotente) y `GlucoLume_agregar_puente_credencial.sql` (tabla `PuenteCredencial`, H-16, idempotente). Ensayo sin pérdida de datos: §3.1 |
 | Validación automática | `backend/tests/test_reference_schema.py` (tablas, columnas y restricciones del modelo frente a v5) y las pruebas de reglas puntuales que antes leían scripts (`test_auth_access_account_type`, `test_platform_institution_deletion`, `test_quota`, `test_google_exchange`) |
 
 ### 1.1 Qué incluye v5 que antes dependía de scripts
@@ -87,34 +90,69 @@ restaura una base sin una columna, el backend lo nota sin reiniciarse.
 
 ## 2. Instalación nueva
 
-1. Crear una base **vacía** `GlucoLume` (el archivo empieza con `USE [GlucoLume]`; con otro nombre, reemplazarlo en una copia).
-2. Crear antes el inicio de sesión `glucolume_app` en la instancia (el esquema crea el usuario `FOR LOGIN [glucolume_app]`, no el login).
-3. Aplicar `GlucoLume_DB_v5.sql` y comprobar que termine **sin errores**:
-   - Windows: `sqlcmd -S <servidor> -E -C -d GlucoLume -b -i database\reference\GlucoLume_DB_v5.sql`
-   - Contenedor del perfil `db` (el archivo es UTF-16):
-     ```bash
-     docker compose --profile db exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -Q "CREATE DATABASE GlucoLume"
-     iconv -f UTF-16 -t UTF-8 database/reference/GlucoLume_DB_v5.sql | docker compose --profile db exec -T db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -d GlucoLume -b
+1. Crear una base **vacía** `GlucoLume` con la intercalación del proyecto: `CREATE DATABASE GlucoLume COLLATE Modern_Spanish_CI_AS` (el archivo empieza con
+   `USE [GlucoLume]`; con otro nombre, reemplazarlo en una copia).
+2. Aplicar `GlucoLume_DB_v5.sql` y comprobar que termine **sin errores** (usar `-I`: los índices filtrados exigen `QUOTED_IDENTIFIER ON`):
+   - Windows (PowerShell, instancia de Windows): `sqlcmd -S localhost\GLUCOLUME -E -C -I -b -d GlucoLume -i database\reference\GlucoLume_DB_v5.sql`
+   - Contenedor del perfil `db` (el archivo es UTF-16; hay que convertirlo y copiarlo, `sqlcmd` del contenedor lee un archivo local):
+     ```powershell
+     # PowerShell (5.1 o 7): convertir a UTF-8 sin BOM y copiar al contenedor (se llama «glucolume-db-1»)
+     [IO.File]::WriteAllText("$env:TEMP\v5.sql", [IO.File]::ReadAllText("$PWD\database\reference\GlucoLume_DB_v5.sql", [Text.Encoding]::Unicode), (New-Object Text.UTF8Encoding($false)))   # UTF-8 sin BOM
+     docker cp $env:TEMP\v5.sql glucolume-db-1:/tmp/v5.sql
+     docker cp database\reference\MATRIZ.SQL glucolume-db-1:/tmp/MATRIZ.SQL
+     docker compose --profile db exec db /opt/mssql-tools18/bin/sqlcmd -C -I -S localhost -U sa -Q "CREATE DATABASE GlucoLume COLLATE Modern_Spanish_CI_AS"
+     docker compose --profile db exec db /opt/mssql-tools18/bin/sqlcmd -C -I -S localhost -U sa -d GlucoLume -b -i /tmp/v5.sql
      ```
-4. Si se quiere la matriz global de referencia precargada, ejecutar `MATRIZ.SQL` completo (también se puede crear desde el panel de la plataforma).
+     (la contraseña de `sa` la toma `SQLCMDPASSWORD` de `docker/db.env`). En Linux/macOS: `iconv -f UTF-16 -t UTF-8 …`.
+3. Si se quiere la matriz global de referencia precargada, ejecutar `MATRIZ.SQL` completo (27 reglas; también se puede crear desde el panel de la plataforma).
+4. **Cuentas y permisos (H-02):** crear los inicios de sesión en la instancia —uno para la API y, aparte, uno para la conservación— con contraseñas propias (nunca `sa`), y
+   aplicar los permisos con los scripts de `database/reference` (cada uno exige su `CONFIRMAR`; ver el encabezado de cada archivo):
+   ```sql
+   CREATE LOGIN glucolume_app   WITH PASSWORD = N'<contraseña larga>', CHECK_POLICY = ON;
+   CREATE LOGIN glucolume_jobs  WITH PASSWORD = N'<otra contraseña larga>', CHECK_POLICY = ON;
+   ```
+   ```text
+   sqlcmd … -d GlucoLume -I -i GlucoLume_permisos.sql -v API_LOGIN="glucolume_app" JOBS_LOGIN="glucolume_jobs" CONFIRMAR="APLICAR_PERMISOS_GLUCOLUME"
+   sqlcmd … -d GlucoLume -I -i GlucoLume_permisos_quitar_roles_fijos.sql -v API_LOGIN="glucolume_app" CONFIRMAR="QUITAR_ROLES_FIJOS_GLUCOLUME"
+   sqlcmd … -d GlucoLume -I -i GlucoLume_permisos_verificar.sql -v API_LOGIN="glucolume_app"      # solo comprueba
+   ```
+   La API usa `DB_USER=glucolume_app`; `DB_JOBS_USER=glucolume_jobs` es solo del servicio `lifecycle` y de las herramientas de conservación y de `bridgeTokens`.
 5. Generar `MFA_ENCRYPTION_KEY` (comando en `.env.example`) **antes del primer uso** y guardarla aparte: con otra clave los secretos MFA
    guardados dejan de descifrarse.
 6. Crear el primer administrador: `docker compose exec backend python -m app.cli.initAdmin --help`.
 
-La aplicación de v5 (y de `MATRIZ.SQL` sobre v5) en una base descartable **todavía no se ensayó** ([PENDIENTES.md](PENDIENTES.md)).
+### 2.1 Resultado verificado de esta instalación (23/10/2026)
+
+Contenedor `db` del Compose del proyecto (SQL Server 2022 CU16 Express, volumen persistente `mssql-data`, sin puertos publicados), con los pasos 1–4:
+**34 tablas**, 49 claves foráneas, 127 `CHECK`, 33 índices `IX_`/`UX_`, 1 procedimiento (`usp_GlucoLume_CompararGlucosa`), 27 reglas de matriz, tabla `PuenteCredencial` presente,
+`GlucoLume_permisos_verificar.sql` con todas las comprobaciones esperadas (auditoría sin UPDATE/DELETE: error 229; `DELETE` ajeno rechazado; la API solo anota `fechaUltimoUso`
+en `PuenteCredencial`) y la cuenta de la API solo en `rol_glucolume_api`. El backend en otro contenedor se conectó con `glucolume_app` y recorrió registro, MFA,
+instituciones, grupos y puentes sin un solo error de permisos ([evidencias/validacion_integral](evidencias/validacion_integral/README.md)). Los datos sobrevivieron a `docker compose down`
+(sin `-v`) y a un nuevo `up`.
 
 ## 3. Base existente
 
-No hay scripts incrementales ni tabla de migraciones. Ejecutar v5 sobre una base con datos **no es seguro** (crea objetos que ya existen).
-Opciones, siempre con respaldo previo y primero en una copia descartable:
+No hay tabla de migraciones ni scripts numerados (DEC-02): ejecutar v5 sobre una base con datos **no es seguro** (crea objetos que ya existen). Una base ya instalada se
+actualiza con scripts **idempotentes y transaccionales** que no tocan filas, siempre con respaldo previo y **primero en una copia restaurada**:
 
-1. **Comparar** el catálogo con `python -m app.cli.schemaCheck` (solo lectura: tablas, columnas, `CHECK`, `FK` e índices únicos que faltan
-   o sobran; sale con 1 si hay diferencias) y preparar un cambio controlado solo con lo que falta. Antes de agregar un `CHECK` o un índice
-   único, comprobar que ningún dato existente lo viole. Ejecutarlo contra la base real requiere autorización.
-2. **Reconstruir**: crear una base nueva con v5 y migrar los datos.
+1. **Comparar** el catálogo con `python -m app.cli.schemaCheck` (solo lectura: tablas, columnas, `CHECK`, `FK` e índices que faltan o sobran; sale con 1 si hay
+   diferencias). Ejecutarlo contra la base real requiere autorización.
+2. Aplicar, en este orden y con `sqlcmd -I`, solo lo que corresponda:
+   - `GlucoLume_actualizar_instalada.sql -v CONFIRMAR="ACTUALIZAR_GLUCOLUME_V5"`: las 6 `CK_Medicion_*` y los 31 índices que falten (cada uno se crea solo si no existe; los `UX_*` son
+     únicos filtrados: si los datos violaran una regla, el script falla y se revierte entero).
+   - `GlucoLume_agregar_puente_credencial.sql -v CONFIRMAR="AGREGAR_PUENTE_CREDENCIAL"`: la tabla `PuenteCredencial` (H-16).
+   - Los permisos de §2 paso 4 / §5 (`GlucoLume_permisos.sql` y, aparte, `…_quitar_roles_fijos.sql`).
+3. Repetir `schemaCheck` (debe informar «Sin diferencias») y registrar el cambio (fecha, responsable, objetos) en [HISTORIAL.md](HISTORIAL.md).
 
-Mientras tanto el backend tolera la falta de piezas opcionales (1.3). Registrar cada cambio aplicado (fecha, responsable y objetos) en
-[HISTORIAL.md](HISTORIAL.md).
+Mientras tanto el backend tolera la falta de piezas opcionales (1.3). Alternativa: **reconstruir** (base nueva con v5 y migrar los datos).
+
+### 3.1 Ensayo de actualización sin pérdida de datos (23/10/2026)
+
+`evidencias/validacion_integral/actualizacion_sin_perdida.sh`: una base instalada con el v5 de `master` (33 tablas, **2** índices `IX_`/`UX_`, sin `PuenteCredencial`) recibió filas
+sintéticas (usuarios, auditoría, dispositivo) y se actualizó con los scripts de esta rama (más la cuenta de la API partiendo de `db_datareader`/`db_datawriter`, como en la base
+real). Resultado, **16/16**: conteos y checksums de las tablas con datos idénticos antes y después; columnas, índices (nombre, unicidad y filtro), `CHECK`, claves foráneas y valores
+por defecto idénticos a una instalación nueva con el v5 actual; `schemaCheck` dentro del contenedor del backend: «Sin diferencias»; segunda ejecución de cada script sin errores.
+Tu base de Windows **no** se usó: si fue creada con los scripts antiguos ya tiene los índices (el script no los duplica).
 
 ## 4. Respaldo y restauración
 
@@ -171,8 +209,10 @@ días, mensuales 12 meses y una restauración de prueba mensual. TDE no existe e
 
 ## 5. Permisos de la cuenta de la aplicación
 
-v5 agrega `glucolume_app` a `db_datareader` y `db_datawriter`, sin `DENY`. Mientras no se aplique el script de permisos, esa cuenta puede
-modificar y borrar cualquier tabla, incluida `Auditoria`.
+v5 **ya no** agrega `glucolume_app` a `db_datareader`/`db_datawriter` ni crea usuarios (H-02). En una base heredada donde la cuenta sí está en esos roles puede modificar y borrar
+cualquier tabla, incluida `Auditoria`, hasta aplicar los scripts de permisos (§2 paso 4): `GlucoLume_permisos.sql` concede lectura, alta, cambio y ejecución sobre `dbo` y `DELETE` **solo** en las 14 tablas
+que el código borra de verdad (una prueba de la suite lo cruza con los `DELETE` reales), con `DENY UPDATE, DELETE` sobre `Auditoria` y `AuditoriaContexto`, y sin `ALTER`/`CONTROL`;
+`GlucoLume_permisos_quitar_roles_fijos.sql` retira los roles fijos (reversible). **Validado el 23/10/2026 en SQL Server 2022 descartable (76/76 comprobaciones y la API real sin errores de permisos); no aplicado a tu instancia.**
 
 | Escritura sobre la auditoría | Quién |
 |---|---|
@@ -183,10 +223,7 @@ Desde el 19/10/2026 la API no modifica ni borra la auditoría (GL-02 y GL-03): u
 como baja anónima (estado `ELIMINADO`, sin datos personales) en lugar de anular `Auditoria.idUsuario`, y una prueba global falla si código de
 la aplicación emite `UPDATE`/`DELETE` sobre `Auditoria` o `AuditoriaContexto` fuera de la política de conservación.
 
-Endurecimiento preparado, **no aplicado**: `database/reference/GlucoLume_permisos.sql` crea `rol_glucolume_api` (lectura y escritura en `dbo`,
-`DENY UPDATE, DELETE` sobre `Auditoria` y `AuditoriaContexto`) y `rol_glucolume_retencion` (la cuenta de `lifecycle`), quita `db_owner` y se
-niega a seguir si la cuenta de la API es `sysadmin` o dueña de la base. Se prueba primero en una copia descartable; el procedimiento está en
-[SEGURIDAD.md](SEGURIDAD.md) §5.1.
+Para aplicarlo en tu instancia: primero en una copia restaurada, recorriendo la aplicación y buscando errores 229 en el log; el procedimiento completo y la reversión están en [SEGURIDAD.md](SEGURIDAD.md) §5.1.
 
 ## 6. Pruebas sobre SQL Server
 
@@ -215,3 +252,10 @@ depura (2 contextos anulados, 1 intento anónimo vencido eliminado; la segunda p
 `Encrypt=yes` rechaza el certificado autofirmado si se verifica y queda cifrada (`encrypt_option = TRUE`) si se confía en él. Estas pruebas
 destaparon tres defectos ya corregidos: un `SELECT EXISTS` inválido en SQL Server, el correo de recuperación de plataforma enviado antes del
 commit (bloqueaba `TokenCuenta`) y una prueba que corría sobre SQLite en lugar de SQL Server (orden de importación del fixture).
+
+### 6.1 Corrida del 23/10/2026 (versión integrada)
+
+SQL Server 2022 CU16 en Docker (la imagen fijada del proyecto), bases descartables, datos sintéticos: la suite de backend completa con las pruebas `*_sqlserver` activadas —**1983 pasaron, 0 fallaron, 0 omitidas**—,
+carreras del ciclo de vida **120/120** con `python -m tests.lifecycle_concurrency --rondas 20`, y los scripts de `database/reference` (76/76), la API real con las cuentas restringidas (51/51), la
+actualización sin pérdida (16/16) y los respaldos con PowerShell (33/33): [evidencias/validacion_integral](evidencias/validacion_integral/README.md). Instancia real de Windows: sin tocar.
+
