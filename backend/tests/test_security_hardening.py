@@ -207,6 +207,15 @@ def test_nginx_sobrescribe_x_forwarded_for_y_no_lo_acumula():
     assert re.search(r"TRUSTED_PROXY_CIDR:\s*\$\{FRONTEND_TRUSTED_PROXY_CIDR:-172\.16\.0\.0/12\}", compose)
 
 
+def test_nginx_no_registra_la_query_de_los_enlaces_con_token():
+    """H-14: los enlaces de correo llevan un token de un solo uso en «?token=»; el log de accesos registra la ruta ($uri), no el pedido completo."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    format_ = re.search(r"^log_format sin_query (.+);$", conf, re.M).group(1)
+    assert "$uri" in format_ and not re.search(r"\$(request|request_uri|args|query_string)\b", format_)
+    assert "access_log /dev/stdout sin_query;" in conf
+    assert not re.search(r"access_log\s+(?!off\b)(?!/dev/stdout sin_query;)", conf)  # ningún otro access_log con el formato por defecto
+
+
 def test_controles_de_infraestructura_preparados():
     """GL-18/19/03/21: configuraciones que no se pueden verificar sin desplegar, fijadas para que no retrocedan."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
