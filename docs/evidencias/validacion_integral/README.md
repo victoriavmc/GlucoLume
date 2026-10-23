@@ -25,7 +25,7 @@ con el núcleo oficial, `python -m tests.lifecycle_concurrency --rondas 20` cont
 [ESCANEO_TRIVY_2026-10-23.md](resultados/ESCANEO_TRIVY_2026-10-23.md) (imágenes base, dependencias, secretos y Dockerfiles).
 
 Suites completas sobre el último commit: backend con las pruebas opcionales de SQL Server **activadas** (`TEST_SQLSERVER_URL=… TEST_SQLSERVER_CONFIRM=DESCARTABLE` hacia una
-base descartable): ver el resumen en `resultados/suites.md`; frontend 695/695.
+base descartable): **1983 pasaron, 0 fallaron, 0 omitidas** (`resultados/suites.md`); frontend 695/695.
 
 ## Limitaciones (qué NO demuestra esto)
 

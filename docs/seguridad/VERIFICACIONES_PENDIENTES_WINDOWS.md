@@ -12,7 +12,7 @@ Redis 7, Nginx 1.24 (sistema) y 1.30.6 (imagen fijada), Chromium 1194 (Playwrigh
 
 ## 1. Las seis pruebas del backend que estaban sin confirmar
 
-Corrida completa del backend sobre el último commit, con las pruebas opcionales de SQL Server **activadas** contra una base descartable: **BACKEND_RESULT**
+Corrida completa del backend sobre el último commit, con las pruebas opcionales de SQL Server **activadas** contra una base descartable: **1983 pasaron, 0 fallaron, 0 omitidas**
 (frontend: 695/695). Detalle: [resultados/](../evidencias/validacion_integral/resultados/).
 
 | # | Prueba | Antes | Ahora (Linux, con ODBC y SQL Server descartable) | En Windows |
