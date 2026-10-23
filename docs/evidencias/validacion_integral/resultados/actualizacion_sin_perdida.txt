@@ -1,0 +1,29 @@
+OK    instalación inicial con el v5 de origin/master
+OK    instalación nueva con el v5 de esta rama (referencia)
+   base anterior: 33 tablas, 2 índices IX/UX, PuenteCredencial=0
+   base nueva:    34 tablas, 33 índices IX/UX
+
+(2 rows affected)
+
+(2 rows affected)
+
+(1 rows affected)
+OK    filas sintéticas en la base anterior
+   instantánea antes: 2 2 1 0 1484557238 -2001887185 698451750
+OK    la cuenta de la API arranca con db_datareader/db_datawriter (estado heredado de la base real)
+OK    GlucoLume_actualizar_instalada.sql (restricciones + 31 índices)
+OK    idempotente: segunda ejecución sin errores
+OK    GlucoLume_agregar_puente_credencial.sql (H-16)
+OK    GlucoLume_permisos.sql (H-02) con cuentas separadas
+OK    roles fijos quitados (reversible)
+   instantánea después: 2 2 1 0 1484557238 -2001887185 698451750
+OK    NINGUNA fila cambió (conteos y checksums de Usuario, Auditoria, Dispositivo, ReglaMatriz)
+OK    columnas = instalación nueva
+OK    índices (nombre, unicidad, filtro) = instalación nueva
+OK    restricciones CHECK = instalación nueva
+OK    claves foráneas = instalación nueva
+OK    valores por defecto = instalación nueva
+   schemaCheck: Sin diferencias: la base instalada tiene las tablas, columnas y restricciones que esperan los modelos (esquema v5).
+OK    schemaCheck (dentro del contenedor del backend): sin diferencias
+
+RESUMEN: 16 correctas, 0 con falla

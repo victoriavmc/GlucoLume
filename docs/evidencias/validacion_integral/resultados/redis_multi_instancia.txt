@@ -1,0 +1,18 @@
+== 1. SIN Redis: dos instancias, cada una cuenta aparte
+OK    sin Redis el límite efectivo se multiplica por el número de réplicas  [aceptados=120 de 130, 429=10]
+== 2. CON Redis compartido: una sola cuota entre las dos instancias
+OK    con Redis la cuota es compartida (no se duplica)  [aceptados=60 de 130, 429=70]
+OK    una instancia ve el bloqueo causado por la otra  [[429, 429, 429, 429, 429, 429]]
+OK    Redis tiene claves del limitador  [1 claves]
+OK    las claves no contienen IP ni identificadores en claro  [glucolume:rl:ip:login:ed4e78e7e9e0c370691750bc499a94cf]
+== 3. Caída de Redis con política local: la API sigue respondiendo y cuenta en memoria
+OK    Redis caído (local): ninguna respuesta 5xx ni conexión rota  [[401]]
+OK    Redis caído (local): sigue limitando en memoria (nunca más débil que sin Redis)  [429=18]
+OK    Redis vuelve
+OK    tras la recuperación vuelve la cuota compartida  [aceptados=60]
+== 4. Caída de Redis con política deny: rechaza mientras dure y se recupera
+OK    Redis sano (deny): se atiende normalmente
+OK    Redis caído (deny): se rechaza (429) en vez de dejar pasar sin límite  [[429]]
+OK    Redis vuelve (deny): se atiende de nuevo
+
+RESUMEN: 12 correctas, 0 con falla

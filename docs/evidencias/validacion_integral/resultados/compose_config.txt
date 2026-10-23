@@ -1,0 +1,4 @@
+compose -f compose.yaml -> exit 0 
+compose -f compose.yaml -f compose.dev.yaml -> exit 0 
+compose -f compose.yaml -f compose.prod.yaml --profile https -> exit 0 
+compose -f compose.yaml -f compose.serial.yaml -> exit 0 

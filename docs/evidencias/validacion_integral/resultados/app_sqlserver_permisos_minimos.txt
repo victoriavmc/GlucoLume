@@ -1,0 +1,73 @@
+OK    esquema v5 cargado
+OK    permisos mínimos aplicados (GlucoLume_permisos.sql)
+OK    la API es miembro solo de rol_glucolume_api (sin db_datareader/db_datawriter)
+OK    registro (INSERT Usuario, CredencialLocal, TokenCuenta, Consentimiento, Auditoria)  [201 {"nombre":"Ana","apellido":"Sintética","usuario":"anasintetica","idUsuario":"c8c]
+OK    llegó el correo de verificación (simulado)
+OK    verificación del correo (UPDATE Usuario/TokenCuenta)  [200 {"mensaje":"Correo verificado. Ya podés iniciar sesión."}]
+OK    login con cookie HttpOnly (INSERT SesionUsuario)  [200]
+OK    cookie glucolume_refresh HttpOnly + SameSite=strict
+OK    GET /auth/me
+OK    refresh por cookie rota el token (UPDATE+INSERT SesionUsuario)  [200]
+OK    MFA: setup (INSERT FactorMfa cifrado)  [200]
+OK    MFA: activación (INSERT CodigoRecuperacionMfa)  [200]
+OK    login con MFA devuelve desafío y ninguna cookie
+OK    MFA: verificación y sesión con cookie  [200 {"estado":"AUTENTICADO","tokens":{"accessToken":"<jwt-sintetico>]
+OK    reutilizar un refresh token ya rotado se rechaza y revoca las sesiones
+OK    la sesión anterior quedó revocada
+OK    nuevo login con MFA (código de recuperación, un solo uso)  [200 {"estado":"AUTENTICADO","tokens":{"accessToken":"eyJhbGciOiJ]
+OK    eliminación de cuenta: solicitud  [202 {"mensaje":"Se envió un enlace de confirmación al correo electrónico.","fechaExp]
+OK    eliminación de cuenta: confirmación (DELETE FactorMfa, CodigoRecuperacionMfa, CredencialLocal, SesionUsuario, TokenCuenta…)  [200 {"mensaje":"La cuenta fue eliminada."}]
+OK    tras la baja no quedan credenciales, factores ni códigos  [0]
+OK    la auditoría se conserva y creció (solo INSERT)  [11]
+OK    Google (simulado): cuenta creada con la cuenta restringida de la API
+OK    Google (simulado): el canje abre sesión con cookie persistente HttpOnly y sin refresh token en el cuerpo  [200]
+OK    Google (simulado): el código es de un solo uso
+OK    session-transfer entrega un código de un solo uso
+OK    el canje del session-transfer abre una sesión nueva sin repetir MFA
+OK    cuenta común: /api/v1/platform/me rechazado  [403]
+OK    cuenta común: /api/v1/platform/institutions rechazado  [403]
+OK    cuenta común: /api/v1/audit rechazado  [403]
+OK    sin sesión: /auth/me exige autenticación
+OK    cerrar sesión (Google) revoca y borra la cookie
+OK    CLI crear credencial con la cuenta de conservación (INSERT PuenteCredencial + auditoría)  [ GLUCOLUME-SINT-01, vence 2026-11-22 04:13:33.
+TOKEN (se muestra una sola vez; copialo al bridge.env de ese equipo como BRIDGE_TOKEN):
+<token-sintetico>
+]
+OK    el token en claro NO queda en la base (solo su hash)
+OK    el puente se autentica en su dispositivo (la API LEE y anota fechaUltimoUso)  [200 {"registrado":true,"operativo":true,"sensor":"MAX30100","nombre":null,"asignadoAInstitucion":false}]
+OK    fechaUltimoUso actualizado con la cuenta de la API (GRANT de columna)  [1]
+OK    fuera del alcance de su dispositivo: 403  [403]
+OK    token inventado: rechazado  [403 {"codigo":"PUENTE_NO_AUTORIZADO","detail":"El puente serie no está autorizado."}]
+OK    CLI rotar (UPDATE + INSERT)  [ GLUCOLUME-SINT-01, vence 2026-11-22 04:13:34.
+TOKEN (se muestra una sola vez; copialo al bridge.env de ese equipo como BRIDGE_TOKEN):
+<token-sintetico>
+]
+OK    ambos tokens valen durante la superposición
+   salida de rotar: Credencial rotada (la anterior vale unas horas más): huella 1d69617d, dispositivo GLUCOLUME-SINT-01, vence 2026-11-22 04:13:34. | TOKEN (se muestra una sola vez; copialo al bridge.env de ese equipo como BRIDGE_TOKEN): | <token>
+OK    CLI revocar (UPDATE)  [Credencial 1d69617d revocada.
+]
+OK    el token revocado deja de valer de inmediato  [403 {"codigo":"PUENTE_NO_AUTORIZADO","detail":"El puente serie no está autorizado."}]
+OK    sin nombrar la base exacta no modifica nada
+OK    CLI listar
+OK    alta, rotación y revocación quedaron auditadas  [5]
+OK    retention previsualizar (cuenta de conservación)  [    "plazoMesesConfigurado": 0,
+    "aprobacion": null,
+    "bloqueadaPorVolumen": false
+  }
+}
+AUDIT_RETENTION_MONTHS=24 no se aplica: falta RETENTION_APPROVAL_REFERENCE (aprobación legal del plazo).
+]
+OK    sin RETENTION_APPROVAL_REFERENCE el plazo efectivo es 0: no se eliminaría nada  [{'eventosTotales': 22, 'eventosAEliminar': 0, 'intentosSinCuentaAEliminar': 0, 'plazoTotalMesesEfectivo': 0, 'plazoTotalMesesConfigurado': 24, 'plazoSinCuentaMe]
+OK    con una aprobación SINTÉTICA la simulación cuenta el evento viejo sin borrarlo  [{'eventosTotales': 22, 'eventosAEliminar': 1, 'intentosSinCuentaAEliminar': 0, 'plazoTotalMesesEfectivo': 24, 'plazoTotalMesesConfigurado': 24, 'plazoSinCuentaM]
+OK    ejecutar con una cantidad confirmada que NO coincide no borra nada  [No se modificó nada: las cantidades confirmadas deben coincidir con las actuales (1 eventos, 0 relaciones). Corré previsualizar y revisá.
+]
+OK    purgeInstitutionalRetention --simular  [{
+  "simulacion": true,
+  "perfilesAAnonimizar": 0,
+  "medicionesAEliminar": 0
+}
+]
+OK    el evento viejo sigue en la base: ninguna simulación eliminó datos  [1]
+OK    ninguna operación recibió un error 5xx (que sería un permiso faltante)  [[]]
+
+RESUMEN: 51 correctas, 0 con falla

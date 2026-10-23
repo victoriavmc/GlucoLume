@@ -1,0 +1,10 @@
+Sketch uses 5664 bytes (17%) of program storage space. Maximum is 32256 bytes.
+Global variables use 1040 bytes (50%) of dynamic memory, leaving 1008 bytes for local variables. Maximum is 2048 bytes.
+estado=6 ciclos=260152 bytes=368
+Línea del dispositivo descartada (FIRMA_INVALIDA); descartadas hasta ahora: {'SIN_FIRMA': 0, 'FIRMA_INVALIDA': 1, 'REPETIDA': 0}. No se registra su contenido.
+OK BPM:76.43,SpO2:99.65,GluExp_mgdl:117.0,Origen:DEMO,IndiceOpt
+OK PPG,7,5,-150,-113,-76,-39,-2,35,72,109,146,183
+OK MODO:DEMO_ACTIVO
+OK GLUCOLUME,ID=0123,SENSOR=MAX30100,FW=1.2.0,SR=50
+OK X
+TODO OK: 5 lineas firmadas verificadas; contador final (3, 4294967291)

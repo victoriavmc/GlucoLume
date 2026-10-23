@@ -1,0 +1,11 @@
+/ -> GlucoLume | h1/h2: Tecnología al servicio
+del bienestar
+/login -> GlucoLume | h1/h2: Tu salud,
+en mejores manos
+/registro -> GlucoLume | h1/h2: Empezá a usar
+GlucoLume
+/politica-de-privacidad -> GlucoLume | h1/h2: Tecnología al servicio
+del bienestar
+/ruta-que-no-existe -> GlucoLume | h1/h2: Tecnología al servicio
+del bienestar
+mensajes de consola: 0 | violaciones CSP o errores: 0

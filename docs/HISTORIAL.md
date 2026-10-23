@@ -3,6 +3,18 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 23/10/2026 — Integración final en `master` y stack Docker verificado
+
+PR #2 (rama `claude/vigilant-shannon-legfop`, 0 commits por detrás de `master`, sin conflictos) fusionado con un merge commit de GitHub, sin `force push` y **sin borrar la rama**. La auditoría
+**no** se declara aprobada: H-03, H-05 y H-10 siguen abiertos y hay verificaciones pendientes en Windows ([seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md)).
+
+- **Base de datos:** instalación nueva en el contenedor `db` con los scripts oficiales (v5 + `MATRIZ.SQL` + permisos): 34 tablas, 49 FK, 127 `CHECK`, 33 índices `IX_`/`UX_`, 27 reglas de matriz, `PuenteCredencial`. **Defecto encontrado y corregido:**
+  `GlucoLume_actualizar_instalada.sql` no restauraba los 31 índices que el v5 de `master` había perdido; ahora los crea de forma idempotente. Ensayo de actualización sin pérdida de datos (16/16).
+- **Docker:** `compose.redis.yaml` (Redis opcional, H-06). Stack completo en ejecución (`db`, `backend`, `frontend`, `redis`, y `proxy` Caddy en producción) con healthchecks, redes `edge`/`data`, volumen persistente, sin publicar SQL Server ni Redis, sin `lifecycle`.
+  Modo desarrollo 49/49 y producción por HTTPS 50/50. El `backend/Dockerfile` y la etapa `build` del `frontend/Dockerfile` oficiales **no se pudieron construir** en el entorno (red); se usó una imagen de ensayo documentada.
+- **Documentación revisada:** `README.md`, `DESPLIEGUE.md` (guía de Windows, Redis, estado real de cada servicio), `BASE_DE_DATOS.md` (instalación, actualización, permisos), `SEGURIDAD.md` (§2.0.3), `PENDIENTES.md` y el checklist de Windows.
+  Contradicciones corregidas: v5 ya no crea usuarios ni agrega roles fijos; "todavía no se ensayó" v5; versión de Caddy; cantidad de tablas e índices.
+
 ## 23/10/2026 — Validación integral de la remediación (entorno descartable)
 
 Evidencia y scripts: [evidencias/validacion_integral](evidencias/validacion_integral/README.md). Matriz por hallazgo: [SEGURIDAD.md](SEGURIDAD.md) §2.0.2. Pendiente en Windows: [seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md).

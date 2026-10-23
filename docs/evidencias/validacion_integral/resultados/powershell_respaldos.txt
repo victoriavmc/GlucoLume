@@ -1,0 +1,55 @@
+OK    base sintética con esquema v5 y un evento
+== 5. Sintaxis de los tres scripts (el [scriptblock]::Create de la lista de Windows)
+OK    sintaxis GlucoLume_respaldo.ps1
+OK    sintaxis GlucoLume_clave_respaldo.ps1
+OK    sintaxis GlucoLume_prueba_restauracion.ps1
+== Clave
+OK    clave creada
+OK    una clave existente no se reemplaza
+== 1. Respaldo con -CopiaExterna
+2026-10-23T06:58:55 Respaldo verificado: GlucoLume_20261023_065854.bak (4.7 MB)
+2026-10-23T06:58:56 Cifrado AES-256 y verificado: GlucoLume_20261023_065854.bak.gpg (SHA-256 del respaldo <token-sintetico>)
+2026-10-23T06:58:56 Copia externa verificada: /tmp/gl_ext/GlucoLume_20261023_065854.bak.gpg
+OK    código de salida 0
+OK    respaldo local cifrado creado
+OK    no queda ningún .bak en claro
+OK    la copia externa es idéntica (SHA-256)
+OK    respaldo.log: «Copia externa verificada»
+OK    el archivo es un contenedor OpenPGP (no un .bak legible)
+OK    el contenido no es legible en el archivo cifrado
+== 2. Falla de la copia externa (destino inexistente)
+2026-10-23T06:58:57 Respaldo verificado: GlucoLume_20261023_065857.bak (4.7 MB)
+2026-10-23T06:58:58 Cifrado AES-256 y verificado: GlucoLume_20261023_065857.bak.gpg (SHA-256 del respaldo <token-sintetico>)
+2026-10-23T06:58:58 ERROR en la copia externa: No se puede acceder a la copia externa (/tmp/gl_no_existe).
+OK    sale con código 2
+OK    el respaldo local igual quedó hecho
+OK    el error de la copia queda en el log
+== 3. Sin -CopiaExterna
+2026-10-23T06:59:00 Respaldo verificado: GlucoLume_20261023_065900.bak (4.7 MB)
+2026-10-23T06:59:01 Cifrado AES-256 y verificado: GlucoLume_20261023_065900.bak.gpg (SHA-256 del respaldo <token-sintetico>)
+2026-10-23T06:59:01 Sin -CopiaExterna: el respaldo y su clave siguen en un único equipo (regla 3-2-1 incompleta, H-01).
+OK    salida 0
+OK    registra el aviso de la regla 3-2-1
+== Retención local (nunca el último, solo el patrón propio)
+OK    retención ejecutada
+OK    archivos ajenos o fuera del patrón no se tocan
+OK    se conserva el mensual 20260110
+OK    se conserva el mensual 20260201
+OK    se conserva el mensual 20251220
+OK    se borró 20260105 (segundo del mes o fuera de los 12 meses)
+OK    se borró 20251215 (segundo del mes o fuera de los 12 meses)
+OK    se borró 20250915 (segundo del mes o fuera de los 12 meses)
+OK    se borró 20240105 (segundo del mes o fuera de los 12 meses)
+OK    el respaldo más reciente se conserva
+OK    los 4 respaldos de hoy (diarios) siguen
+   borrados registrados en el log: 4
+== Restauración de prueba (GlucoLume_prueba_restauracion.ps1) en una instancia descartable
+2026-10-23T06:59:16 Restauración de prueba de GlucoLume_20261023_065854.bak.gpg: 34 tablas; schemaCheck: Sin diferencias: la base instalada tiene las tablas, columnas y restricciones que esperan los modelos (esquema v5).
+2026-10-23T06:59:16 Restauración de prueba de GlucoLume_20261023_065854.bak.gpg: 34 tablas; schemaCheck: Sin diferencias: la base instalada tiene las tablas, columnas y restricciones que esperan los modelos (esquema v5).
+OK    restauración de prueba: salida 0 (esquema restaurado = vigente según schemaCheck)
+OK    el contenedor descartable se elimina solo
+OK    el .bak descifrado se elimina solo
+== Restauración con un archivo corrupto
+OK    un respaldo cifrado corrupto falla la restauración (código 1) y no deja restos
+
+RESUMEN: 33 correctas, 0 con falla

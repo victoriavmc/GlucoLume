@@ -7,8 +7,12 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 
 ## Seguridad y configuración
 
+> Revisado el 23/10/2026 tras la integración en `master`. H-03, H-05 y H-10 siguen abiertos; ningún riesgo fue aceptado. Qué se verificó y qué falta: [seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md).
+
 | Prioridad | Pendiente | Referencia |
 |---|---|---|
+| P1 | **Windows:** `docker compose build backend frontend` **completo** con los Dockerfiles oficiales (en el entorno cloud no se pudo: `deb.debian.org` y `dl-cdn.alpinelinux.org` bloqueados) y levantar `backend frontend` contra tu SQL Express ([DESPLIEGUE.md](DESPLIEGUE.md) §3.0) | Integración |
+| P1 | H-03: cifrado en reposo (BitLocker o edición con TDE); **no implementado** | H-03 |
 | P1 | Copia externa de los respaldos (`GlucoLume_respaldo.ps1 -CopiaExterna`) y custodia de la frase fuera del equipo; probar la restauración desde esa copia. Requiere elegir el destino | H-01 |
 | P1 | Aplicar `GlucoLume_permisos.sql` y `…_quitar_roles_fijos.sql` en la instancia real (SEGURIDAD §5.1 paso 3), **primero en una copia restaurada**. Validado en SQL Server 2022 descartable (76/76 y API real 51/51); falta tu instancia | H-02 |
 | P1 | Fijar con asesoría legal `AUDIT_RETENTION_MONTHS` y `PERSONNEL_RETENTION_MONTHS`; producción advierte mientras estén en 0 | H-04 |
@@ -21,7 +25,7 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 | P3 | H-10 / GL-13: confirmar en el rastreador de Debian cuándo se corrige `zlib` (CVE-2026-85091), reconstruir con `--pull --build-arg ZLIB_MIN_VERSION=<versión>` y repetir el escaneo; `python docker/tools/baseImageVersions.py` muestra qué versión trae la imagen base | H-10, GL-13 |
 | P2 | Aplicar `GlucoLume_agregar_puente_credencial.sql` a la base real, crear las credenciales con `python -m app.cli.bridgeTokens` y poner `BRIDGE_ALLOW_SHARED_TOKEN=false` | H-16, GL-11 |
 | P3 | Plazo de conservación total de la auditoría aprobado con asesoría legal (propuesta 24–36 meses) | GL-16 |
-| P3 | Redis para límites y monitor si hay más de una réplica; WAF delante de Nginx; MFA obligatoria para propietarios (decisión funcional y de costos) | GL-15, auditoría 18/10 |
+| P3 | Redis para el **monitor de ráfagas** si hay más de una réplica (los límites por IP ya pueden usar Redis: `compose.redis.yaml`, H-06); WAF delante de Nginx; MFA obligatoria para propietarios (decisión funcional y de costos) | GL-15, auditoría 18/10 |
 | P3 | SQL Server Audit para cambios de límites y vigencia hechos fuera de la aplicación | Auditoría 18/10 |
 
 ## Base de datos (DEC-02)

@@ -1,0 +1,34 @@
+== 1. Sintaxis
+OK    nginx -t: configuración válida
+== 2. Arranque, SPA y logs sin query (H-14)
+OK    ruta de la SPA con token en la query responde 200 (index.html)
+   log: 127.0.0.1 - [23/Oct/2026:07:04:21 +0000] "GET /verificar-correo" 200 629 "curl/8.5.0" rid=c7bbe098183a998fab7d0761f237e4c1
+   log: 127.0.0.1 - [23/Oct/2026:07:04:21 +0000] "GET /api/v1/auth/verify-email" 401 89 "curl/8.5.0" rid=7c6e84a95c41bd58ae02bbdabe76e210
+   log: 127.0.0.1 - [23/Oct/2026:07:04:21 +0000] "GET /restablecer" 200 629 "curl/8.5.0" rid=f866691f4a885c4a66ed571116afc098
+OK    el access_log NO contiene ninguno de los tokens de la query
+OK    el log conserva método y ruta
+OK    el log conserva IP, estado y rid= (correlación)
+== 3. Cabeceras de seguridad
+OK    CSP estricta (style-src 'self', sin unsafe-inline)
+OK    CSP sin unsafe-inline
+OK    X-Frame-Options y nosniff
+OK    sin HSTS cuando el pedido es HTTP
+OK    server_tokens off (sin versión)
+== 4. Proxy de confianza: HSTS y X-Forwarded-For
+OK    un cliente no confiable NO puede forzar HSTS con X-Forwarded-Proto
+OK    una IP falsificada en X-Forwarded-For se ignora si el pedido no viene de un proxy de confianza
+OK    con TRUSTED_PROXY_CIDR que incluye al proxy, HSTS se envía según el esquema original
+OK    con proxy de confianza se toma la IP real del cliente
+== 5. Tope de pedidos en /api/v1/auth/ (limit_req 30r/s, ráfaga 60)
+   respuestas:      60 401     160 429 
+OK    Nginx responde 429 ante una ráfaga (160 de 220)
+== 6. H-09 detrás de Nginx: la cookie HttpOnly atraviesa el proxy
+OK    Set-Cookie (HttpOnly, SameSite=strict) llega al cliente a través de Nginx
+OK    el cuerpo no trae el refresh token
+OK    refresh por Nginx con la cookie: 200
+OK    sin la cabecera anti-CSRF la cookie no sirve (401)
+OK    Origin ajeno rechazado (401)
+== 7. Documentación de la API
+   /openapi.json (API_ENV=development en este ensayo): 200
+
+RESUMEN: 20 correctas, 0 con falla

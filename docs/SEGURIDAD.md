@@ -85,7 +85,7 @@ Los GL-xx provienen del informe del 19/10/2026; GL-22 y GL-23 se agregaron despu
 | GL-12 | La suite depende del `.env` real | Baja | **Corregido:** las pruebas usan `backend/tests/test.env` (`GLUCOLUME_ENV_FILE`); prueba que lo comprueba |
 | GL-13 | Dependencias e imágenes sin reescaneo; imágenes por etiqueta | Baja | **Corregido salvo un residual:** dependencias sin vulnerabilidades; imágenes fijadas por digest; Node 22.12 → 22.23 (etapa de build) y Caddy 2.9 → 2.11; imagen final del frontend sin altas ni críticas; la del backend conserva 1 alta de `zlib` de Debian sin corrección publicada |
 | GL-14 | Refresh token en `localStorage` con «Recordarme» | Baja | **Reemplazado por H-09:** el refresh token pasó a una cookie `HttpOnly`; ya no hay refresh token en Web Storage (ver H-09 en §2.0.1) |
-| GL-15 | Contadores en memoria, sin CAPTCHA, alertas pasivas | Baja | **Parcial:** alerta activa por correo al administrador (acotada y sin IP). Contadores en memoria y sin CAPTCHA: aceptado con una réplica; Redis/WAF solo si se escala |
+| GL-15 | Contadores en memoria, sin CAPTCHA, alertas pasivas | Baja | **Parcial:** alerta activa por correo al administrador (acotada y sin IP). Contadores en memoria con una réplica; **Redis opcional ya disponible** (H-06, `compose.redis.yaml`) para varias réplicas. Sin CAPTCHA: decisión de accesibilidad; WAF solo si se escala |
 | GL-16 | Auditoría conservada sin plazo | Baja | Pendiente (decisión legal). La depuración total sigue desactivada (`AUDIT_RETENTION_MONTHS=0`) |
 | GL-17 | Clave MFA sin rotación; `JWT_SECRET` como clave HMAC | Baja | **Corregido:** el HMAC de códigos cortos usa una clave derivada (HKDF) y acepta el cálculo anterior mientras vencen los códigos emitidos; rotación del MFA con `MultiFernet` |
 | GL-18 | `FORWARDED_ALLOW_IPS="*"` en desarrollo | Baja | **Corregido:** en desarrollo (`compose.dev.yaml`) el backend solo confía en `127.0.0.1` |
@@ -145,6 +145,18 @@ entorno descartable (SQL Server 2022, Redis 7, Nginx, Chromium, PowerShell 7, Tr
 
 **Otros hallazgos de la validación (corregidos en esta rama, un commit cada uno):** log de Nginx con la ruta original (H-14); `opentelemetry-api` 1.45.0 → 1.45.1 (CVE-2026-114603, transitiva de FastAPI; `pip-audit` y Trivy sin hallazgos);
 prueba del certificado de SQL Server dependiente del sistema operativo.
+
+### 2.0.3 Versión integrada en contenedores (23/10/2026)
+
+La versión integrada se levantó con Docker Compose en un entorno cloud aislado y se recorrió **por HTTP a través de Nginx** (y de Caddy en HTTPS): `db` (SQL Server 2022, imagen construida con el
+Dockerfile oficial, volumen persistente, sin puertos publicados), `backend` (contenedor de solo lectura, `cap_drop ALL`, usuario sin privilegios, conectado con la cuenta restringida), `frontend` (Nginx sin
+privilegios) y `redis` (opcional). **49/49** comprobaciones en modo desarrollo y **50/50** en modo producción (`API_ENV=production`, certificado de SQL Server verificado, cookie `Secure`, HSTS,
+`REFRESH_TOKEN_IN_BODY=false`, token compartido del puente apagado): registro y verificación de correo, sesión por cookie `HttpOnly`, MFA, cierre de sesión, roles individual, grupal e institucional
+(propietario → moderador → operador, con sus límites), credenciales de puente por dispositivo, límites de solicitudes en Redis (con caída y recuperación) y persistencia de la base tras `down`/`up`; logs sin
+`Traceback`, 500 ni errores de Nginx. El servicio `lifecycle` **no se levantó** y no se ejecutó ninguna purga. Detalle, límites y cómo repetirlo: [evidencias/validacion_integral](evidencias/validacion_integral/README.md).
+
+**Límites que no se pueden cerrar en ese entorno** (siguen pendientes): el `backend/Dockerfile` oficial no se pudo construir (`deb.debian.org` bloqueado) —se usó una imagen de ensayo con la misma base y el mismo lock— y la etapa
+`build` del `frontend/Dockerfile` oficial tampoco (`npm ci` dentro de Docker, `apk upgrade`); la prueba de Windows (Docker Desktop, tu SQL Server Express, `glucolume.local`, Google, SMTP) es tuya.
 
 ### 2.0 Alcance (decisión del 19/10/2026)
 

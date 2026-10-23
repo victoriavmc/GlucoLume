@@ -11,12 +11,14 @@ Desde la raíz del repositorio, con el entorno virtual del backend activo (`pip 
 
 | Script | Qué valida | Requiere | Resultado del 23/10 | Log |
 |---|---|---|---|---|
-| `sqlserver_h02_h16.sh` | v5 en SQL Server real; `GlucoLume_permisos*.sql` (antes/después, idempotencia, DENY, roles fijos, reversión); migración de `PuenteCredencial` | Docker, imagen de SQL Server 2022 | **76/76** | `resultados/sqlserver_h02_h16.log` |
-| `app_sqlserver_minimos_permisos.py` | La API REAL y las CLI contra SQL Server con las cuentas restringidas: registro, MFA, cookie, refresh, baja de cuenta, Google simulado, puentes (CLI + API), retención simulada | lo anterior + ODBC 18 (`GL_MSSQL_CONTAINER`, `GL_MSSQL_PORT`, `GL_MSSQL_SA_PW`) | **51/51** | `resultados/app_sqlserver_permisos_minimos.log` |
-| `redis_multi_instancia.py` | H-06: dos procesos de la API + Redis real: cuota compartida, privacidad de claves, caída y recuperación (`local` y `deny`) | Docker (`redis:7-alpine`) | **12/12** | `resultados/redis_multi_instancia.log` |
-| `nginx_real.sh` | Plantilla real de Nginx: log sin query, cabeceras, proxy de confianza, 429, cookie `HttpOnly` a través del proxy. `DIST=<build>` usa el nginx del sistema; `IMAGEN=<imagen>` usa la imagen fijada | nginx + `envsubst`, o Docker | **20/20** (1.24) y **23/23** (imagen 1.30.6) | `resultados/nginx_sistema_1.24.log`, `nginx_imagen_1.30.6.log` |
-| `nginx_servir.sh` + `verificar_navegador.py` | Build de producción (`VITE_API_BASE_URL=/`) detrás de esa plantilla, en un **Chromium real**: cookie `HttpOnly`/`SameSite`/`Path`, «Recordarme», recarga, logout, CSRF desde otro sitio | Playwright (`pip install playwright`), Chromium | **24/24** (+ 0 violaciones de CSP) | `resultados/chromium_*.log` |
-| `powershell_respaldos.sh` | Los `.ps1` de `database/respaldos` SIN modificar, con PowerShell 7 en Linux y SQL Server real | `pwsh`, Docker, `gpg` | **33/33** | `resultados/powershell_respaldos.log` |
+| `sqlserver_h02_h16.sh` | v5 en SQL Server real; `GlucoLume_permisos*.sql` (antes/después, idempotencia, DENY, roles fijos, reversión); migración de `PuenteCredencial` | Docker, imagen de SQL Server 2022 | **76/76** | `resultados/sqlserver_h02_h16.txt` |
+| `app_sqlserver_minimos_permisos.py` | La API REAL y las CLI contra SQL Server con las cuentas restringidas: registro, MFA, cookie, refresh, baja de cuenta, Google simulado, puentes (CLI + API), retención simulada | lo anterior + ODBC 18 (`GL_MSSQL_CONTAINER`, `GL_MSSQL_PORT`, `GL_MSSQL_SA_PW`) | **51/51** | `resultados/app_sqlserver_permisos_minimos.txt` |
+| `redis_multi_instancia.py` | H-06: dos procesos de la API + Redis real: cuota compartida, privacidad de claves, caída y recuperación (`local` y `deny`) | Docker (`redis:7-alpine`) | **12/12** | `resultados/redis_multi_instancia.txt` |
+| `nginx_real.sh` | Plantilla real de Nginx: log sin query, cabeceras, proxy de confianza, 429, cookie `HttpOnly` a través del proxy. `DIST=<build>` usa el nginx del sistema; `IMAGEN=<imagen>` usa la imagen fijada | nginx + `envsubst`, o Docker | **20/20** (1.24) y **23/23** (imagen 1.30.6) | `resultados/nginx_sistema_1.24.txt`, `nginx_imagen_1.30.6.txt` |
+| `nginx_servir.sh` + `verificar_navegador.py` | Build de producción (`VITE_API_BASE_URL=/`) detrás de esa plantilla, en un **Chromium real**: cookie `HttpOnly`/`SameSite`/`Path`, «Recordarme», recarga, logout, CSRF desde otro sitio | Playwright (`pip install playwright`), Chromium | **24/24** (+ 0 violaciones de CSP) | `resultados/chromium_*.txt` |
+| `powershell_respaldos.sh` | Los `.ps1` de `database/respaldos` SIN modificar, con PowerShell 7 en Linux y SQL Server real | `pwsh`, Docker, `gpg` | **33/33** | `resultados/powershell_respaldos.txt` |
+| `stack_docker.sh` (+ `stack_funcional.py`, `smtp_falso_starttls.py`, `docker/`) | **Integración final:** `build` (db oficial; backend de ensayo; frontend runtime), `up` (proyecto temporal con secretos aleatorios, SQL Server + scripts oficiales, backend/frontend/redis, SMTP falso con STARTTLS, sin `lifecycle`), `test` (HTTP por Nginx: sesión por cookie, MFA, roles individual/grupal/institucional, puentes, Redis, persistencia, logs) y `prod` (Caddy en HTTPS, `API_ENV=production`, certificado de SQL Server verificado) | Docker, `uv`, Python con `aiosmtpd` y `cryptography` | **49/49** (dev) y **50/50** (producción HTTPS) | `resultados/stack_docker_completo.txt`, `estado_stack.md` |
+| `actualizacion_sin_perdida.sh` | Base instalada con el v5 de `master` → scripts de esta rama: filas sin cambios, estructura = instalación nueva, `schemaCheck` | stack levantado (`db` y `backend`) | **16/16** | `resultados/actualizacion_sin_perdida.txt` |
 | `servidor_sintetico.py` | API real con SQLite temporal y una persona sintética (lo usan los anteriores) | — | — | — |
 | `powershell_shims/sqlcmd` | Reenviador a `sqlcmd` del contenedor (**solo ensayo**; no existe en Windows) | — | — | — |
 
@@ -31,8 +33,9 @@ base descartable): **1983 pasaron, 0 fallaron, 0 omitidas** (`resultados/suites.
 
 - No es tu instalación: SQL Server 2022 CU16 (la imagen del proyecto), no SQL Server 2025 Express; Linux, no Windows; sin tus datos, tu `.env`, tu dominio ni HTTPS.
 - PowerShell en Linux no tiene DPAPI: la protección de la clave de respaldo y las tareas programadas **no** se validaron.
-- La imagen del backend no se pudo construir (`deb.debian.org` bloqueado); la del frontend se armó con la misma base fijada y plantilla, y el build de producción se generó en el host
-  (`npm ci` dentro de Docker falla tras el proxy de salida y `apk upgrade` necesita `dl-cdn.alpinelinux.org`).
+- Los Dockerfiles oficiales del backend y del frontend **no se pudieron construir** en el entorno (`deb.debian.org` y `dl-cdn.alpinelinux.org` bloqueados; `npm ci` dentro de Docker falla tras el proxy de salida;
+  [construcciones_oficiales.md](resultados/construcciones_oficiales.md)). El backend corrió con una **imagen de ensayo** (`docker/Dockerfile.backend-entorno-cloud`: misma base fijada y mismo lock, ODBC de otra fuente) y el frontend con el runtime oficial
+  más el build de producción hecho en el host (`docker/Dockerfile.frontend-runtime-entorno-cloud`). Solo `db` se construyó con su Dockerfile oficial.
 - Google, SMTP y el firmware son simulaciones: no prueban el servicio real ni la placa.
 - La prueba en Chromium usa HTTP (el atributo `Secure` de la cookie lo cubre una prueba HTTP, no el navegador).
 
@@ -50,3 +53,9 @@ base descartable): **1983 pasaron, 0 fallaron, 0 omitidas** (`resultados/suites.
 | Seguridad (nuevos riesgos introducidos por los cambios) | CORS con credenciales solo para el origen explícito del frontend; cookie `HttpOnly`/`SameSite=Strict`; CSRF por cabecera + `Origin`; Trivy sin secretos; `pip-audit`/`npm audit`/Trivy sin vulnerabilidades en las dependencias | Dos hallazgos propios corregidos (log de Nginx, `opentelemetry-api`); ninguno nuevo abierto |
 
 Qué **no** cubre esta tabla: el comportamiento con tus datos reales, con Windows y con hardware (ver las limitaciones de arriba).
+
+## Logs: qué está versionado y qué no
+
+`.gitignore` excluye `*.log`, así que los resultados se conservan como **`resultados/*.txt` y `*.md` sanitizados** (sin contraseñas, tokens, JWT ni valores de cookie: se enmascaran los secretos generados en cada corrida y las cadenas de 40 caracteres o más; Trivy confirmó 0 secretos en el repositorio).
+**No versionados** (quedaron solo en el entorno cloud de validación y no se pueden recuperar desde el repositorio): la salida completa de `pytest` y `vitest` (el resumen está en `resultados/suites_salida.txt` y `suites.md`), las salidas de `docker build` y de `vite build`, los JSON completos de Trivy (se resumen en `ESCANEO_TRIVY_2026-10-23.md`),
+los logs de `dockerd` y los secretos de las corridas (`stack_secrets.txt`, `.env` y `docker/db.env` del proyecto temporal, que se borran con él). Para regenerarlos: `stack_docker.sh` y los scripts de la tabla de arriba.
