@@ -1,7 +1,7 @@
 # Config - Configuración de la aplicación leída desde variables de entorno / .env
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -13,6 +13,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT_DIR = Path(__file__).resolve().parents[3]
 # Archivo de configuración: el .env de la raíz. GLUCOLUME_ENV_FILE lo reemplaza (las pruebas usan backend/tests/test.env, GL-12).
 ENV_FILE = Path(os.environ.get("GLUCOLUME_ENV_FILE") or ROOT_DIR / ".env")
+
+# Ventana máxima de rotación de JWT_SECRET (H-08): cubre el access token (30 min) y los enlaces de correo firmados de hasta 72 h (confirmación
+# del correo de resultados); los de baja de avisos (30 días) emitidos antes de la rotación dejan de valer y se piden de nuevo.
+JWT_ROTATION_MAX_HOURS = 72
 
 # Algoritmos HMAC permitidos. No se mezclan con algoritmos asimétricos.
 JWT_ALLOWED_ALGORITHMS = ("HS256", "HS384", "HS512")
@@ -55,9 +59,11 @@ class Settings(BaseSettings):
 
     # JWT de acceso
     JWT_SECRET: SecretStr
-    # Secreto anterior durante una rotación (H-08): firma solo JWT_SECRET; los tokens firmados con el anterior se siguen aceptando hasta que
-    # vencen. Quitarlo pasada la vigencia del token más largo (docs/SEGURIDAD.md, «Rotación de secretos»).
+    # Rotación de JWT_SECRET (H-08). El secreto anterior solo VERIFICA (siempre firma JWT_SECRET) y únicamente hasta JWT_PREVIOUS_SECRET_UNTIL,
+    # que es obligatorio con él y no puede estar a más de JWT_ROTATION_MAX_HOURS de ahora: ningún secreto viejo se acepta indefinidamente.
+    # Pasado el plazo se ignora aunque siga en el .env. Hora de Argentina si no lleva zona. Procedimiento: docs/SEGURIDAD.md, «Rotación de secretos».
     JWT_PREVIOUS_SECRET: SecretStr | None = None
+    JWT_PREVIOUS_SECRET_UNTIL: datetime | None = None
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -171,6 +177,32 @@ class Settings(BaseSettings):
             raise ValueError(f"{info.field_name} debe tener al menos 32 caracteres.")
         return value
 
+    @model_validator(mode="after")
+    def validarVentanaDeRotacionJwt(self) -> "Settings":
+        """El secreto anterior de JWT exige un plazo explícito, distinto del vigente y acotado a JWT_ROTATION_MAX_HOURS (H-08)."""
+        if self.JWT_PREVIOUS_SECRET is None:
+            return self
+        if self.JWT_PREVIOUS_SECRET.get_secret_value() == self.JWT_SECRET.get_secret_value():
+            raise ValueError("JWT_PREVIOUS_SECRET es igual a JWT_SECRET: no hay rotación.")
+        if self.JWT_PREVIOUS_SECRET_UNTIL is None:
+            raise ValueError("JWT_PREVIOUS_SECRET exige JWT_PREVIOUS_SECRET_UNTIL: el secreto anterior no se acepta sin plazo.")
+        from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+        if withArgentinaZone(self.JWT_PREVIOUS_SECRET_UNTIL) > nowArgentina() + timedelta(hours=JWT_ROTATION_MAX_HOURS):
+            raise ValueError(f"JWT_PREVIOUS_SECRET_UNTIL no puede superar las {JWT_ROTATION_MAX_HOURS} horas desde ahora.")
+        return self
+
+    @property
+    def jwtVerificationSecrets(self) -> list[SecretStr]:
+        """Secretos con los que se verifica ahora un JWT: el vigente y, solo mientras no venza su plazo, el anterior (H-08)."""
+        secrets = [self.JWT_SECRET]
+        if self.JWT_PREVIOUS_SECRET is not None and self.JWT_PREVIOUS_SECRET_UNTIL is not None:
+            from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+            if nowArgentina() < withArgentinaZone(self.JWT_PREVIOUS_SECRET_UNTIL):
+                secrets.append(self.JWT_PREVIOUS_SECRET)
+        return secrets
+
     @property
     def trustServerCertificate(self) -> bool:
         if self.DB_TRUST_SERVER_CERTIFICATE is None:
@@ -236,8 +268,13 @@ class Settings(BaseSettings):
             if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
                 warnings.append("BRIDGE_PREVIOUS_TOKEN sin BRIDGE_PREVIOUS_TOKEN_UNTIL: fijá un plazo máximo para la ventana de rotación (H-16).")
         if self.JWT_PREVIOUS_SECRET is not None:
-            warnings.append("JWT_PREVIOUS_SECRET está definido: la API acepta tokens firmados con dos secretos. Quitalo cuando venzan los "
-                            "tokens firmados con el anterior (docs/SEGURIDAD.md, «Rotación de secretos»).")
+            if len(self.jwtVerificationSecrets) > 1:
+                warnings.append("JWT_PREVIOUS_SECRET vigente: la API acepta tokens firmados con dos secretos hasta JWT_PREVIOUS_SECRET_UNTIL. "
+                                "Quitá ambas variables al terminar la rotación (docs/SEGURIDAD.md, «Rotación de secretos»).")
+            else:
+                warnings.append("JWT_PREVIOUS_SECRET ya venció (JWT_PREVIOUS_SECRET_UNTIL) y se ignora: quitá ambas variables del .env.")
+        elif self.JWT_PREVIOUS_SECRET_UNTIL is not None:
+            warnings.append("JWT_PREVIOUS_SECRET_UNTIL está definido sin JWT_PREVIOUS_SECRET: no tiene efecto, quitalo.")
         if self.API_ENV == "production" and self.DB_JOBS_USER is None:
             warnings.append("Sin DB_JOBS_USER: la API y la conservación de la auditoría comparten cuenta de base, así que no se le puede negar "
                             "UPDATE/DELETE sobre Auditoria a la API (GL-03).")

@@ -303,46 +303,127 @@ def test_el_hmac_de_identificadores_de_auditoria_usa_una_clave_derivada():
     assert new == expected
 
 
-def test_rotacion_de_jwt_secret_acepta_tokens_del_secreto_anterior_hasta_que_se_quita(monkeypatch):
-    # H-08: con JWT_PREVIOUS_SECRET los tokens firmados con el secreto anterior siguen valiendo; se firma solo con el vigente.
+OLD_JWT, NEW_JWT = "a" * 40, "b" * 40
+
+
+def inHours(hours):
+    from datetime import timedelta
+
+    from app.utils.timeZone import nowArgentina
+
+    return (nowArgentina() + timedelta(hours=hours)).replace(tzinfo=None).isoformat(timespec="seconds")
+
+
+def rotation(monkeypatch, until=None, previous=OLD_JWT):
+    """Configuración de rotación: JWT_SECRET nuevo y, si se indica, el anterior con su plazo (en horas desde ahora)."""
+    values = {**BASE, "JWT_SECRET": NEW_JWT, "JWT_PREVIOUS_SECRET": previous}
+    if until is not None:
+        values["JWT_PREVIOUS_SECRET_UNTIL"] = inHours(until)
+    cfg = Settings(**values)
+    monkeypatch.setattr(security, "getSettings", lambda: cfg)
+    return cfg
+
+
+def signedWith(secret, monkeypatch, minutes=5):
+    from datetime import timedelta
+
+    cfg = Settings(**{**BASE, "JWT_SECRET": secret})
+    monkeypatch.setattr(security, "getSettings", lambda: cfg)
+    import uuid
+
+    return security._encodeJwt({"sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()), "typ": security.TOKEN_TYPE_ACCESS}, timedelta(minutes=minutes))
+
+
+def test_rotacion_de_jwt_acepta_el_secreto_anterior_solo_dentro_de_la_ventana(monkeypatch):
+    # H-08: se firma siempre con el vigente; el anterior solo verifica hasta JWT_PREVIOUS_SECRET_UNTIL.
     import uuid
     from datetime import timedelta
 
     import jwt
 
-    old, new = "a" * 40, "b" * 40
-    claims = {"sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()), "typ": security.TOKEN_TYPE_ACCESS}
+    token = signedWith(OLD_JWT, monkeypatch)
+    expired = signedWith(OLD_JWT, monkeypatch, minutes=-5)
+    stranger = signedWith("c" * 40, monkeypatch)
+    cfg = Settings(**{**BASE, "JWT_SECRET": NEW_JWT})
+    monkeypatch.setattr(security, "getSettings", lambda: cfg)
+    with pytest.raises(jwt.InvalidSignatureError):  # rotado sin ventana: el token anterior deja de valer
+        security.decodeAccessToken(token)
 
-    def configure(**values):
-        for name in ("JWT_SECRET", "JWT_PREVIOUS_SECRET"):
-            monkeypatch.delenv(name, raising=False)
-        for name, value in values.items():
-            monkeypatch.setenv(name, value)
-        getSettings.cache_clear()
+    cfg = rotation(monkeypatch, until=2)
+    assert [secret.get_secret_value() for secret in cfg.jwtVerificationSecrets] == [NEW_JWT, OLD_JWT]
+    assert security.decodeAccessToken(token)["typ"] == "access"
+    fresh = security._encodeJwt({"sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()), "typ": "access"}, timedelta(minutes=5))
+    assert jwt.decode(fresh, NEW_JWT, algorithms=["HS256"], audience=security.JWT_AUDIENCE)  # firma con el nuevo
+    with pytest.raises(jwt.InvalidSignatureError):
+        jwt.decode(fresh, OLD_JWT, algorithms=["HS256"], audience=security.JWT_AUDIENCE)
+    with pytest.raises(jwt.ExpiredSignatureError):  # la ventana no revive tokens vencidos
+        security.decodeAccessToken(expired)
+    with pytest.raises(jwt.InvalidSignatureError):  # ni acepta un tercer secreto
+        security.decodeAccessToken(stranger)
+    rotation(monkeypatch, until=2)
+    with pytest.raises(jwt.InvalidTokenError):  # ni el tipo equivocado, aunque la firma sea la anterior
+        security.decodeMfaChallengeToken(token)
 
-    try:
-        configure(JWT_SECRET=old)
-        token = security._encodeJwt(claims, timedelta(minutes=5))
-        expired = security._encodeJwt(claims, timedelta(minutes=-5))
-        configure(JWT_SECRET=new)
-        with pytest.raises(jwt.InvalidSignatureError):  # rotado sin ventana: el token anterior deja de valer
-            security.decodeAccessToken(token)
-        configure(JWT_SECRET=new, JWT_PREVIOUS_SECRET=old)
-        assert security.decodeAccessToken(token)["sub"] == claims["sub"]
-        assert security.decodeAccessToken(security._encodeJwt(claims, timedelta(minutes=5)))["sid"] == claims["sid"]
-        assert jwt.decode(security._encodeJwt(claims, timedelta(minutes=5)), new, algorithms=["HS256"], audience=security.JWT_AUDIENCE)  # firma el nuevo
-        with pytest.raises(jwt.ExpiredSignatureError):  # la ventana no revive tokens vencidos
-            security.decodeAccessToken(expired)
-        with pytest.raises(jwt.InvalidSignatureError):  # ni acepta un tercer secreto
-            security.decodeAccessToken(jwt.encode({**jwt.decode(token, old, algorithms=["HS256"], audience=security.JWT_AUDIENCE), "typ": "access"}, "c" * 40, algorithm="HS256"))
-        assert any("JWT_PREVIOUS_SECRET" in w for w in getSettings().securityWarnings())
-        with pytest.raises(ValidationError):
-            Settings(**BASE, JWT_PREVIOUS_SECRET="corto")
-        with pytest.raises(ValidationError):
-            Settings(**BASE, JWT_PREVIOUS_SECRET=BASE["JWT_SECRET"], API_ENV="production")
-    finally:
-        monkeypatch.undo()
-        getSettings.cache_clear()
+
+def test_vencida_la_ventana_el_secreto_anterior_se_ignora_aunque_siga_configurado(monkeypatch):
+    # H-08: el plazo se evalúa en cada verificación, no solo al arrancar.
+    import jwt
+
+    from app.utils import timeZone
+
+    token = signedWith(OLD_JWT, monkeypatch)
+    cfg = rotation(monkeypatch, until=2)
+    assert security.decodeAccessToken(token)
+    from datetime import timedelta
+
+    later = timeZone.nowArgentina() + timedelta(hours=3)
+    monkeypatch.setattr("app.utils.timeZone.nowArgentina", lambda: later)
+    assert [secret.get_secret_value() for secret in cfg.jwtVerificationSecrets] == [NEW_JWT]
+    with pytest.raises(jwt.InvalidSignatureError):
+        security.decodeAccessToken(token)
+    assert "venció" in " ".join(cfg.securityWarnings())
+
+
+def test_un_access_token_revocado_no_revive_por_el_secreto_anterior(db, monkeypatch):
+    # H-08: la revocación vive en la sesión de la base; que el token esté firmado con el secreto anterior no la esquiva.
+    import jwt
+    from sqlalchemy import select
+
+    from app.core.exceptions import AuthError
+    from app.models.userSession import UserSession
+    from app.services import auth as authService
+    from tests.test_account_deletion import makeUser
+
+    user = makeUser(db)
+    pair = authService._createSession(db, user)
+    session = db.scalar(select(UserSession).where(UserSession.idUsuario == user.idUsuario))
+    claims = jwt.decode(pair.accessToken, options={"verify_signature": False}, audience=security.JWT_AUDIENCE)
+    rotation(monkeypatch, until=2)
+    signedByOld = jwt.encode(claims, OLD_JWT, algorithm="HS256")
+    verified = security.decodeAccessToken(signedByOld)
+    assert authService.resolveAccessSession(db, verified)[1].idSesion == session.idSesion
+    session.fechaRevocacion = authService.nowForDb()
+    db.commit()
+    with pytest.raises(AuthError):
+        authService.resolveAccessSession(db, security.decodeAccessToken(signedByOld))
+
+
+def test_configuraciones_invalidas_de_la_rotacion_de_jwt(monkeypatch):
+    # H-08: sin plazo, con plazo excesivo, igual al vigente o demasiado corto no se arranca.
+    from app.core.config import JWT_ROTATION_MAX_HOURS
+
+    with pytest.raises(ValidationError, match="JWT_PREVIOUS_SECRET_UNTIL"):
+        Settings(**BASE, JWT_PREVIOUS_SECRET=OLD_JWT)  # sin plazo: ningún secreto viejo vale indefinidamente
+    with pytest.raises(ValidationError, match="horas"):
+        Settings(**BASE, JWT_PREVIOUS_SECRET=OLD_JWT, JWT_PREVIOUS_SECRET_UNTIL=inHours(JWT_ROTATION_MAX_HOURS + 1))
+    with pytest.raises(ValidationError, match="igual"):
+        Settings(**BASE, JWT_PREVIOUS_SECRET=BASE["JWT_SECRET"], JWT_PREVIOUS_SECRET_UNTIL=inHours(2))
+    with pytest.raises(ValidationError):
+        Settings(**BASE, JWT_PREVIOUS_SECRET="corto", JWT_PREVIOUS_SECRET_UNTIL=inHours(2))
+    ok = Settings(**BASE, JWT_PREVIOUS_SECRET=OLD_JWT, JWT_PREVIOUS_SECRET_UNTIL=inHours(JWT_ROTATION_MAX_HOURS - 1))
+    assert any("dos secretos" in w for w in ok.securityWarnings())
+    assert any("sin JWT_PREVIOUS_SECRET" in w for w in Settings(**BASE, JWT_PREVIOUS_SECRET_UNTIL=inHours(2)).securityWarnings())
+    assert Settings(**BASE).jwtVerificationSecrets == [Settings(**BASE).JWT_SECRET]
 
 
 def test_en_produccion_se_advierte_si_los_plazos_de_retencion_siguen_sin_definir():

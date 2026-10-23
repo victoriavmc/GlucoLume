@@ -108,7 +108,7 @@ Segundo informe (`docs/seguridad/auditorias/Auditoria de Ciberseguridad - GlucoL
 | H-05 | Canal Bluetooth sin cifrado ni autenticidad; PIN débil | Medio | **Riesgo declarado en §4 (punto 9), SIN ACEPTAR: requiere aceptación expresa de la persona responsable del proyecto.** Mientras no la dé, sigue abierto. La firma por línea en el firmware y el cambio del PIN requieren el hardware para probarse: sin implementar |
 | H-06 | Rate limiting en memoria | Medio | **Abierto.** El proyecto ya lo tenía anotado como aceptable con una réplica (GL-15, §4 punto 1); la aceptación vigente debe reconfirmarse. Redis solo si se escala |
 | H-07 | `API_ENV` con valor por defecto `development` | Medio | **Corregido:** la imagen Docker no arranca sin `API_ENV` explícito (`GLUCOLUME_RUNTIME=container`); prueba en `test_security_config.py` |
-| H-08 | Rotación de secretos sin procedimiento | Medio | **Corregido:** `JWT_PREVIOUS_SECRET` (rotación sin cerrar sesiones) y procedimiento completo en §5.1. Falta ejecutar la rotación real (acción humana) |
+| H-08 | Rotación de secretos sin procedimiento | Medio | **Implementado y probado; rotación real pendiente (acción humana):** `JWT_PREVIOUS_SECRET` con plazo obligatorio (`JWT_PREVIOUS_SECRET_UNTIL`, máximo 72 h; vencido se ignora), pruebas de rotación, expiración de la ventana, revocación y configuraciones inválidas; procedimiento y reversión en §5.1. Riesgo residual: DB_PASSWORD, SMTP y Google siguen rotándose a mano |
 | H-09 | Refresh token en Web Storage | Medio | **Abierto.** El proyecto lo tenía registrado como riesgo aceptado (GL-14); no lo reconfirmé ni lo acepté de nuevo. Pasarlo a cookie `HttpOnly` cambia la autenticación entre orígenes, CORS y CSRF: requiere decisión y diseño propios |
 | H-10 | CVE alta de `zlib` sin parche | Medio-bajo | **Pendiente de Debian** (§4, punto 8): reconstruir la imagen y repetir el escaneo cuando exista la corrección |
 | H-11 | Sin límite por IP en endpoints autenticados | Bajo | **Corregido:** límite `authenticated` (1800 por minuto y por IP) en `getAuthContext`; prueba en `test_security_hardening.py` |
@@ -253,12 +253,17 @@ exigen los índices filtrados). Respaldo previo verificado:
 - **Base instalada (GL-05).** `python -m app.cli.schemaCheck` (solo lectura) después de cualquier cambio de esquema o restauración.
 - **Rotación de secretos (GL-20, H-08)**, cada seis meses o ante cualquier sospecha de filtración, en una ventana acordada. Generar los valores nuevos
   en el servidor con `python -c "import secrets; print(secrets.token_urlsafe(64))"` y recrear `backend` (y `lifecycle`) después de cada paso:
-  1. `JWT_SECRET`: pasar el valor vigente a `JWT_PREVIOUS_SECRET` y poner el nuevo en `JWT_SECRET`. La API firma con el nuevo y sigue aceptando los
-     tokens ya emitidos con el anterior, así que **no se cierran las sesiones**. Quitar `JWT_PREVIOUS_SECRET` pasados **7 días** (el refresh es opaco y
-     vive en la base; los tokens firmados más largos son los enlaces de correo, de hasta 30 días: los de baja de avisos). Al arrancar, la API advierte
-     mientras `JWT_PREVIOUS_SECRET` siga definido. Efecto colateral: las claves derivadas de `JWT_SECRET` (HMAC de códigos cortos, vigentes minutos, y de
-     identificadores de auditoría) cambian; los códigos emitidos antes de la rotación hay que pedirlos de nuevo y la búsqueda por identificador en la
-     auditoría deja de encontrar las huellas anteriores (acotadas por `AUDIT_CONTEXT_RETENTION_DAYS`).
+  1. `JWT_SECRET` (H-08), con ventana acotada. Generar el nuevo, y en el `.env`: `JWT_PREVIOUS_SECRET=<el vigente>`, `JWT_SECRET=<el nuevo>` y
+     `JWT_PREVIOUS_SECRET_UNTIL=<ahora + 24 h, p. ej. 2026-11-04T10:00>` (hora de Argentina). La API firma siempre con el nuevo y verifica con el anterior
+     **solo hasta ese instante**; sin plazo, con un plazo a más de 72 h o con el mismo valor no arranca. Las sesiones no se cierran (el access token dura
+     30 min y la renovación emite uno nuevo). Un token revocado sigue revocado: la sesión se valida en la base, no por el secreto. Recrear `backend`
+     (y `lifecycle`). Pasado el plazo el anterior se ignora solo; quitar ambas variables del `.env` en la siguiente ventana de mantenimiento (al arrancar,
+     la API advierte mientras sigan). Consecuencias: los enlaces de baja de avisos (30 días) y los códigos cortos emitidos **antes** de la rotación dejan
+     de valer pasada la ventana y se piden de nuevo; la búsqueda por identificador de la auditoría no encuentra las huellas anteriores (acotadas por
+     `AUDIT_CONTEXT_RETENTION_DAYS`).
+     **Reversión** (si el nuevo secreto falla): intercambiar los dos valores (`JWT_SECRET=<el anterior>`, `JWT_PREVIOUS_SECRET=<el nuevo>`) con un plazo
+     nuevo, recrear los contenedores y repetir cuando se corrija la causa. Ante una sospecha de filtración del secreto anterior, NO usar la ventana:
+     rotar sin `JWT_PREVIOUS_SECRET` (cierra todas las sesiones, es lo buscado).
   2. `BRIDGE_TOKEN`: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN`, se actualiza el del puente y se quita el anterior en cuanto el puente use el nuevo. Fijar siempre `BRIDGE_PREVIOUS_TOKEN_UNTIL` (máximo 24 h desde el cambio): vencido el plazo, la API ignora el token anterior aunque siga en el `.env`.
   3. `SESSION_SECRET` (solo invalida un inicio de sesión con Google en curso) y `GOOGLE_CLIENT_SECRET` (se rota también en Google Cloud): cambio directo.
   4. `DB_PASSWORD`, `DB_JOBS_PASSWORD` y `SMTP_PASSWORD`: `ALTER LOGIN ... WITH PASSWORD = '<nueva>'` en SQL Server (o el panel del proveedor de correo), luego el `.env`.
