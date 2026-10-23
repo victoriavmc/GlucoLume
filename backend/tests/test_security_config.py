@@ -343,3 +343,12 @@ def test_rotacion_de_jwt_secret_acepta_tokens_del_secreto_anterior_hasta_que_se_
     finally:
         monkeypatch.undo()
         getSettings.cache_clear()
+
+
+def test_en_produccion_se_advierte_si_los_plazos_de_retencion_siguen_sin_definir():
+    # H-04: con 0 los datos se conservan sin límite (plazo legal sin aprobar); la advertencia no impide arrancar y desaparece al fijarlos.
+    text = " ".join(Settings(**BASE, API_ENV="production").securityWarnings())
+    assert "AUDIT_RETENTION_MONTHS" in text and "PERSONNEL_RETENTION_MONTHS" in text
+    configured = Settings(**BASE, API_ENV="production", AUDIT_RETENTION_MONTHS=24, PERSONNEL_RETENTION_MONTHS=120)
+    assert "RETENTION_MONTHS" not in " ".join(configured.securityWarnings())
+    assert "RETENTION_MONTHS" not in " ".join(Settings(**BASE, API_ENV="development").securityWarnings())

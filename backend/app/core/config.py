@@ -241,6 +241,11 @@ class Settings(BaseSettings):
         if self.API_ENV == "production" and self.DB_JOBS_USER is None:
             warnings.append("Sin DB_JOBS_USER: la API y la conservación de la auditoría comparten cuenta de base, así que no se le puede negar "
                             "UPDATE/DELETE sobre Auditoria a la API (GL-03).")
+        if self.API_ENV == "production":
+            pending = [name for name in ("AUDIT_RETENTION_MONTHS", "PERSONNEL_RETENTION_MONTHS") if getattr(self, name) == 0]
+            if pending:
+                warnings.append(f"{', '.join(pending)} en 0: esos datos se conservan sin límite porque el plazo legal todavía no fue aprobado "
+                                "(Ley 25.326; H-04). Fijar los plazos aprobados antes de operar con datos reales (docs/PRIVACIDAD_Y_RETENCION.md).")
         if self.trustServerCertificate:
             warnings.append("La conexión a SQL Server no verifica el certificado del servidor (TrustServerCertificate): solo para desarrollo.")
         if self.reusedSecrets():
