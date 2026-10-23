@@ -7,16 +7,16 @@
 # La IP es request.client.host. Detrás de Nginx, uvicorn la toma de X-Forwarded-For, que Nginx fija con la IP real del cliente
 # (docker/nginx/default.conf.template): un cliente no puede elegirla.
 #
-# Los contadores viven en la memoria de ESTE proceso (RateLimiter de services/contact.py). Con una sola réplica del backend, que es
-# la configuración actual, el límite es exacto. Con varias réplicas cada una cuenta por separado (el límite efectivo se multiplica
-# por el número de réplicas); para repartirlo hace falta un almacén compartido (Redis), que se agrega solo con autorización.
+# Los contadores viven por defecto en la memoria de ESTE proceso (RateLimiter de services/rateLimiter.py): exactos con una sola réplica del
+# backend, que es la configuración actual. Con RATE_LIMIT_REDIS_URL los límites se cuentan en un Redis compartido y varias réplicas no
+# multiplican la cuota (H-06); si Redis falla se aplica RATE_LIMIT_ON_FAILURE ("local" o "deny"). Ver docs/SEGURIDAD.md.
 
 import ipaddress
 
 from fastapi import Depends, Request
 
 from app.core.exceptions import AuthError
-from app.services.contact import RateLimiter
+from app.services.rateLimiter import RateLimiter
 
 # nombre -> (solicitudes máximas, ventana en segundos) por IP. Holgados para no afectar a una institución que sale con una IP
 # compartida (NAT), pero lejos de lo que necesita un ataque automatizado.
@@ -45,11 +45,11 @@ LIMITS: dict[str, tuple[int, int]] = {
 # Puente serie (GL-11): /bridge/ingest no tiene límite de pedidos válidos (el puente envía cada segundo y, tras un corte, descarga su
 # cola sin pausa), pero una IP que falla el token BRIDGE_FAILURES veces en la ventana queda bloqueada aunque después acierte.
 BRIDGE_FAILURES = (20, 10 * 60)
-bridgeFailures = RateLimiter(*BRIDGE_FAILURES)
+bridgeFailures = RateLimiter(*BRIDGE_FAILURES, name="puente:fallos")
 
 TOO_MANY_REQUESTS = "Hiciste demasiadas solicitudes seguidas. Esperá unos minutos e intentá de nuevo."
 
-_limiters = {name: RateLimiter(maximum, window) for name, (maximum, window) in LIMITS.items()}
+_limiters = {name: RateLimiter(maximum, window, name=f"ip:{name}") for name, (maximum, window) in LIMITS.items()}
 
 
 def clientIp(request: Request) -> str:

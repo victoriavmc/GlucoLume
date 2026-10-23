@@ -27,14 +27,14 @@ from app.models.user import User
 from app.services import email as emailService
 from app.services import resultEmailStore
 from app.services.audit import registerEvent
-from app.services.contact import RateLimiter
+from app.services.rateLimiter import RateLimiter
 from app.utils.timeZone import ARGENTINA_TZ, nowForDb
 
 TOKEN_TYPE = "confirmar_correo_resultados"
 VALID_HOURS = 72
 FRONTEND_ROUTE = "/confirmar-correo-resultados"
 # Pedidos de confirmación por operador: evita usar el sistema para enviar correos en masa a direcciones arbitrarias.
-_requests = RateLimiter(10, 60 * 60)
+_requests = RateLimiter(10, 60 * 60, name="correo-resultados:pedidos")
 
 INVALID = "El enlace no es válido o venció. Pedile al operador que te lo envíe de nuevo."
 

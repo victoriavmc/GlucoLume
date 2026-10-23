@@ -63,7 +63,7 @@ from app.services import email as emailService
 from app.services import measurement as measurementService
 from app.services import notifications
 from app.services.audit import registerEvent
-from app.services.contact import RateLimiter
+from app.services.rateLimiter import RateLimiter
 from app.services.measurementProfile import calculateAge
 from app.utils.timeZone import nowForDb
 
@@ -102,7 +102,7 @@ OWN_OTHER_GROUP_MESSAGE = "No podés incorporarte porque ya pertenecés a otro g
 ALREADY_MEMBER_MESSAGE = "Esta persona ya forma parte del grupo."
 PENDING_INVITATION_MESSAGE = "Ya hay una invitación pendiente para esta persona."
 
-_lookupLimiter = RateLimiter(20, 10 * 60)
+_lookupLimiter = RateLimiter(20, 10 * 60, name="grupo:consulta")
 
 
 @dataclass(frozen=True)

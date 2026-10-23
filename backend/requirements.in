@@ -20,3 +20,5 @@ tzdata==2026.5
 Jinja2==3.1.6
 # Puerto serie del Arduino (USB / HC-06): adquisición física
 pyserial==3.5
+# Límites de solicitudes compartidos entre réplicas (H-06): solo se usa si RATE_LIMIT_REDIS_URL está configurada
+redis==8.1.0

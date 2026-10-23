@@ -109,6 +109,16 @@ class Settings(BaseSettings):
     # Sin valor, el formulario responde que el contacto no está disponible.
     CONTACT_EMAIL: str | None = None
 
+    # Límites de solicitudes compartidos entre réplicas (H-06, app/services/rateLimiter.py). Sin RATE_LIMIT_REDIS_URL los contadores viven en la
+    # memoria de cada proceso (exactos con UNA réplica; con varias, el límite efectivo se multiplica). Con ella (redis://… o rediss://… —TLS—;
+    # puede llevar contraseña, por eso es secreta) todas las réplicas cuentan en el mismo Redis. RATE_LIMIT_ON_FAILURE: qué hacer si Redis no
+    # responde — «local» sigue contando en memoria (nunca más débil que sin Redis), «deny» rechaza (más seguro contra abuso, pero una caída de
+    # Redis deja sin acceso a los endpoints protegidos, incluido el inicio de sesión).
+    RATE_LIMIT_REDIS_URL: SecretStr | None = None
+    RATE_LIMIT_ON_FAILURE: Literal["local", "deny"] = "local"
+    RATE_LIMIT_REDIS_TIMEOUT_SECONDS: float = 0.25
+    RATE_LIMIT_REDIS_RETRY_SECONDS: float = 10.0
+
     # Puente serie (acquisition/bridge): token compartido con el servicio que lee el Arduino en el equipo anfitrión
     # (Windows) y envía las lecturas por POST /acquisition/bridge/ingest. Sin valor, la recepción queda deshabilitada.
     BRIDGE_TOKEN: SecretStr | None = None
@@ -171,6 +181,20 @@ class Settings(BaseSettings):
     def validarTokenPuente(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and len(value.get_secret_value()) < 32:
             raise ValueError("El token del puente debe tener al menos 32 caracteres.")
+        return value
+
+    @field_validator("RATE_LIMIT_REDIS_URL")
+    @classmethod
+    def validarUrlDeLimites(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and urlsplit(value.get_secret_value()).scheme not in ("redis", "rediss", "unix"):
+            raise ValueError("RATE_LIMIT_REDIS_URL debe empezar con redis://, rediss:// o unix://.")
+        return value
+
+    @field_validator("RATE_LIMIT_REDIS_TIMEOUT_SECONDS", "RATE_LIMIT_REDIS_RETRY_SECONDS")
+    @classmethod
+    def validarTiemposDeLimites(cls, value: float) -> float:
+        if not 0.05 <= value <= 60:
+            raise ValueError("Los tiempos de RATE_LIMIT_REDIS_* deben estar entre 0,05 y 60 segundos.")
         return value
 
     @field_validator("JWT_SECRET", "JWT_PREVIOUS_SECRET")
@@ -271,6 +295,13 @@ class Settings(BaseSettings):
         if self.BRIDGE_TOKEN is not None and self.BRIDGE_ALLOW_SHARED_TOKEN and self.API_ENV == "production":
             warnings.append("BRIDGE_TOKEN compartido activo: pasá cada puente a su credencial individual (python -m app.cli.bridgeTokens) y "
                             "poné BRIDGE_ALLOW_SHARED_TOKEN=false (H-16).")
+        if self.RATE_LIMIT_REDIS_URL is not None:
+            parts = urlsplit(self.RATE_LIMIT_REDIS_URL.get_secret_value())
+            if self.API_ENV == "production" and parts.scheme == "redis" and parts.hostname not in ("localhost", "127.0.0.1", "::1", None):
+                warnings.append("RATE_LIMIT_REDIS_URL usa redis:// hacia otra máquina: el tráfico (y la contraseña) viajan sin cifrar. "
+                                "Usá rediss:// o una red interna aislada.")
+            if self.RATE_LIMIT_ON_FAILURE == "deny":
+                warnings.append("RATE_LIMIT_ON_FAILURE=deny: si Redis no responde, los endpoints con límite (incluido el inicio de sesión) rechazan todo.")
         if self.JWT_PREVIOUS_SECRET is not None:
             if len(self.jwtVerificationSecrets) > 1:
                 warnings.append("JWT_PREVIOUS_SECRET vigente: la API acepta tokens firmados con dos secretos hasta JWT_PREVIOUS_SECRET_UNTIL. "
