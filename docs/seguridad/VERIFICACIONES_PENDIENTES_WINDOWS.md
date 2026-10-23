@@ -1,104 +1,110 @@
-# Verificaciones pendientes en Windows (remediación del informe del 21/10/2026)
+# Verificaciones de la remediación (informe del 21/10/2026): qué se verificó, dónde y qué sigue pendiente en Windows
 
-Los cambios de la rama `claude/vigilant-shannon-legfop` se desarrollaron en un contenedor Linux sin SQL Server, sin driver ODBC, sin Docker, sin
-PowerShell y sin tu `.env`. Esta lista es lo que **falta ejecutar en tu equipo** antes de dar la remediación por verificada. Marcá cada ítem con la
-fecha y el resultado. Ninguna de estas verificaciones se ejecutó contra una base real, y el informe **no debe clasificarse como aprobado** mientras
-haya ítems sin marcar.
+Actualizado el 23/10/2026 tras la validación integral. La rama `claude/vigilant-shannon-legfop` se desarrolló en un contenedor Linux sin tu `.env`, sin Windows y
+sin la base real. En esa validación **sí hubo** SQL Server 2022 real (Docker), Redis, Nginx, Chromium, PowerShell 7 y un escáner de vulnerabilidades, todos
+**descartables y con datos sintéticos**; los resultados y su evidencia están en [../evidencias/validacion_integral/](../evidencias/validacion_integral/README.md).
+El informe **no debe clasificarse como aprobado**: queda lo de la sección 4, que no puede sustituirse con una simulación.
 
-## 1. Las seis pruebas del backend no confirmadas
+Leyenda de cada fila: **✔ verificado** (entorno, resultado, evidencia) · **☐ pendiente en tu equipo** (solo lo que exige Windows, hardware, credenciales o decisión tuya).
 
-Cinco fallan en Linux **también en el commit original `1d80d84`** (antes de estos cambios) y una se excluyó de la corrida. Desde `backend/`, con el
-`.env`/`tests/test.env` reales de tu equipo y el driver ODBC 18:
+Entorno de la validación: Ubuntu 24.04, Python 3.14, controlador ODBC 18 (18.7.1.1), SQL Server 2022 CU16 (la imagen fijada por el proyecto, con Docker 29.9),
+Redis 7, Nginx 1.24 (sistema) y 1.30.6 (imagen fijada), Chromium 1194 (Playwright), PowerShell 7.6.8 (Linux), Node 22, simavr/avr-gcc.
 
-```powershell
-python -m pytest -q `
-  "tests/test_security_config.py::test_en_produccion_se_verifica_el_certificado_de_sql_server" `
-  "tests/test_patient_access.py::test_la_api_directa_sin_autenticacion_es_rechazada" `
-  "tests/test_reference_schema.py::test_los_indices_de_los_modelos_estan_en_el_esquema_con_el_mismo_filtro" `
-  "tests/test_register_contact.py::test_confirmacion_from_es_la_cuenta_smtp" `
-  "tests/test_register_contact.py::test_mensaje_from_es_la_cuenta_smtp_y_reply_to_el_usuario" `
-  "tests/test_stream_limits.py"
-```
+## 1. Las seis pruebas del backend que estaban sin confirmar
 
-| # | Prueba | Causa probable del fallo en Linux | Resultado en Windows |
-|---|---|---|---|
-| 1 | `test_security_config::test_en_produccion_se_verifica_el_certificado_de_sql_server` | Usa una ruta de Windows (`/certs/sql.crt`) que no existe en Linux | ☐ |
-| 2 | `test_patient_access::test_la_api_directa_sin_autenticacion_es_rechazada` | Sin `libodbc.so.2`, `getDb` no puede crear el motor; con estos cambios se ve como 500 en vez de una excepción | ☐ |
-| 3 | `test_reference_schema::test_los_indices_de_los_modelos_estan_en_el_esquema_con_el_mismo_filtro` | **Era un defecto real, ya corregido:** el esquema `GlucoLume_DB_v5.sql` había perdido sus 31 índices (no solo `IX_AuditoriaContexto_ip`). Se restauraron en esta rama con una prueba de que no se duplica ningún objeto. Debe pasar también en Windows | ☐ |
-| 4 | `test_register_contact::test_confirmacion_from_es_la_cuenta_smtp` | Espera el remitente SMTP del `.env` real; allí se usó uno ficticio | ☐ |
-| 5 | `test_register_contact::test_mensaje_from_es_la_cuenta_smtp_y_reply_to_el_usuario` | Ídem | ☐ |
-| 6 | `test_stream_limits::test_los_streams_no_retienen_conexiones_del_pool[/api/v1/acquisition/telemetry/stream]` | En Linux sin `libodbc.so.2` el motor de base no se puede crear (mismo origen que la #2); con ODBC debería pasar. Confirmarlo | ☐ |
+Corrida completa del backend sobre el último commit, con las pruebas opcionales de SQL Server **activadas** contra una base descartable: **BACKEND_RESULT**
+(frontend: 695/695). Detalle: [resultados/](../evidencias/validacion_integral/resultados/).
 
-Estado en el entorno Linux de desarrollo al cerrar la remediación: las pruebas #1, #2 y #6 siguen fallando solo por la ruta de Windows y la falta de ODBC; la #3 se corrigió; la #4 y la #5 pasan con un `tests/test.env` sintético (dependen del `.env` local, que no se versiona).
+| # | Prueba | Antes | Ahora (Linux, con ODBC y SQL Server descartable) | En Windows |
+|---|---|---|---|---|
+| 1 | `test_security_config::test_en_produccion_se_verifica_el_certificado_de_sql_server` | Fallaba: ruta `/certs/sql.crt` y rama de Linux | ✔ **Corregida** (la prueba fija la rama de Windows; la de Linux tiene la suya) y pasa | ☐ confirmar |
+| 2 | `test_patient_access::test_la_api_directa_sin_autenticacion_es_rechazada` | Fallaba: sin `libodbc.so.2` | ✔ **Pasa** con el controlador ODBC 18 instalado (era una limitación del entorno) | ☐ confirmar |
+| 3 | `test_reference_schema::test_los_indices_de_los_modelos_estan_en_el_esquema_con_el_mismo_filtro` | Fallaba | ✔ **Defecto real, corregido**: v5 había perdido sus 31 índices. Además v5 carga en SQL Server 2022 real y los índices existen (33 `IX_*`/`UX_*`) | ☐ confirmar |
+| 4 | `test_register_contact::test_confirmacion_from_es_la_cuenta_smtp` | Fallaba | ✔ Pasa con un `tests/test.env` sintético; **depende de tu `.env` local** (no versionado) | ☐ confirmar con tu `.env` |
+| 5 | `test_register_contact::test_mensaje_from_es_la_cuenta_smtp_y_reply_to_el_usuario` | Fallaba | ✔ Ídem | ☐ confirmar con tu `.env` |
+| 6 | `test_stream_limits::test_los_streams_no_retienen_conexiones_del_pool[…/telemetry/stream]` | Fallaba | ✔ **Pasa** (necesitaba el motor de base: ODBC) | ☐ confirmar |
 
-Además, corré la suite completa (`python -m pytest`) y confirmá que las ~35 pruebas omitidas de SQL Server (opcionales) se ejecutan o se justifican.
-Si alguna de las seis falla en Windows, no es un problema del entorno: hay que revisarla antes de fusionar.
+Las tres filas «confirmar con tu `.env`» y las de Windows son una repetición barata (`python -m pytest -q` con el ODBC de Windows); ya no esconden fallas conocidas.
 
-## 2. Respaldos (H-01) — `database/respaldos/GlucoLume_respaldo.ps1`
+## 2. Respaldos (H-01) — `database/respaldos/*.ps1`
 
-El script con `-CopiaExterna` **no se ejecutó nunca** (no hay PowerShell en el entorno de desarrollo). Probalo primero sobre una copia, no sobre la
-base real:
+**✔ Verificado** con **PowerShell 7.6.8 en Linux** ejecutando los scripts reales **sin modificarlos** contra un SQL Server 2022 real (Docker) con la base v5 y datos
+sintéticos: [powershell_respaldos.log](../evidencias/validacion_integral/resultados/powershell_respaldos.log) (**33/33**). Script: `docs/evidencias/validacion_integral/powershell_respaldos.sh`.
 
-1. ☐ Ejecutarlo con `-CopiaExterna` apuntando a un disco o carpeta de prueba y verificar: respaldo local creado, copia externa creada, líneas
-   `Copia externa verificada` en `respaldo.log` y código de salida 0.
-2. ☐ Forzar un fallo de la copia (destino inexistente): debe quedar el respaldo local, aplicarse la retención local y salir con código 2.
-3. ☐ Ejecutarlo **sin** `-CopiaExterna`: debe registrar el aviso de regla 3-2-1 incompleta y salir con 0.
-4. ☐ Restaurar desde la copia externa con `GlucoLume_prueba_restauracion.ps1 -Archivo <ruta de la copia>`.
-5. ☐ Revisar la sintaxis del script (`powershell -NoProfile -Command "[scriptblock]::Create((Get-Content -Raw .\GlucoLume_respaldo.ps1)) | Out-Null"`).
-6. ☐ Decidir el destino definitivo, actualizar la tarea programada y guardar la frase de cifrado fuera del equipo (acciones tuyas).
+| Ítem original | Resultado verificado |
+|---|---|
+| 1. `-CopiaExterna` | ✔ salida 0; respaldo local cifrado (OpenPGP AES-256) y **sin `.bak` en claro**; la copia externa es idéntica (SHA-256); `respaldo.log` dice «Copia externa verificada»; el contenido no es legible en el archivo cifrado |
+| 2. Falla de la copia | ✔ destino inexistente: el respaldo local queda hecho, se aplica la retención y **sale con código 2**; el error queda en el log |
+| 3. Sin `-CopiaExterna` | ✔ salida 0 y aviso de la regla 3-2-1 incompleta |
+| 4. Restauración desde la copia | ✔ `GlucoLume_prueba_restauracion.ps1` descifra, restaura en un SQL Server descartable (34 tablas) y `schemaCheck` informa «Sin diferencias»; no deja contenedor ni `.bak` descifrado; un respaldo corrupto falla con código 1 |
+| 5. Sintaxis | ✔ los tres scripts compilan como `scriptblock` |
+| Retención | ✔ conserva los diarios recientes y uno por mes dentro de 12 meses, borra el segundo del mes y lo más viejo, **nunca el último** y no toca archivos ajenos o fuera del patrón |
+| 6. Destino definitivo, tarea programada, frase fuera del equipo | ☐ **acción tuya** |
+
+☐ **Sigue pendiente en Windows (no sustituible):** PowerShell en Linux no tiene DPAPI (la «protección» de la clave es solo texto codificado y
+`[Marshal]::PtrToStringAuto` lee la frase truncada), por lo que **no se validó** la protección de la clave por cuenta de Windows, `sqlcmd.exe -E`, la ruta
+`C:\Program Files\Git\usr\bin\gpg.exe`, ni el Programador de tareas. Repetir en Windows los ítems 1–4 con una base y un destino de prueba, y comprobar con
+`-Mostrar` que la frase se recupera íntegra.
 
 ## 3. Configuración de Nginx (H-14) — `docker/nginx/default.conf.template`
 
-Solo hay una prueba de texto; el archivo **no se cargó en un Nginx real**.
+**✔ Verificado con Nginx real**, de dos formas: el nginx del sistema (1.24, plantilla procesada con `envsubst`) y la **imagen fijada por digest** `nginx-unprivileged:1.30-alpine-slim`
+(1.30.6) con la plantilla real, ambas delante de la API sintética: [nginx_sistema_1.24.log](../evidencias/validacion_integral/resultados/nginx_sistema_1.24.log) (20/20) y
+[nginx_imagen_1.30.6.log](../evidencias/validacion_integral/resultados/nginx_imagen_1.30.6.log) (**23/23**).
 
-1. ☐ Levantar el frontend con Docker y verificar que Nginx arranca: `docker compose up -d frontend` y `docker compose logs frontend` sin errores de
-   configuración (`log_format sin_query` y `access_log /dev/stdout sin_query`).
-2. ☐ Abrir un enlace con token (p. ej. `/verificar-correo?token=PRUEBA123`) y confirmar en `docker compose logs frontend` que la línea muestra la ruta
-   **sin** `?token=...`.
-3. ☐ Confirmar que los logs siguen siendo útiles (IP real, método, ruta, estado, `rid=`).
+| Ítem original | Resultado |
+|---|---|
+| 1. Nginx arranca sin errores de configuración | ✔ `nginx -t` correcto dentro de la imagen; contenedor `healthy` (HEALTHCHECK de la imagen); proceso con uid 101 (sin privilegios) |
+| 2. Enlaces con token | ✔ `/verificar-correo?token=…`, `/restablecer?token=…` y `/api/v1/auth/verify-email?token=…` no dejan ningún token en el log. **Se encontró y corrigió un defecto**: las rutas de la SPA salían como `/index.html` (`$uri` reescrita por `try_files`); ahora se registra la ruta original sin query |
+| 3. Logs útiles | ✔ IP real, método, ruta, estado y `rid=` |
+| Extra | ✔ CSP estricta (`style-src 'self'`, sin `unsafe-inline`), HSTS solo con proxy de confianza, `X-Forwarded-For` no falsificable desde un cliente no confiable, `server_tokens off`, 429 de Nginx en `/api/v1/auth/` (160 de 220 en una ráfaga), la cookie `HttpOnly` y los encabezados anti-CSRF atraviesan el proxy |
+
+☐ **Pendiente:** el Nginx de **tu** `compose.yaml` con el perfil `https` (Caddy), el dominio y el certificado reales, y confirmar que `FRONTEND_TRUSTED_PROXY_CIDR` coincide con la red de tu proxy.
 
 ## 4. Build de producción del frontend (H-15, H-17)
 
-Las pruebas del frontend (685/685) pasan con React 19.1.10, pero **`vite build` no terminó** en el entorno de desarrollo.
+| Ítem original | Resultado |
+|---|---|
+| 1. `npm ci && npm test` | ✔ `npm test` **695/695** (52 archivos) sobre el último commit. `npm ci` dentro de Docker falló en el entorno (npm termina con «Exit handler never called» tras el proxy de salida); en el host se usó el `node_modules` existente |
+| 2. `npm run build` con `VITE_API_BASE_URL` | ✔ **Termina sin errores** (4–6 min en el entorno; antes no terminaba dentro del límite de tiempo); con `VITE_API_BASE_URL=/` (mismo origen) y con una URL absoluta |
+| 3. Imagen y navegador | ✔ imagen de runtime armada con la base fijada + plantilla + el build de producción: 0 vulnerabilidades, 0 secretos (Trivy); en **Chromium real** el build detrás de ese Nginx carga `/`, `/login`, `/registro` y rutas inexistentes con **0 violaciones de CSP**; `ErrorBoundary` cubierto por su prueba (Vitest) |
+| 4. `npm audit` / escaneo | ✔ `npm audit` 0 (producción y desarrollo); Trivy sobre `package-lock.json` 0 |
 
-1. ☐ `cd frontend && npm ci && npm test` (esperado 685/685).
-2. ☐ `npm run build` con `VITE_API_BASE_URL` definido; debe terminar sin errores.
-3. ☐ Construir y levantar la imagen (`docker compose build frontend`) y comprobar en el navegador: la CSP no bloquea la pantalla de error
-   (`ErrorBoundary`), que se puede provocar temporalmente lanzando un error en un componente.
-4. ☐ `npm audit` / escaneo de la imagen tras la actualización de React.
+☐ **Pendiente:** `docker compose build frontend` **completo** en tu equipo (en el entorno de desarrollo `apk upgrade` necesita `dl-cdn.alpinelinux.org`, bloqueado, y `npm ci` falla dentro del contenedor tras el proxy de salida; la etapa de runtime se validó
+con la misma base y plantilla, y el build se hizo en el host). Provocar el `ErrorBoundary` en el navegador es opcional.
 
 ## 5. Imagen del backend y arranque (H-07, H-15, H-11)
 
-1. ☐ `docker compose build backend`: la imagen define `GLUCOLUME_RUNTIME=container`.
-2. ☐ Con `.env` **sin** `API_ENV` (o vacío), el backend debe negarse a arrancar con el mensaje "API_ENV debe definirse explícitamente". Con
-   `API_ENV=development` (desarrollo) o `compose.prod.yaml` (producción) debe arrancar.
-3. ☐ Actualizar tu `.env`: `.env.example` ahora trae `API_ENV=development`; una línea `API_ENV=` vacía deja de funcionar dentro de Docker.
-4. ☐ Con un usuario real, navegar la aplicación y comprobar que el límite de 1800 pedidos por minuto por IP no molesta a un uso normal.
+| Ítem original | Resultado |
+|---|---|
+| 1. `docker compose build backend` | ☐ **No se pudo construir en el entorno**: `apt-get` hacia `deb.debian.org` está bloqueado (probado). Sí: el lock se instala con `--require-hashes` en Python 3.14 y `pip-audit` queda sin hallazgos; Trivy sobre la imagen base; los `compose*.yaml` son válidos (4 combinaciones) |
+| 2. Sin `API_ENV` el backend no arranca | ✔ prueba automatizada (`test_security_config.py`); ☐ confirmarlo dentro de la imagen |
+| 3. Tu `.env` | ☐ **acción tuya** (`API_ENV` explícito) |
+| 4. Límite de 1800/min por IP con uso normal | ✔ prueba automatizada del límite; ☐ uso real |
 
-## 6. Verificaciones nuevas de esta ampliación (H-02, H-04, H-05, H-06, H-08, H-09, H-10, H-16)
+## 6. Verificaciones nuevas (H-02, H-04, H-05, H-06, H-08, H-09, H-10, H-16)
 
-Todo lo siguiente se implementó y probó con datos sintéticos; **nada se aplicó a una base, Redis, placa ni despliegue reales**. Hacerlo en este orden:
+| Hallazgo | Verificado (entorno · resultado · evidencia) | ☐ Pendiente en tu entorno |
+|---|---|---|
+| **H-02** permisos | ✔ SQL Server 2022 real: antes la API puede borrar `Institucion` y `Auditoria`; después solo las 14 tablas necesarias, `Auditoria`/`AuditoriaContexto` sin UPDATE/DELETE aunque conserve `db_datawriter`, roles fijos quitados y restaurados, idempotencia, reversión completa, ningún dato borrado; la API **no puede** CREATE/ALTER; la cuenta de conservación sí depura auditoría. **76/76** ([sqlserver_h02_h16.log](../evidencias/validacion_integral/resultados/sqlserver_h02_h16.log)) · y la API real con esas cuentas: registro, verificación, login, MFA, refresh, reutilización, baja de cuenta (DELETE por tabla), Google simulado: **51/51**, sin ningún error de permisos ([app_sqlserver_permisos_minimos.log](../evidencias/validacion_integral/resultados/app_sqlserver_permisos_minimos.log)) | Aplicar los scripts a una **copia restaurada de tu base real** (SQL Server 2025 Express) y recorrer tus flujos de instituciones, pacientes, transferencias y dispositivos; no se inspeccionó la cuenta `glucolume_app` real |
+| **H-16** puentes | ✔ misma base: tabla `PuenteCredencial`; migración idempotente sobre una base «anterior» y estructura idéntica a v5; CLI `bridgeTokens` crear/rotar/revocar/listar con la cuenta de conservación; la API autentica, limita al dispositivo (403), anota `fechaUltimoUso` con el GRANT de columna y rechaza el token revocado de inmediato; todo auditado | Aplicar la migración a tu base; crear las credenciales reales y poner `BRIDGE_ALLOW_SHARED_TOKEN=false` cuando todos los puentes las usen |
+| **H-04** retención | ✔ `retention previsualizar`, `retention ejecutar` con cantidad que no coincide (no borra) y `purgeInstitutionalRetention --simular` contra SQL Server real con la cuenta de conservación: sin aprobación el plazo efectivo es 0; **ningún dato se eliminó**; pruebas automatizadas de conservación, anonimización y errores parciales | La **decisión legal** de los plazos y su referencia (`RETENTION_APPROVAL_REFERENCE`); no se ejecutó ni programó ninguna purga |
+| **H-06** Redis | ✔ **dos procesos reales de la API** + Redis 7 (Docker, con contraseña): sin Redis el límite se duplica (120 intentos), con Redis es único (60); una instancia ve el bloqueo de la otra; las claves no contienen IP ni identificadores; caída con política `local` (sigue respondiendo y limitando en memoria) y `deny` (rechaza) y recuperación. **12/12** ([redis_multi_instancia.log](../evidencias/validacion_integral/resultados/redis_multi_instancia.log)) | Un Redis protegido de verdad (contraseña, TLS o red interna sin puerto publicado) y decidir `RATE_LIMIT_ON_FAILURE` |
+| **H-08** rotación | ✔ pruebas automatizadas (rotación, expiración de la ventana, revocación, configuraciones inválidas); procedimiento en SEGURIDAD §5.1 | Ensayar la rotación **real** y la reversión; rotar DB, SMTP y Google a mano |
+| **H-09** cookie | ✔ **Chromium real**: dev (24/24) y **build de producción detrás de la plantilla real de Nginx** (24/24): cookie `HttpOnly`/`SameSite=Strict`/`Path`, persistente solo con «Recordarme», sin refresh token en `document.cookie` ni en Web Storage, rotación al recargar, cierre de sesión que la borra, `fetch` y formulario de otro sitio rechazados · API real contra SQL Server: login, MFA, refresh, reutilización → revocación, Google simulado (canje y `session-transfer`), logout | HTTPS real (atributo `Secure` en el navegador; en las pruebas lo cubre un test HTTP), Google real y MFA en el navegador, el flujo `VITE_LOGIN_ORIGIN`, y decidir `REFRESH_TOKEN_IN_BODY=false` |
+| **H-05** firmware | ✔ ambos sketches **compilan** con el núcleo oficial (original 60 % de flash / **84 % de RAM**; optimizado 71 % / 50 %); el código de firma compilado corre en un ATmega328P **simulado** (simavr) y el verificador del puente acepta cada línea (5 líneas, contadores) | **Placa real + HC-06**: carga del sketch completo, tiempos, EEPROM, provisión de la clave por USB, cambio físico del PIN y la decisión sobre la confidencialidad del enlace. **Sigue abierto** |
+| **H-10** zlib | ✔ evidencia refrescada: ni la imagen fijada ni la más nueva (3.14.9) traen una `zlib1g` distinta; **Trivy** la clasifica MEDIUM y sin corrección publicada ([ESCANEO_TRIVY](../evidencias/validacion_integral/resultados/ESCANEO_TRIVY_2026-10-23.md)); base de Nginx limpia | Reconstruir con `--pull --build-arg ZLIB_MIN_VERSION=<versión>` cuando Debian publique la corrección. **Sigue abierto** (no se cambió ninguna imagen) |
 
-1. ☐ **H-02 (permisos SQL):** sobre una **copia restaurada** de la base (nunca primero sobre la real): `GlucoLume_permisos.sql`, `GlucoLume_permisos_quitar_roles_fijos.sql`,
-   `GlucoLume_permisos_verificar.sql`; usar la aplicación (login, mediciones, instituciones, baja de cuenta) y buscar errores 229 en el log. Probar también
-   `GlucoLume_permisos_restaurar_roles_fijos.sql`. El T-SQL no pudo compilarse en el entorno (sin SQL Server).
-2. ☐ **H-16 (puentes):** aplicar `GlucoLume_agregar_puente_credencial.sql` a la copia; `python -m app.cli.bridgeTokens` (crear, listar, rotar, revocar); conectar un puente
-   con su credencial; luego `BRIDGE_ALLOW_SHARED_TOKEN=false` y confirmar que el token compartido se rechaza.
-3. ☐ **H-04 (retención):** `python -m app.jobs.retention previsualizar` y `purgeInstitutionalRetention --simular` sobre la copia. No definir `RETENTION_APPROVAL_REFERENCE`
-   ni plazos hasta tener el dictamen legal; no programar ninguna purga.
-4. ☐ **H-08 (secretos):** ensayar el procedimiento de SEGURIDAD §5.1 («Rotación de secretos») en un entorno de prueba, incluida la reversión.
-5. ☐ **H-06 (Redis):** con un Redis descartable (contraseña, sin puerto publicado) y `RATE_LIMIT_REDIS_URL`, dos réplicas del backend comparten el límite de `/auth/login`.
-6. ☐ **H-09 (cookie):** con el build de producción detrás de Nginx/Caddy por HTTPS: iniciar sesión (local, Google, con MFA, con y sin «Recordarme»), recargar, esperar la
-   rotación y cerrar sesión; en las herramientas del navegador confirmar `HttpOnly`, `Secure`, `SameSite=Strict` y que `localStorage`/`sessionStorage` no contienen el
-   refresh token. Probar el flujo `VITE_LOGIN_ORIGIN` si lo usás. Cuando no queden puentes ni scripts heredados: `REFRESH_TOKEN_IN_BODY=false`.
-7. ☐ **H-05 (firma de líneas):** compilar y cargar `GlucoLume_MAX30100_optimizado` en la placa real, provisionar la clave por USB (`bridge_ctl.py genkey`), medir con el HC-06,
-   cambiar el PIN del módulo (acción física) y decidir sobre la confidencialidad del enlace. Sigue **abierto**.
-8. ☐ **H-10 (zlib):** repetir `python docker/tools/baseImageVersions.py` y reconstruir con `--build-arg ZLIB_MIN_VERSION=<versión corregida>` cuando Debian la publique. Sigue **abierto**.
+## 7. Qué NO puede sustituirse con una simulación
 
-## 7. Qué NO se hizo (y no debe hacerse sin tu decisión)
+- **Windows:** DPAPI, cuenta de Windows, `sqlcmd.exe -E`, Programador de tareas, rutas `C:\`, Git for Windows (`gpg.exe`), BitLocker y el SQL Server Express real.
+- **Hardware:** la placa Arduino, el sensor MAX30100, el HC-06 y su PIN; el enlace Bluetooth en el aire.
+- **Credenciales y servicios reales:** Google OAuth real, SMTP real, rotación de secretos de producción, dominio y certificado HTTPS.
+- **Decisión legal:** plazos de conservación (H-04).
+- **Infraestructura (H-03):** cifrado en reposo; **no se tocó**.
 
-- No se aplicaron migraciones ni permisos sobre ninguna base real (H-02: `GlucoLume_permisos.sql` y la tabla de H-16 siguen pendientes).
-- No se ejecutó ni se programó `purgeInstitutionalRetention` ni ninguna purga (H-04).
-- No se tocaron credenciales ni se rotaron secretos reales (H-08: solo código y procedimiento).
-- No se desplegó nada.
-- No se aceptó ningún riesgo de seguridad en tu nombre. H-03 no se tocó (pendiente de infraestructura). H-05 y H-10 siguen abiertos; H-06 y H-09 quedan implementados pero sin validar en tu entorno.
+## 8. Qué NO se hizo (y no debe hacerse sin tu decisión)
+
+- No se accedió a ninguna base, Redis, SMTP, Google ni credencial reales; todo lo anterior usó contenedores y procesos descartables con datos sintéticos.
+- No se ejecutó ni programó `purgeInstitutionalRetention` ni ninguna purga destructiva; la retención se verificó solo por simulación.
+- No se rotó ningún secreto real y no se desplegó nada. No se implementó H-03. No se fusionó el PR. **No se aceptó ningún riesgo residual en tu nombre.**

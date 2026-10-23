@@ -3,6 +3,19 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 23/10/2026 — Validación integral de la remediación (entorno descartable)
+
+Evidencia y scripts: [evidencias/validacion_integral](evidencias/validacion_integral/README.md). Matriz por hallazgo: [SEGURIDAD.md](SEGURIDAD.md) §2.0.2. Pendiente en Windows: [seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md](seguridad/VERIFICACIONES_PENDIENTES_WINDOWS.md).
+
+- **Qué se hizo:** con Docker, SQL Server 2022 (imagen fijada), Redis 7, Nginx (sistema e imagen fijada), Chromium, PowerShell 7 en Linux, simavr y Trivy, todo **descartable y con datos sintéticos**, se
+  validaron H-02/H-16 contra SQL Server real (76/76 y, con la API real y las cuentas restringidas, 51/51), H-06 con dos procesos de la API y Redis real (12/12), H-09 en Chromium con el build de producción
+  detrás de la plantilla real de Nginx (24/24), H-14 con Nginx real (20/20 y 23/23), H-01 con los `.ps1` reales (33/33), H-04 por simulación y la concurrencia del ciclo de vida de cuentas en SQL Server (120/120).
+- **Defectos reales encontrados y corregidos (un commit cada uno):** (1) H-14: las rutas de la SPA se registraban como `/index.html` en el log de Nginx; ahora la ruta original sin query; (2) `opentelemetry-api`
+  1.45.0 → 1.45.1 (CVE-2026-114603, transitiva de FastAPI) con `pip-audit` y Trivy sin hallazgos; (3) la prueba del certificado de SQL Server dependía del sistema operativo.
+- **Resuelto como limitación del entorno:** las pruebas que fallaban sin `libodbc` (instalado el ODBC 18) pasan; las cuatro que dependían de `tests/test.env`/`.env` pasan con el sintético.
+- **Sigue abierto, sin aceptar:** H-05 (confidencialidad, PIN, placa real), H-10 (zlib y 44 HIGH del sistema base sin corrección publicada, ver Trivy) y H-03 (no tocado).
+- **No se pudo:** construir la imagen del backend (`deb.debian.org` bloqueado) ni `npm ci`/`apk upgrade` dentro de Docker; validar nada específico de Windows (DPAPI, Programador de tareas) ni de la placa.
+
 ## 23/10/2026 — Remediación del informe de auditoría del 21/10 (H-01 a H-17)
 
 Estado completo por hallazgo en [SEGURIDAD.md](SEGURIDAD.md) §2.0.1. Un commit por hallazgo.
