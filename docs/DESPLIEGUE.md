@@ -144,7 +144,7 @@ Salud: backend `GET /healthz` (no consulta la base, para no reiniciar en bucle s
 ## 6. Imágenes y dependencias
 
 Escaneo con Docker Scout del 10/10/2026: tras las correcciones, 0 críticas en las cuatro imágenes (backend 0/1, frontend 0/0,
-firmware-build 0/1, mssql 0/0). Alta aceptada: `zlib` CVE-2026-85091 en backend y firmware (sin parche en Debian). Línea base anterior:
+firmware-build 0/1, mssql 0/0). Alta abierta: `zlib` CVE-2026-85091 en backend y firmware (sin parche en Debian al 23/10/2026: [evidencias/CVE_ZLIB_2026-10-23.md](evidencias/CVE_ZLIB_2026-10-23.md)). Línea base anterior:
 [evidencias/CVE_LINEA_BASE_2026-10-10.md](evidencias/CVE_LINEA_BASE_2026-10-10.md).
 
 Mantenimiento: reconstruir con `--pull` al menos una vez por mes y antes de cada despliegue; escanear la imagen etiquetada que se despliega;

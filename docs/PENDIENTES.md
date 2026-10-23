@@ -17,7 +17,7 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 | P2 | Evaluar refresh token en cookie `HttpOnly` (impacto en CORS, CSRF y orígenes de login) | H-09 |
 | P3 | Mejoras para una instalación productiva (no requeridas para el prototipo local): certificado de servidor en SQL Server con `DB_SERVER_CERTIFICATE`, BitLocker y copia de la clave de respaldos fuera del equipo (SEGURIDAD §5.1 pasos 4 y 5) | GL-07 |
 | P3 | Antes de una instalación productiva: rotar `JWT_SECRET`, `SESSION_SECRET`, `BRIDGE_TOKEN` y credenciales de base y SMTP; no compartir la carpeta con los `.env` | GL-20 |
-| P3 | Reconstruir la imagen del backend cuando Debian publique la corrección de `zlib` (1 vulnerabilidad alta sin parche); repetir los escaneos antes de publicar | GL-13 |
+| P3 | H-10 / GL-13: confirmar en el rastreador de Debian cuándo se corrige `zlib` (CVE-2026-85091), reconstruir con `--pull --build-arg ZLIB_MIN_VERSION=<versión>` y repetir el escaneo; `python docker/tools/baseImageVersions.py` muestra qué versión trae la imagen base | H-10, GL-13 |
 | P3 | Token por puente (hoy uno compartido, con rotación): requiere una tabla nueva | GL-11 |
 | P3 | Plazo de conservación total de la auditoría aprobado con asesoría legal (propuesta 24–36 meses) | GL-16 |
 | P3 | Redis para límites y monitor si hay más de una réplica; WAF delante de Nginx; MFA obligatoria para propietarios (decisión funcional y de costos) | GL-15, auditoría 18/10 |

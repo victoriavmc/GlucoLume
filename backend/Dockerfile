@@ -42,6 +42,15 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove curl gnupg \
     && rm -rf /var/lib/apt/lists/*
 
+# Guarda opcional de zlib (H-10): sin ARG no hace nada. Cuando Debian publique la corrección de la CVE de zlib1g, construir con
+# --build-arg ZLIB_MIN_VERSION=<versión que la corrige> hace FALLAR el build si el apt-get upgrade de arriba no la trajo (la CVE no se da por
+# resuelta por reconstruir: se comprueba la versión instalada). Ver docs/evidencias/CVE_ZLIB_2026-10-23.md.
+ARG ZLIB_MIN_VERSION=
+RUN if [ -n "$ZLIB_MIN_VERSION" ]; then \
+        dpkg --compare-versions "$(dpkg-query -W -f='${Version}' zlib1g)" ge "$ZLIB_MIN_VERSION" \
+        || { echo "zlib1g instalada ($(dpkg-query -W -f='${Version}' zlib1g)) es anterior a $ZLIB_MIN_VERSION" >&2; exit 1; }; \
+    fi
+
 COPY --from=builder /opt/venv /opt/venv
 # pip, setuptools y wheel no hacen falta para ejecutar la API (y traen librerías internas con CVE): se quitan.
 RUN rm -rf /opt/venv/lib/python*/site-packages/pip* /opt/venv/bin/pip* \
