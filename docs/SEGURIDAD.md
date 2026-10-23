@@ -215,6 +215,8 @@ exigen los índices filtrados). Respaldo previo verificado:
    `DB_TRUST_SERVER_CERTIFICATE=false`. Reversión: volver a `DB_TRUST_SERVER_CERTIFICATE=true` y quitar el certificado en el Administrador.
 5. *(Mejora productiva)* **BitLocker**, como administrador: `manage-bde -on C: -RecoveryPassword` (guardar la clave de recuperación fuera del equipo). Y guardar la
    clave de los respaldos: `powershell -File database\respaldos\GlucoLume_clave_respaldo.ps1 -Mostrar` → gestor de contraseñas.
+   Y la copia externa de los respaldos (H-01): agregar `-CopiaExterna <destino>` a la tarea «GlucoLume - Respaldo diario cifrado»; detalle y prueba trimestral en
+   [BASE_DE_DATOS.md](BASE_DE_DATOS.md).
 - **Base cifrada con TDE (solo Standard o superior).** `sqlcmd ... -i database/reference/GlucoLume_cifrado_y_respaldo.sql -v BASE=... DIR_RESPALDO=...
   CLAVE_CERTIFICADOS=... CONFIRMAR=CIFRAR_Y_RESPALDAR_GLUCOLUME` (primero en una copia); guardar fuera del servidor los certificados exportados y
   su contraseña; certificado de SQL Server confiable para el host (`DB_TRUST_SERVER_CERTIFICATE` sin definir).

@@ -141,6 +141,14 @@ verificado y restauración de prueba sin diferencias. Tareas programadas «Gluco
 Prueba de restauracion» (cada 4 semanas); corren con la sesión de la cuenta iniciada (DPAPI). Falta: BitLocker y la copia de la clave
 fuera del equipo (SEGURIDAD §5.1).
 
+**Copia fuera del equipo (H-01, regla 3-2-1):** `GlucoLume_respaldo.ps1 -CopiaExterna <destino>` copia cada respaldo cifrado a otro disco o recurso de
+red y verifica su SHA-256 en el destino; es una copia (no un espejo): no borra nada allí, así un equipo comprometido no puede vaciarla. Si solo
+falla la copia, el respaldo local queda hecho y el script sale con código 2. Sin `-CopiaExterna` el registro lo deja asentado. La frase de cifrado
+**no** viaja con los respaldos: se guarda aparte (gestor de contraseñas o sobre cerrado) con `GlucoLume_clave_respaldo.ps1 -Mostrar`. Cada tres
+meses se prueba la restauración **desde la copia externa**: `GlucoLume_prueba_restauracion.ps1 -Archivo <ruta de la copia>`. El destino debería
+conservar versiones inmutables (almacenamiento con bloqueo de objetos o disco rotado fuera del equipo). Pendiente de la persona que administra el
+servidor: elegir el destino, agregar `-CopiaExterna` a la tarea «GlucoLume - Respaldo diario cifrado» y guardar la frase.
+
 **Instancia instalada (19/10/2026, metadatos):** SQL Server 2025 **Express** 17.0 RTM, modelo de recuperación `SIMPLE`, base sin TDE,
 2 respaldos completos registrados (el último del 18/10/2026), ninguno cifrado, ningún certificado de usuario en `master`. Express no admite
 TDE, respaldos cifrados ni comprimidos y no tiene SQL Agent. Para esta edición:
