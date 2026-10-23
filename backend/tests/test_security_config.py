@@ -301,3 +301,45 @@ def test_el_hmac_de_identificadores_de_auditoria_usa_una_clave_derivada():
     assert new == hashIdentifier("alguien@example.com") and new != old and len(new) == len(old) == 32
     expected = hmacModule.new(security.derivedKey("auditoria-identificador"), b"alguien@example.com", hashlib.sha256).hexdigest()[:32]
     assert new == expected
+
+
+def test_rotacion_de_jwt_secret_acepta_tokens_del_secreto_anterior_hasta_que_se_quita(monkeypatch):
+    # H-08: con JWT_PREVIOUS_SECRET los tokens firmados con el secreto anterior siguen valiendo; se firma solo con el vigente.
+    import uuid
+    from datetime import timedelta
+
+    import jwt
+
+    old, new = "a" * 40, "b" * 40
+    claims = {"sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()), "typ": security.TOKEN_TYPE_ACCESS}
+
+    def configure(**values):
+        for name in ("JWT_SECRET", "JWT_PREVIOUS_SECRET"):
+            monkeypatch.delenv(name, raising=False)
+        for name, value in values.items():
+            monkeypatch.setenv(name, value)
+        getSettings.cache_clear()
+
+    try:
+        configure(JWT_SECRET=old)
+        token = security._encodeJwt(claims, timedelta(minutes=5))
+        expired = security._encodeJwt(claims, timedelta(minutes=-5))
+        configure(JWT_SECRET=new)
+        with pytest.raises(jwt.InvalidSignatureError):  # rotado sin ventana: el token anterior deja de valer
+            security.decodeAccessToken(token)
+        configure(JWT_SECRET=new, JWT_PREVIOUS_SECRET=old)
+        assert security.decodeAccessToken(token)["sub"] == claims["sub"]
+        assert security.decodeAccessToken(security._encodeJwt(claims, timedelta(minutes=5)))["sid"] == claims["sid"]
+        assert jwt.decode(security._encodeJwt(claims, timedelta(minutes=5)), new, algorithms=["HS256"], audience=security.JWT_AUDIENCE)  # firma el nuevo
+        with pytest.raises(jwt.ExpiredSignatureError):  # la ventana no revive tokens vencidos
+            security.decodeAccessToken(expired)
+        with pytest.raises(jwt.InvalidSignatureError):  # ni acepta un tercer secreto
+            security.decodeAccessToken(jwt.encode({**jwt.decode(token, old, algorithms=["HS256"], audience=security.JWT_AUDIENCE), "typ": "access"}, "c" * 40, algorithm="HS256"))
+        assert any("JWT_PREVIOUS_SECRET" in w for w in getSettings().securityWarnings())
+        with pytest.raises(ValidationError):
+            Settings(**BASE, JWT_PREVIOUS_SECRET="corto")
+        with pytest.raises(ValidationError):
+            Settings(**BASE, JWT_PREVIOUS_SECRET=BASE["JWT_SECRET"], API_ENV="production")
+    finally:
+        monkeypatch.undo()
+        getSettings.cache_clear()

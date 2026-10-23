@@ -219,8 +219,19 @@ exigen los índices filtrados). Respaldo previo verificado:
   CLAVE_CERTIFICADOS=... CONFIRMAR=CIFRAR_Y_RESPALDAR_GLUCOLUME` (primero en una copia); guardar fuera del servidor los certificados exportados y
   su contraseña; certificado de SQL Server confiable para el host (`DB_TRUST_SERVER_CERTIFICATE` sin definir).
 - **Base instalada (GL-05).** `python -m app.cli.schemaCheck` (solo lectura) después de cualquier cambio de esquema o restauración.
-- **Rotación de secretos (GL-20)**, en una ventana acordada: generar en el servidor `JWT_SECRET`, `SESSION_SECRET` y `BRIDGE_TOKEN` nuevos
-  (`BRIDGE_PREVIOUS_TOKEN` durante el cambio del puente); cambiar las credenciales de base y SMTP. Cambiar `JWT_SECRET` cierra todas las sesiones.
+- **Rotación de secretos (GL-20, H-08)**, cada seis meses o ante cualquier sospecha de filtración, en una ventana acordada. Generar los valores nuevos
+  en el servidor con `python -c "import secrets; print(secrets.token_urlsafe(64))"` y recrear `backend` (y `lifecycle`) después de cada paso:
+  1. `JWT_SECRET`: pasar el valor vigente a `JWT_PREVIOUS_SECRET` y poner el nuevo en `JWT_SECRET`. La API firma con el nuevo y sigue aceptando los
+     tokens ya emitidos con el anterior, así que **no se cierran las sesiones**. Quitar `JWT_PREVIOUS_SECRET` pasados **7 días** (el refresh es opaco y
+     vive en la base; los tokens firmados más largos son los enlaces de correo, de hasta 30 días: los de baja de avisos). Al arrancar, la API advierte
+     mientras `JWT_PREVIOUS_SECRET` siga definido. Efecto colateral: las claves derivadas de `JWT_SECRET` (HMAC de códigos cortos, vigentes minutos, y de
+     identificadores de auditoría) cambian; los códigos emitidos antes de la rotación hay que pedirlos de nuevo y la búsqueda por identificador en la
+     auditoría deja de encontrar las huellas anteriores (acotadas por `AUDIT_CONTEXT_RETENTION_DAYS`).
+  2. `BRIDGE_TOKEN`: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN`, se actualiza el del puente y se quita el anterior en cuanto el puente use el nuevo (máximo 24 h).
+  3. `SESSION_SECRET` (solo invalida un inicio de sesión con Google en curso) y `GOOGLE_CLIENT_SECRET` (se rota también en Google Cloud): cambio directo.
+  4. `DB_PASSWORD`, `DB_JOBS_PASSWORD` y `SMTP_PASSWORD`: `ALTER LOGIN ... WITH PASSWORD = '<nueva>'` en SQL Server (o el panel del proveedor de correo), luego el `.env`.
+  5. `MFA_ENCRYPTION_KEY`: con `MFA_PREVIOUS_ENCRYPTION_KEYS` y `python -m app.cli.mfaKeys`.
+  Registrar la fecha de la rotación (sin los valores) y verificar un inicio de sesión real con y sin MFA.
 - **Imágenes (GL-13).** Para actualizar un digest: `docker buildx imagetools inspect`, `docker scout cves` y reconstruir.
 
 Esta documentación no reemplaza una prueba de penetración externa.

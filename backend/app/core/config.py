@@ -54,6 +54,9 @@ class Settings(BaseSettings):
 
     # JWT de acceso
     JWT_SECRET: SecretStr
+    # Secreto anterior durante una rotación (H-08): firma solo JWT_SECRET; los tokens firmados con el anterior se siguen aceptando hasta que
+    # vencen. Quitarlo pasada la vigencia del token más largo (docs/SEGURIDAD.md, «Rotación de secretos»).
+    JWT_PREVIOUS_SECRET: SecretStr | None = None
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -157,11 +160,11 @@ class Settings(BaseSettings):
             raise ValueError("El token del puente debe tener al menos 32 caracteres.")
         return value
 
-    @field_validator("JWT_SECRET")
+    @field_validator("JWT_SECRET", "JWT_PREVIOUS_SECRET")
     @classmethod
-    def validarSecreto(cls, value: SecretStr) -> SecretStr:
-        if len(value.get_secret_value()) < 32:
-            raise ValueError("JWT_SECRET debe tener al menos 32 caracteres.")
+    def validarSecreto(cls, value: SecretStr | None, info) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError(f"{info.field_name} debe tener al menos 32 caracteres.")
         return value
 
     @property
@@ -226,6 +229,9 @@ class Settings(BaseSettings):
             warnings.append("DATABASE_URL está definida pero ninguna parte de GlucoLume la usa: duplica la contraseña de la base; quitala.")
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             warnings.append("BRIDGE_PREVIOUS_TOKEN está definido: el puente acepta dos tokens. Quitalo cuando el puente use BRIDGE_TOKEN.")
+        if self.JWT_PREVIOUS_SECRET is not None:
+            warnings.append("JWT_PREVIOUS_SECRET está definido: la API acepta tokens firmados con dos secretos. Quitalo cuando venzan los "
+                            "tokens firmados con el anterior (docs/SEGURIDAD.md, «Rotación de secretos»).")
         if self.API_ENV == "production" and self.DB_JOBS_USER is None:
             warnings.append("Sin DB_JOBS_USER: la API y la conservación de la auditoría comparten cuenta de base, así que no se le puede negar "
                             "UPDATE/DELETE sobre Auditoria a la API (GL-03).")
@@ -246,7 +252,7 @@ class Settings(BaseSettings):
     def reusedSecrets(self) -> list[str]:
         """Pares de variables que comparten el mismo secreto (solo nombres). Cada secreto protege una cosa distinta: si uno se filtra o se
         rota, no debe arrastrar a los demás (GL-20)."""
-        names = ("JWT_SECRET", "SESSION_SECRET", "BRIDGE_TOKEN", "BRIDGE_PREVIOUS_TOKEN", "MFA_ENCRYPTION_KEY", "DB_PASSWORD",
+        names = ("JWT_SECRET", "JWT_PREVIOUS_SECRET", "SESSION_SECRET", "BRIDGE_TOKEN", "BRIDGE_PREVIOUS_TOKEN", "MFA_ENCRYPTION_KEY", "DB_PASSWORD",
                  "DB_JOBS_PASSWORD", "SMTP_PASSWORD", "GOOGLE_CLIENT_SECRET")
         values = {name: getattr(self, name).get_secret_value() for name in names if getattr(self, name) is not None}
         seen: dict[str, str] = {}
