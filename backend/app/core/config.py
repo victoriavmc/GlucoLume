@@ -114,9 +114,12 @@ class Settings(BaseSettings):
     BRIDGE_TOKEN: SecretStr | None = None
     # Rotación sin corte (GL-11): el token anterior se sigue aceptando mientras se actualiza el puente; quitarlo apenas el puente use el nuevo.
     BRIDGE_PREVIOUS_TOKEN: SecretStr | None = None
-    # Plazo máximo explícito de ese token anterior (H-16), p. ej. 2026-11-03T18:00 (hora de Argentina si no lleva zona): vencido, se ignora.
-    # Sin plazo sigue valiendo hasta que se lo quite (se advierte al arrancar).
+    # Plazo del token anterior (H-16), obligatorio con él y de hasta JWT_ROTATION_MAX_HOURS desde ahora, p. ej. 2026-11-03T18:00 (hora de
+    # Argentina si no lleva zona): vencido, se ignora aunque siga en el .env.
     BRIDGE_PREVIOUS_TOKEN_UNTIL: datetime | None = None
+    # Credenciales individuales por puente (H-16, tabla PuenteCredencial, administradas con `python -m app.cli.bridgeTokens`). El BRIDGE_TOKEN
+    # compartido sigue aceptándose por compatibilidad; con false solo valen las individuales (atadas a un dispositivo, con vencimiento y revocables).
+    BRIDGE_ALLOW_SHARED_TOKEN: bool = True
     # Transitorio (equipo único compartido): permite que las cuentas individuales midan y den órdenes al puente con un dispositivo asignado a
     # una institución. NO cambia su propiedad ni los permisos de los operadores. Por defecto apagado; quitarlo cuando cada contexto tenga su equipo.
     ALLOW_INDIVIDUAL_ON_INSTITUTIONAL_DEVICE: bool = False
@@ -265,8 +268,9 @@ class Settings(BaseSettings):
             warnings.append("DATABASE_URL está definida pero ninguna parte de GlucoLume la usa: duplica la contraseña de la base; quitala.")
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             warnings.append("BRIDGE_PREVIOUS_TOKEN está definido: el puente acepta dos tokens. Quitalo cuando el puente use BRIDGE_TOKEN.")
-            if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
-                warnings.append("BRIDGE_PREVIOUS_TOKEN sin BRIDGE_PREVIOUS_TOKEN_UNTIL: fijá un plazo máximo para la ventana de rotación (H-16).")
+        if self.BRIDGE_TOKEN is not None and self.BRIDGE_ALLOW_SHARED_TOKEN and self.API_ENV == "production":
+            warnings.append("BRIDGE_TOKEN compartido activo: pasá cada puente a su credencial individual (python -m app.cli.bridgeTokens) y "
+                            "poné BRIDGE_ALLOW_SHARED_TOKEN=false (H-16).")
         if self.JWT_PREVIOUS_SECRET is not None:
             if len(self.jwtVerificationSecrets) > 1:
                 warnings.append("JWT_PREVIOUS_SECRET vigente: la API acepta tokens firmados con dos secretos hasta JWT_PREVIOUS_SECRET_UNTIL. "
@@ -347,15 +351,32 @@ class Settings(BaseSettings):
                 raise ValueError(f"Clave Fernet inválida en {', '.join(invalid)}.")
         return self
 
+    @model_validator(mode="after")
+    def validarVentanaDelTokenAnteriorDelPuente(self) -> "Settings":
+        """Como con JWT (H-08): el token anterior del puente exige plazo explícito, acotado, y distinto del vigente."""
+        if self.BRIDGE_PREVIOUS_TOKEN is None:
+            return self
+        if self.BRIDGE_TOKEN is not None and self.BRIDGE_PREVIOUS_TOKEN.get_secret_value() == self.BRIDGE_TOKEN.get_secret_value():
+            raise ValueError("BRIDGE_PREVIOUS_TOKEN es igual a BRIDGE_TOKEN: no hay rotación.")
+        if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
+            raise ValueError("BRIDGE_PREVIOUS_TOKEN exige BRIDGE_PREVIOUS_TOKEN_UNTIL: el token anterior no se acepta sin plazo.")
+        from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+        if withArgentinaZone(self.BRIDGE_PREVIOUS_TOKEN_UNTIL) > nowArgentina() + timedelta(hours=JWT_ROTATION_MAX_HOURS):
+            raise ValueError(f"BRIDGE_PREVIOUS_TOKEN_UNTIL no puede superar las {JWT_ROTATION_MAX_HOURS} horas desde ahora.")
+        return self
+
     @property
     def bridgeTokens(self) -> list[SecretStr]:
         """Tokens del puente que se aceptan ahora: el vigente y, mientras no venza su plazo (H-16), el anterior."""
+        if not self.BRIDGE_ALLOW_SHARED_TOKEN:
+            return []
         tokens = [token for token in (self.BRIDGE_TOKEN,) if token is not None]
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             from app.utils.timeZone import nowArgentina, withArgentinaZone
 
             until = self.BRIDGE_PREVIOUS_TOKEN_UNTIL
-            if until is None or nowArgentina() < withArgentinaZone(until):
+            if until is not None and nowArgentina() < withArgentinaZone(until):
                 tokens.append(self.BRIDGE_PREVIOUS_TOKEN)
         return tokens
 

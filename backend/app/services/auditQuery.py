@@ -341,6 +341,8 @@ ACTION_LABELS = {
     classification.ACCION_RAFAGA_AUTORIZACION: "Ráfaga de solicitudes rechazadas (401/403)",
     classification.ACCION_RAFAGA_VALIDACION: "Ráfaga de entradas rechazadas por validación",
     classification.ACCION_ERROR_INESPERADO: "Error inesperado del servidor",
+    "CREAR_CREDENCIAL_PUENTE": "Credencial de puente creada", "ROTAR_CREDENCIAL_PUENTE": "Credencial de puente rotada",
+    "REVOCAR_CREDENCIAL_PUENTE": "Credencial de puente revocada", "CREDENCIAL_PUENTE_RECHAZADA": "Credencial de puente rechazada",
     classification.ACCION_EXPORT_SOLICITADA: "Exportación de datos solicitada",
     classification.ACCION_EXPORT_COMPLETADA: "Exportación de datos completada",
     classification.ACCION_EXPORT_FALLIDA: "Exportación de datos fallida o rechazada",
@@ -383,7 +385,8 @@ MOTIVO_LABELS = {
     "RECHAZOS_REITERADOS": "Rechazos reiterados desde un mismo origen", "PERMISO_INSUFICIENTE": "Permiso insuficiente",
     "SIN_ROL_PLATAFORMA": "Cuenta sin rol de plataforma", "REAUTENTICACION_INVALIDA": "Reautenticación inválida",
     "CODIGO_ACTIVACION_INVALIDO": "Código de activación inválido", "CORREO_PROVEEDOR_NO_VERIFICADO": "Correo de Google sin verificar",
-    "VINCULACION_RECHAZADA": "Vinculación rechazada", "CUENTA_NO_REGISTRADA": "Cuenta no registrada", "ERROR_INTERNO": "Error interno",
+    "VINCULACION_RECHAZADA": "Vinculación rechazada", "REVOCADA": "Credencial revocada", "VENCIDA": "Credencial vencida",
+    "FUERA_DE_ALCANCE": "Credencial fuera de su alcance", "CUENTA_NO_REGISTRADA": "Cuenta no registrada", "ERROR_INTERNO": "Error interno",
 }
 ENTITY_LABELS = {
     "Institucion": "Institución", "InstitucionUsuario": "Integrante de la institución", "PerfilMedicion": "Paciente",

@@ -722,8 +722,11 @@ class Uplink:
                 self.commands.handle(body["comando"])
             return 0.0 if len(self.buffer) >= MAX_BATCH else SEND_INTERVAL
         code = (body or {}).get("codigo")
+        if code == "PUENTE_FUERA_DE_ALCANCE":
+            raise Fatal(EXIT_REJECTED, "La credencial de este puente no corresponde al dispositivo configurado (BRIDGE_DEVICE_CODE).")
         if status == 403 or code in ("PUENTE_NO_AUTORIZADO",):
-            raise Fatal(EXIT_REJECTED, "El servidor rechazó el token del puente (BRIDGE_TOKEN distinto del del backend).")
+            raise Fatal(EXIT_REJECTED, "El servidor rechazó el token del puente (distinto del vigente, revocado o vencido): pedí uno nuevo "
+                                       "a quien administra GlucoLume.")
         if status == 409 and code == "PUENTE_DUPLICADO":
             raise Fatal(EXIT_DUPLICATE, "Ya hay otro puente activo para este dispositivo: este se detiene.")
         if status == 422 and lines:

@@ -116,7 +116,7 @@ Segundo informe (`docs/seguridad/auditorias/Auditoria de Ciberseguridad - GlucoL
 | H-13 | HMAC de identificadores sin HKDF | Bajo | **Corregido:** `derivedKey("auditoria-identificador")`; la búsqueda por identificador sigue encontrando las huellas anteriores |
 | H-14 | Tokens de enlace en la query, visibles en los logs de Nginx | Bajo | **Corregido:** el `access_log` registra la ruta sin la query; prueba que lo fija. No se ensayó con un Nginx real (sin Docker en el entorno de desarrollo) |
 | H-15 | Sin `ErrorBoundary` ni auditoría de 500 | Bajo | **Corregido:** `ErrorBoundary` global en la SPA y middleware `UnhandledErrorMiddleware` (500 genérico, cabeceras y evento `ERROR_SERVIDOR_INESPERADO` sin el mensaje de la excepción) |
-| H-16 | Token único del puente y ventana de doble token | Bajo | **Parcial:** `BRIDGE_PREVIOUS_TOKEN_UNTIL` fija el plazo máximo de la ventana. El token por puente sigue pendiente (GL-11, requiere tabla) |
+| H-16 | Token único del puente y ventana de doble token | Bajo | **Implementado y probado; falta aplicar la tabla en la base real (acción humana):** credenciales individuales por puente (tabla `PuenteCredencial`: solo el hash SHA-256, atada a un dispositivo, vencimiento obligatorio, revocación y rotación con superposición ≤ 72 h, auditoría de alta/rotación/revocación y de rechazos); administración con `python -m app.cli.bridgeTokens`; `BRIDGE_ALLOW_SHARED_TOKEN=false` desactiva el token compartido; `BRIDGE_PREVIOUS_TOKEN` exige plazo ≤ 72 h. Migración `database/reference/GlucoLume_agregar_puente_credencial.sql` (no ejecutada). Riesgo residual: mientras el token compartido siga permitido, un puente que lo conozca no tiene alcance por dispositivo; las credenciales viajan en el `bridge.env` de cada equipo (texto plano en disco) |
 | H-17 | React 19.1.0 | Bajo | **Corregido:** react y react-dom 19.1.10 (suite del frontend 685/685) |
 
 ### 2.0 Alcance (decisión del 19/10/2026)
@@ -264,7 +264,13 @@ exigen los índices filtrados). Respaldo previo verificado:
      **Reversión** (si el nuevo secreto falla): intercambiar los dos valores (`JWT_SECRET=<el anterior>`, `JWT_PREVIOUS_SECRET=<el nuevo>`) con un plazo
      nuevo, recrear los contenedores y repetir cuando se corrija la causa. Ante una sospecha de filtración del secreto anterior, NO usar la ventana:
      rotar sin `JWT_PREVIOUS_SECRET` (cierra todas las sesiones, es lo buscado).
-  2. `BRIDGE_TOKEN`: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN`, se actualiza el del puente y se quita el anterior en cuanto el puente use el nuevo. Fijar siempre `BRIDGE_PREVIOUS_TOKEN_UNTIL` (máximo 24 h desde el cambio): vencido el plazo, la API ignora el token anterior aunque siga en el `.env`.
+  2. Puentes (H-16): lo recomendado es una **credencial individual por puente** en lugar del `BRIDGE_TOKEN` compartido. Con la tabla ya creada
+     (`GlucoLume_agregar_puente_credencial.sql` en una base anterior; en una instalación nueva ya viene) y desde un contenedor con la cuenta de
+     conservación (`docker compose run --rm lifecycle python -m app.cli.bridgeTokens crear --nombre "<puente>" --dispositivo <código> --confirmo-base <DB_NAME>`),
+     copiar el token mostrado (una sola vez) al `bridge.env` de ese equipo como `BRIDGE_TOKEN`, comprobar con `bridge_ctl.py` y recién entonces poner
+     `BRIDGE_ALLOW_SHARED_TOKEN=false`. Rotar: `bridgeTokens rotar --huella <h>` (la anterior vale 24 h más, máximo 72 h); revocar de inmediato:
+     `bridgeTokens revocar --huella <h>`; listar: `bridgeTokens listar`. Con el token compartido: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN` con
+     `BRIDGE_PREVIOUS_TOKEN_UNTIL` (máximo 72 h).
   3. `SESSION_SECRET` (solo invalida un inicio de sesión con Google en curso) y `GOOGLE_CLIENT_SECRET` (se rota también en Google Cloud): cambio directo.
   4. `DB_PASSWORD`, `DB_JOBS_PASSWORD` y `SMTP_PASSWORD`: `ALTER LOGIN ... WITH PASSWORD = '<nueva>'` en SQL Server (o el panel del proveedor de correo), luego el `.env`.
   5. `MFA_ENCRYPTION_KEY`: con `MFA_PREVIOUS_ENCRYPTION_KEYS` y `python -m app.cli.mfaKeys`.

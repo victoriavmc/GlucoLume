@@ -63,6 +63,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON SCHEMA::dbo TO rol_glucolume_re
 DENY UPDATE, DELETE ON OBJECT::dbo.Auditoria TO rol_glucolume_api;
 DENY UPDATE, DELETE ON OBJECT::dbo.AuditoriaContexto TO rol_glucolume_api;
 
+-- Credenciales individuales de los puentes (H-16, solo si la tabla existe): la API únicamente las LEE y anota el último uso; no puede crear,
+-- cambiar ni borrar credenciales (eso lo hace la línea de comandos con la cuenta de conservación). El DENY de tabla no anula el GRANT de
+-- columna de SQL Server: por eso se puede conceder solo fechaUltimoUso.
+IF OBJECT_ID(N'dbo.PuenteCredencial', N'U') IS NOT NULL
+    EXEC (N'DENY INSERT, UPDATE, DELETE ON OBJECT::dbo.PuenteCredencial TO rol_glucolume_api;
+            GRANT UPDATE (fechaUltimoUso) ON OBJECT::dbo.PuenteCredencial TO rol_glucolume_api;');
+
 IF IS_ROLEMEMBER(N'rol_glucolume_api', N'$(API_LOGIN)') = 0
     EXEC (N'ALTER ROLE rol_glucolume_api ADD MEMBER [$(API_LOGIN)];');
 -- db_owner ignora los DENY: si la cuenta lo era, se quita (db_datareader/db_datawriter no anulan el DENY).

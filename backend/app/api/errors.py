@@ -118,6 +118,7 @@ AUTH_ERROR_STATUS = {
     # Telemetría del puente serie (datos ya procesados por el firmware)
     "PUENTE_NO_CONFIGURADO": status.HTTP_503_SERVICE_UNAVAILABLE,
     "PUENTE_NO_AUTORIZADO": status.HTTP_403_FORBIDDEN,
+    "PUENTE_FUERA_DE_ALCANCE": status.HTTP_403_FORBIDDEN,
     "PUENTE_DUPLICADO": status.HTTP_409_CONFLICT,
     "PUERTO_EN_USO_PUENTE": status.HTTP_409_CONFLICT,
     # Órdenes al puente (POST /acquisition/bridge/command)

@@ -183,7 +183,10 @@ def post(url: str, token: str, payload: dict, timeout: float = 6.0) -> tuple[int
 def interpretCheck(status: int, body: dict, code: str) -> tuple[str, str]:
     """(nivel, mensaje) de la respuesta de POST /acquisition/bridge/check. Nivel: ok | warn | error."""
     if status == 403:
-        return "error", "El token no coincide con BRIDGE_TOKEN del backend. Copiá el mismo valor en el .env del proyecto y reiniciá el backend."
+        if body.get("codigo") == "PUENTE_FUERA_DE_ALCANCE":
+            return "error", f"La credencial de este puente no corresponde al dispositivo «{code}»."
+        return "error", ("El backend rechazó el token (distinto del vigente, revocado o vencido). Pedí uno nuevo a quien administra GlucoLume "
+                         "(python -m app.cli.bridgeTokens) o, con el token compartido, copiá el valor de BRIDGE_TOKEN del .env del proyecto.")
     if status == 503:
         return "error", "El backend no tiene BRIDGE_TOKEN configurado. Agregalo al .env del proyecto y ejecutá: docker compose up -d backend"
     if status in (404, 405):

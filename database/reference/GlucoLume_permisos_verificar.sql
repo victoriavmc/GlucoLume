@@ -31,6 +31,18 @@ BEGIN TRY UPDATE TOP (0) dbo.AuditoriaContexto SET ipOrigen = ipOrigen; INSERT I
 BEGIN CATCH INSERT INTO @r VALUES (N'UPDATE AuditoriaContexto', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
 BEGIN TRY DELETE TOP (0) FROM dbo.AuditoriaContexto; INSERT INTO @r VALUES (N'DELETE AuditoriaContexto', N'permitido'); END TRY
 BEGIN CATCH INSERT INTO @r VALUES (N'DELETE AuditoriaContexto', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+-- Credenciales de los puentes (H-16): la API no puede crear ni borrar; solo lee y anota el último uso (UPDATE TOP (0) no toca filas).
+IF OBJECT_ID(N'dbo.PuenteCredencial', N'U') IS NOT NULL
+BEGIN
+    BEGIN TRY EXEC (N'SELECT TOP (0) * FROM dbo.PuenteCredencial'); INSERT INTO @r VALUES (N'SELECT PuenteCredencial', N'permitido'); END TRY
+    BEGIN CATCH INSERT INTO @r VALUES (N'SELECT PuenteCredencial', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+    BEGIN TRY EXEC (N'DELETE TOP (0) FROM dbo.PuenteCredencial'); INSERT INTO @r VALUES (N'DELETE PuenteCredencial', N'permitido'); END TRY
+    BEGIN CATCH INSERT INTO @r VALUES (N'DELETE PuenteCredencial', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+    BEGIN TRY EXEC (N'UPDATE TOP (0) dbo.PuenteCredencial SET tokenHash = tokenHash'); INSERT INTO @r VALUES (N'UPDATE tokenHash', N'permitido'); END TRY
+    BEGIN CATCH INSERT INTO @r VALUES (N'UPDATE tokenHash', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+    BEGIN TRY EXEC (N'UPDATE TOP (0) dbo.PuenteCredencial SET fechaUltimoUso = fechaUltimoUso'); INSERT INTO @r VALUES (N'UPDATE fechaUltimoUso', N'permitido'); END TRY
+    BEGIN CATCH INSERT INTO @r VALUES (N'UPDATE fechaUltimoUso', N'rechazado ' + CONVERT(nvarchar(10), ERROR_NUMBER())); END CATCH
+END
 REVERT;
 
 SELECT prueba, resultado FROM @r;
