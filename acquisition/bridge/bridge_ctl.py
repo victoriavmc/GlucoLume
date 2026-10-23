@@ -160,7 +160,7 @@ def renderEnv(values: dict[str, str], previous: dict[str, str] | None = None) ->
     """Contenido de bridge.env: las claves del puente + las que el usuario ya tenía (p. ej. BRIDGE_LOCK_PORT)."""
     keep = {k: v for k, v in (previous or {}).items() if k in bridge.ENV_KEYS and k not in values and v}
     merged = {**keep, **{k: v for k, v in values.items() if v}}
-    order = ["SERIAL_PORT", "SERIAL_MEDIUM", "BRIDGE_API_URL", "BRIDGE_TOKEN", "BRIDGE_DEVICE_CODE"]
+    order = ["SERIAL_PORT", "SERIAL_MEDIUM", "BRIDGE_API_URL", "BRIDGE_TOKEN", "BRIDGE_DEVICE_CODE", "BRIDGE_DEVICE_KEY"]
     lines = ["# Puente serie de GlucoLume (Windows). Generado por bridge_ctl.py. NO se versiona ni se comparte: contiene el token.",
              "# Se puede cambiar el puerto o el medio ejecutando de nuevo `bridge_ctl.py setup` o desde GlucoLume."]
     lines += [f"{key}={merged[key]}" for key in order if key in merged]
@@ -526,6 +526,41 @@ def cmdSetup(args) -> int:
     return 0
 
 
+def cmdGenKey(args) -> int:
+    """Genera la clave de 128 bits que firma las líneas del Arduino (H-05) y explica cómo cargarla. Con --save la deja en bridge.env (nunca en el repositorio)."""
+    import secrets
+
+    key = secrets.token_hex(16)
+    out("Clave nueva (128 bits). Se muestra UNA vez: no la guardes en el repositorio, en un chat ni en un correo.\n")
+    out(f"  {key}\n")
+    out("Para activarla en el Arduino (firmware GlucoLume_MAX30100_optimizado, por USB, con el Monitor Serie a 115200 y fin de línea «Nueva línea»):")
+    out(f"  KEY,{key}")
+    out("Debe responder KEY:OK. Después, `KEY?` informa si hay clave (nunca la muestra).")
+    if args.save:
+        previous = readEnv(ENV_PATH)
+        if not previous:
+            out("\nNo hay bridge.env: ejecutá primero `bridge_ctl.py setup`.")
+            return 2
+        ENV_PATH.write_text(renderEnv({**previous, "BRIDGE_DEVICE_KEY": key}, previous), encoding="utf-8")
+        protectFile(ENV_PATH)
+        out(f"\nBRIDGE_DEVICE_KEY guardada en {ENV_PATH}. Reiniciá el puente (`bridge_ctl.py restart`). Con clave, el puente descarta lo que no esté firmado.")
+    else:
+        out("\nEn el equipo del puente, agregá a bridge.env:  BRIDGE_DEVICE_KEY=<la clave>   (o repetí el comando con --save).")
+    return 0
+
+
+def cmdAuthReset(_args) -> int:
+    """Olvida el último contador aceptado (linkauth.json). Necesario si se borró la EEPROM del Arduino o se cargó otro con la misma clave."""
+    state = bridge.dataDir() / "linkauth.json"
+    try:
+        state.unlink()
+        out(f"Se olvidó el último contador aceptado ({state}). La próxima línea firmada válida fija el nuevo punto de partida.")
+    except FileNotFoundError:
+        out("No había contador guardado: nada que olvidar.")
+    out("Aviso: mientras no haya un contador guardado, una línea firmada capturada antes se aceptaría una vez. Hacelo solo si reprovisionaste el Arduino.")
+    return 0
+
+
 def cmdInstall(args) -> int:
     out("Instalación del puente GlucoLume (una sola vez)\n")
     if not venvReady():
@@ -594,6 +629,11 @@ def cmdDoctor(_args) -> int:
         return 1
     level, message = checkBackend(cfg.apiUrl, cfg.token, cfg.deviceCode)
     report(level, message)
+    if cfg.deviceKey is not None:
+        report("ok", "Enlace con el dispositivo AUTENTICADO (BRIDGE_DEVICE_KEY): se descartan las líneas sin firma válida o repetidas. No cifra el enlace.")
+    else:
+        report("warn", "Enlace con el dispositivo SIN autenticar (falta BRIDGE_DEVICE_KEY): quien esté al alcance del Bluetooth podría falsificar o repetir "
+                       "lecturas. `bridge_ctl.py genkey` genera la clave; requiere el firmware optimizado con firma.")
     ports = discoverPorts()
     match = next((p for p in ports if p["puerto"].upper() == cfg.port.upper()), None)
     if match is None:
@@ -680,6 +720,9 @@ def buildParser() -> argparse.ArgumentParser:
         item.add_argument("--yes", action="store_true", help="sin preguntas: usa valores por defecto o los indicados")
     for name in ("start", "stop", "restart", "ports", "doctor"):
         sub.add_parser(name)
+    genkey = sub.add_parser("genkey", help="genera la clave que firma las líneas del Arduino (H-05)")
+    genkey.add_argument("--save", action="store_true", help="la guarda como BRIDGE_DEVICE_KEY en bridge.env")
+    sub.add_parser("auth-reset", help="olvida el último contador aceptado (tras reprovisionar el Arduino)")
     status = sub.add_parser("status")
     status.add_argument("--json", action="store_true")
     logs = sub.add_parser("logs")
@@ -698,7 +741,7 @@ def main(argv: list[str] | None = None) -> int:
     table = {
         "install": cmdInstall, "setup": cmdSetup, "start": lambda a: startBridge(), "stop": lambda a: stopBridge(),
         "restart": lambda a: (stopBridge(), startBridge())[1], "status": lambda a: showStatus(a.json), "ports": cmdPorts,
-        "logs": cmdLogs, "doctor": cmdDoctor, "uninstall": cmdUninstall,
+        "logs": cmdLogs, "doctor": cmdDoctor, "uninstall": cmdUninstall, "genkey": cmdGenKey, "auth-reset": cmdAuthReset,
         "autostart": lambda a: {"enable": enableAutostart, "disable": disableAutostart,
                                 "status": lambda: (out(f"Inicio automático: {autostartState()}"), 0)[1]}[a.action](),
     }

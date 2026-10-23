@@ -208,3 +208,30 @@ Cada sketch vive en su carpeta (`firmware/GlucoLume_MAX30100/` y la variante `_o
 | Pruebas automatizadas del protocolo, reconexión, sesiones, control, permisos y persistencia (puerto y puente simulados) | Adquisición sostenida con el Arduino real por USB y Bluetooth |
 | Pruebas operativas en Windows (13/10/2026): enumeración de puertos, instalación con hashes, ACL de `bridge.env`, instancia única, 409 y 403 del backend real | Reconexión con el sensor activo y guardado completo con datos reales |
 | Compilación del firmware | Calidad de señal PPG y de las estimaciones sobre personas |
+
+## 7. Autenticación de las líneas del dispositivo (H-05)
+
+El enlace Bluetooth clásico del HC-05/HC-06 no autentica quién escribe. Con una **clave por dispositivo** de 128 bits cada línea que sale del Arduino por USB
+y Bluetooth termina en `*<arranque>.<contador>.<etiqueta>` (etiqueta = SipHash-2-4 de `GL1|<arranque>.<contador>|<línea>`, 64 bits). El puente
+(`acquisition/bridge/linkauth.py`) verifica, **quita** la firma y reenvía la línea original al backend (el protocolo hacia el backend no cambia); descarta y cuenta
+lo que no verifica y lo que repite o retrocede el contador. **Es opcional y solo existe en el sketch `GlucoLume_MAX30100_optimizado`** (el original queda al 84 %
+de RAM y no se tocó). No cifra: ver qué queda sin resolver en [SEGURIDAD.md](SEGURIDAD.md) §4 punto 9.
+
+**Provisión (una vez por dispositivo; la clave no va al repositorio ni al chat):**
+
+1. En el equipo del puente: `python bridge_ctl.py genkey` (muestra una clave nueva una sola vez; con `--save` la guarda como `BRIDGE_DEVICE_KEY` en `bridge.env`).
+2. Cargar el firmware optimizado en el Arduino. Con el Monitor Serie del IDE **por USB** (115200, «Nueva línea»): `KEY,<32 hex>` → debe responder `KEY:OK`.
+   La orden solo se acepta por USB (nunca por Bluetooth) y la clave no se reenvía al módulo ni se repite. `KEY?` informa si hay clave; `KEYCLR` la borra.
+3. Reiniciar el puente (`bridge_ctl.py restart`). `bridge_ctl.py doctor` informa si el enlace está autenticado.
+4. Si se borra la EEPROM del Arduino o se carga otro con la misma clave, su contador de arranques vuelve a empezar: `bridge_ctl.py auth-reset` en el puente.
+
+**Con clave, el Arduino ignora las órdenes recibidas por Bluetooth** (responde `CMD:SOLO_POR_USB`, salvo `ID`): el sistema no ordena nada por ahí. **Rotar la clave:**
+repetir los pasos 1 a 3. **Sin clave** (`BRIDGE_DEVICE_KEY` vacío) todo funciona como antes y el puente lo advierte.
+
+**PIN del módulo Bluetooth (acción física, no automatizada):** cambiar el PIN de fábrica (1234/0000) requiere conectar el módulo en modo AT y usar los comandos de
+*su* modelo y firmware (p. ej. `AT+PIN` en algunos HC-06, `AT+PSWD` en HC-05). No se hizo ni se presupone: confirmarlo en la hoja de datos del módulo. Un PIN de
+4 dígitos sigue siendo débil; la mejora de fondo es BLE con emparejamiento seguro, que es un cambio de hardware.
+
+**Verificación sin hardware:** `firmware/verificacion/verificar_firma.sh` (Linux/WSL) compila la clase real con el núcleo `arduino:avr` y la ejecuta en un ATmega328P
+simulado; las pruebas del backend (`tests/test_link_auth.py`) comprueban SipHash contra los vectores oficiales y que el C del firmware y el Python del puente dan
+la misma etiqueta. Pendiente en la placa real: tiempos con el HC-06, EEPROM y el sketch completo.
