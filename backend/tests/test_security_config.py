@@ -246,6 +246,9 @@ def test_en_produccion_se_verifica_el_certificado_de_sql_server(monkeypatch):
     from app.db import session as sessionModule
 
     monkeypatch.setattr(sessionModule, "getSettings", lambda: production)
+    # Rama de Windows (ServerCertificate estricto): se fija el sistema para que la prueba no dependa de dónde corre; en Linux esa rama no aplica el
+    # parámetro y lee el archivo (cubierto en la prueba siguiente).
+    monkeypatch.setattr(sessionModule.os, "name", "nt")
     captured = {}
     monkeypatch.setattr(sessionModule, "create_engine", lambda url, **kw: captured.setdefault("url", url))
     sessionModule._createEngine("app", "x")
