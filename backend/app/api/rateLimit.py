@@ -37,6 +37,9 @@ LIMITS: dict[str, tuple[int, int]] = {
     "unsubscribe": (20, 10 * 60),
     "resultEmailConfirm": (20, 10 * 60),  # confirmación del correo de resultados por el paciente (enlace del correo)
     "bridgeCheck": (60, 10 * 60),  # instalación del puente: unas pocas consultas por equipo
+    # Endpoints con sesión (H-11): ~30 pedidos por segundo desde una misma IP. Muy por encima de lo que hace una institución entera detrás de
+    # un NAT (la telemetría va por SSE, una conexión por pantalla) y muy por debajo de lo que necesita extraer datos con un token robado.
+    "authenticated": (1800, 60),
 }
 
 # Puente serie (GL-11): /bridge/ingest no tiene límite de pedidos válidos (el puente envía cada segundo y, tras un corte, descarga su
@@ -74,6 +77,13 @@ def resetLimits() -> None:
     for limiter in _limiters.values():
         limiter.clear()
     bridgeFailures.clear()
+
+
+def checkAuthenticated(request: Request) -> None:
+    """Límite por IP de los endpoints con sesión: se evalúa antes de resolver la sesión, sobre pedidos que traen credenciales."""
+    limiter = _limiters["authenticated"]
+    if not limiter.allow(clientIp(request)):
+        raise AuthError("DEMASIADAS_SOLICITUDES", TOO_MANY_REQUESTS, retryAfterSeconds=int(limiter.windowSeconds), motivo="authenticated")
 
 
 def rateLimit(name: str):

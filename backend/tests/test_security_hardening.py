@@ -115,6 +115,18 @@ def test_el_login_tiene_limite_por_ip_aunque_se_prueben_cuentas_distintas(api):
     assert api.post("/api/v1/auth/login", json={"identificador": "otro@example.com", "password": "Cualquiera#2026"}).status_code == 429
 
 
+def test_los_endpoints_con_sesion_tienen_limite_por_ip(api, monkeypatch):
+    """H-11: quien presenta un token (aunque sea robado) también tiene tope por IP; sin credenciales sigue el 401 de siempre, sin consumir el cupo."""
+    monkeypatch.setitem(rateLimit.LIMITS, "authenticated", (5, 60))
+    monkeypatch.setitem(rateLimit._limiters, "authenticated", rateLimit.RateLimiter(5, 60))
+    headers = {"Authorization": "Bearer token-que-no-es-valido"}
+    codes = [api.get("/api/v1/auth/me", headers=headers).status_code for _ in range(8)]
+    assert codes == [401] * 5 + [429] * 3
+    blocked = api.get("/api/v1/auth/me", headers=headers)
+    assert blocked.json()["codigo"] == "DEMASIADAS_SOLICITUDES" and int(blocked.headers["Retry-After"]) == 60
+    assert [api.get("/api/v1/auth/me").status_code for _ in range(8)] == [401] * 8  # sin credenciales no cuenta
+
+
 @pytest.mark.parametrize("path, body", [
     ("/api/v1/auth/register", {}), ("/api/v1/auth/password/forgot", {"correoElectronico": "a@example.com"}),
     ("/api/v1/auth/password/reset", {}), ("/api/v1/auth/mfa/verify", {}), ("/api/v1/auth/refresh", {"refreshToken": "x"}),
