@@ -24,10 +24,12 @@ python -m pytest -q `
 |---|---|---|---|
 | 1 | `test_security_config::test_en_produccion_se_verifica_el_certificado_de_sql_server` | Usa una ruta de Windows (`/certs/sql.crt`) que no existe en Linux | ☐ |
 | 2 | `test_patient_access::test_la_api_directa_sin_autenticacion_es_rechazada` | Sin `libodbc.so.2`, `getDb` no puede crear el motor; con estos cambios se ve como 500 en vez de una excepción | ☐ |
-| 3 | `test_reference_schema::test_los_indices_de_los_modelos_estan_en_el_esquema_con_el_mismo_filtro` | `IX_AuditoriaContexto_ip` no se encuentra en el esquema de referencia; **causa no investigada** | ☐ |
+| 3 | `test_reference_schema::test_los_indices_de_los_modelos_estan_en_el_esquema_con_el_mismo_filtro` | **Era un defecto real, ya corregido:** el esquema `GlucoLume_DB_v5.sql` había perdido sus 31 índices (no solo `IX_AuditoriaContexto_ip`). Se restauraron en esta rama con una prueba de que no se duplica ningún objeto. Debe pasar también en Windows | ☐ |
 | 4 | `test_register_contact::test_confirmacion_from_es_la_cuenta_smtp` | Espera el remitente SMTP del `.env` real; allí se usó uno ficticio | ☐ |
 | 5 | `test_register_contact::test_mensaje_from_es_la_cuenta_smtp_y_reply_to_el_usuario` | Ídem | ☐ |
-| 6 | `test_stream_limits::test_los_streams_no_retienen_conexiones_del_pool[/api/v1/acquisition/telemetry/stream]` | **Causa no investigada** | ☐ |
+| 6 | `test_stream_limits::test_los_streams_no_retienen_conexiones_del_pool[/api/v1/acquisition/telemetry/stream]` | En Linux sin `libodbc.so.2` el motor de base no se puede crear (mismo origen que la #2); con ODBC debería pasar. Confirmarlo | ☐ |
+
+Estado en el entorno Linux de desarrollo al cerrar la remediación: las pruebas #1, #2 y #6 siguen fallando solo por la ruta de Windows y la falta de ODBC; la #3 se corrigió; la #4 y la #5 pasan con un `tests/test.env` sintético (dependen del `.env` local, que no se versiona).
 
 Además, corré la suite completa (`python -m pytest`) y confirmá que las ~35 pruebas omitidas de SQL Server (opcionales) se ejecutan o se justifican.
 Si alguna de las seis falla en Windows, no es un problema del entorno: hay que revisarla antes de fusionar.
@@ -73,10 +75,30 @@ Las pruebas del frontend (685/685) pasan con React 19.1.10, pero **`vite build` 
 3. ☐ Actualizar tu `.env`: `.env.example` ahora trae `API_ENV=development`; una línea `API_ENV=` vacía deja de funcionar dentro de Docker.
 4. ☐ Con un usuario real, navegar la aplicación y comprobar que el límite de 1800 pedidos por minuto por IP no molesta a un uso normal.
 
-## 6. Qué NO se hizo (y no debe hacerse sin tu decisión)
+## 6. Verificaciones nuevas de esta ampliación (H-02, H-04, H-05, H-06, H-08, H-09, H-10, H-16)
 
-- No se aplicaron migraciones ni permisos sobre ninguna base real (H-02: `GlucoLume_permisos.sql` sigue pendiente).
+Todo lo siguiente se implementó y probó con datos sintéticos; **nada se aplicó a una base, Redis, placa ni despliegue reales**. Hacerlo en este orden:
+
+1. ☐ **H-02 (permisos SQL):** sobre una **copia restaurada** de la base (nunca primero sobre la real): `GlucoLume_permisos.sql`, `GlucoLume_permisos_quitar_roles_fijos.sql`,
+   `GlucoLume_permisos_verificar.sql`; usar la aplicación (login, mediciones, instituciones, baja de cuenta) y buscar errores 229 en el log. Probar también
+   `GlucoLume_permisos_restaurar_roles_fijos.sql`. El T-SQL no pudo compilarse en el entorno (sin SQL Server).
+2. ☐ **H-16 (puentes):** aplicar `GlucoLume_agregar_puente_credencial.sql` a la copia; `python -m app.cli.bridgeTokens` (crear, listar, rotar, revocar); conectar un puente
+   con su credencial; luego `BRIDGE_ALLOW_SHARED_TOKEN=false` y confirmar que el token compartido se rechaza.
+3. ☐ **H-04 (retención):** `python -m app.jobs.retention previsualizar` y `purgeInstitutionalRetention --simular` sobre la copia. No definir `RETENTION_APPROVAL_REFERENCE`
+   ni plazos hasta tener el dictamen legal; no programar ninguna purga.
+4. ☐ **H-08 (secretos):** ensayar el procedimiento de SEGURIDAD §5.1 («Rotación de secretos») en un entorno de prueba, incluida la reversión.
+5. ☐ **H-06 (Redis):** con un Redis descartable (contraseña, sin puerto publicado) y `RATE_LIMIT_REDIS_URL`, dos réplicas del backend comparten el límite de `/auth/login`.
+6. ☐ **H-09 (cookie):** con el build de producción detrás de Nginx/Caddy por HTTPS: iniciar sesión (local, Google, con MFA, con y sin «Recordarme»), recargar, esperar la
+   rotación y cerrar sesión; en las herramientas del navegador confirmar `HttpOnly`, `Secure`, `SameSite=Strict` y que `localStorage`/`sessionStorage` no contienen el
+   refresh token. Probar el flujo `VITE_LOGIN_ORIGIN` si lo usás. Cuando no queden puentes ni scripts heredados: `REFRESH_TOKEN_IN_BODY=false`.
+7. ☐ **H-05 (firma de líneas):** compilar y cargar `GlucoLume_MAX30100_optimizado` en la placa real, provisionar la clave por USB (`bridge_ctl.py genkey`), medir con el HC-06,
+   cambiar el PIN del módulo (acción física) y decidir sobre la confidencialidad del enlace. Sigue **abierto**.
+8. ☐ **H-10 (zlib):** repetir `python docker/tools/baseImageVersions.py` y reconstruir con `--build-arg ZLIB_MIN_VERSION=<versión corregida>` cuando Debian la publique. Sigue **abierto**.
+
+## 7. Qué NO se hizo (y no debe hacerse sin tu decisión)
+
+- No se aplicaron migraciones ni permisos sobre ninguna base real (H-02: `GlucoLume_permisos.sql` y la tabla de H-16 siguen pendientes).
 - No se ejecutó ni se programó `purgeInstitutionalRetention` ni ninguna purga (H-04).
 - No se tocaron credenciales ni se rotaron secretos reales (H-08: solo código y procedimiento).
 - No se desplegó nada.
-- No se aceptó ningún riesgo de seguridad en tu nombre (H-05, H-06, H-09 quedan abiertos).
+- No se aceptó ningún riesgo de seguridad en tu nombre. H-03 no se tocó (pendiente de infraestructura). H-05 y H-10 siguen abiertos; H-06 y H-09 quedan implementados pero sin validar en tu entorno.
