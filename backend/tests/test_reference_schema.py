@@ -117,3 +117,9 @@ def test_schema_check_prepara_validaciones_que_solo_cuentan():
     assert all(not re.search(r"\b(UPDATE|DELETE|INSERT|ALTER|CREATE|DROP)\b", q) for q in queries)
     [unique] = [q for q in queries if "UX_Usuario_administradorUnico" in q]
     assert "HAVING COUNT_BIG(*) > 1" in unique and "[estado]<>N'ELIMINADO'" in unique
+
+
+def test_el_esquema_consolidado_no_repite_objetos(referenceSchema):
+    # Un script regenerado puede duplicar bloques enteros: en una instalación nueva, el segundo ADD CONSTRAINT fallaría por nombre repetido.
+    created = re.findall(r"(?:ADD\s+CONSTRAINT|CREATE (?:UNIQUE )?NONCLUSTERED INDEX|CREATE TABLE)\s+\[(?:dbo\]\.\[)?(\w+)\]", referenceSchema)
+    assert len(created) > 250 and [name for name in set(created) if created.count(name) > 1] == []
