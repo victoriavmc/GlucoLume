@@ -430,6 +430,9 @@ def test_en_produccion_se_advierte_si_los_plazos_de_retencion_siguen_sin_definir
     # H-04: con 0 los datos se conservan sin límite (plazo legal sin aprobar); la advertencia no impide arrancar y desaparece al fijarlos.
     text = " ".join(Settings(**BASE, API_ENV="production").securityWarnings())
     assert "AUDIT_RETENTION_MONTHS" in text and "PERSONNEL_RETENTION_MONTHS" in text
-    configured = Settings(**BASE, API_ENV="production", AUDIT_RETENTION_MONTHS=24, PERSONNEL_RETENTION_MONTHS=120)
+    configured = Settings(**BASE, API_ENV="production", AUDIT_RETENTION_MONTHS=24, PERSONNEL_RETENTION_MONTHS=120,
+                          RETENTION_APPROVAL_REFERENCE="Dictamen sintetico 0001")
     assert "RETENTION_MONTHS" not in " ".join(configured.securityWarnings())
     assert "RETENTION_MONTHS" not in " ".join(Settings(**BASE, API_ENV="development").securityWarnings())
+    # Plazos sin la referencia de aprobación: se advierte que no se aplican (H-04).
+    assert "NO corre" in " ".join(Settings(**BASE, API_ENV="production", AUDIT_RETENTION_MONTHS=24, PERSONNEL_RETENTION_MONTHS=120).securityWarnings())

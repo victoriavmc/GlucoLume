@@ -830,6 +830,9 @@ def test_la_depuracion_total_solo_corre_si_se_configura(db, mails, monkeypatch):
     assert auditRetention.run(db)["eventosEliminados"] == 0  # por defecto se conserva todo
     monkeypatch.setenv("AUDIT_RETENTION_MONTHS", "36")
     getSettings.cache_clear()
+    assert auditRetention.run(db)["eventosEliminados"] == 0  # un plazo sin la aprobación legal (RETENTION_APPROVAL_REFERENCE) no se aplica (H-04)
+    monkeypatch.setenv("RETENTION_APPROVAL_REFERENCE", "Dictamen sintetico 0001")
+    getSettings.cache_clear()
     assert auditRetention.run(db)["eventosEliminados"] == 1
     monkeypatch.setenv("AUDIT_RETENTION_MONTHS", "0")
     monkeypatch.setenv("AUDIT_CONTEXT_RETENTION_DAYS", "0")

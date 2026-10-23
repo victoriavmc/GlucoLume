@@ -16,7 +16,7 @@
 import logging
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.measurementProfile import MeasurementProfile
@@ -27,6 +27,16 @@ from app.utils.timeZone import nowForDb
 logger = logging.getLogger("glucolume.jobs")
 
 DEFAULT_BATCH_SIZE = 500
+ACCION_PARCIAL = "ANONIMIZAR_PACIENTES_PARCIAL"
+
+
+def plan(db: Session, now: datetime | None = None) -> dict:
+    """Simulación, SIN modificar nada: cuántos perfiles se anonimizarían y cuántas mediciones se eliminarían en una pasada del job."""
+    now = now or nowForDb()
+    profiles = db.scalar(select(func.count()).select_from(MeasurementProfile).where(
+        MeasurementProfile.tipoPerfil == "INSTITUCIONAL", MeasurementProfile.fechaExpiracionDatosPersonales <= now,
+        MeasurementProfile.fechaDepuracionDatosPersonales.is_(None))) or 0
+    return {"perfilesAAnonimizar": profiles, **measurementRetention.plan(db, now)}
 
 
 def purgeExpiredPatientData(db: Session, now: datetime | None = None, batchSize: int = DEFAULT_BATCH_SIZE) -> int:
@@ -68,6 +78,12 @@ def purgeExpiredPatientData(db: Session, now: datetime | None = None, batchSize:
             )
         db.commit()
         total += len(ids)
+    if failed:
+        # Un error parcial queda en la auditoría (solo cantidades, sin identificadores): los perfiles que fallaron se reintentan en la próxima pasada.
+        registerEvent(db, "CRUD", ACCION_PARCIAL, False, None, "PerfilMedicion", None, motivo="ERROR_INTERNO",
+                      observacion="La anonimización terminó con errores parciales; los perfiles afectados se reintentan en la próxima pasada.",
+                      datosNuevos={"perfilesConError": len(failed), "perfilesProcesados": total})
+        db.commit()
     if total:
         if anonymize:
             registerEvent(db, "CRUD", measurementRetention.ACCION_ANONIMIZAR, True, None, "PerfilMedicion", None,

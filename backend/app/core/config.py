@@ -165,6 +165,16 @@ class Settings(BaseSettings):
     AUDIT_CONTEXT_RETENTION_DAYS: int = 90
     AUDIT_ANONYMOUS_RETENTION_MONTHS: int = 12
     AUDIT_RETENTION_MONTHS: int = 0
+    # Aprobación de los plazos que ELIMINAN o suprimen datos por política (H-04): AUDIT_RETENTION_MONTHS y PERSONNEL_RETENTION_MONTHS solo
+    # tienen efecto si esta referencia (p. ej. el número de dictamen u acta de la aprobación legal) está definida. Sin ella esas depuraciones
+    # NO corren aunque el plazo sea mayor que 0 (se advierte al arrancar). La referencia queda en cada evento de depuración. No hay valor por
+    # defecto a propósito: la aprobación la aporta quien tiene la autoridad, no el código.
+    RETENTION_APPROVAL_REFERENCE: str | None = None
+    # Tope contra eliminaciones masivas accidentales (p. ej. un plazo mal tipeado): una pasada automática que alcance más de esta fracción de
+    # la tabla (y más de RETENTION_GUARD_MIN_ROWS filas) no corre; hay que revisarla con `python -m app.jobs.retention previsualizar` y ejecutarla
+    # a mano confirmando la cantidad exacta.
+    RETENTION_MAX_DELETE_FRACTION: float = 0.25
+    RETENTION_GUARD_MIN_ROWS: int = 100
 
     # URL pública del frontend: destino de los botones de los correos (ingresar, revisar seguridad...).
     FRONTEND_URL: str = "http://localhost:5173"
@@ -181,6 +191,21 @@ class Settings(BaseSettings):
     def validarTokenPuente(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and len(value.get_secret_value()) < 32:
             raise ValueError("El token del puente debe tener al menos 32 caracteres.")
+        return value
+
+    @field_validator("RETENTION_APPROVAL_REFERENCE")
+    @classmethod
+    def validarReferenciaDeAprobacion(cls, value: str | None) -> str | None:
+        value = value.strip() if value else None
+        if value is not None and not 4 <= len(value) <= 200:
+            raise ValueError("RETENTION_APPROVAL_REFERENCE debe tener entre 4 y 200 caracteres (p. ej. el número del dictamen).")
+        return value
+
+    @field_validator("RETENTION_MAX_DELETE_FRACTION")
+    @classmethod
+    def validarFraccionDeDepuracion(cls, value: float) -> float:
+        if not 0 < value <= 1:
+            raise ValueError("RETENTION_MAX_DELETE_FRACTION debe ser mayor que 0 y como máximo 1.")
         return value
 
     @field_validator("RATE_LIMIT_REDIS_URL")
@@ -313,6 +338,10 @@ class Settings(BaseSettings):
         if self.API_ENV == "production" and self.DB_JOBS_USER is None:
             warnings.append("Sin DB_JOBS_USER: la API y la conservación de la auditoría comparten cuenta de base, así que no se le puede negar "
                             "UPDATE/DELETE sobre Auditoria a la API (GL-03).")
+        configured = [name for name in ("AUDIT_RETENTION_MONTHS", "PERSONNEL_RETENTION_MONTHS") if getattr(self, name) > 0]
+        if configured and not self.RETENTION_APPROVAL_REFERENCE:
+            warnings.append(f"{', '.join(configured)} definido(s) sin RETENTION_APPROVAL_REFERENCE: esa depuración NO corre hasta que se informe la "
+                            "referencia de la aprobación legal (H-04).")
         if self.API_ENV == "production":
             pending = [name for name in ("AUDIT_RETENTION_MONTHS", "PERSONNEL_RETENTION_MONTHS") if getattr(self, name) == 0]
             if pending:

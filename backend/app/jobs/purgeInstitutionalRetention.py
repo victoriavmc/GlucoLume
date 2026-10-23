@@ -3,21 +3,25 @@
 # Desidentifica los pacientes cuyo período de conservación de 12 meses (cierre de la institución o baja del
 # paciente) ya venció. Ver app/services/institutionalRetention.py.
 #
-# Ejecución manual controlada (desde backend/), sin endpoint HTTP. BORRA y desidentifica datos: exige nombrar la base a propósito, para que
-# no corra por error contra la base real (hacerlo sobre datos reales requiere autorización expresa):
-#   python -m app.jobs.purgeInstitutionalRetention --confirmo-base <DB_NAME configurado>
+# Ejecución manual controlada (desde backend/), sin endpoint HTTP, en DOS pasos. BORRA y desidentifica datos de forma irreversible; no se programa
+# solo y nunca corre contra la base real sin que alguien lo autorice expresamente:
+#   1. Simulación (no modifica nada ni requiere confirmar):
+#        python -m app.jobs.purgeInstitutionalRetention --simular
+#      informa cuántos perfiles se anonimizarían y cuántas mediciones se eliminarían.
+#   2. Ejecución, nombrando la base y confirmando EXACTAMENTE esas cantidades (si cambiaron desde la simulación, no se hace nada):
+#        python -m app.jobs.purgeInstitutionalRetention --confirmo-base <DB_NAME> --confirmo-perfiles <A> --confirmo-mediciones <B>
 #
-# Preparado para un programador de tareas (cron / Programador de tareas de Windows), por ejemplo una vez por día, con el mismo argumento.
 # Usa la cuenta de base de los procesos de conservación (DB_JOBS_USER) si está configurada.
 
 import argparse
+import json
 import logging
 import sys
 
 from app.core.config import getSettings
 from app.db.session import getJobsSessionFactory
 from app.services import resultEmailStore
-from app.services.institutionalRetention import purgeExpiredPatientData
+from app.services.institutionalRetention import plan, purgeExpiredPatientData
 from app.services.measurementRetention import purgeExpiredMeasurements
 from app.utils.timeZone import nowForDb
 
@@ -40,10 +44,22 @@ def run() -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fin del período de conservación de pacientes institucionales (borra y desidentifica).")
+    parser.add_argument("--simular", action="store_true", help="Solo informa qué haría; no modifica nada.")
     parser.add_argument("--confirmo-base", default=None, help="Nombre exacto de la base configurada (DB_NAME) sobre la que se autoriza correr.")
+    parser.add_argument("--confirmo-perfiles", type=int, default=None, help="Perfiles a anonimizar, tal como los informó --simular.")
+    parser.add_argument("--confirmo-mediciones", type=int, default=None, help="Mediciones a eliminar, tal como las informó --simular.")
     args = parser.parse_args(argv)
-    if args.confirmo_base != getSettings().DB_NAME:
+    if not args.simular and args.confirmo_base != getSettings().DB_NAME:
         print("No se modificó nada: --confirmo-base debe ser el nombre exacto de la base configurada.", file=sys.stderr)
+        return 2  # antes de abrir ninguna sesión de base
+    with getJobsSessionFactory()() as db:
+        planned = plan(db)
+    if args.simular:
+        print(json.dumps({"simulacion": True, **planned}, indent=2, ensure_ascii=False))
+        return 0
+    if (args.confirmo_perfiles, args.confirmo_mediciones) != (planned["perfilesAAnonimizar"], planned["medicionesAEliminar"]):
+        print("No se modificó nada: --confirmo-perfiles y --confirmo-mediciones deben coincidir con las cantidades actuales "
+              f"({planned['perfilesAAnonimizar']} perfiles, {planned['medicionesAEliminar']} mediciones). Corré --simular y revisá.", file=sys.stderr)
         return 2
     logging.basicConfig(level=logging.INFO)
     print(f"Perfiles de pacientes desidentificados por fin de conservación: {run()}")
