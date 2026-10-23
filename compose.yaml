@@ -8,12 +8,12 @@
 #   docker compose -f compose.yaml -f compose.prod.yaml up -d       # producción (ver compose.prod.yaml)
 #
 # La configuración y los secretos salen de ./.env (no está en las imágenes ni en Git). Variables propias de Docker:
-# ver ".env.example", sección "Docker". Documentación completa: docs/DOCKER.md.
+# ver ".env.example", sección "Docker". Documentación completa: docs/DESPLIEGUE.md.
 #
 # Qué NO hay aquí, a propósito:
 #  - Un servicio "acquisition": el puerto COM de Windows no se puede pasar a un contenedor Linux. El Arduino lo lee el
 #    puente serie de Windows (acquisition/bridge) y lo envía al backend por HTTP con BRIDGE_TOKEN (o el propio backend en
-#    el mismo equipo con el puerto, ver compose.serial.yaml). Ver docs/DOCKER.md, sección Adquisición.
+#    el mismo equipo con el puerto, ver compose.serial.yaml). Ver docs/DISPOSITIVOS_Y_ADQUISICION.md.
 #  - Scripts de inicialización ni migraciones de base de datos: Docker nunca crea ni modifica esquemas.
 
 name: glucolume
@@ -145,10 +145,10 @@ services:
       # Cualquier otro origen no puede fijar su IP. Docker usa 172.16.0.0/12 por defecto; ajustar si se cambió la red de Docker.
       TRUSTED_PROXY_CIDR: ${FRONTEND_TRUSTED_PROXY_CIDR:-172.16.0.0/12}
     ports:
-      # Puerto 80 del host (http://glucolume.local, ver docs/DOCKER.md). Solo en el equipo local por defecto;
+      # Puerto 80 del host (http://glucolume.local, ver docs/DESPLIEGUE.md). Solo en el equipo local por defecto;
       # FRONTEND_BIND=0.0.0.0 lo expone en la red.
       - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-80}:8080"
-      # Segundo puerto del mismo Nginx: la pantalla de login se sirve en http://localhost:8080 (ver docs/DOCKER.md).
+      # Segundo puerto del mismo Nginx: la pantalla de login se sirve en http://localhost:8080 (ver docs/DESPLIEGUE.md).
       - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_LOGIN_PORT:-8080}:8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -176,7 +176,7 @@ services:
 
   # SQL Server opcional: perfil "db". Sin él, el backend usa la base externa indicada en DB_HOST/DOCKER_DB_HOST.
   # No ejecuta scripts: arranca un servidor vacío con almacenamiento persistente; crear la base y aplicar
-  # database/scripts es un paso manual y explícito (docs/DOCKER.md).
+  # database/scripts es un paso manual y explícito (docs/DESPLIEGUE.md).
   db:
     profiles: ["db"]
     build:

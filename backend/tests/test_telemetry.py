@@ -8,7 +8,7 @@
 # (acquisition/bridge/glucolume_bridge.py): envía a ingest() las líneas con el MISMO formato que escribe el firmware.
 # Es un mecanismo de prueba separado de la conexión real: el servidor no tiene ningún modo «simulado». El reloj del
 # estado en vivo (hub.clock) es falso para probar plazos sin esperar. La base es la SQLite temporal del resto de las
-# pruebas (esquema generado desde los modelos): ver docs/DOCKER.md para la validación de la migración en SQL Server.
+# pruebas (esquema generado desde los modelos): ver docs/DESPLIEGUE.md para la validación de la migración en SQL Server.
 
 import threading
 import time
