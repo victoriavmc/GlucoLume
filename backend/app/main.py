@@ -16,6 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.errors import authErrorHandler, validationErrorHandler
 from app.api.requestContext import RequestContextMiddleware
 from app.api.securityHeaders import SecurityHeadersMiddleware
+from app.api.unhandledErrors import UnhandledErrorMiddleware
 from app.api.v1.acquisition import router as acquisitionRouter
 from app.api.v1.auth import router as authRouter
 from app.api.v1.telemetry import router as telemetryRouter
@@ -76,6 +77,10 @@ else:
         same_site="lax",
         https_only=settings.API_ENV == "production",
     )
+
+# La más interna (se agrega primero): atrapa los errores que ninguna ruta resolvió y responde un 500 genérico que todavía pasa por CORS y por
+# las cabeceras de seguridad, dejando un evento en la auditoría (H-15).
+app.add_middleware(UnhandledErrorMiddleware)
 
 # El frontend (FRONTEND_URL) llama a la API desde otro origen. Solo se permite ese origen; la autenticación
 # viaja en el encabezado Authorization (sin cookies), por eso allow_credentials queda en False.

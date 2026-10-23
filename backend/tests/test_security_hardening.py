@@ -115,6 +115,18 @@ def test_el_login_tiene_limite_por_ip_aunque_se_prueben_cuentas_distintas(api):
     assert api.post("/api/v1/auth/login", json={"identificador": "otro@example.com", "password": "Cualquiera#2026"}).status_code == 429
 
 
+def test_los_endpoints_con_sesion_tienen_limite_por_ip(api, monkeypatch):
+    """H-11: quien presenta un token (aunque sea robado) también tiene tope por IP; sin credenciales sigue el 401 de siempre, sin consumir el cupo."""
+    monkeypatch.setitem(rateLimit.LIMITS, "authenticated", (5, 60))
+    monkeypatch.setitem(rateLimit._limiters, "authenticated", rateLimit.RateLimiter(5, 60))
+    headers = {"Authorization": "Bearer token-que-no-es-valido"}
+    codes = [api.get("/api/v1/auth/me", headers=headers).status_code for _ in range(8)]
+    assert codes == [401] * 5 + [429] * 3
+    blocked = api.get("/api/v1/auth/me", headers=headers)
+    assert blocked.json()["codigo"] == "DEMASIADAS_SOLICITUDES" and int(blocked.headers["Retry-After"]) == 60
+    assert [api.get("/api/v1/auth/me").status_code for _ in range(8)] == [401] * 8  # sin credenciales no cuenta
+
+
 @pytest.mark.parametrize("path, body", [
     ("/api/v1/auth/register", {}), ("/api/v1/auth/password/forgot", {"correoElectronico": "a@example.com"}),
     ("/api/v1/auth/password/reset", {}), ("/api/v1/auth/mfa/verify", {}), ("/api/v1/auth/refresh", {"refreshToken": "x"}),
@@ -205,6 +217,15 @@ def test_nginx_sobrescribe_x_forwarded_for_y_no_lo_acumula():
     assert "0.0.0.0/0" not in conf
     compose = (REPO / "compose.yaml").read_text(encoding="utf-8")
     assert re.search(r"TRUSTED_PROXY_CIDR:\s*\$\{FRONTEND_TRUSTED_PROXY_CIDR:-172\.16\.0\.0/12\}", compose)
+
+
+def test_nginx_no_registra_la_query_de_los_enlaces_con_token():
+    """H-14: los enlaces de correo llevan un token de un solo uso en «?token=»; el log de accesos registra la ruta ($uri), no el pedido completo."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    format_ = re.search(r"^log_format sin_query (.+);$", conf, re.M).group(1)
+    assert "$uri" in format_ and not re.search(r"\$(request|request_uri|args|query_string)\b", format_)
+    assert "access_log /dev/stdout sin_query;" in conf
+    assert not re.search(r"access_log\s+(?!off\b)(?!/dev/stdout sin_query;)", conf)  # ningún otro access_log con el formato por defecto
 
 
 def test_controles_de_infraestructura_preparados():

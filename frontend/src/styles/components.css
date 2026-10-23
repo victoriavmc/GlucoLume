@@ -317,3 +317,11 @@
   .saving-screen, .saving-mark, .saving-bar span { animation: none; }
   .saving-bar span { width: 100%; }
 }
+
+/* ErrorBoundary: pantalla de recuperación centrada cuando falla el dibujado de la aplicación (H-15). */
+.error-boundary {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}

@@ -166,7 +166,7 @@ def _filtered(query: Select, **given) -> Select:
         # Correo o nombre de usuario EXACTO: las cuentas que lo tienen y los intentos sobre ese identificador cuando no existía (por su huella).
         raw = f["identificador"].strip()
         accounts = select(User.idUsuario).where(or_(User.correoElectronico == normalizeEmail(raw) if "@" in raw else false(), User.usuario == raw))
-        query = query.where(or_(Audit.idUsuario.in_(accounts), _contextWhere(AuditContext.identificadorHash == hashIdentifier(raw))))
+        query = query.where(or_(Audit.idUsuario.in_(accounts), _contextWhere(AuditContext.identificadorHash.in_((hashIdentifier(raw), hashIdentifier(raw, legacy=True))))))
     if f["modulo"]:
         query = query.where(Audit.modulo == f["modulo"])
     if f["accion"] and f["accion"].strip():
@@ -340,6 +340,7 @@ ACTION_LABELS = {
     classification.ACCION_LIMITE_SOLICITUDES: "Límite de solicitudes superado",
     classification.ACCION_RAFAGA_AUTORIZACION: "Ráfaga de solicitudes rechazadas (401/403)",
     classification.ACCION_RAFAGA_VALIDACION: "Ráfaga de entradas rechazadas por validación",
+    classification.ACCION_ERROR_INESPERADO: "Error inesperado del servidor",
     classification.ACCION_EXPORT_SOLICITADA: "Exportación de datos solicitada",
     classification.ACCION_EXPORT_COMPLETADA: "Exportación de datos completada",
     classification.ACCION_EXPORT_FALLIDA: "Exportación de datos fallida o rechazada",

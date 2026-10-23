@@ -39,7 +39,12 @@ TOTP_INTERVAL_SECONDS = 30
 # Tolerancia de desfase de reloj: un intervalo antes y uno después.
 TOTP_VALID_WINDOW = 1
 
-_passwordHash = PasswordHash((Argon2Hasher(),))
+# Parámetros de Argon2id fijados a propósito (H-12; OWASP Password Storage: m ≥ 64 MiB, t = 3, p = 4), no los de la librería: una actualización
+# de pwdlib no debilita el hashing en silencio. Subirlos es seguro: verify_and_update rehace en el próximo acceso los hashes con parámetros menores.
+ARGON2_TIME_COST = 3
+ARGON2_MEMORY_COST_KIB = 64 * 1024
+ARGON2_PARALLELISM = 4
+_passwordHash = PasswordHash((Argon2Hasher(time_cost=ARGON2_TIME_COST, memory_cost=ARGON2_MEMORY_COST_KIB, parallelism=ARGON2_PARALLELISM),))
 # Hash de referencia para igualar el tiempo de respuesta cuando el usuario no existe.
 _DUMMY_PASSWORD_HASH = _passwordHash.hash(secrets.token_urlsafe(16))
 
@@ -167,16 +172,28 @@ def _encodeJwt(claims: dict, expiresIn: timedelta) -> str:
 
 
 def _decodeJwt(token: str, expectedType: str) -> dict:
-    """Decodifica con el algoritmo configurado (nunca el que declara el token). Lanza jwt.InvalidTokenError."""
+    """Decodifica con el algoritmo configurado (nunca el que declara el token). Lanza jwt.InvalidTokenError.
+
+    Durante una rotación (JWT_PREVIOUS_SECRET, H-08) un token cuya firma no coincide con JWT_SECRET se reintenta con el secreto anterior;
+    solo la firma inválida habilita el reintento: un token vencido, de otro tipo o mal formado se rechaza igual con cualquiera de los dos."""
     settings = getSettings()
-    claims = jwt.decode(
-        token,
-        settings.JWT_SECRET.get_secret_value(),
-        algorithms=[settings.JWT_ALGORITHM],
-        audience=JWT_AUDIENCE,
-        issuer=JWT_ISSUER,
-        options={"require": ["exp", "iat", "sub", "typ"]},
-    )
+    secrets_ = [settings.JWT_SECRET.get_secret_value()]
+    if settings.JWT_PREVIOUS_SECRET is not None:
+        secrets_.append(settings.JWT_PREVIOUS_SECRET.get_secret_value())
+    for position, secret in enumerate(secrets_):
+        try:
+            claims = jwt.decode(
+                token,
+                secret,
+                algorithms=[settings.JWT_ALGORITHM],
+                audience=JWT_AUDIENCE,
+                issuer=JWT_ISSUER,
+                options={"require": ["exp", "iat", "sub", "typ"]},
+            )
+            break
+        except jwt.InvalidSignatureError:
+            if position == len(secrets_) - 1:
+                raise
     if claims["typ"] != expectedType:
         raise jwt.InvalidTokenError("Tipo de token inesperado.")
     return claims

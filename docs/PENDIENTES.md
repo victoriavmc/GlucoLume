@@ -9,6 +9,12 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 
 | Prioridad | Pendiente | Referencia |
 |---|---|---|
+| P1 | Copia externa de los respaldos (`GlucoLume_respaldo.ps1 -CopiaExterna`) y custodia de la frase fuera del equipo; probar la restauración desde esa copia. Requiere elegir el destino | H-01 |
+| P1 | Aplicar `GlucoLume_permisos.sql` en la instancia real (SEGURIDAD §5.1 paso 3) | H-02 |
+| P1 | Fijar con asesoría legal `AUDIT_RETENTION_MONTHS` y `PERSONNEL_RETENTION_MONTHS`; producción advierte mientras estén en 0 | H-04 |
+| P2 | Rotar los secretos reales con el procedimiento de SEGURIDAD §5.1 (`JWT_PREVIOUS_SECRET`, `BRIDGE_PREVIOUS_TOKEN_UNTIL`) | H-08, GL-20 |
+| P2 | Firma por línea del firmware / PIN Bluetooth por unidad / BLE (riesgo aceptado en SEGURIDAD §4 punto 9). **Requiere el hardware** | H-05 |
+| P2 | Evaluar refresh token en cookie `HttpOnly` (impacto en CORS, CSRF y orígenes de login) | H-09 |
 | P3 | Mejoras para una instalación productiva (no requeridas para el prototipo local): certificado de servidor en SQL Server con `DB_SERVER_CERTIFICATE`, BitLocker y copia de la clave de respaldos fuera del equipo (SEGURIDAD §5.1 pasos 4 y 5) | GL-07 |
 | P3 | Antes de una instalación productiva: rotar `JWT_SECRET`, `SESSION_SECRET`, `BRIDGE_TOKEN` y credenciales de base y SMTP; no compartir la carpeta con los `.env` | GL-20 |
 | P3 | Reconstruir la imagen del backend cuando Debian publique la corrección de `zlib` (1 vulnerabilidad alta sin parche); repetir los escaneos antes de publicar | GL-13 |

@@ -7,9 +7,15 @@
 #      igual (SHA-256) antes de borrar el .bak en claro;
 #   4. retención: conserva los diarios de los últimos -DiasDiarios días y uno por mes durante -MesesMensuales meses. Solo borra archivos
 #      con el patrón de este script (GlucoLume_AAAAMMDD_HHMMSS.bak.gpg), nunca el último, y solo si el respaldo de hoy terminó bien.
-# Registro en <Destino>\respaldo.log (sin claves). Sale con 1 ante cualquier error, sin borrar nada.
+#   5. copia fuera del equipo (H-01, regla 3-2-1), solo si se indica -CopiaExterna: copia el respaldo cifrado a otro disco o recurso de red
+#      (p. ej. \\nas\glucolume o E:\GlucoLume) y comprueba su SHA-256 en el destino. Es una COPIA, no un espejo: no borra nada del destino
+#      (así un equipo comprometido no puede vaciar la copia). La retención del destino la define quien lo administra (idealmente con
+#      versiones inmutables). La clave de cifrado NO se copia acá: se guarda aparte con GlucoLume_clave_respaldo.ps1 -Mostrar.
+# Registro en <Destino>\respaldo.log (sin claves). Sale con 1 ante cualquier error, sin borrar nada. Si falla solo la copia externa, el
+# respaldo local queda hecho, se aplica la retención local y sale con 2 (el Programador de tareas lo muestra como fallido).
 #
 #   powershell -File GlucoLume_respaldo.ps1 [-Instancia localhost\GLUCOLUME] [-Base GlucoLume] [-Destino C:\GlucoLumeRespaldos]
+#                                          [-CopiaExterna \\nas\glucolume]
 
 param(
     [string]$Instancia = "localhost\GLUCOLUME",
@@ -18,7 +24,8 @@ param(
     [string]$Clave = "C:\GlucoLumeRespaldos\clave_respaldo.dpapi",
     [string]$Gpg = "C:\Program Files\Git\usr\bin\gpg.exe",
     [int]$DiasDiarios = 35,
-    [int]$MesesMensuales = 12
+    [int]$MesesMensuales = 12,
+    [string]$CopiaExterna = ""
 )
 $ErrorActionPreference = "Stop"
 $log = Join-Path $Destino "respaldo.log"
@@ -47,6 +54,25 @@ try {
     Remove-Item $bak
     Registrar "Cifrado AES-256 y verificado: $(Split-Path $gpgFile -Leaf) (SHA-256 del respaldo $original)"
 
+    # Copia fuera del equipo (H-01): un fallo acá no frena la retención local, pero hace que el script termine con 2.
+    $salida = 0
+    if ($CopiaExterna) {
+        try {
+            if (-not (Test-Path $CopiaExterna)) { throw "No se puede acceder a la copia externa ($CopiaExterna)." }
+            $copia = Join-Path $CopiaExterna (Split-Path $gpgFile -Leaf)
+            Copy-Item $gpgFile $copia -Force
+            $local = (Get-FileHash $gpgFile -Algorithm SHA256).Hash
+            $remoto = if (Test-Path $copia) { (Get-FileHash $copia -Algorithm SHA256).Hash } else { "" }
+            if ($local -ne $remoto) { throw "La copia externa no coincide con el respaldo local (SHA-256)." }
+            Registrar "Copia externa verificada: $copia"
+        } catch {
+            Registrar "ERROR en la copia externa: $($_.Exception.Message)"
+            $salida = 2
+        }
+    } else {
+        Registrar "Sin -CopiaExterna: el respaldo y su clave siguen en un único equipo (regla 3-2-1 incompleta, H-01)."
+    }
+
     # Retención: solo archivos de este script; nunca el más reciente.
     $todos = Get-ChildItem $Destino -Filter "GlucoLume_*.bak.gpg" | Where-Object { $_.Name -match '^GlucoLume_(\d{8})_\d{6}\.bak\.gpg$' } |
         ForEach-Object { [pscustomobject]@{ Archivo = $_; Fecha = [datetime]::ParseExact($matches[1], "yyyyMMdd", $null) } } | Sort-Object Fecha -Descending
@@ -58,7 +84,7 @@ try {
         if ($mensual) { $mensualesVistos[$mes] = $true }
         if (-not $diario -and -not $mensual) { Remove-Item $item.Archivo.FullName; Registrar "Retención: borrado $($item.Archivo.Name)" }
     }
-    exit 0
+    exit $salida
 } catch {
     Registrar "ERROR: $($_.Exception.Message)"
     exit 1

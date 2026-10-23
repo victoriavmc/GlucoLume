@@ -95,6 +95,30 @@ Los GL-xx provienen del informe del 19/10/2026; GL-22 y GL-23 se agregaron despu
 | GL-22 | Lecturas en vivo del equipo visibles para cualquier cuenta que mide, sin sesión | Media | **Corregido:** solo quien controla el equipo recibe valores y PPG; prueba de estado y de stream |
 | GL-23 | La Política de Privacidad dice que la IP y el navegador no se guardan, pero `AuditoriaContexto` los conserva 90 días | Media | **Corregido:** la política (versión 1.1) informa que la IP y el navegador se guardan 90 días; no se fuerza una nueva aceptación (no cambia la base legal) |
 
+### 2.0.1 Informe de auditoría del 21/10/2026 (H-01 a H-17)
+
+Segundo informe (`docs/seguridad/auditorias/Auditoria de Ciberseguridad - GlucoLume2.pdf`), con numeración propia H-xx. Estado de cada hallazgo:
+
+| ID | Hallazgo | Riesgo | Estado |
+|---|---|---|---|
+| H-01 | Respaldos y clave en un único equipo | Alto | **Código listo; falta configurarlo (acción humana):** `GlucoLume_respaldo.ps1 -CopiaExterna` copia y verifica el respaldo cifrado fuera del equipo ([BASE_DE_DATOS.md](BASE_DE_DATOS.md) §Respaldos). Hay que elegir el destino, agregarlo a la tarea programada y guardar la frase aparte. El script no se pudo ejecutar en el entorno de desarrollo (sin PowerShell) |
+| H-02 | Permisos de mínimo privilegio de BD sin aplicar | Medio | **Pendiente en la instancia real (acción humana):** procedimiento en §5.1 paso 3 |
+| H-03 | Datos en reposo sin cifrar (SQL Server Express) | Medio | **Pendiente (infraestructura):** BitLocker y respaldos AES-256 (§5.1); TDE al pasar a una edición que lo admita |
+| H-04 | Retención sin plazo aprobado | Medio | **Pendiente de decisión legal:** producción advierte al arrancar si `AUDIT_RETENTION_MONTHS` o `PERSONNEL_RETENTION_MONTHS` siguen en 0. No se fijaron valores por defecto ni se programó `purgeInstitutionalRetention` (borra datos reales: requiere autorización) |
+| H-05 | Canal Bluetooth sin cifrado ni autenticidad; PIN débil | Medio | **Riesgo aceptado del prototipo (opción a del informe), ver §4.** La firma por línea en el firmware y el cambio del PIN requieren el hardware para probarse: pendientes |
+| H-06 | Rate limiting en memoria | Medio | **Aceptado con una réplica** (§4, punto 1); Redis solo si se escala |
+| H-07 | `API_ENV` con valor por defecto `development` | Medio | **Corregido:** la imagen Docker no arranca sin `API_ENV` explícito (`GLUCOLUME_RUNTIME=container`); prueba en `test_security_config.py` |
+| H-08 | Rotación de secretos sin procedimiento | Medio | **Corregido:** `JWT_PREVIOUS_SECRET` (rotación sin cerrar sesiones) y procedimiento completo en §5.1. Falta ejecutar la rotación real (acción humana) |
+| H-09 | Refresh token en Web Storage | Medio | **Riesgo aceptado (GL-14).** Pasarlo a cookie `HttpOnly` cambia la autenticación entre orígenes, CORS y CSRF: requiere decisión y diseño propios |
+| H-10 | CVE alta de `zlib` sin parche | Medio-bajo | **Pendiente de Debian** (§4, punto 8): reconstruir la imagen y repetir el escaneo cuando exista la corrección |
+| H-11 | Sin límite por IP en endpoints autenticados | Bajo | **Corregido:** límite `authenticated` (1800 por minuto y por IP) en `getAuthContext`; prueba en `test_security_hardening.py` |
+| H-12 | Parámetros de Argon2 sin fijar | Bajo | **Corregido:** m = 64 MiB, t = 3, p = 4 explícitos; prueba de formato y de rehash |
+| H-13 | HMAC de identificadores sin HKDF | Bajo | **Corregido:** `derivedKey("auditoria-identificador")`; la búsqueda por identificador sigue encontrando las huellas anteriores |
+| H-14 | Tokens de enlace en la query, visibles en los logs de Nginx | Bajo | **Corregido:** el `access_log` registra la ruta sin la query; prueba que lo fija. No se ensayó con un Nginx real (sin Docker en el entorno de desarrollo) |
+| H-15 | Sin `ErrorBoundary` ni auditoría de 500 | Bajo | **Corregido:** `ErrorBoundary` global en la SPA y middleware `UnhandledErrorMiddleware` (500 genérico, cabeceras y evento `ERROR_SERVIDOR_INESPERADO` sin el mensaje de la excepción) |
+| H-16 | Token único del puente y ventana de doble token | Bajo | **Parcial:** `BRIDGE_PREVIOUS_TOKEN_UNTIL` fija el plazo máximo de la ventana. El token por puente sigue pendiente (GL-11, requiere tabla) |
+| H-17 | React 19.1.0 | Bajo | **Corregido:** react y react-dom 19.1.10 (suite del frontend 685/685) |
+
 ### 2.0 Alcance (decisión del 19/10/2026)
 
 GlucoLume es un prototipo académico (TIF) que funciona en un equipo local con Docker y SQL Server Express; no se publica en Internet ni
@@ -173,6 +197,12 @@ columna; si no, el vigente). Los eventos anteriores se infieren: solo cambian de
 6. La cuenta `glucolume_app` de la base real no se inspeccionó.
 7. Las dependencias y las imágenes base acumulan CVE nuevas: el escaneo se repite.
 8. La imagen del backend tiene una vulnerabilidad alta de `zlib` (Debian) sin corrección publicada: se reconstruye cuando Debian la publique.
+9. **Canal Bluetooth del dispositivo (H-05).** El firmware transmite BPM, SpO₂, glucosa estimada y PPG por un HC-05/HC-06 sin cifrado ni autenticidad de
+   los datos, con emparejamiento de PIN conocido (1234/0000). Un atacante a pocos metros podría escuchar o inyectar líneas. **Riesgo aceptado para el
+   prototipo**, con estas atenuantes: alcance físico de Bluetooth clásico, validación estricta de cada línea en el backend (rangos, repetidos,
+   truncados), token del puente (`X-Bridge-Token`), control de sesión por cuenta y conexión alternativa por USB. Para uso real: cambiar el PIN por uno
+   aleatorio por unidad (comando AT del módulo), firmar cada línea con un HMAC truncado cuya clave se provisione por dispositivo, o pasar a BLE con cifrado
+   propio. No se implementó la firma por línea: requiere probarse con el hardware.
 
 ## 5. Antes de publicar con datos reales
 
@@ -215,12 +245,25 @@ exigen los índices filtrados). Respaldo previo verificado:
    `DB_TRUST_SERVER_CERTIFICATE=false`. Reversión: volver a `DB_TRUST_SERVER_CERTIFICATE=true` y quitar el certificado en el Administrador.
 5. *(Mejora productiva)* **BitLocker**, como administrador: `manage-bde -on C: -RecoveryPassword` (guardar la clave de recuperación fuera del equipo). Y guardar la
    clave de los respaldos: `powershell -File database\respaldos\GlucoLume_clave_respaldo.ps1 -Mostrar` → gestor de contraseñas.
+   Y la copia externa de los respaldos (H-01): agregar `-CopiaExterna <destino>` a la tarea «GlucoLume - Respaldo diario cifrado»; detalle y prueba trimestral en
+   [BASE_DE_DATOS.md](BASE_DE_DATOS.md).
 - **Base cifrada con TDE (solo Standard o superior).** `sqlcmd ... -i database/reference/GlucoLume_cifrado_y_respaldo.sql -v BASE=... DIR_RESPALDO=...
   CLAVE_CERTIFICADOS=... CONFIRMAR=CIFRAR_Y_RESPALDAR_GLUCOLUME` (primero en una copia); guardar fuera del servidor los certificados exportados y
   su contraseña; certificado de SQL Server confiable para el host (`DB_TRUST_SERVER_CERTIFICATE` sin definir).
 - **Base instalada (GL-05).** `python -m app.cli.schemaCheck` (solo lectura) después de cualquier cambio de esquema o restauración.
-- **Rotación de secretos (GL-20)**, en una ventana acordada: generar en el servidor `JWT_SECRET`, `SESSION_SECRET` y `BRIDGE_TOKEN` nuevos
-  (`BRIDGE_PREVIOUS_TOKEN` durante el cambio del puente); cambiar las credenciales de base y SMTP. Cambiar `JWT_SECRET` cierra todas las sesiones.
+- **Rotación de secretos (GL-20, H-08)**, cada seis meses o ante cualquier sospecha de filtración, en una ventana acordada. Generar los valores nuevos
+  en el servidor con `python -c "import secrets; print(secrets.token_urlsafe(64))"` y recrear `backend` (y `lifecycle`) después de cada paso:
+  1. `JWT_SECRET`: pasar el valor vigente a `JWT_PREVIOUS_SECRET` y poner el nuevo en `JWT_SECRET`. La API firma con el nuevo y sigue aceptando los
+     tokens ya emitidos con el anterior, así que **no se cierran las sesiones**. Quitar `JWT_PREVIOUS_SECRET` pasados **7 días** (el refresh es opaco y
+     vive en la base; los tokens firmados más largos son los enlaces de correo, de hasta 30 días: los de baja de avisos). Al arrancar, la API advierte
+     mientras `JWT_PREVIOUS_SECRET` siga definido. Efecto colateral: las claves derivadas de `JWT_SECRET` (HMAC de códigos cortos, vigentes minutos, y de
+     identificadores de auditoría) cambian; los códigos emitidos antes de la rotación hay que pedirlos de nuevo y la búsqueda por identificador en la
+     auditoría deja de encontrar las huellas anteriores (acotadas por `AUDIT_CONTEXT_RETENTION_DAYS`).
+  2. `BRIDGE_TOKEN`: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN`, se actualiza el del puente y se quita el anterior en cuanto el puente use el nuevo. Fijar siempre `BRIDGE_PREVIOUS_TOKEN_UNTIL` (máximo 24 h desde el cambio): vencido el plazo, la API ignora el token anterior aunque siga en el `.env`.
+  3. `SESSION_SECRET` (solo invalida un inicio de sesión con Google en curso) y `GOOGLE_CLIENT_SECRET` (se rota también en Google Cloud): cambio directo.
+  4. `DB_PASSWORD`, `DB_JOBS_PASSWORD` y `SMTP_PASSWORD`: `ALTER LOGIN ... WITH PASSWORD = '<nueva>'` en SQL Server (o el panel del proveedor de correo), luego el `.env`.
+  5. `MFA_ENCRYPTION_KEY`: con `MFA_PREVIOUS_ENCRYPTION_KEYS` y `python -m app.cli.mfaKeys`.
+  Registrar la fecha de la rotación (sin los valores) y verificar un inicio de sesión real con y sin MFA.
 - **Imágenes (GL-13).** Para actualizar un digest: `docker buildx imagetools inspect`, `docker scout cves` y reconstruir.
 
 Esta documentación no reemplaza una prueba de penetración externa.

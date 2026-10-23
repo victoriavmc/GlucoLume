@@ -4,15 +4,18 @@ import { BrowserRouter } from 'react-router-dom';
 
 import App from './App.jsx';
 import { OriginGuard } from './auth/OriginGuard.jsx';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import './styles/global.css';
 import './styles/components.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
-      <OriginGuard>
-        <App />
-      </OriginGuard>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <OriginGuard>
+          <App />
+        </OriginGuard>
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 );

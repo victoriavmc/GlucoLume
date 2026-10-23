@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core import requestContext
 from app.core.config import getSettings
+from app.core.security import derivedKey
 from app.models.audit import Audit
 from app.models.auditContext import AuditContext
 from app.models.device import Device
@@ -197,11 +198,17 @@ def _identitySnapshot(db: Session, relationIds: set[uuid.UUID], idUsuario, idIns
     return snapshot
 
 
-def hashIdentifier(identifier: str) -> str:
+def hashIdentifier(identifier: str, *, legacy: bool = False) -> str:
     """HMAC (clave del servidor) del identificador escrito en un intento de acceso sobre una cuenta inexistente. Permite ver que el mismo
     identificador se probó varias veces, o desde cuántos orígenes, sin guardar lo que la persona escribió (a veces es una contraseña pegada
-    en el campo equivocado). Se normaliza como se normalizan los correos y usuarios: sin espacios y en minúsculas."""
-    key = hashlib.sha256(b"glucolume.audit.identifier:" + getSettings().JWT_SECRET.get_secret_value().encode()).digest()
+    en el campo equivocado). Se normaliza como se normalizan los correos y usuarios: sin espacios y en minúsculas.
+
+    La clave se deriva de JWT_SECRET con HKDF (H-13), como las de los demás propósitos. `legacy`: la derivación anterior (SHA-256 del prefijo
+    más JWT_SECRET), solo para encontrar huellas ya guardadas en AuditoriaContexto; se puede quitar cuando venza su retención."""
+    if legacy:
+        key = hashlib.sha256(b"glucolume.audit.identifier:" + getSettings().JWT_SECRET.get_secret_value().encode()).digest()
+    else:
+        key = derivedKey("auditoria-identificador")
     return hmac.new(key, identifier.strip().lower().encode(), hashlib.sha256).hexdigest()[:32]
 
 

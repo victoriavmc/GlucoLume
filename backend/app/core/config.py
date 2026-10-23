@@ -1,6 +1,7 @@
 # Config - Configuración de la aplicación leída desde variables de entorno / .env
 
 import os
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -54,6 +55,9 @@ class Settings(BaseSettings):
 
     # JWT de acceso
     JWT_SECRET: SecretStr
+    # Secreto anterior durante una rotación (H-08): firma solo JWT_SECRET; los tokens firmados con el anterior se siguen aceptando hasta que
+    # vencen. Quitarlo pasada la vigencia del token más largo (docs/SEGURIDAD.md, «Rotación de secretos»).
+    JWT_PREVIOUS_SECRET: SecretStr | None = None
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -104,6 +108,9 @@ class Settings(BaseSettings):
     BRIDGE_TOKEN: SecretStr | None = None
     # Rotación sin corte (GL-11): el token anterior se sigue aceptando mientras se actualiza el puente; quitarlo apenas el puente use el nuevo.
     BRIDGE_PREVIOUS_TOKEN: SecretStr | None = None
+    # Plazo máximo explícito de ese token anterior (H-16), p. ej. 2026-11-03T18:00 (hora de Argentina si no lleva zona): vencido, se ignora.
+    # Sin plazo sigue valiendo hasta que se lo quite (se advierte al arrancar).
+    BRIDGE_PREVIOUS_TOKEN_UNTIL: datetime | None = None
     # Transitorio (equipo único compartido): permite que las cuentas individuales midan y den órdenes al puente con un dispositivo asignado a
     # una institución. NO cambia su propiedad ni los permisos de los operadores. Por defecto apagado; quitarlo cuando cada contexto tenga su equipo.
     ALLOW_INDIVIDUAL_ON_INSTITUTIONAL_DEVICE: bool = False
@@ -157,11 +164,11 @@ class Settings(BaseSettings):
             raise ValueError("El token del puente debe tener al menos 32 caracteres.")
         return value
 
-    @field_validator("JWT_SECRET")
+    @field_validator("JWT_SECRET", "JWT_PREVIOUS_SECRET")
     @classmethod
-    def validarSecreto(cls, value: SecretStr) -> SecretStr:
-        if len(value.get_secret_value()) < 32:
-            raise ValueError("JWT_SECRET debe tener al menos 32 caracteres.")
+    def validarSecreto(cls, value: SecretStr | None, info) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError(f"{info.field_name} debe tener al menos 32 caracteres.")
         return value
 
     @property
@@ -226,9 +233,19 @@ class Settings(BaseSettings):
             warnings.append("DATABASE_URL está definida pero ninguna parte de GlucoLume la usa: duplica la contraseña de la base; quitala.")
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             warnings.append("BRIDGE_PREVIOUS_TOKEN está definido: el puente acepta dos tokens. Quitalo cuando el puente use BRIDGE_TOKEN.")
+            if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
+                warnings.append("BRIDGE_PREVIOUS_TOKEN sin BRIDGE_PREVIOUS_TOKEN_UNTIL: fijá un plazo máximo para la ventana de rotación (H-16).")
+        if self.JWT_PREVIOUS_SECRET is not None:
+            warnings.append("JWT_PREVIOUS_SECRET está definido: la API acepta tokens firmados con dos secretos. Quitalo cuando venzan los "
+                            "tokens firmados con el anterior (docs/SEGURIDAD.md, «Rotación de secretos»).")
         if self.API_ENV == "production" and self.DB_JOBS_USER is None:
             warnings.append("Sin DB_JOBS_USER: la API y la conservación de la auditoría comparten cuenta de base, así que no se le puede negar "
                             "UPDATE/DELETE sobre Auditoria a la API (GL-03).")
+        if self.API_ENV == "production":
+            pending = [name for name in ("AUDIT_RETENTION_MONTHS", "PERSONNEL_RETENTION_MONTHS") if getattr(self, name) == 0]
+            if pending:
+                warnings.append(f"{', '.join(pending)} en 0: esos datos se conservan sin límite porque el plazo legal todavía no fue aprobado "
+                                "(Ley 25.326; H-04). Fijar los plazos aprobados antes de operar con datos reales (docs/PRIVACIDAD_Y_RETENCION.md).")
         if self.trustServerCertificate:
             warnings.append("La conexión a SQL Server no verifica el certificado del servidor (TrustServerCertificate): solo para desarrollo.")
         if self.reusedSecrets():
@@ -246,7 +263,7 @@ class Settings(BaseSettings):
     def reusedSecrets(self) -> list[str]:
         """Pares de variables que comparten el mismo secreto (solo nombres). Cada secreto protege una cosa distinta: si uno se filtra o se
         rota, no debe arrastrar a los demás (GL-20)."""
-        names = ("JWT_SECRET", "SESSION_SECRET", "BRIDGE_TOKEN", "BRIDGE_PREVIOUS_TOKEN", "MFA_ENCRYPTION_KEY", "DB_PASSWORD",
+        names = ("JWT_SECRET", "JWT_PREVIOUS_SECRET", "SESSION_SECRET", "BRIDGE_TOKEN", "BRIDGE_PREVIOUS_TOKEN", "MFA_ENCRYPTION_KEY", "DB_PASSWORD",
                  "DB_JOBS_PASSWORD", "SMTP_PASSWORD", "GOOGLE_CLIENT_SECRET")
         values = {name: getattr(self, name).get_secret_value() for name in names if getattr(self, name) is not None}
         seen: dict[str, str] = {}
@@ -257,6 +274,16 @@ class Settings(BaseSettings):
             else:
                 seen[value] = name
         return pairs
+
+    @model_validator(mode="after")
+    def exigirEntornoExplicito(self) -> "Settings":
+        """En la imagen Docker (GLUCOLUME_RUNTIME=container) API_ENV debe definirse: sin él caería en «development» y un despliegue que
+        olvide fijarlo abriría /docs y confiaría en el certificado de SQL Server sin verificarlo (H-07). Fuera de la imagen sigue
+        valiendo el valor por defecto."""
+        if os.environ.get("GLUCOLUME_RUNTIME") == "container" and "API_ENV" not in self.model_fields_set:
+            raise ValueError("API_ENV debe definirse explícitamente (development|test|production): en producción lo fija "
+                             "compose.prod.yaml; en desarrollo, API_ENV=development en el .env.")
+        return self
 
     @model_validator(mode="after")
     def validarCertificadoEnProduccion(self) -> "Settings":
@@ -282,6 +309,18 @@ class Settings(BaseSettings):
             if invalid:
                 raise ValueError(f"Clave Fernet inválida en {', '.join(invalid)}.")
         return self
+
+    @property
+    def bridgeTokens(self) -> list[SecretStr]:
+        """Tokens del puente que se aceptan ahora: el vigente y, mientras no venza su plazo (H-16), el anterior."""
+        tokens = [token for token in (self.BRIDGE_TOKEN,) if token is not None]
+        if self.BRIDGE_PREVIOUS_TOKEN is not None:
+            from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+            until = self.BRIDGE_PREVIOUS_TOKEN_UNTIL
+            if until is None or nowArgentina() < withArgentinaZone(until):
+                tokens.append(self.BRIDGE_PREVIOUS_TOKEN)
+        return tokens
 
     @property
     def mfaEnabled(self) -> bool:

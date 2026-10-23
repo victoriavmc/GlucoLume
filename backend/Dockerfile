@@ -26,7 +26,8 @@ RUN /opt/venv/bin/pip install --require-hashes -r /tmp/requirements.txt
 FROM ${PYTHON_IMAGE} AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    GLUCOLUME_RUNTIME=container
 
 # Microsoft ODBC Driver 18 para SQL Server (repositorio oficial de Microsoft, paquete firmado). libgssapi-krb5-2 y
 # unixodbc se instalan explícitos: el driver los necesita y el purge de curl los quitaría como dependencias huérfanas.

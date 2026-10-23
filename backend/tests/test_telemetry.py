@@ -317,6 +317,23 @@ def test_el_puente_bloquea_la_ip_que_falla_el_token_y_acepta_el_anterior_al_rota
     assert [check().status_code for _ in range(3)] == [200, 200, 429]
 
 
+def test_el_token_anterior_del_puente_vence_en_su_plazo(api, consumer, bridge, monkeypatch):
+    # H-16: BRIDGE_PREVIOUS_TOKEN_UNTIL fija el máximo de la ventana de rotación; vencido, el token anterior deja de valer y el vigente sigue.
+    user, _ = consumer
+    client = api(user)
+    url, body = "/api/v1/acquisition/bridge/ingest", payload(bridge, [line()])
+    previous = "p" * 40
+    monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN", previous)
+    for until, expected in (("2999-01-01T00:00", 200), ("2000-01-01T00:00", 403)):
+        monkeypatch.setenv("BRIDGE_PREVIOUS_TOKEN_UNTIL", until)
+        getSettings.cache_clear()
+        assert client.post(url, json=body, headers={"X-Bridge-Token": previous}).status_code == expected
+        assert client.post(url, json=body, headers={"X-Bridge-Token": TOKEN}).status_code == 200
+    monkeypatch.delenv("BRIDGE_PREVIOUS_TOKEN_UNTIL")
+    getSettings.cache_clear()
+    assert any("BRIDGE_PREVIOUS_TOKEN_UNTIL" in warning for warning in getSettings().securityWarnings())
+
+
 def test_estado_http_solo_para_cuentas_que_miden(api, db, mails, consumer, bridge):
     user, _ = consumer
     bridge.seconds(1)

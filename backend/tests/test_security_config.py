@@ -124,6 +124,15 @@ def test_en_produccion_una_clave_mfa_invalida_impide_arrancar():
     assert Settings(**BASE, API_ENV="development", MFA_ENCRYPTION_KEY="no-es-una-clave").securityWarnings()  # fuera de producción, aviso
 
 
+def test_en_la_imagen_docker_api_env_es_obligatorio(monkeypatch):
+    # H-07: sin API_ENV explícito la imagen no arranca (caería en «development»); fuera de la imagen sigue el valor por defecto.
+    assert Settings(**BASE).API_ENV == "development"
+    monkeypatch.setenv("GLUCOLUME_RUNTIME", "container")
+    with pytest.raises(ValidationError, match="API_ENV"):
+        Settings(**BASE)
+    assert Settings(**BASE, API_ENV="production").API_ENV == "production"
+
+
 def test_la_cuenta_de_base_de_la_conservacion_es_aparte_de_la_de_la_api(monkeypatch):
     # GL-03: las dos variables juntas y una cuenta distinta de DB_USER; los jobs la usan y la API no.
     with pytest.raises(ValidationError):
@@ -267,3 +276,79 @@ def test_en_linux_el_certificado_de_sql_server_se_suma_a_las_autoridades_del_sis
     bundle = (tmp_path / "bundle.pem").read_text(encoding="utf-8")
     assert os.environ["SSL_CERT_FILE"] == str(tmp_path / "bundle.pem") and bundle.rstrip().endswith("-----END CERTIFICATE-----")
     assert "PRUEBA" in bundle
+
+
+def test_los_parametros_de_argon2_estan_fijados_y_un_hash_mas_debil_se_rehace():
+    # H-12: m = 64 MiB, t = 3, p = 4 (OWASP) dentro del hash emitido; uno con parámetros menores verifica y devuelve el hash nuevo.
+    assert security.hashPassword("Clave-Segura-123").startswith("$argon2id$v=19$m=65536,t=3,p=4$")
+    from pwdlib import PasswordHash
+    from pwdlib.hashers.argon2 import Argon2Hasher
+
+    weak = PasswordHash((Argon2Hasher(time_cost=1, memory_cost=8192, parallelism=1),)).hash("Clave-Segura-123")
+    ok, updated = security.verifyPassword("Clave-Segura-123", weak)
+    assert ok and updated and "m=65536,t=3,p=4" in updated
+    assert security.verifyPassword("Clave-Segura-123", updated) == (True, None)
+
+
+def test_el_hmac_de_identificadores_de_auditoria_usa_una_clave_derivada():
+    # H-13: la clave sale de HKDF (derivedKey), no de SHA-256(prefijo + JWT_SECRET); el cálculo anterior sigue disponible para las huellas ya guardadas.
+    import hashlib
+    import hmac as hmacModule
+
+    from app.services.audit import hashIdentifier
+
+    new, old = hashIdentifier("  Alguien@Example.com "), hashIdentifier("alguien@example.com", legacy=True)
+    assert new == hashIdentifier("alguien@example.com") and new != old and len(new) == len(old) == 32
+    expected = hmacModule.new(security.derivedKey("auditoria-identificador"), b"alguien@example.com", hashlib.sha256).hexdigest()[:32]
+    assert new == expected
+
+
+def test_rotacion_de_jwt_secret_acepta_tokens_del_secreto_anterior_hasta_que_se_quita(monkeypatch):
+    # H-08: con JWT_PREVIOUS_SECRET los tokens firmados con el secreto anterior siguen valiendo; se firma solo con el vigente.
+    import uuid
+    from datetime import timedelta
+
+    import jwt
+
+    old, new = "a" * 40, "b" * 40
+    claims = {"sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()), "typ": security.TOKEN_TYPE_ACCESS}
+
+    def configure(**values):
+        for name in ("JWT_SECRET", "JWT_PREVIOUS_SECRET"):
+            monkeypatch.delenv(name, raising=False)
+        for name, value in values.items():
+            monkeypatch.setenv(name, value)
+        getSettings.cache_clear()
+
+    try:
+        configure(JWT_SECRET=old)
+        token = security._encodeJwt(claims, timedelta(minutes=5))
+        expired = security._encodeJwt(claims, timedelta(minutes=-5))
+        configure(JWT_SECRET=new)
+        with pytest.raises(jwt.InvalidSignatureError):  # rotado sin ventana: el token anterior deja de valer
+            security.decodeAccessToken(token)
+        configure(JWT_SECRET=new, JWT_PREVIOUS_SECRET=old)
+        assert security.decodeAccessToken(token)["sub"] == claims["sub"]
+        assert security.decodeAccessToken(security._encodeJwt(claims, timedelta(minutes=5)))["sid"] == claims["sid"]
+        assert jwt.decode(security._encodeJwt(claims, timedelta(minutes=5)), new, algorithms=["HS256"], audience=security.JWT_AUDIENCE)  # firma el nuevo
+        with pytest.raises(jwt.ExpiredSignatureError):  # la ventana no revive tokens vencidos
+            security.decodeAccessToken(expired)
+        with pytest.raises(jwt.InvalidSignatureError):  # ni acepta un tercer secreto
+            security.decodeAccessToken(jwt.encode({**jwt.decode(token, old, algorithms=["HS256"], audience=security.JWT_AUDIENCE), "typ": "access"}, "c" * 40, algorithm="HS256"))
+        assert any("JWT_PREVIOUS_SECRET" in w for w in getSettings().securityWarnings())
+        with pytest.raises(ValidationError):
+            Settings(**BASE, JWT_PREVIOUS_SECRET="corto")
+        with pytest.raises(ValidationError):
+            Settings(**BASE, JWT_PREVIOUS_SECRET=BASE["JWT_SECRET"], API_ENV="production")
+    finally:
+        monkeypatch.undo()
+        getSettings.cache_clear()
+
+
+def test_en_produccion_se_advierte_si_los_plazos_de_retencion_siguen_sin_definir():
+    # H-04: con 0 los datos se conservan sin límite (plazo legal sin aprobar); la advertencia no impide arrancar y desaparece al fijarlos.
+    text = " ".join(Settings(**BASE, API_ENV="production").securityWarnings())
+    assert "AUDIT_RETENTION_MONTHS" in text and "PERSONNEL_RETENTION_MONTHS" in text
+    configured = Settings(**BASE, API_ENV="production", AUDIT_RETENTION_MONTHS=24, PERSONNEL_RETENTION_MONTHS=120)
+    assert "RETENTION_MONTHS" not in " ".join(configured.securityWarnings())
+    assert "RETENTION_MONTHS" not in " ".join(Settings(**BASE, API_ENV="development").securityWarnings())

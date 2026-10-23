@@ -55,7 +55,7 @@ def requireBridge(request: Request, token: Annotated[str | None, Header(alias="X
     if rateLimit.bridgeFailures.exceeded(ip):
         raise AuthError("DEMASIADAS_SOLICITUDES", rateLimit.TOO_MANY_REQUESTS, retryAfterSeconds=rateLimit.BRIDGE_FAILURES[1],
                         motivo="bridgeAuth")
-    accepted = [secret.get_secret_value().encode() for secret in (settings.BRIDGE_TOKEN, settings.BRIDGE_PREVIOUS_TOKEN) if secret]
+    accepted = [secret.get_secret_value().encode() for secret in settings.bridgeTokens]
     given = (token or "").encode()
     # Se comparan todos (sin cortar en el primero) para no revelar por tiempo cuál coincide.
     if not token or not any([hmac.compare_digest(given, secret) for secret in accepted]):
