@@ -166,7 +166,7 @@ def _filtered(query: Select, **given) -> Select:
         # Correo o nombre de usuario EXACTO: las cuentas que lo tienen y los intentos sobre ese identificador cuando no existía (por su huella).
         raw = f["identificador"].strip()
         accounts = select(User.idUsuario).where(or_(User.correoElectronico == normalizeEmail(raw) if "@" in raw else false(), User.usuario == raw))
-        query = query.where(or_(Audit.idUsuario.in_(accounts), _contextWhere(AuditContext.identificadorHash == hashIdentifier(raw))))
+        query = query.where(or_(Audit.idUsuario.in_(accounts), _contextWhere(AuditContext.identificadorHash.in_((hashIdentifier(raw), hashIdentifier(raw, legacy=True))))))
     if f["modulo"]:
         query = query.where(Audit.modulo == f["modulo"])
     if f["accion"] and f["accion"].strip():

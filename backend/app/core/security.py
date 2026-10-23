@@ -39,7 +39,12 @@ TOTP_INTERVAL_SECONDS = 30
 # Tolerancia de desfase de reloj: un intervalo antes y uno después.
 TOTP_VALID_WINDOW = 1
 
-_passwordHash = PasswordHash((Argon2Hasher(),))
+# Parámetros de Argon2id fijados a propósito (H-12; OWASP Password Storage: m ≥ 64 MiB, t = 3, p = 4), no los de la librería: una actualización
+# de pwdlib no debilita el hashing en silencio. Subirlos es seguro: verify_and_update rehace en el próximo acceso los hashes con parámetros menores.
+ARGON2_TIME_COST = 3
+ARGON2_MEMORY_COST_KIB = 64 * 1024
+ARGON2_PARALLELISM = 4
+_passwordHash = PasswordHash((Argon2Hasher(time_cost=ARGON2_TIME_COST, memory_cost=ARGON2_MEMORY_COST_KIB, parallelism=ARGON2_PARALLELISM),))
 # Hash de referencia para igualar el tiempo de respuesta cuando el usuario no existe.
 _DUMMY_PASSWORD_HASH = _passwordHash.hash(secrets.token_urlsafe(16))
 

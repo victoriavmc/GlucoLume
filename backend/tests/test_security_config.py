@@ -276,3 +276,28 @@ def test_en_linux_el_certificado_de_sql_server_se_suma_a_las_autoridades_del_sis
     bundle = (tmp_path / "bundle.pem").read_text(encoding="utf-8")
     assert os.environ["SSL_CERT_FILE"] == str(tmp_path / "bundle.pem") and bundle.rstrip().endswith("-----END CERTIFICATE-----")
     assert "PRUEBA" in bundle
+
+
+def test_los_parametros_de_argon2_estan_fijados_y_un_hash_mas_debil_se_rehace():
+    # H-12: m = 64 MiB, t = 3, p = 4 (OWASP) dentro del hash emitido; uno con parámetros menores verifica y devuelve el hash nuevo.
+    assert security.hashPassword("Clave-Segura-123").startswith("$argon2id$v=19$m=65536,t=3,p=4$")
+    from pwdlib import PasswordHash
+    from pwdlib.hashers.argon2 import Argon2Hasher
+
+    weak = PasswordHash((Argon2Hasher(time_cost=1, memory_cost=8192, parallelism=1),)).hash("Clave-Segura-123")
+    ok, updated = security.verifyPassword("Clave-Segura-123", weak)
+    assert ok and updated and "m=65536,t=3,p=4" in updated
+    assert security.verifyPassword("Clave-Segura-123", updated) == (True, None)
+
+
+def test_el_hmac_de_identificadores_de_auditoria_usa_una_clave_derivada():
+    # H-13: la clave sale de HKDF (derivedKey), no de SHA-256(prefijo + JWT_SECRET); el cálculo anterior sigue disponible para las huellas ya guardadas.
+    import hashlib
+    import hmac as hmacModule
+
+    from app.services.audit import hashIdentifier
+
+    new, old = hashIdentifier("  Alguien@Example.com "), hashIdentifier("alguien@example.com", legacy=True)
+    assert new == hashIdentifier("alguien@example.com") and new != old and len(new) == len(old) == 32
+    expected = hmacModule.new(security.derivedKey("auditoria-identificador"), b"alguien@example.com", hashlib.sha256).hexdigest()[:32]
+    assert new == expected
