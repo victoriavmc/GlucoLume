@@ -30,8 +30,13 @@ map $fwd_proto $hsts_value {
 }
 
 # Registro de accesos SIN la query (H-14): los enlaces de verificación, recuperación y activación llevan un token de un solo uso en
-# «?token=...» y no deben quedar en los logs. Se registra la ruta ($uri) y no la línea completa del pedido ($request).
-log_format sin_query '$remote_addr - [$time_local] "$request_method $uri" $status $body_bytes_sent "$http_user_agent" rid=$request_id';
+# «?token=...» y no deben quedar en los logs. Se registra la ruta ORIGINAL sin query ($log_path, tomada de $request_uri hasta el «?»): $uri no sirve
+# porque try_files la reescribe a /index.html en las rutas de la SPA y el log perdería qué pantalla se pidió.
+map $request_uri $log_path {
+    "~^(?<ruta>[^?]*)" $ruta;
+    default "-";
+}
+log_format sin_query '$remote_addr - [$time_local] "$request_method $log_path" $status $body_bytes_sent "$http_user_agent" rid=$request_id';
 
 # Protección contra inundación de los endpoints de autenticación (complementa los límites de la API, que cuentan por IP y endpoint).
 limit_req_zone $binary_remote_addr zone=auth_zone:10m rate=30r/s;
