@@ -1,0 +1,55 @@
+# GlucoLume - Redis OPCIONAL para los límites de solicitudes compartidos entre réplicas (H-06). Se suma a la configuración común:
+#
+#   docker compose -f compose.yaml -f compose.redis.yaml --profile redis up -d
+#
+# Sin este archivo no hace falta Redis: con una sola réplica los límites se cuentan en memoria (RATE_LIMIT_REDIS_URL vacío). Para usarlo, en el .env:
+#   REDIS_PASSWORD=<contraseña larga y aleatoria>
+#   RATE_LIMIT_REDIS_URL=redis://:<la misma contraseña>@redis:6379/0
+# (con otra política ante una caída: RATE_LIMIT_ON_FAILURE=local|deny; ver docs/SEGURIDAD.md, H-06).
+#
+# - Sin puertos publicados: solo el backend (red "data") llega a Redis. Sin persistencia (los contadores son efímeros) y con contraseña.
+# - Imagen fijada por digest; sin root, sistema de archivos de solo lectura, cap_drop ALL, no-new-privileges.
+# - Si Redis cae, el backend sigue según RATE_LIMIT_ON_FAILURE (por defecto cuenta en memoria: nunca más débil que sin Redis).
+
+services:
+  redis:
+    profiles: ["redis"]
+    image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+    user: "999:1000"
+    command:
+      - sh
+      - -c
+      - exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no --bind 0.0.0.0 --protected-mode yes
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Definir REDIS_PASSWORD en el .env}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  backend:
+    depends_on:
+      redis:
+        condition: service_healthy
+        required: false
