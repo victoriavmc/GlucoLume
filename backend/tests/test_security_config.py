@@ -124,6 +124,15 @@ def test_en_produccion_una_clave_mfa_invalida_impide_arrancar():
     assert Settings(**BASE, API_ENV="development", MFA_ENCRYPTION_KEY="no-es-una-clave").securityWarnings()  # fuera de producción, aviso
 
 
+def test_en_la_imagen_docker_api_env_es_obligatorio(monkeypatch):
+    # H-07: sin API_ENV explícito la imagen no arranca (caería en «development»); fuera de la imagen sigue el valor por defecto.
+    assert Settings(**BASE).API_ENV == "development"
+    monkeypatch.setenv("GLUCOLUME_RUNTIME", "container")
+    with pytest.raises(ValidationError, match="API_ENV"):
+        Settings(**BASE)
+    assert Settings(**BASE, API_ENV="production").API_ENV == "production"
+
+
 def test_la_cuenta_de_base_de_la_conservacion_es_aparte_de_la_de_la_api(monkeypatch):
     # GL-03: las dos variables juntas y una cuenta distinta de DB_USER; los jobs la usan y la API no.
     with pytest.raises(ValidationError):

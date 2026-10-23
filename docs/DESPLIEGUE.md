@@ -62,7 +62,7 @@ propio `.env.example`.
 |---|---|---|
 | `FRONTEND_URL` / `API_BASE_URL` | URL pública (`http://glucolume.local` o `https://dominio`) | `http://localhost:5173` / `http://localhost:8000` |
 | `GOOGLE_REDIRECT_URI` | `{API_BASE_URL}/api/v1/auth/google/callback` (registrada en Google Cloud) | ídem |
-| `API_ENV` | `production` (lo fuerza `compose.prod.yaml`) | `development` |
+| `API_ENV` | `production` (lo fuerza `compose.prod.yaml`); obligatorio en la imagen: sin él la API no arranca | `development` |
 
 La contraseña de `sa` del perfil `db` va aparte en `docker/db.env` (desde `docker/db.env.example`, ignorado por Git). La API usa su propio
 usuario con permisos limitados, nunca `sa`.

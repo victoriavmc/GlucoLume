@@ -259,6 +259,16 @@ class Settings(BaseSettings):
         return pairs
 
     @model_validator(mode="after")
+    def exigirEntornoExplicito(self) -> "Settings":
+        """En la imagen Docker (GLUCOLUME_RUNTIME=container) API_ENV debe definirse: sin él caería en «development» y un despliegue que
+        olvide fijarlo abriría /docs y confiaría en el certificado de SQL Server sin verificarlo (H-07). Fuera de la imagen sigue
+        valiendo el valor por defecto."""
+        if os.environ.get("GLUCOLUME_RUNTIME") == "container" and "API_ENV" not in self.model_fields_set:
+            raise ValueError("API_ENV debe definirse explícitamente (development|test|production): en producción lo fija "
+                             "compose.prod.yaml; en desarrollo, API_ENV=development en el .env.")
+        return self
+
+    @model_validator(mode="after")
     def validarCertificadoEnProduccion(self) -> "Settings":
         """En producción la conexión a SQL Server verifica el certificado: TrustServerCertificate=true impide arrancar (GL-07)."""
         if self.API_ENV == "production" and self.DB_TRUST_SERVER_CERTIFICATE:
