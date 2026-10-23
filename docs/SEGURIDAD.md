@@ -227,7 +227,7 @@ exigen los índices filtrados). Respaldo previo verificado:
      mientras `JWT_PREVIOUS_SECRET` siga definido. Efecto colateral: las claves derivadas de `JWT_SECRET` (HMAC de códigos cortos, vigentes minutos, y de
      identificadores de auditoría) cambian; los códigos emitidos antes de la rotación hay que pedirlos de nuevo y la búsqueda por identificador en la
      auditoría deja de encontrar las huellas anteriores (acotadas por `AUDIT_CONTEXT_RETENTION_DAYS`).
-  2. `BRIDGE_TOKEN`: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN`, se actualiza el del puente y se quita el anterior en cuanto el puente use el nuevo (máximo 24 h).
+  2. `BRIDGE_TOKEN`: el anterior pasa a `BRIDGE_PREVIOUS_TOKEN`, se actualiza el del puente y se quita el anterior en cuanto el puente use el nuevo. Fijar siempre `BRIDGE_PREVIOUS_TOKEN_UNTIL` (máximo 24 h desde el cambio): vencido el plazo, la API ignora el token anterior aunque siga en el `.env`.
   3. `SESSION_SECRET` (solo invalida un inicio de sesión con Google en curso) y `GOOGLE_CLIENT_SECRET` (se rota también en Google Cloud): cambio directo.
   4. `DB_PASSWORD`, `DB_JOBS_PASSWORD` y `SMTP_PASSWORD`: `ALTER LOGIN ... WITH PASSWORD = '<nueva>'` en SQL Server (o el panel del proveedor de correo), luego el `.env`.
   5. `MFA_ENCRYPTION_KEY`: con `MFA_PREVIOUS_ENCRYPTION_KEYS` y `python -m app.cli.mfaKeys`.

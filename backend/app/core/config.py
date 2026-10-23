@@ -1,6 +1,7 @@
 # Config - Configuración de la aplicación leída desde variables de entorno / .env
 
 import os
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -107,6 +108,9 @@ class Settings(BaseSettings):
     BRIDGE_TOKEN: SecretStr | None = None
     # Rotación sin corte (GL-11): el token anterior se sigue aceptando mientras se actualiza el puente; quitarlo apenas el puente use el nuevo.
     BRIDGE_PREVIOUS_TOKEN: SecretStr | None = None
+    # Plazo máximo explícito de ese token anterior (H-16), p. ej. 2026-11-03T18:00 (hora de Argentina si no lleva zona): vencido, se ignora.
+    # Sin plazo sigue valiendo hasta que se lo quite (se advierte al arrancar).
+    BRIDGE_PREVIOUS_TOKEN_UNTIL: datetime | None = None
     # Transitorio (equipo único compartido): permite que las cuentas individuales midan y den órdenes al puente con un dispositivo asignado a
     # una institución. NO cambia su propiedad ni los permisos de los operadores. Por defecto apagado; quitarlo cuando cada contexto tenga su equipo.
     ALLOW_INDIVIDUAL_ON_INSTITUTIONAL_DEVICE: bool = False
@@ -229,6 +233,8 @@ class Settings(BaseSettings):
             warnings.append("DATABASE_URL está definida pero ninguna parte de GlucoLume la usa: duplica la contraseña de la base; quitala.")
         if self.BRIDGE_PREVIOUS_TOKEN is not None:
             warnings.append("BRIDGE_PREVIOUS_TOKEN está definido: el puente acepta dos tokens. Quitalo cuando el puente use BRIDGE_TOKEN.")
+            if self.BRIDGE_PREVIOUS_TOKEN_UNTIL is None:
+                warnings.append("BRIDGE_PREVIOUS_TOKEN sin BRIDGE_PREVIOUS_TOKEN_UNTIL: fijá un plazo máximo para la ventana de rotación (H-16).")
         if self.JWT_PREVIOUS_SECRET is not None:
             warnings.append("JWT_PREVIOUS_SECRET está definido: la API acepta tokens firmados con dos secretos. Quitalo cuando venzan los "
                             "tokens firmados con el anterior (docs/SEGURIDAD.md, «Rotación de secretos»).")
@@ -298,6 +304,18 @@ class Settings(BaseSettings):
             if invalid:
                 raise ValueError(f"Clave Fernet inválida en {', '.join(invalid)}.")
         return self
+
+    @property
+    def bridgeTokens(self) -> list[SecretStr]:
+        """Tokens del puente que se aceptan ahora: el vigente y, mientras no venza su plazo (H-16), el anterior."""
+        tokens = [token for token in (self.BRIDGE_TOKEN,) if token is not None]
+        if self.BRIDGE_PREVIOUS_TOKEN is not None:
+            from app.utils.timeZone import nowArgentina, withArgentinaZone
+
+            until = self.BRIDGE_PREVIOUS_TOKEN_UNTIL
+            if until is None or nowArgentina() < withArgentinaZone(until):
+                tokens.append(self.BRIDGE_PREVIOUS_TOKEN)
+        return tokens
 
     @property
     def mfaEnabled(self) -> bool:
