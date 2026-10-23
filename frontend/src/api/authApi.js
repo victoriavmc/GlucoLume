@@ -3,19 +3,19 @@
 import { apiUrl, request } from './client.js';
 
 /** POST /auth/login -> LoginResponse { estado: AUTENTICADO | MFA_REQUERIDO, tokens?, challengeToken? } */
-export function login(identificador, password) {
-  return request('/auth/login', { method: 'POST', body: { identificador, password } });
+export function login(identificador, password, remember = false) {
+  return request('/auth/login', { method: 'POST', body: { identificador, password }, remember });
 }
 
 /** POST /auth/mfa/verify: exactamente uno de codigo o codigoRecuperacion. */
-export function verifyMfa(challengeToken, { codigo, codigoRecuperacion }) {
+export function verifyMfa(challengeToken, { codigo, codigoRecuperacion }, remember = false) {
   const body = codigo ? { challengeToken, codigo } : { challengeToken, codigoRecuperacion };
-  return request('/auth/mfa/verify', { method: 'POST', body });
+  return request('/auth/mfa/verify', { method: 'POST', body, remember });
 }
 
 /** POST /auth/google/exchange: canjea el código de un solo uso del callback por LoginResponse. */
-export function exchangeGoogleCode(code) {
-  return request('/auth/google/exchange', { method: 'POST', body: { code } });
+export function exchangeGoogleCode(code, remember = false) {
+  return request('/auth/google/exchange', { method: 'POST', body: { code }, remember });
 }
 
 /** GET /auth/me -> AccountResponse */
@@ -144,8 +144,8 @@ export function startMfaRecovery(challengeToken, password) {
 }
 
 /** POST /auth/mfa/recovery/verify -> LoginResponse (AUTENTICADO, con MFA ya desactivado). */
-export function verifyMfaRecovery(recoveryToken, codigo) {
-  return request('/auth/mfa/recovery/verify', { method: 'POST', body: { recoveryToken, codigo } });
+export function verifyMfaRecovery(recoveryToken, codigo, remember = false) {
+  return request('/auth/mfa/recovery/verify', { method: 'POST', body: { recoveryToken, codigo }, remember });
 }
 
 /** Seguridad (con sesión): perdió la aplicación y los códigos. POST /auth/me/mfa/recovery/start { password } */

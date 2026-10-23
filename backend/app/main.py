@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.api import sessionCookie
 from app.api.errors import authErrorHandler, validationErrorHandler
 from app.api.requestContext import RequestContextMiddleware
 from app.api.securityHeaders import SecurityHeadersMiddleware
@@ -82,16 +83,17 @@ else:
 # las cabeceras de seguridad, dejando un evento en la auditoría (H-15).
 app.add_middleware(UnhandledErrorMiddleware)
 
-# El frontend (FRONTEND_URL) llama a la API desde otro origen. Solo se permite ese origen; la autenticación
-# viaja en el encabezado Authorization (sin cookies), por eso allow_credentials queda en False.
+# El frontend (FRONTEND_URL) llama a la API desde otro origen. Solo se permite ese origen. El access token viaja en el encabezado
+# Authorization; el refresh token, en una cookie HttpOnly con SameSite=Strict (H-09), por eso allow_credentials=True: es válido porque el
+# origen es uno solo y explícito (jamás «*»). Las dos cabeceras personalizadas fuerzan el preflight, que solo este origen aprueba.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontendOrigin],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", sessionCookie.CSRF_HEADER, sessionCookie.REMEMBER_HEADER],
     # El frontend lee Retry-After para informar cuándo termina un bloqueo temporal.
     expose_headers=["Retry-After", "X-Request-ID"],
-    allow_credentials=False,
+    allow_credentials=True,
     max_age=600,
 )
 

@@ -5,12 +5,13 @@
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Body, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import CurrentAuth, DbSession
+from app.api import sessionCookie
 from app.api.rateLimit import rateLimit
 from app.core.config import getSettings
 from app.core.exceptions import AuthError
@@ -105,7 +106,7 @@ def resendVerification(data: ResendVerificationRequest, db: DbSession):
 
 
 @router.post(
-    "/login", dependencies=[rateLimit("login")],
+    "/login", dependencies=[rateLimit("login"), Depends(sessionCookie.requireDeliveryMode)],
     response_model=LoginResponse,
     summary="Iniciar sesión con correo electrónico o nombre de usuario",
     description=(
@@ -114,10 +115,10 @@ def resendVerification(data: ResendVerificationRequest, db: DbSession):
         "Las cuentas creadas solo con Google no tienen contraseña local: ingresan con `/google/login`."
     ),
 )
-def login(data: LoginRequest, request: Request, db: DbSession):
-    return authService.loginLocal(
+def login(data: LoginRequest, request: Request, response: Response, db: DbSession):
+    return sessionCookie.deliver(request, response, authService.loginLocal(
         db, data.identificador, data.password.get_secret_value(), _clientInfo(request)
-    )
+    ))
 
 
 # --- Google ------------------------------------------------------------------------------
@@ -289,7 +290,7 @@ async def googleCallback(request: Request, db: DbSession):
 
 
 @router.post(
-    "/google/exchange", dependencies=[rateLimit("googleExchange")],
+    "/google/exchange", dependencies=[rateLimit("googleExchange"), Depends(sessionCookie.requireDeliveryMode)],
     response_model=LoginResponse,
     summary="Canjear el código del callback de Google por la sesión",
     description=(
@@ -298,8 +299,8 @@ async def googleCallback(request: Request, db: DbSession):
         "(`MFA_REQUERIDO`) a completar con `/mfa/verify`."
     ),
 )
-def googleExchange(data: GoogleExchangeRequest, request: Request, db: DbSession):
-    return authService.exchangeGoogleCode(db, data.code, _clientInfo(request))
+def googleExchange(data: GoogleExchangeRequest, request: Request, response: Response, db: DbSession):
+    return sessionCookie.deliver(request, response, authService.exchangeGoogleCode(db, data.code, _clientInfo(request)))
 
 
 @router.post(
@@ -319,11 +320,11 @@ def sessionTransfer(auth: CurrentAuth, db: DbSession):
 # --- MFA ---------------------------------------------------------------------------------
 
 
-@router.post("/mfa/verify", dependencies=[rateLimit("mfa")], response_model=LoginResponse)
-def mfaVerify(data: MfaVerifyRequest, request: Request, db: DbSession):
-    return authService.verifyMfaChallenge(
+@router.post("/mfa/verify", dependencies=[rateLimit("mfa"), Depends(sessionCookie.requireDeliveryMode)], response_model=LoginResponse)
+def mfaVerify(data: MfaVerifyRequest, request: Request, response: Response, db: DbSession):
+    return sessionCookie.deliver(request, response, authService.verifyMfaChallenge(
         db, data.challengeToken, data.codigo, data.codigoRecuperacion, _clientInfo(request)
-    )
+    ))
 
 
 @router.post(
@@ -350,7 +351,7 @@ def mfaRecoveryStart(data: MfaRecoveryStartRequest, db: DbSession):
 
 
 @router.post(
-    "/mfa/recovery/verify", dependencies=[rateLimit("mfaRecovery")],
+    "/mfa/recovery/verify", dependencies=[rateLimit("mfaRecovery"), Depends(sessionCookie.requireDeliveryMode)],
     response_model=LoginResponse,
     summary="Perdí acceso a mi aplicación autenticadora (paso 2)",
     description=(
@@ -360,8 +361,8 @@ def mfaRecoveryStart(data: MfaRecoveryStartRequest, db: DbSession):
         "correo. Para volver a usar MFA hay que configurarlo de nuevo desde Seguridad."
     ),
 )
-def mfaRecoveryVerify(data: MfaRecoveryVerifyRequest, request: Request, db: DbSession):
-    return mfaRecoveryService.verifyRecovery(db, data.recoveryToken, data.codigo, _clientInfo(request))
+def mfaRecoveryVerify(data: MfaRecoveryVerifyRequest, request: Request, response: Response, db: DbSession):
+    return sessionCookie.deliver(request, response, mfaRecoveryService.verifyRecovery(db, data.recoveryToken, data.codigo, _clientInfo(request)))
 
 
 @router.post("/mfa/setup", response_model=MfaSetupResponse)
@@ -415,13 +416,34 @@ def mfaDisable(data: MfaCodeRequest, auth: CurrentAuth, db: DbSession):
 # --- Sesión ------------------------------------------------------------------------------
 
 
-@router.post("/refresh", dependencies=[rateLimit("refresh")], response_model=TokenPair)
-def refresh(data: RefreshRequest, db: DbSession):
+@router.post(
+    "/refresh", dependencies=[rateLimit("refresh")], response_model=TokenPair,
+    summary="Renovar la sesión (rota el refresh token)",
+    description=(
+        "En el navegador el refresh token viaja en la cookie HttpOnly `glucolume_refresh` (solo con la cabecera `X-GlucoLume-CSRF: 1` y un "
+        "`Origin` permitido); la respuesta no lo incluye en el cuerpo y reemplaza la cookie. Los clientes sin esa cabecera lo mandan en el "
+        "cuerpo (`REFRESH_TOKEN_IN_BODY`). Reutilizar un token ya rotado revoca todas las sesiones de la cuenta."
+    ),
+)
+def refresh(request: Request, response: Response, db: DbSession, data: RefreshRequest | None = None):
+    cookieToken = sessionCookie.readRefreshToken(request)
+    if cookieToken is not None:
+        return sessionCookie.deliver(request, response, _TokenHolder(authService.refreshSession(db, cookieToken)), rotate=True).tokens
+    if sessionCookie.cookieModeRequested(request) or data is None or not getSettings().REFRESH_TOKEN_IN_BODY:
+        raise AuthError("TOKEN_INVALIDO", "Sesión inválida.", motivo="SESION_INVALIDA")
     return authService.refreshSession(db, data.refreshToken)
 
 
+class _TokenHolder:
+    """Adapta un TokenPair al formato que espera sessionCookie.deliver (algo con .tokens)."""
+
+    def __init__(self, tokens: TokenPair):
+        self.tokens = tokens
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(auth: CurrentAuth, db: DbSession):
+def logout(auth: CurrentAuth, response: Response, db: DbSession):
+    sessionCookie.clear(response)
     authService.logout(db, auth.session)
     try:  # la adquisición pendiente de esta cuenta se cancela y el dispositivo compartido queda libre
         from app.services import telemetry as telemetryService
@@ -651,17 +673,17 @@ def checkAccountActivation(data: AccountActivationTokenRequest, db: DbSession):
 
 
 @router.post(
-    "/account-activation/complete", dependencies=[rateLimit("activation")],
+    "/account-activation/complete", dependencies=[rateLimit("activation"), Depends(sessionCookie.requireDeliveryMode)],
     response_model=LoginResponse,
     summary="Activar la cuenta con usuario y contraseña propios",
     description="Sin sesión. Crea la credencial local con la política de contraseñas del registro, activa la "
     "cuenta, consume el enlace y abre la sesión. Las invitaciones institucionales siguen pendientes de aceptación.",
 )
-def completeAccountActivation(data: AccountActivationCompleteRequest, request: Request, db: DbSession):
-    return accountActivationService.completeActivation(
+def completeAccountActivation(data: AccountActivationCompleteRequest, request: Request, response: Response, db: DbSession):
+    return sessionCookie.deliver(request, response, accountActivationService.completeActivation(
         db, data.token, data.usuario, data.password.get_secret_value(), _clientInfo(request),
         aceptaPolitica=data.aceptaPoliticaPrivacidad,
-    )
+    ))
 
 
 # --- Consentimientos ----------------------------------------------------------------------

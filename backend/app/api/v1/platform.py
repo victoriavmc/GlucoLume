@@ -11,6 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
+from app.api import sessionCookie
 from app.api.deps import AuthContext, CurrentAuth, DbSession
 from app.api.rateLimit import rateLimit
 from app.schemas.auth import (
@@ -233,13 +234,13 @@ def changePassword(data: PasswordChange, auth: PlatformAccess, db: DbSession):
 # --- Sin sesión: activación de la invitación y recuperación de contraseña -----------------------------------------
 
 
-@router.post("/activation/with-code", dependencies=[rateLimit("activationCode")], response_model=LoginResponse,
+@router.post("/activation/with-code", dependencies=[rateLimit("activationCode"), Depends(sessionCookie.requireDeliveryMode)], response_model=LoginResponse,
              summary="Activar una cuenta administrativa con el código de un solo uso",
              description="Sin sesión. Exige el código de un solo uso que generó el servidor (primer administrador) o la invitación de un moderador; "
              "esa invitación ya identifica a la persona. El rol lo fija la invitación, nunca el cuerpo. Cualquier fallo responde lo mismo "
              "(`CODIGO_ACTIVACION_INVALIDO`). La sesión que se abre solo puede configurar MFA.")
-def activateWithCode(data: CodeActivation, request: Request, db: DbSession):
-    return platformService.activateWithCode(db, data, _clientInfo(request))
+def activateWithCode(data: CodeActivation, request: Request, response: Response, db: DbSession):
+    return sessionCookie.deliver(request, response, platformService.activateWithCode(db, data, _clientInfo(request)))
 
 
 @router.post("/password/forgot", dependencies=[rateLimit("passwordForgot")], status_code=status.HTTP_204_NO_CONTENT, summary="Recuperar la contraseña (acceso administrativo)",

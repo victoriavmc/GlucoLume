@@ -69,6 +69,11 @@ class Settings(BaseSettings):
 
     # Sesiones y autenticación
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # Refresh token en cookie HttpOnly (H-09, app/api/sessionCookie.py). REFRESH_COOKIE_SECURE=None -> Secure en producción o con FRONTEND_URL https.
+    # REFRESH_TOKEN_IN_BODY: mientras sea true, un cliente SIN la cabecera X-GlucoLume-CSRF (puentes, scripts, pruebas) recibe y manda el refresh token en
+    # el cuerpo, como antes. En false toda sesión nueva es solo-cookie y /refresh rechaza el cuerpo. El navegador de GlucoLume ya no lo necesita.
+    REFRESH_COOKIE_SECURE: bool | None = None
+    REFRESH_TOKEN_IN_BODY: bool = True
     AUTH_LOCKOUT_MINUTES: int = 15
     # Plazo para verificar una cuenta local desde Usuario.fechaCreacion (los reenvíos no lo extienden).
     # Vencido, la cuenta pendiente se elimina (app/services/unverifiedAccounts.py).
@@ -327,6 +332,12 @@ class Settings(BaseSettings):
                                 "Usá rediss:// o una red interna aislada.")
             if self.RATE_LIMIT_ON_FAILURE == "deny":
                 warnings.append("RATE_LIMIT_ON_FAILURE=deny: si Redis no responde, los endpoints con límite (incluido el inicio de sesión) rechazan todo.")
+        if self.API_ENV == "production" and self.REFRESH_COOKIE_SECURE is False:
+            warnings.append("REFRESH_COOKIE_SECURE=false en producción: la cookie del refresh token viajaría también por HTTP. Dejala sin definir (Secure) "
+                            "y servilo por HTTPS (H-09).")
+        if self.API_ENV == "production" and self.REFRESH_TOKEN_IN_BODY:
+            warnings.append("REFRESH_TOKEN_IN_BODY=true: los clientes sin la cabecera X-GlucoLume-CSRF reciben el refresh token en el cuerpo. El frontend usa la "
+                            "cookie HttpOnly; poné REFRESH_TOKEN_IN_BODY=false cuando no quede ningún cliente heredado (H-09).")
         if self.JWT_PREVIOUS_SECRET is not None:
             if len(self.jwtVerificationSecrets) > 1:
                 warnings.append("JWT_PREVIOUS_SECRET vigente: la API acepta tokens firmados con dos secretos hasta JWT_PREVIOUS_SECRET_UNTIL. "

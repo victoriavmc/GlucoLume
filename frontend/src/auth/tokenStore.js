@@ -1,12 +1,16 @@
-// Tokens de sesión.
+// Tokens de sesión (H-09).
 //
-// El backend entrega accessToken y refreshToken en el body de /auth/login, /auth/mfa/verify,
-// /auth/google/exchange y /auth/refresh (no usa cookies):
 //   - accessToken: solo en memoria (vence a los 30 minutos; se renueva con el refresh token).
-//   - refreshToken: sessionStorage (dura mientras la pestaña esté abierta) o, con "Recordarme",
-//     localStorage. Permite recuperar la sesión al recargar. El backend lo rota en cada uso.
+//   - refreshToken: NO llega al JavaScript. El backend lo entrega en la cookie HttpOnly «glucolume_refresh» (Path /api/v1/auth,
+//     SameSite=Strict, Secure en producción) y el navegador la manda sola a /auth/refresh. Un XSS no puede leerla ni llevársela,
+//     y nada de esto toca localStorage/sessionStorage.
+//   - Lo único que se guarda en Web Storage es una MARCA no secreta («hay una sesión que intentar recuperar»): sin ella una visita anónima
+//     no gasta una llamada a /auth/refresh que sabemos que va a fallar. «Recordarme» => localStorage; si no => sessionStorage (por pestaña).
+//     Borrarla o falsificarla solo cambia si se intenta la renovación: el servidor decide si la cookie vale.
 
-const REFRESH_KEY = 'glucolume.refreshToken';
+const HINT_KEY = 'glucolume.sessionHint';
+// Clave del esquema anterior (refresh token en Web Storage): se borra siempre para no dejar tokens viejos en navegadores ya usados.
+const LEGACY_REFRESH_KEY = 'glucolume.refreshToken';
 
 let accessToken = null;
 
@@ -27,26 +31,37 @@ export function getAccessToken() {
   return accessToken;
 }
 
-export function getRefreshToken() {
-  return safely(() => window.localStorage.getItem(REFRESH_KEY) ?? window.sessionStorage.getItem(REFRESH_KEY));
+/** ¿Hay una sesión que intentar recuperar al abrir la app? (marca no secreta; también limpia el refresh token del esquema anterior). */
+export function hasSessionHint() {
+  return safely(() => {
+    storages().forEach((storage) => storage.removeItem(LEGACY_REFRESH_KEY));
+    return window.localStorage.getItem(HINT_KEY) !== null || window.sessionStorage.getItem(HINT_KEY) !== null;
+  }, false);
 }
 
-/** "Recordarme" activo: el refresh token vive en localStorage. */
+/** "Recordarme" activo: la marca vive en localStorage (la cookie del backend es persistente). */
 export function isRemembered() {
-  return safely(() => window.localStorage.getItem(REFRESH_KEY) !== null, false);
+  return safely(() => window.localStorage.getItem(HINT_KEY) !== null, false);
 }
 
+/** Guarda el access token (memoria) y la marca de sesión. El refresh token no se recibe ni se guarda: viaja en la cookie HttpOnly. */
 export function saveTokens(tokens, remember = isRemembered()) {
   accessToken = tokens.accessToken;
   safely(() => {
-    storages().forEach((storage) => storage.removeItem(REFRESH_KEY));
-    (remember ? window.localStorage : window.sessionStorage).setItem(REFRESH_KEY, tokens.refreshToken);
+    storages().forEach((storage) => {
+      storage.removeItem(HINT_KEY);
+      storage.removeItem(LEGACY_REFRESH_KEY);
+    });
+    (remember ? window.localStorage : window.sessionStorage).setItem(HINT_KEY, '1');
   });
 }
 
 export function clearTokens() {
   accessToken = null;
-  safely(() => storages().forEach((storage) => storage.removeItem(REFRESH_KEY)));
+  safely(() => storages().forEach((storage) => {
+    storage.removeItem(HINT_KEY);
+    storage.removeItem(LEGACY_REFRESH_KEY);
+  }));
 }
 
 // Preferencia "Recordarme" elegida antes de salir hacia Google (no es un secreto).

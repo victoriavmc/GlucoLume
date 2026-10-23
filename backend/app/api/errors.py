@@ -4,6 +4,7 @@ from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.api import sessionCookie
 from app.core.exceptions import AuthError
 
 AUTH_ERROR_STATUS = {
@@ -224,4 +225,8 @@ async def authErrorHandler(request: Request, error: AuthError) -> JSONResponse:
     headers = {"WWW-Authenticate": "Bearer"} if statusCode == status.HTTP_401_UNAUTHORIZED else {}
     if error.retryAfterSeconds is not None:
         headers["Retry-After"] = str(error.retryAfterSeconds)
-    return JSONResponse(status_code=statusCode, content={"codigo": error.code, "detail": error.message}, headers=headers or None)
+    response = JSONResponse(status_code=statusCode, content={"codigo": error.code, "detail": error.message}, headers=headers or None)
+    if (statusCode == status.HTTP_401_UNAUTHORIZED and request.url.path.endswith("/auth/refresh") and sessionCookie.cookieModeRequested(request)
+            and not (error.motivo or "").startswith("CSRF")):
+        sessionCookie.clear(response)  # una cookie vencida, revocada o reutilizada no sirve más: el navegador la descarta (H-09)
+    return response

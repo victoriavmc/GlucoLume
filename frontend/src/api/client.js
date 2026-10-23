@@ -3,11 +3,13 @@
 // - Errores del backend: {codigo, detail} (AuthError) o {detail: [...]} (validación 422) -> ApiError.
 // - Peticiones autenticadas: agrega "Authorization: Bearer"; ante un 401 renueva la sesión una vez con
 //   /auth/refresh y reintenta.
+// - El refresh token vive en una cookie HttpOnly (H-09): las rutas /auth/* se piden con credentials:'include' y la cabecera
+//   X-GlucoLume-CSRF (que un formulario de otro sitio no puede enviar); el JavaScript nunca lo ve.
 // - La renovación se serializa (también entre pestañas con Web Locks): el backend rota el refresh token y
 //   reutilizar uno ya rotado revoca todas las sesiones.
 
 import { API_BASE_URL, API_PREFIX } from '../config.js';
-import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '../auth/tokenStore.js';
+import { clearTokens, getAccessToken, hasSessionHint, isRemembered, saveTokens } from '../auth/tokenStore.js';
 
 export const NETWORK_ERROR = 'ERROR_DE_RED';
 
@@ -59,15 +61,25 @@ async function parseError(response) {
   return new ApiError(response.status, 'ERROR_DESCONOCIDO', 'No se pudo completar la operación.');
 }
 
-async function send(path, { method = 'GET', body, token } = {}) {
+export const CSRF_HEADER = 'X-GlucoLume-CSRF';
+export const REMEMBER_HEADER = 'X-GlucoLume-Recordarme';
+
+async function send(path, { method = 'GET', body, token, remember } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
+  // Solo /auth/* usa la cookie (Path=/api/v1/auth): el resto de la API se autentica con el access token y no recibe credenciales ambientales.
+  const usesCookie = path.startsWith('/auth/') || path === '/platform/activation/with-code';  // esta última también abre sesión
+  if (usesCookie) {
+    headers[CSRF_HEADER] = '1';
+    if (remember) headers[REMEMBER_HEADER] = '1';
+  }
   let response;
   try {
     response = await fetch(apiUrl(path), {
       method,
       headers,
+      credentials: usesCookie ? 'include' : 'same-origin',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -87,11 +99,11 @@ export function onSessionExpired(handler) {
 }
 
 async function refreshOnce() {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) throw new ApiError(401, 'TOKEN_INVALIDO', 'La sesión no es válida.');
+  // Sin marca de sesión no hay nada que renovar (la cookie es HttpOnly: no se puede mirar desde acá).
+  if (!hasSessionHint()) throw new ApiError(401, 'TOKEN_INVALIDO', 'La sesión no es válida.');
   try {
-    const tokens = await send('/auth/refresh', { method: 'POST', body: { refreshToken } });
-    saveTokens(tokens);
+    const tokens = await send('/auth/refresh', { method: 'POST' });  // sin cuerpo: el navegador manda la cookie
+    saveTokens(tokens, isRemembered());
     return tokens;
   } catch (error) {
     if (error.status === 401) {
@@ -119,8 +131,8 @@ export function refreshSession() {
 /**
  * Llamada a la API. `auth: true` envía el access token y, ante un 401, renueva la sesión una vez.
  */
-export async function request(path, { method = 'GET', body, auth = false } = {}) {
-  if (!auth) return send(path, { method, body });
+export async function request(path, { method = 'GET', body, auth = false, remember = false } = {}) {
+  if (!auth) return send(path, { method, body, remember });
 
   let token = getAccessToken();
   if (!token) token = (await refreshSession()).accessToken;
