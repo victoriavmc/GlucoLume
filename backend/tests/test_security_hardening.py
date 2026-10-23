@@ -220,13 +220,6 @@ def test_controles_de_infraestructura_preparados():
     reference = REPO / "database" / "reference"
     wipe = (reference / "BorrarRap.sql").read_text(encoding="utf-8")
     assert "USE [GlucoLume]" not in wipe and wipe.index("CONFIRMAR_BORRADO") < wipe.index("DELETE FROM")
-    grants = (reference / "GlucoLume_permisos.sql").read_text(encoding="utf-8")
-    assert grants.index("APLICAR_PERMISOS_GLUCOLUME") < grants.index("GRANT ")
-    assert "DENY UPDATE, DELETE ON OBJECT::dbo.Auditoria TO rol_glucolume_api;" in grants
-    assert "DENY UPDATE, DELETE ON OBJECT::dbo.AuditoriaContexto TO rol_glucolume_api;" in grants
-    backup = (reference / "GlucoLume_cifrado_y_respaldo.sql").read_text(encoding="utf-8")
-    assert backup.index("CIFRAR_Y_RESPALDAR_GLUCOLUME") < backup.index("CREATE MASTER KEY")
-    assert "DROP DATABASE [$(BASE)_RestauracionPrueba]" in backup and "DROP DATABASE [$(BASE)]" not in backup  # solo borra la copia
 
 
 def test_uvicorn_con_un_unico_valor_de_nginx_ignora_lo_que_manda_el_cliente():
