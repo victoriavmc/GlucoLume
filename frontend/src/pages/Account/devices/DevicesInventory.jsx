@@ -16,6 +16,7 @@ import { Alert, SelectField, TextField } from '../../../components/FormControls.
 import { Kpi, KpiGrid } from '../../../components/dashboard.jsx';
 import { Modal } from '../../../components/Modal.jsx';
 import { PageHeader } from '../../../components/PageHeader.jsx';
+import { useLatestRequest } from '../../../utils/useLatestRequest.js';
 import '../institutions/InstitutionPanel.css';
 import './DevicesInventory.css';
 import { DeviceForm } from './DeviceForm.jsx';
@@ -130,20 +131,25 @@ export function DevicesInventory({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
+  const beginRequest = useLatestRequest(); // una respuesta lenta de un filtro anterior no pisa a la del filtro actual
+
   const load = useCallback(async () => {
+    const isCurrent = beginRequest();
     const params = { pagina, tamanioPagina: PAGE_SIZE };
     for (const [key, value] of Object.entries(filters)) if (value) params[key] = value;
     try {
       const [list, counts] = await Promise.all([api.list(params), api.summary()]);
+      if (!isCurrent()) return;
       setPage(list);
       setSummary(counts);
       setError('');
     } catch (loadError) {
+      if (!isCurrent()) return;
       setError(handleOperationError(loadError));
       setPage({ items: [], total: 0, pagina: 1, tamanioPagina: PAGE_SIZE });
       setSummary((current) => current ?? { total: 0, operativos: 0, enMantenimiento: 0, fueraDeServicio: 0, descomisionados: 0, asignados: 0, sinAsignar: 0, conectividadDisponible: false });
     }
-  }, [api, filters, pagina, handleOperationError]);
+  }, [api, filters, pagina, handleOperationError, beginRequest]);
 
   useEffect(() => {
     load();

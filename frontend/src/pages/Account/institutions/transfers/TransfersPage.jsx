@@ -13,6 +13,7 @@ import { Badge } from '../../../../components/Badge.jsx';
 import { EmptyState } from '../../../../components/EmptyState.jsx';
 import { TabPanel, Tabs } from '../../../../components/Tabs.jsx';
 import { PatientIdentity, fullName as personName } from '../../../../components/PatientIdentity.jsx';
+import { useLatestRequest } from '../../../../utils/useLatestRequest.js';
 import { SEXO_LABELS, formatDateTime } from '../institutionFormat.js';
 
 const PAGE_SIZE = 10;
@@ -108,14 +109,19 @@ export function TransfersPage() {
   const [confirming, setConfirming] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
+  const beginRequest = useLatestRequest(); // una respuesta lenta de un filtro anterior no pisa a la del filtro actual
+
   const load = useCallback(async () => {
+    const isCurrent = beginRequest();
     try {
-      setPage(await institutionsApi.listTransfers(institution.idInstitucion, { direccion, pagina, tamanioPagina: PAGE_SIZE }));
+      const result = await institutionsApi.listTransfers(institution.idInstitucion, { direccion, pagina, tamanioPagina: PAGE_SIZE });
+      if (isCurrent()) setPage(result);
     } catch (loadError) {
+      if (!isCurrent()) return;
       setError(handleOperationError(loadError));
       setPage({ items: [], total: 0, pagina: 1, tamanioPagina: PAGE_SIZE });
     }
-  }, [institution.idInstitucion, direccion, pagina, handleOperationError]);
+  }, [institution.idInstitucion, direccion, pagina, handleOperationError, beginRequest]);
 
   useEffect(() => {
     load();

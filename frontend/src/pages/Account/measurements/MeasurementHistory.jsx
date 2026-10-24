@@ -9,6 +9,8 @@ import { Link } from 'react-router-dom';
 import { Badge, OriginBadge } from '../../../components/Badge.jsx';
 import { EmptyState } from '../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../components/FormControls.jsx';
+import { SkeletonList } from '../../../components/Skeleton.jsx';
+import { useLatestRequest } from '../../../utils/useLatestRequest.js';
 import { DemoBadge } from './DeviceReadout.jsx';
 import { EvolutionPanel } from './EvolutionPanel.jsx';
 import { MEALS, MODES, ORIGINS, STATES, formatDateTime } from './measurementFormat.js';
@@ -58,15 +60,21 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
   const [page, setPage] = useState(null);
   const [error, setError] = useState('');
 
+  const beginRequest = useLatestRequest(); // filtros, páginas, el refresco por vencimiento y «eliminar demos» comparten esta carga: gana la última
+
   const load = useCallback(async () => {
+    const isCurrent = beginRequest();
     try {
-      setPage(await loadPage({ ...filters, pagina, tamanioPagina: PAGE_SIZE }));
+      const result = await loadPage({ ...filters, pagina, tamanioPagina: PAGE_SIZE });
+      if (!isCurrent()) return;
+      setPage(result);
       setError('');
     } catch (loadError) {
+      if (!isCurrent()) return;
       setError(handleOperationError(loadError));
       setPage({ items: [], total: 0, pagina: 1, tamanioPagina: PAGE_SIZE });
     }
-  }, [loadPage, filters, pagina, handleOperationError]);
+  }, [loadPage, filters, pagina, handleOperationError, beginRequest]);
 
   useEffect(() => {
     load();
@@ -143,7 +151,7 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
         {error && <Alert>{error}</Alert>}
         {notice && <Alert kind="success">{notice}</Alert>}
         {page === null ? (
-          <p className="field-hint" role="status">Cargando mediciones…</p>
+          <SkeletonList rows={5} label="Cargando mediciones…" />
         ) : page.items.length === 0 ? (
           <EmptyState variant="framed" headingLevel={0} title={filtered ? 'No hay mediciones que coincidan con los filtros.' : emptyText} />
         ) : (
