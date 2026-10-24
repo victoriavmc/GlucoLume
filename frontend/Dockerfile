@@ -47,7 +47,10 @@ RUN npm run build && find dist -type f \( -name '*.js' -o -name '*.css' -o -name
 FROM ${NGINX_IMAGE} AS runtime
 # Parches de seguridad de Alpine posteriores a la imagen base (curl, openssl, zlib, musl...).
 USER root
-RUN apk upgrade --no-cache
+# musl desde edge (24/10/2026): el fix de CVE-2026-107891 (1.2.6-r6) todavía no está en 3.24; solo se toman musl y
+# musl-utils de edge (sin dependencias), el resto sigue en la rama estable. Quitar el segundo comando cuando 3.24 lo publique.
+RUN apk upgrade --no-cache \
+    && apk upgrade --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main musl musl-utils
 USER 101
 # La plantilla se procesa al iniciar (envsubst): BACKEND_UPSTREAM y DNS_RESOLVER vienen de Compose.
 COPY --from=nginxconf default.conf.template /etc/nginx/templates/default.conf.template
