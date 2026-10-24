@@ -132,8 +132,8 @@ class GatedConnection:
 
 
 def limitDriverCalls(engine: Engine, limit: int) -> Engine:
-    """Hace que las conexiones nuevas de `engine` pasen por el tope. Con limit <= 0 no hace nada."""
-    if limit <= 0:
+    """Hace que las conexiones nuevas de `engine` pasen por el tope. Con limit <= 0 no hace nada (tampoco con un reemplazo de prueba que no sea un Engine)."""
+    if limit <= 0 or not isinstance(engine, Engine):
         return engine
     gate = gateFor(limit)
 

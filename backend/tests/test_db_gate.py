@@ -131,3 +131,21 @@ def test_iterar_el_cursor_trae_filas_pasando_por_el_tope():
 
 def test_un_semaforo_por_tamano_y_por_proceso():
     assert gateFor(4) is gateFor(4) and gateFor(4) is not gateFor(5)
+
+
+def test_limitDriverCalls_conecta_a_traves_del_tope_y_no_toca_lo_que_no_es_un_engine():
+    from sqlalchemy import create_engine, text
+
+    from app.db.gate import limitDriverCalls
+
+    assert limitDriverCalls("no-es-un-engine", 4) == "no-es-un-engine"  # las pruebas reemplazan create_engine por un objeto cualquiera
+    plain = create_engine("sqlite://")
+    assert limitDriverCalls(plain, 0) is plain
+    with plain.connect() as connection:
+        assert not isinstance(connection.connection.driver_connection, GatedConnection)
+
+    gated = limitDriverCalls(create_engine("sqlite://"), 2)
+    with gated.connect() as connection:  # con un driver real (sqlite3) las consultas funcionan a través del tope
+        assert isinstance(connection.connection.driver_connection, GatedConnection)
+        assert connection.execute(text("SELECT 40 + 2")).scalar() == 42
+        assert connection.execute(text("SELECT 1 UNION SELECT 2")).all() == [(1,), (2,)]
