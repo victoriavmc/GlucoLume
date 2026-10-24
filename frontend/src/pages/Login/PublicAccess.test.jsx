@@ -11,6 +11,7 @@ describe('Pantallas públicas: saltar al contenido', () => {
     mockApi({});
     const user = userEvent.setup();
     renderAt(path);
+    await screen.findByRole('main'); // las pantallas públicas no iniciales se cargan de forma diferida
     await user.tab();
     const link = screen.getByRole('link', { name: 'Saltar al contenido' });
     expect(link).toHaveFocus();

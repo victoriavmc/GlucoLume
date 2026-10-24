@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
-import { FullPageLoader } from '../components/FullPageLoader.jsx';
+import { PageSkeleton } from '../components/Skeleton.jsx';
 import { GracePeriodNotice } from '../components/GracePeriodNotice.jsx';
 import { Logo } from '../components/Logo.jsx';
 import { SkipLink } from '../components/SkipLink.jsx';
@@ -65,7 +65,7 @@ export function AuthenticatedLayout() {
 
       <main className="app-content" id="contenido" tabIndex={-1}>
         <GracePeriodNotice grace={account?.periodoGracia} />
-        <Suspense fallback={<FullPageLoader />}><Outlet /></Suspense>
+        <Suspense fallback={<PageSkeleton />}><Outlet /></Suspense>
       </main>
     </div>
     </InstitutionNavContext.Provider>

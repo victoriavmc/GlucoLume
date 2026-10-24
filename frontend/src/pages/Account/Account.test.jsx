@@ -411,7 +411,7 @@ describe('Confirmación de la eliminación (enlace del correo)', () => {
     });
     const user = userEvent.setup();
     renderAt('/cuenta/eliminar/confirmar?token=tok-123');
-    expect(window.location.search).toBe('');
+    await waitFor(() => expect(window.location.search).toBe('')); // la pantalla se carga de forma diferida y borra el token de la URL al montarse
 
     await user.type(await screen.findByLabelText('Contraseña actual'), 'Clave#2026');
     await user.click(screen.getByRole('button', { name: /Eliminar mi cuenta definitivamente/ }));
