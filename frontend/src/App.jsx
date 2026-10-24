@@ -15,24 +15,33 @@ import VerifyEmail from './pages/Register/VerifyEmail.jsx';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/Login/PasswordRecovery.jsx';
 import { GuestOnlyRoute, ProtectedRoute } from './routes/ProtectedRoute.jsx';
 
-// Carga diferida por área (bundle inicial más chico): plataforma, matrices, auditoría, dispositivos, analítica, grupos, transferencias,
-// reasignaciones, actividad y ficha del personal se
-// descargan la primera vez que se visita una de sus rutas. Cada módulo se pide una sola vez aunque exporte varias páginas.
-function lazyNamed(loader, name) {
-  return lazy(() => loader().then((module) => ({ default: module[name] })));
+// Carga diferida por pantalla: cada módulo se pide una sola vez aunque exporte varias páginas (`name` elige la exportación; sin él, la de por defecto).
+// Si el módulo ya se descargó (precarga desde main.jsx o ruta ya visitada) el componente se dibuja SIN suspender: un Suspense que muestra su
+// fallback mantiene el contenido oculto un mínimo de ~300 ms (la regla de React 19 contra parpadeos) aunque el módulo llegue al instante, y eso
+// sumaba ~250 ms al LCP de cada pantalla en red rápida (medido el 23/10/2026, docs/RENDIMIENTO.md §5).
+function lazyNamed(loader, name = 'default') {
+  let Loaded = null;
+  const pick = (module) => { Loaded = module[name]; return { default: Loaded }; };
+  const Lazy = lazy(() => loader().then(pick));
+  function Page(props) {
+    return Loaded ? <Loaded {...props} /> : <Lazy {...props} />;
+  }
+  Page.preload = () => loader().then((module) => { Loaded = module[name]; });
+  return Page;
 }
 
 // Páginas por ruta (carga diferida: el JavaScript inicial trae el shell, la portada, las pantallas de acceso y las guardas; el resto se descarga al
 // visitar su ruta; 23/10/2026, docs/RENDIMIENTO.md). Las de acceso (login, registro, recuperación, verificación) quedan en el inicial a propósito:
 // son la primera pantalla de quien llega a la portada y una descarga extra por 4 KB no vale la espera.
-const ConfirmDeletionPage = lazy(() => import('./pages/Account/ConfirmDeletionPage.jsx'));
-const ConfirmResultEmailPage = lazy(() => import('./pages/ResultEmail/ConfirmResultEmailPage.jsx'));
+const ConfirmDeletionPage = lazyNamed(() => import('./pages/Account/ConfirmDeletionPage.jsx'));
+const ConfirmResultEmailPage = lazyNamed(() => import('./pages/ResultEmail/ConfirmResultEmailPage.jsx'));
 const loadGroupDashboard = () => import('./pages/Account/groups/GroupDashboard.jsx');
 const GroupMemberPage = lazyNamed(loadGroupDashboard, 'GroupMemberPage');
 const loadSharedData = () => import('./pages/Account/groups/SharedData.jsx');
 const SharedData = lazyNamed(loadSharedData, 'SharedData');
-const DiabetesTipsPage = lazy(() => import('./pages/Account/DiabetesTipsPage.jsx'));
-const HomePage = lazy(() => import('./pages/Account/HomePage.jsx'));
+const DiabetesTipsPage = lazyNamed(() => import('./pages/Account/DiabetesTipsPage.jsx'));
+const loadHomePage = () => import('./pages/Account/HomePage.jsx');
+const HomePage = lazyNamed(loadHomePage);
 const loadInstitutionDataPage = () => import('./pages/Account/institutions/InstitutionDataPage.jsx');
 const InstitutionDataPage = lazyNamed(loadInstitutionDataPage, 'InstitutionDataPage');
 const loadInstitutionSubnav = () => import('./pages/Account/institutions/InstitutionSubnav.jsx');
@@ -42,8 +51,10 @@ const loadInstitutionDashboards = () => import('./pages/Account/institutions/das
 const OperatorDashboardPage = lazyNamed(loadInstitutionDashboards, 'OperatorDashboardPage');
 const loadInstitutionOverview = () => import('./pages/Account/institutions/InstitutionOverview.jsx');
 const InstitutionOverview = lazyNamed(loadInstitutionOverview, 'InstitutionOverview');
-const InstitutionLayout = lazy(() => import('./pages/Account/institutions/InstitutionLayout.jsx'));
-const InstitutionsPage = lazy(() => import('./pages/Account/institutions/InstitutionsPage.jsx'));
+const loadInstitutionLayout = () => import('./pages/Account/institutions/InstitutionLayout.jsx');
+const InstitutionLayout = lazyNamed(loadInstitutionLayout);
+const loadInstitutionsPage = () => import('./pages/Account/institutions/InstitutionsPage.jsx');
+const InstitutionsPage = lazyNamed(loadInstitutionsPage);
 const loadPersonnelInvitationsPage = () => import('./pages/Account/institutions/PersonnelInvitationsPage.jsx');
 const PersonnelInvitationsPage = lazyNamed(loadPersonnelInvitationsPage, 'PersonnelInvitationsPage');
 const loadPersonnelPage = () => import('./pages/Account/institutions/PersonnelPage.jsx');
@@ -67,14 +78,14 @@ const PatientMeasurePage = lazyNamed(loadPatientMeasurePage, 'PatientMeasurePage
 const loadConnectDevicePage = () => import('./pages/Account/acquisition/ConnectDevicePage.jsx');
 const ConnectDevicePage = lazyNamed(loadConnectDevicePage, 'ConnectDevicePage');
 const InstitutionConnectDevicePage = lazyNamed(loadConnectDevicePage, 'InstitutionConnectDevicePage');
-const ProfilePage = lazy(() => import('./pages/Account/ProfilePage.jsx'));
+const ProfilePage = lazyNamed(() => import('./pages/Account/ProfilePage.jsx'));
 const loadPlatformAuth = () => import('./pages/Platform/PlatformAuth.jsx');
 const PlatformActivateWithCode = lazyNamed(loadPlatformAuth, 'PlatformActivateWithCode');
 const PlatformForgot = lazyNamed(loadPlatformAuth, 'PlatformForgot');
 const PlatformLogin = lazyNamed(loadPlatformAuth, 'PlatformLogin');
 const PlatformReset = lazyNamed(loadPlatformAuth, 'PlatformReset');
-const SecurityPage = lazy(() => import('./pages/Account/SecurityPage.jsx'));
-const PrivacyPolicy = lazy(() => import('./pages/Privacy/PrivacyPolicy.jsx'));
+const SecurityPage = lazyNamed(() => import('./pages/Account/SecurityPage.jsx'));
+const PrivacyPolicy = lazyNamed(() => import('./pages/Privacy/PrivacyPolicy.jsx'));
 
 const loadAnalytics = () => import('./pages/Account/institutions/analytics/PatientAnalyticsPage.jsx');
 const PatientAnalyticsPage = lazyNamed(loadAnalytics, 'PatientAnalyticsPage');
@@ -109,18 +120,45 @@ const PlatformInstitutionDetailPage = lazyNamed(loadPlatformInstitutions, 'Platf
 const PlatformInstitutionsPage = lazyNamed(loadPlatformInstitutions, 'PlatformInstitutionsPage');
 
 const loadGroupOverview = () => import('./pages/Account/groups/GroupOverview.jsx');
-const GroupLayout = lazy(() => import('./pages/Account/groups/GroupLayout.jsx'));
+const GroupLayout = lazyNamed(() => import('./pages/Account/groups/GroupLayout.jsx'));
 const GroupMembers = lazyNamed(loadGroupOverview, 'GroupMembers');
 const GroupOverview = lazyNamed(loadGroupOverview, 'GroupOverview');
-const GroupsHome = lazy(() => import('./pages/Account/groups/GroupsHome.jsx'));
+const GroupsHome = lazyNamed(() => import('./pages/Account/groups/GroupsHome.jsx'));
 const GroupSettings = lazyNamed(() => import('./pages/Account/groups/GroupSettings.jsx'), 'GroupSettings');
 const MyPrivacy = lazyNamed(() => import('./pages/Account/groups/MyPrivacy.jsx'), 'MyPrivacy');
 const SharedMeasurementDetail = lazyNamed(() => import('./pages/Account/groups/SharedMeasurementDetail.jsx'), 'SharedMeasurementDetail');
 const InstitutionActivityPage = lazyNamed(() => import('./pages/Account/institutions/InstitutionActivityPage.jsx'), 'InstitutionActivityPage');
 const PersonnelProfilePage = lazyNamed(() => import('./pages/Account/institutions/PersonnelProfilePage.jsx'), 'PersonnelProfilePage');
-const ReassignmentsPage = lazy(() => import('./pages/Account/institutions/reassignments/ReassignmentsPage.jsx'));
+const ReassignmentsPage = lazyNamed(() => import('./pages/Account/institutions/reassignments/ReassignmentsPage.jsx'));
 const TransferDetailPage = lazyNamed(() => import('./pages/Account/institutions/transfers/TransferDetailPage.jsx'), 'TransferDetailPage');
 const TransfersPage = lazyNamed(() => import('./pages/Account/institutions/transfers/TransfersPage.jsx'), 'TransfersPage');
+
+// Precarga de la pantalla pedida. Sin esto, el navegador recién descarga el JavaScript de una pantalla cuando React la dibuja, y eso ocurre DESPUÉS de
+// recuperar la sesión (/auth/refresh y /auth/me): descarga y datos quedaban en serie (LCP de /app/inicio en red rápida: 198 ms con todo en un solo
+// archivo, 442 ms con carga diferida sin precarga; medido el 23/10/2026, docs/RENDIMIENTO.md §5). Se llama desde main.jsx con la ruta con la que se abrió la
+// página: descarga y sesión corren en paralelo. Los errores se ignoran (el Suspense volverá a pedir el módulo si hace falta).
+const PRELOADS = [
+  [/^\/app\/?$|^\/app\/inicio\/?$/, [HomePage]],
+  [/^\/app\/mediciones\/historial\/?$/, [MeasurementHistoryPage]],
+  [/^\/app\/mediciones\/?$/, [MeasurementsPage]],
+  [/^\/app\/instituciones\/?$/, [InstitutionsPage]],
+  [/^\/app\/instituciones\/[^/]+\/?$/, [InstitutionLayout, InstitutionOverview]],
+  [/^\/app\/instituciones\/[^/]+\/pacientes\/?$/, [InstitutionLayout, PatientsTabs, PatientsPage]],
+  [/^\/app\/instituciones\/[^/]+\/personal\/operadores\/[^/]+\/?$/, [InstitutionLayout, PersonnelLayout, OperatorDashboardPage]],
+];
+
+export function preloadForPath(pathname) {
+  const match = PRELOADS.find(([pattern]) => pattern.test(pathname));
+  if (match) match[1].forEach((page) => page.preload().catch(() => {}));
+}
+
+/** En la portada y el login, con el navegador ocioso y sin «ahorro de datos», trae el inicio del espacio privado: es adonde se va al ingresar. */
+export function warmPrivateHome() {
+  if (navigator.connection?.saveData) return;
+  const warm = () => HomePage.preload().catch(() => {});
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(warm, { timeout: 4000 });
+  else setTimeout(warm, 1500);
+}
 
 /** Enlaces de activación anteriores (/plataforma/activar?token=…): llevan a la ruta principal sin duplicar la activación; el código pasa al fragmento. */
 function LegacyActivationLink() {

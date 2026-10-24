@@ -25,6 +25,21 @@ export default defineConfig(({ command, mode }) => {
     root: ROOT,
     envDir: ROOT,
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          // La carga diferida por pantalla dejaba decenas de archivos de pocos KB (una pantalla pedía hasta 42, en cadena de 3 o 4 viajes):
+          // se juntan los fragmentos chicos (< 40 KB) con los que siempre se piden con ellos. React y el router van aparte: casi no cambian
+          // entre versiones y así el navegador los conserva en caché aunque cambie el código de la aplicación.
+          experimentalMinChunkSize: 40_000,
+          manualChunks(id) {
+            if (/node_modules[\/](react|react-dom|scheduler)[\/]/.test(id)) return 'react';
+            if (/node_modules[\/](react-router|react-router-dom)[\/]/.test(id)) return 'router';
+            return undefined;
+          },
+        },
+      },
+    },
     server: { port: 5173, strictPort: true, host: 'localhost' },
     preview: { port: 5173, strictPort: true, host: 'localhost' },
     test: {
