@@ -51,8 +51,8 @@ class Settings(BaseSettings):
     DB_SERVER_CERTIFICATE: str | None = None
     DB_CERTIFICATE_HOSTNAME: str | None = None
     # Tope de hilos que usan el driver ODBC al mismo tiempo en este proceso (app/db/gate.py). Con 6 u 8 hilos simultáneos pyodbc rinde ~9 veces menos
-    # y gasta ~40 veces más CPU por consulta (medido, docs/RENDIMIENTO.md); a 4 o menos no ocurre. 0 lo desactiva (no limita nada).
-    DB_MAX_CONCURRENT_CALLS: int = 4
+    # y gasta ~40 veces más CPU por consulta (medido, docs/RENDIMIENTO.md); con 2 la API sostiene ~7 veces más pedidos por segundo que sin tope (óptimo medido con 1 CPU; ver el barrido de RENDIMIENTO.md §3.1). 0 lo desactiva.
+    DB_MAX_CONCURRENT_CALLS: int = 2
     # Cuenta de base propia de los procesos de conservación (servicio «lifecycle» y app/jobs), GL-03: es la única que puede borrar eventos
     # vencidos de Auditoria y anular IP/navegador de AuditoriaContexto; la de la API (DB_USER) queda con DENY UPDATE, DELETE sobre ambas
     # (database/reference/GlucoLume_permisos.sql). Las dos o ninguna; sin ellas, los jobs usan DB_USER como antes. El contenedor de la API

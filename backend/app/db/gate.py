@@ -3,7 +3,7 @@
 # Medido el 23/10/2026 (docs/RENDIMIENTO.md §3.1, docs/evidencias/rendimiento/hilos_micro*.py): con 6 u 8 hilos usando pyodbc a la vez, el mismo
 # trabajo que con 1 a 4 hilos pasa de ~1700 a ~190 consultas/s y la CPU por consulta se multiplica por ~40, aunque cada hilo tenga su propia
 # conexión y la CPU del contenedor no sea el límite. No es SQLAlchemy (ocurre con pyodbc puro), ni el cifrado, ni el pool, ni el intervalo de
-# conmutación de la GIL: solo desaparece si se limita cuántos hilos están DENTRO del driver al mismo tiempo (a ≤ 4 el rendimiento se recupera).
+# conmutación de la GIL: solo desaparece si se limita cuántos hilos están DENTRO del driver al mismo tiempo (con 2 es el máximo medido; con 3 se recupera ~5x y con 4 casi nada).
 # Los demás hilos esperan en un semáforo (sin gastar CPU) y la aplicación sigue atendiendo pedidos que no usan la base.
 #
 # El semáforo se toma solo durante UNA llamada al driver (ejecutar, traer filas, confirmar, revertir), nunca entre llamadas: no se retiene

@@ -56,6 +56,7 @@ propio `.env.example`.
 | `PERSONNEL_RETENTION_MONTHS` | Minimización de datos históricos del personal (0 = desactivada) | `0` |
 | `BRIDGE_TOKEN` | Token del puente (≥ 32 caracteres; el mismo en `acquisition/bridge/bridge.env`) | vacío (recepción deshabilitada) |
 | `BRIDGE_PREVIOUS_TOKEN` | Token anterior aceptado mientras se actualiza el puente (rotación); quitarlo después | vacío |
+| `DB_MAX_CONCURRENT_CALLS` | Tope de hilos de la API dentro del driver ODBC a la vez (`app/db/gate.py`); evita el desplome de rendimiento con 6 o más consultas simultáneas ([RENDIMIENTO.md](RENDIMIENTO.md) §3.1). 0 lo desactiva | `2` |
 | `DB_JOBS_USER` / `DB_JOBS_PASSWORD` | Cuenta de base de `lifecycle` y de los jobs, la única que depura la auditoría (GL-03). Las dos o ninguna; distinta de `DB_USER`. Compose no se la pasa a la API | vacías (los jobs usan `DB_USER`) |
 | `SECURITY_ALERT_EMAIL_MINUTES` | Alerta por correo al administrador de la plataforma ante una ráfaga de rechazos (como máximo una por patrón en ese lapso; 0 la desactiva) | `60` |
 | `MFA_PREVIOUS_ENCRYPTION_KEYS` | Claves Fernet anteriores, separadas por coma, para descifrar mientras se re-cifra (`python -m app.cli.mfaKeys`) | vacía |
