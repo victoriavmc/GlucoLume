@@ -86,6 +86,35 @@ describe('Listado de pacientes', () => {
     }, { timeout: 5000 }); // con todos los archivos en paralelo, 1 s por defecto no siempre alcanza
   });
 
+  it('una respuesta lenta de un filtro anterior no pisa la del filtro actual (condición de carrera)', async () => {
+    // Estado ACTIVO responde enseguida; «Dados de baja» (la consulta más NUEVA) responde rápido y «Activos» (la ANTERIOR) responde tarde.
+    let releaseSlow;
+    const slow = new Promise((resolve) => { releaseSlow = resolve; });
+    const active = patient({ idPerfilMedicion: 'p-act', apellido: 'Activo', nombre: 'Ana' });
+    const discharged = patient({ idPerfilMedicion: 'p-baja', apellido: 'DeBaja', nombre: 'Beto', estado: 'BAJA', fechaExpiracionDatosPersonales: '2027-10-03T09:00:00' });
+    let calls = 0;
+    routes('PROPIETARIO', {
+      [`GET ${PATIENTS_URL}`]: (options, url) => {
+        calls += 1;
+        const estado = new URL(url).searchParams.get('estado');
+        if (estado === 'ACTIVO' && calls > 1) return slow.then(() => jsonResponse(200, page([active])));
+        return jsonResponse(200, page(estado === 'BAJA' ? [discharged] : [active]));
+      },
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    expect(await screen.findByText('Activo, Ana')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Estado'), 'BAJA');           // consulta 2: Dados de baja (rápida)
+    expect(await screen.findByText('DeBaja, Beto')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Estado'), 'ACTIVO');          // consulta 3: Activos (lenta)...
+    await user.selectOptions(screen.getByLabelText('Estado'), 'BAJA');            // ...y se vuelve a elegir «baja» (consulta 4, rápida)
+    expect(await screen.findByText('DeBaja, Beto')).toBeInTheDocument();
+    releaseSlow();                                                                // llega tarde la respuesta de «Activos»
+    await new Promise((resolve) => { setTimeout(resolve, 100); });
+    expect(screen.getByText('DeBaja, Beto')).toBeInTheDocument();                 // no la pisa
+    expect(screen.queryByText('Activo, Ana')).not.toBeInTheDocument();
+  });
+
   it('el operador ve todos los pacientes de la institución, distingue los suyos y mide solo a los suyos', async () => {
     const mine = patient();
     const foreign = patient({ idPerfilMedicion: 'p-2', apellido: 'Gómez', nombre: 'Luis', dni: null, edad: null, sexoModelo: null, fechaNacimiento: null,

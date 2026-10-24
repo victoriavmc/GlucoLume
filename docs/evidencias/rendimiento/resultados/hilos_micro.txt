@@ -1,0 +1,13 @@
+# imagen glucolume/backend:baseline (sin tope), contenedor con 1 CPU
+python puro          1 hilos:   1430.9/s  CPU    0.67 ms por llamada
+python puro          4 hilos:   1368.8/s  CPU    0.68 ms por llamada
+python puro          8 hilos:   1265.3/s  CPU    0.60 ms por llamada
+pyodbc SELECT 1      1 hilos:   4137.4/s  CPU    0.06 ms por llamada
+pyodbc SELECT 1      4 hilos:   8792.1/s  CPU    0.09 ms por llamada
+pyodbc SELECT 1      8 hilos:   2568.1/s  CPU    0.46 ms por llamada
+pyodbc 20 filas      1 hilos:   1938.5/s  CPU    0.11 ms por llamada
+pyodbc 20 filas      4 hilos:   2473.3/s  CPU    0.41 ms por llamada
+pyodbc 20 filas      8 hilos:    187.3/s  CPU    4.96 ms por llamada
+SQLAlchemy 20 filas  1 hilos:   1435.9/s  CPU    0.25 ms por llamada
+SQLAlchemy 20 filas  4 hilos:   1035.2/s  CPU    1.00 ms por llamada
+SQLAlchemy 20 filas  8 hilos:    183.2/s  CPU    5.02 ms por llamada

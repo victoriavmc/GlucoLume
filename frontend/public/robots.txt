@@ -1,0 +1,7 @@
+# GlucoLume: solo la portada y las páginas públicas son indexables. El espacio privado y la API no.
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /plataforma/
+Disallow: /administracion/
+Disallow: /api/

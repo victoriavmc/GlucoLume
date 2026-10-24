@@ -89,12 +89,12 @@ def notifyGroupMeasurement(db: Session, user: User, when: datetime) -> int:
     """Avisa a los demás integrantes ACTIVOS del grupo de `user` que se midió (quién y cuándo, NUNCA el valor).
 
     Solo si esa persona activó `notificaMedicion` en su vínculo (permiso personal, apagado por defecto). Devuelve
-    cuántos correos se enviaron. Nunca propaga errores: la medición ya está completada y confirmada.
+    cuántos avisos se encolaron. Nunca propaga errores: la medición ya está completada y confirmada.
     """
     try:
         own = db.scalar(select(GroupUser).where(GroupUser.idUsuario == user.idUsuario,
                                                 GroupUser.estadoRelacion == "ACTIVO",
-                                                GroupUser.notificaMedicion.is_(True)))
+                                                GroupUser.notificaMedicion == True))  # noqa: E712 - SQL Server recibe «IS 1» (error 102) si se usa el operador IS con un BIT: se compara con =
         if own is None:
             return 0
         group = db.get(Group, own.idGrupo)
@@ -110,7 +110,10 @@ def notifyGroupMeasurement(db: Session, user: User, when: datetime) -> int:
         for recipient in recipients:
             context = {"nombre": recipient.nombre, "nombreIntegrante": who, "nombreGrupo": group.nombre,
                        "fechaMedicion": when, "urlGrupo": emailService.frontendUrl(f"/app/grupo/{group.idGrupo}")}
-            sent += bool(emailService.sendEmailEvent(EmailEventType.MEDICION_MIEMBRO_GRUPO, recipient.correoElectronico, context))
+            # En segundo plano: el aviso no puede demorar el cierre de la medición (cada envío SMTP bloquea la respuesta entre 1 y 20 s y los destinatarios
+            # se recorrían de a uno). Nadie espera su resultado: el aviso es informativo y sus errores ya se registran sin deshacer nada.
+            emailService.sendEmailEventInBackground(EmailEventType.MEDICION_MIEMBRO_GRUPO, recipient.correoElectronico, context)
+            sent += 1
         return sent
     except Exception as error:  # noqa: BLE001 - un fallo de correo o de consulta no deshace la medición
         logger.error("Aviso de medición al grupo no enviado (%s).", type(error).__name__)

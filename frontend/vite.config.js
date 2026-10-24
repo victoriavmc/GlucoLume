@@ -25,6 +25,21 @@ export default defineConfig(({ command, mode }) => {
     root: ROOT,
     envDir: ROOT,
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          // React, el router y los íconos van en archivos aparte: casi no cambian entre versiones y así el navegador los conserva en caché aunque cambie el
+          // código de la aplicación (el índice cambia en cada despliegue). (experimentalMinChunkSize no tuvo efecto medible con esta estructura.)
+          manualChunks(id) {
+            if (/node_modules[\/](react|react-dom|scheduler)[\/]/.test(id)) return 'react';
+            if (/node_modules[\/](react-router|react-router-dom)[\/]/.test(id)) return 'router';
+            // Sin esto cada ícono compartido entre pantallas diferidas era su propio archivo de ~400 B (una pantalla pedía 25 o más).
+            if (/node_modules[\/]lucide-react[\/]/.test(id)) return 'icons';
+            return undefined;
+          },
+        },
+      },
+    },
     server: { port: 5173, strictPort: true, host: 'localhost' },
     preview: { port: 5173, strictPort: true, host: 'localhost' },
     test: {

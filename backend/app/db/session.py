@@ -10,6 +10,7 @@ from sqlalchemy import URL, Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import getSettings
+from app.db.gate import limitDriverCalls
 
 # Bundle de autoridades = las del sistema + el certificado de SQL Server (Linux/Docker). En /tmp: la imagen es de solo lectura.
 TRUST_BUNDLE = Path("/tmp/glucolume-ca-bundle.pem")
@@ -48,7 +49,7 @@ def _createEngine(username: str, password: str) -> Engine:
             **({"HostNameInCertificate": settings.DB_CERTIFICATE_HOSTNAME} if settings.DB_CERTIFICATE_HOSTNAME else {}),
         },
     )
-    return create_engine(url, pool_pre_ping=True)
+    return limitDriverCalls(create_engine(url, pool_pre_ping=True), settings.DB_MAX_CONCURRENT_CALLS)
 
 
 @lru_cache

@@ -10,6 +10,8 @@ import * as institutionsApi from '../../../../api/institutionsApi.js';
 import { Badge } from '../../../../components/Badge.jsx';
 import { EmptyState } from '../../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../../components/FormControls.jsx';
+import { SkeletonList } from '../../../../components/Skeleton.jsx';
+import { useLatestRequest } from '../../../../utils/useLatestRequest.js';
 import { can, formatDateTime } from '../institutionFormat.js';
 
 const PAGE_SIZE = 20;
@@ -33,22 +35,32 @@ export function PatientsPage() {
   const [operators, setOperators] = useState([]);
   const [error, setError] = useState('');
 
+  const beginRequest = useLatestRequest(); // una respuesta lenta de un filtro anterior no pisa a la del filtro actual
+
   const load = useCallback(async () => {
+    const isCurrent = beginRequest();
     setError('');
     try {
-      setPage(await institutionsApi.listPatients(institution.idInstitucion, { ...filters, tamanioPagina: PAGE_SIZE }));
+      const result = await institutionsApi.listPatients(institution.idInstitucion, { ...filters, tamanioPagina: PAGE_SIZE });
+      if (isCurrent()) setPage(result);
     } catch (loadError) {
+      if (!isCurrent()) return;
       setError(handleOperationError(loadError));
       setPage({ items: [], total: 0, pagina: 1, tamanioPagina: PAGE_SIZE });
     }
-  }, [institution.idInstitucion, filters, handleOperationError]);
+  }, [institution.idInstitucion, filters, handleOperationError, beginRequest]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   useEffect(() => {
-    institutionsApi.getAssignableOperators(institution.idInstitucion).then(setOperators).catch(() => setOperators([]));
+    let active = true;
+    institutionsApi.getAssignableOperators(institution.idInstitucion).then(
+      (list) => { if (active) setOperators(list); },
+      () => { if (active) setOperators([]); },
+    );
+    return () => { active = false; };
   }, [institution.idInstitucion]);
 
   function applySearch(event) {
@@ -115,7 +127,7 @@ export function PatientsPage() {
       </form>
 
       {page === null ? (
-        <p className="field-hint" role="status">Cargando pacientes…</p>
+        <SkeletonList rows={6} label="Cargando pacientes…" />
       ) : page.items.length === 0 ? (
         <EmptyState icon={Users} headingLevel={0}
           title={filters.busqueda || filters.idResponsable

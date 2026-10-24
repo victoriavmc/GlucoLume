@@ -38,6 +38,13 @@ map $request_uri $log_path {
 }
 log_format sin_query '$remote_addr - [$time_local] "$request_method $log_path" $status $body_bytes_sent "$http_user_agent" rid=$request_id';
 
+# Páginas que no deben indexarse (la SPA devuelve el mismo index.html para todas: la diferencia se hace por cabecera, no por archivo). Con valor
+# vacío Nginx no envía la cabecera, igual que HSTS. Se usa $request_uri porque try_files reescribe $uri a /index.html.
+map $request_uri $robots_tag {
+    ~^/(app|plataforma|administracion|auth|cuenta|login|registro|verificar-correo|activar-cuenta|recuperar-contrasena|restablecer-contrasena|confirmar-correo-resultados)(/|\?|$) "noindex, nofollow";
+    default "";
+}
+
 # Protección contra inundación de los endpoints de autenticación (complementa los límites de la API, que cuentan por IP y endpoint).
 limit_req_zone $binary_remote_addr zone=auth_zone:10m rate=30r/s;
 
@@ -54,14 +61,22 @@ server {
     # Cabeceras de seguridad. CSP sin 'unsafe-inline' (GL-19): React aplica los estilos en línea por CSSOM (element.style), que la CSP no
     # bloquea; sí bloquea <style> y atributos style inyectados. Verificado el 19/10/2026 con el build y la galería de componentes.
     add_header Strict-Transport-Security $hsts_value always;
+    add_header X-Robots-Tag $robots_tag always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 
+    # Compresión. Los archivos estáticos de la SPA se precomprimen al construir la imagen (gzip -9, Dockerfile) y se sirven tal cual (gzip_static:
+    # 283 KB en vez de 344 KB para el JS y el CSS iniciales, sin CPU por pedido). El resto (la API, index.html) se comprime al vuelo en nivel 5 (el
+    # nivel 1 por defecto deja ~20 % más de bytes). Vary: Accept-Encoding para que una caché intermedia no sirva gzip a quien no lo acepta.
     gzip on;
-    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_static on;
+    gzip_vary on;
+    gzip_comp_level 5;
+    gzip_min_length 256;
+    gzip_types text/css text/plain text/xml application/javascript application/json application/xml image/svg+xml;
 
     location = /nginx-health {
         access_log off;
@@ -154,6 +169,12 @@ server {
     # index.html nunca se cachea: una versión nueva se ve al recargar.
     location = /index.html {
         expires -1;
+    }
+
+    # Un archivo que no existe (robots.txt, sitemap.xml, un .map, un .png) es un 404, no el index.html de la SPA con estado 200 («soft 404»:
+    # un buscador leía HTML como si fuera robots.txt). Sin add_header propio: hereda las cabeceras de seguridad del server.
+    location ~* ^(?!/api/).+\.(?:txt|xml|json|map|ico|png|jpe?g|gif|webp|svg|woff2?|webmanifest)$ {
+        try_files $uri =404;
     }
 
     location / {

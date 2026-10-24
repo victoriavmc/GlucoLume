@@ -2,11 +2,14 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
-import App from './App.jsx';
+import App, { preloadForPath, warmPrivateHome } from './App.jsx';
 import { OriginGuard } from './auth/OriginGuard.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import './styles/global.css';
 import './styles/components.css';
+
+preloadForPath(window.location.pathname); // descarga la pantalla pedida mientras se recupera la sesión
+if (window.location.pathname === '/login') warmPrivateHome();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

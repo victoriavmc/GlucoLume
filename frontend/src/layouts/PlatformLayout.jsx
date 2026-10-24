@@ -13,6 +13,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { friendlyError } from '../auth/errorMessages.js';
 import { Alert } from '../components/FormControls.jsx';
 import { FullPageLoader } from '../components/FullPageLoader.jsx';
+import { PageSkeleton } from '../components/Skeleton.jsx';
 import { Logo } from '../components/Logo.jsx';
 import { SkipLink } from '../components/SkipLink.jsx';
 import './AuthenticatedLayout.css';
@@ -169,7 +170,7 @@ export function PlatformLayout() {
                 <Link to="/plataforma/seguridad">Configurar ahora</Link>
               </Alert>
             )}
-            <Suspense fallback={<FullPageLoader />}><Outlet /></Suspense>
+            <Suspense fallback={<PageSkeleton />}><Outlet /></Suspense>
           </div>
         </main>
       </div>

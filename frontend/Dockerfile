@@ -40,7 +40,8 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_LOGIN_ORIGIN=${VITE_LOGIN_ORIGIN}
 ENV VITE_APP_ORIGIN=${VITE_APP_ORIGIN}
 COPY . .
-RUN npm run build
+# Precompresión (gzip -9) de lo que Nginx sirve con gzip_static: no se comprime en cada pedido y pesa ~18 % menos que el gzip al vuelo.
+RUN npm run build && find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.html' -o -name '*.txt' \) -exec gzip -9 -k -f {} +
 
 
 FROM ${NGINX_IMAGE} AS runtime

@@ -1,0 +1,34 @@
+{"operacion": "POST /auth/login (consumidor)", "sentencias": 7, "escrituras": 4, "commits": 3, "msTotal_p50": 219.7, "msBase_p50": 7.8}
+{"operacion": "GET /measurements/profile", "estado": [200], "sentencias": 3, "escrituras": 0, "commits": 0, "msBase_p50": 1.7, "msTotal_p50": 11.0, "msTotal_p95": 174.1, "msTotal_min": 9.4}
+{"operacion": "GET /measurements/evolution?dias=7", "estado": [200], "sentencias": 6, "escrituras": 0, "commits": 0, "msBase_p50": 7.8, "msTotal_p50": 22.0, "msTotal_p95": 83.3, "msTotal_min": 19.9}
+{"operacion": "GET /measurements/evolution?dias=90", "estado": [200], "sentencias": 6, "escrituras": 0, "commits": 0, "msBase_p50": 8.8, "msTotal_p50": 31.3, "msTotal_p95": 41.8, "msTotal_min": 28.2}
+{"operacion": "GET /measurements/evolution?dias=30", "estado": [200], "sentencias": 6, "escrituras": 0, "commits": 0, "msBase_p50": 8.0, "msTotal_p50": 24.1, "msTotal_p95": 69.1, "msTotal_min": 22.2}
+{"operacion": "GET /measurements (historial, pág. 1)", "estado": [200], "sentencias": 6, "escrituras": 0, "commits": 0, "msBase_p50": 6.9, "msTotal_p50": 18.8, "msTotal_p95": 65.2, "msTotal_min": 17.2}
+{"operacion": "GET /measurements/dashboard?dias=30", "estado": [200], "sentencias": 16, "escrituras": 0, "commits": 0, "msBase_p50": 27.3, "msTotal_p50": 51.2, "msTotal_p95": 118.1, "msTotal_min": 46.2}
+{"operacion": "GET /measurements/statistics?dias=30", "estado": [200], "sentencias": 4, "escrituras": 0, "commits": 0, "msBase_p50": 3.7, "msTotal_p50": 15.8, "msTotal_p95": 19.0, "msTotal_min": 13.7}
+{"operacion": "GET /institutions (mis instituciones)", "estado": [405], "sentencias": 0, "escrituras": 0, "commits": 0, "msBase_p50": 0.0, "msTotal_p50": 3.1, "msTotal_p95": 110.5, "msTotal_min": 2.6}
+   ↳ 405 {"detail":"Method Not Allowed"}
+{"operacion": "GET /institutions/{id}/patients (pág. 1, 20)", "estado": [200], "sentencias": 6, "escrituras": 0, "commits": 0, "msBase_p50": 5.5, "msTotal_p50": 18.2, "msTotal_p95": 93.7, "msTotal_min": 17.1}
+{"operacion": "GET /institutions/{id}/patients?busqueda=", "estado": [200], "sentencias": 6, "escrituras": 0, "commits": 0, "msBase_p50": 8.1, "msTotal_p50": 22.5, "msTotal_p95": 44.5, "msTotal_min": 19.2}
+{"operacion": "GET /institutions/{id}/patients/assignable-operators", "estado": [200], "sentencias": 4, "escrituras": 0, "commits": 0, "msBase_p50": 2.1, "msTotal_p50": 10.9, "msTotal_p95": 19.4, "msTotal_min": 9.4}
+{"operacion": "GET /institutions/{id}/patients/{pid}", "estado": [200], "sentencias": 9, "escrituras": 2, "commits": 1, "msBase_p50": 7.8, "msTotal_p50": 26.8, "msTotal_p95": 56.6, "msTotal_min": 23.2}
+{"operacion": "GET /institutions/{id}/patients/{pid}/measurements", "estado": [200], "sentencias": 7, "escrituras": 0, "commits": 0, "msBase_p50": 5.2, "msTotal_p50": 18.2, "msTotal_p95": 25.9, "msTotal_min": 16.7}
+{"operacion": "GET /institutions/{id}/patients/{pid}/measurements/evolution", "estado": [200], "sentencias": 7, "escrituras": 0, "commits": 0, "msBase_p50": 7.6, "msTotal_p50": 20.8, "msTotal_p95": 29.1, "msTotal_min": 19.4}
+{"operacion": "GET /institutions/{id}/patients/{pid}/dashboard", "estado": [200], "sentencias": 19, "escrituras": 2, "commits": 1, "msBase_p50": 19.8, "msTotal_p50": 47.8, "msTotal_p95": 98.1, "msTotal_min": 42.9}
+{"operacion": "GET /institutions/{id}/dashboard", "estado": [200], "sentencias": 31, "escrituras": 0, "commits": 0, "msBase_p50": 68.6, "msTotal_p50": 157.1, "msTotal_p95": 706.9, "msTotal_min": 132.7}
+{"operacion": "GET /institutions/{id}/operators/{op}/dashboard", "estado": [200], "sentencias": 22, "escrituras": 0, "commits": 0, "msBase_p50": 29.6, "msTotal_p50": 71.7, "msTotal_p95": 407.3, "msTotal_min": 63.9}
+{"operacion": "GET /institutions/{id}/analytics/patients", "estado": [403], "sentencias": 6, "escrituras": 2, "commits": 1, "msBase_p50": 4.5, "msTotal_p50": 18.5, "msTotal_p95": 28.9, "msTotal_min": 17.2}
+   ↳ 403 {"codigo":"MEDICIONES_NO_AUTORIZADAS","detail":"Las mediciones de este paciente están disponibles únicamente para su operador responsable autorizado."}
+{"operacion": "GET /institutions/{id}/indicators", "estado": [200], "sentencias": 9, "escrituras": 0, "commits": 0, "msBase_p50": 21.5, "msTotal_p50": 60.6, "msTotal_p95": 147.8, "msTotal_min": 56.7}
+2026-10-24 18:10:01,712 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:02,086 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:02,500 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:02,874 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:03,164 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+{"operacion": "escritura: medición con 400 muestras en una tanda de 400", "iniciar": {"msP50": 30.7, "sentencias": 10, "escrituras": 3, "commits": 1}, "muestras": {"solicitudes": 1, "msTotalP50": 211.6, "msPorSolicitudP50": 211.6, "sentenciasTotal": 414, "escriturasTotal": 403, "commitsTotal": 1}, "cerrar": {"msP50": 56.4, "sentencias": 25, "escrituras": 7, "commits": 2}}
+2026-10-24 18:10:03,881 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:04,634 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:05,467 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:06,344 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+2026-10-24 18:10:07,145 ERROR app.services.notifications: Aviso de medición al grupo no enviado (ProgrammingError).
+{"operacion": "escritura: medición con 400 muestras en lotes de 20 (puente)", "iniciar": {"msP50": 24.5, "sentencias": 10, "escrituras": 3, "commits": 1}, "muestras": {"solicitudes": 20, "msTotalP50": 712.5, "msPorSolicitudP50": 33.6, "sentenciasTotal": 642, "escriturasTotal": 422, "commitsTotal": 20}, "cerrar": {"msP50": 55.5, "sentencias": 25, "escrituras": 7, "commits": 2}}

@@ -4,11 +4,13 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const SRC = `${process.cwd()}/src/`;
+// Rutas con «/» también en Windows (la guarda busca «auth/tokenStore.js» y «/test/»).
+const slashes = (path) => path.split(String.fromCharCode(92)).join('/');
+const SRC = `${slashes(process.cwd())}/src/`;
 
 function sources(dir) {
   return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
+    const path = slashes(join(dir, name));
     if (statSync(path).isDirectory()) return sources(path);
     return /\.(jsx?|mjs)$/.test(name) && !/\.test\.jsx?$/.test(name) && !path.includes('/test/') ? [path] : [];
   });

@@ -431,6 +431,37 @@ describe('Mediciones: historial completo', () => {
     expect(screen.getByLabelText('Estado')).toHaveValue('');
   });
 
+  it('una respuesta lenta de un filtro anterior no pisa la del filtro actual (condición de carrera)', async () => {
+    const base = { idMedicion: 'm-x', fechaHoraInicio: '2026-10-08T09:00:00', fechaHoraFin: '2026-10-08T09:00:12', modoMedicion: 'OXIMETRIA',
+      condicionComida: 'AYUNO', edadAlMomento: 36, glucosaEstimada: null, spo2: '98.00', frecuenciaCardiaca: 70, calidadSenal: null, observacion: null,
+      dispositivo: 'ARD-001', origenGlucosa: null, glucosaDispositivo: null, indiceOptico: null, esDemo: false };
+    const all = { items: [{ ...base, idMedicion: 'm-todas', estadoMedicion: 'COMPLETADA', frecuenciaCardiaca: 71 }], total: 1, pagina: 1, tamanioPagina: 10 };
+    const cancelled = { items: [{ ...base, idMedicion: 'm-cancelada', estadoMedicion: 'CANCELADA', frecuenciaCardiaca: 72 }], total: 1, pagina: 1, tamanioPagina: 10 };
+    let release;
+    const slow = new Promise((resolve) => { release = resolve; });
+    let history = 0;
+    routes({
+      'GET /measurements/profile': jsonResponse(200, OWN_PROFILE),
+      'GET /measurements': (options, url) => {
+        history += 1;
+        const estado = new URL(url).searchParams.get('estado');
+        if (estado === 'COMPLETADA') return slow.then(() => jsonResponse(200, all)); // la consulta ANTERIOR llega tarde
+        return jsonResponse(200, estado === 'CANCELADA' ? cancelled : all);
+      },
+      'GET /measurements/statistics': () => jsonResponse(200, NO_STATS),
+    });
+    const user = userEvent.setup();
+    renderAt('/app/mediciones/historial');
+    await screen.findByRole('list', { name: 'Mediciones' });
+    await user.selectOptions(screen.getByLabelText('Estado'), 'COMPLETADA');   // consulta lenta
+    await user.selectOptions(screen.getByLabelText('Estado'), 'CANCELADA');    // consulta nueva, rápida
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-cancelada'));
+    release();                                                                  // llega tarde la respuesta de COMPLETADA
+    await new Promise((resolve) => { setTimeout(resolve, 100); });
+    expect(screen.getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-cancelada'); // no la pisa
+    expect(history).toBeGreaterThanOrEqual(3);
+  });
+
   it('cada medición es una tarjeta con su estado, valores y un «Ver detalle» separado de la eliminación de pruebas', async () => {
     const item = { idMedicion: 'm-5', fechaHoraInicio: '2026-10-08T09:00:00', fechaHoraFin: '2026-10-08T09:00:12', modoMedicion: 'OXIMETRIA',
       estadoMedicion: 'COMPLETADA', condicionComida: 'AYUNO', edadAlMomento: 36, glucosaEstimada: null, spo2: '98.00', frecuenciaCardiaca: 70,

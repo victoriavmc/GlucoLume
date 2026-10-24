@@ -607,8 +607,10 @@ describe('Activación y recuperación', () => {
     clearTokens();
     mockApi({});
     renderAt('/administracion/activar#codigo=codigo-del-correo-0123456789');
-    expect(await screen.findByLabelText('Código de activación')).toHaveValue('codigo-del-correo-0123456789');
-    expect(window.location.hash).toBe(''); // el código no queda en la barra ni en el historial
+    await screen.findByLabelText('Código de activación');
+    // La pantalla se carga de forma diferida: el efecto que lee el fragmento corre después de que aparece el campo.
+    await waitFor(() => expect(screen.getByLabelText('Código de activación')).toHaveValue('codigo-del-correo-0123456789'));
+    await waitFor(() => expect(window.location.hash).toBe('')); // el código no queda en la barra ni en el historial
   });
 
   it('los enlaces anteriores (/plataforma/activar?token=…) llevan a la misma pantalla de activación, sin otra lógica', async () => {
