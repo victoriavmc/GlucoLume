@@ -689,3 +689,41 @@ def test_sin_sexo_ni_nacimiento_se_puede_medir_oximetria_y_la_glucosa_por_matriz
     assert done.estadoMedicion == "COMPLETADA" and (done.edadAlMomento, done.sexoModelo) == (None, None)
     # Solo la estimación de glucosa por matriz necesita la edad y el sexo (la regla se elige por ellos).
     expectError("DATOS_PACIENTE_INCOMPLETOS", glucose, db, user, own.idPerfilMedicion, device(db), condicionComida="AYUNO")
+
+# --- Inserción de muestras por tandas (rendimiento) ------------------------------------------------------------------
+
+
+def test_las_muestras_se_insertan_por_tandas_y_no_una_por_una(db, mails, consumer):
+    """400 muestras = 1 INSERT de varias filas (antes 400 INSERT: el ORM no agrupa filas cuya clave genera el servidor). Siguen siendo atómicas."""
+    import re
+
+    from sqlalchemy import event, func, select
+    from sqlalchemy.engine import Engine
+
+    user, profileId = consumer
+    started = oximetry(db, user, profileId, device(db))
+    inserts = []
+    pattern = re.compile(r'^\s*INSERT\s+INTO\s+\S*MuestraSensor', re.IGNORECASE)
+    listener = lambda conn, cursor, statement, parameters, context, executemany: inserts.append(statement) if pattern.match(statement) else None  # noqa: E731
+    event.listen(Engine, "before_cursor_execute", listener)
+    try:
+        batch = signalSamples(72, 97.5, seconds=50)  # 20 Hz × 50 s = 1000 muestras
+        measurements.addSamples(db, user, started.idMedicion, batch)
+    finally:
+        event.remove(Engine, "before_cursor_execute", listener)
+    stored = db.scalar(select(func.count()).select_from(SensorSample).where(SensorSample.idMedicion == started.idMedicion))
+    assert stored == len(batch.muestras) == 1000
+    assert len(inserts) == 3  # ceil(1000 / 400)
+
+
+def test_una_muestra_repetida_revierte_toda_la_tanda(db, mails, consumer):
+    from sqlalchemy import func, select
+
+    user, profileId = consumer
+    started = oximetry(db, user, profileId, device(db))
+    measurements.addSamples(db, user, started.idMedicion, signalSamples(72, 97.5, seconds=5))
+    before = db.scalar(select(func.count()).select_from(SensorSample).where(SensorSample.idMedicion == started.idMedicion))
+    # La nueva tanda empieza en la muestra 50 (ya existente) y trae otras nuevas: todo o nada.
+    overlapping = signalSamples(72, 97.5, seconds=5, start=50)
+    expectError("MUESTRAS_DUPLICADAS", measurements.addSamples, db, user, started.idMedicion, overlapping)
+    assert db.scalar(select(func.count()).select_from(SensorSample).where(SensorSample.idMedicion == started.idMedicion)) == before

@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import and_, not_, delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, insert, not_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -357,6 +357,9 @@ def _stateError(measurement: Measurement) -> AuthError:
                   f"Esta operación no corresponde a una medición en estado {measurement.estadoMedicion.lower()}.")
 
 
+SAMPLES_PER_INSERT = 400  # filas por INSERT: 5 columnas × 400 = 2000 parámetros (tope de SQL Server: 2100)
+
+
 def addSamples(db: Session, actor: User, idMedicion: uuid.UUID, data: SamplesRequest) -> MeasurementDetail:
     """Registra muestras de los canales rojo e infrarrojo (MuestraSensor). La primera pasa PENDIENTE → ADQUIRIENDO."""
     measurement, access = _measurementAccess(db, actor, idMedicion)
@@ -374,11 +377,14 @@ def addSamples(db: Session, actor: User, idMedicion: uuid.UUID, data: SamplesReq
         if not _transition(db, idMedicion, (PENDIENTE, ADQUIRIENDO), ADQUIRIENDO):
             db.rollback()
             raise _stateError(measurement)
-        db.add_all([
-            SensorSample(idMedicion=idMedicion, numeroMuestra=s.numeroMuestra, tiempoRelativoMs=s.tiempoRelativoMs,
-                         valorRed=s.valorRed, valorIR=s.valorIR)
-            for s in data.muestras
-        ])
+        # Un INSERT de varias filas por tanda (no uno por muestra): el ORM no puede agrupar estos INSERT porque la clave la genera el servidor
+        # (newsequentialid(), que se conserva a propósito para no fragmentar el índice agrupado) y los ejecutaba uno a uno (400 muestras = 400 viajes).
+        # 5 parámetros por fila × 400 = 2000, por debajo de los 2100 que admite SQL Server. Misma transacción: atomicidad y UQ_MuestraSensor_orden intactas.
+        table = SensorSample.__table__
+        rows = [{"idMedicion": idMedicion, "numeroMuestra": s.numeroMuestra, "tiempoRelativoMs": s.tiempoRelativoMs,
+                 "valorRed": s.valorRed, "valorIR": s.valorIR} for s in data.muestras]
+        for start in range(0, len(rows), SAMPLES_PER_INSERT):
+            db.execute(insert(table).values(rows[start:start + SAMPLES_PER_INSERT]))
         if started:
             registerEvent(db, "CRUD", "CAMBIAR_ESTADO_MEDICION", True, actor.idUsuario, "Medicion", idMedicion,
                           datosPrevios={"estadoMedicion": PENDIENTE}, datosNuevos={"estadoMedicion": ADQUIRIENDO})
