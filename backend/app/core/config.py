@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # DB_CERTIFICATE_HOSTNAME: nombre que figura en el certificado cuando DB_HOST es una IP (ODBC «HostNameInCertificate»).
     DB_SERVER_CERTIFICATE: str | None = None
     DB_CERTIFICATE_HOSTNAME: str | None = None
+    # Tope de hilos que usan el driver ODBC al mismo tiempo en este proceso (app/db/gate.py). Con 6 u 8 hilos simultáneos pyodbc rinde ~9 veces menos
+    # y gasta ~40 veces más CPU por consulta (medido, docs/RENDIMIENTO.md); a 4 o menos no ocurre. 0 lo desactiva (no limita nada).
+    DB_MAX_CONCURRENT_CALLS: int = 4
     # Cuenta de base propia de los procesos de conservación (servicio «lifecycle» y app/jobs), GL-03: es la única que puede borrar eventos
     # vencidos de Auditoria y anular IP/navegador de AuditoriaContexto; la de la API (DB_USER) queda con DENY UPDATE, DELETE sobre ambas
     # (database/reference/GlucoLume_permisos.sql). Las dos o ninguna; sin ellas, los jobs usan DB_USER como antes. El contenedor de la API
@@ -218,6 +221,13 @@ class Settings(BaseSettings):
     def validarUrlDeLimites(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and urlsplit(value.get_secret_value()).scheme not in ("redis", "rediss", "unix"):
             raise ValueError("RATE_LIMIT_REDIS_URL debe empezar con redis://, rediss:// o unix://.")
+        return value
+
+    @field_validator("DB_MAX_CONCURRENT_CALLS")
+    @classmethod
+    def validarTopeDeLlamadas(cls, value: int) -> int:
+        if not 0 <= value <= 64:
+            raise ValueError("DB_MAX_CONCURRENT_CALLS debe estar entre 0 (sin tope) y 64.")
         return value
 
     @field_validator("RATE_LIMIT_REDIS_TIMEOUT_SECONDS", "RATE_LIMIT_REDIS_RETRY_SECONDS")
