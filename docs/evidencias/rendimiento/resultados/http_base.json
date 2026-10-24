@@ -1,0 +1,178 @@
+{
+  "base": "http://127.0.0.1:18000",
+  "etiqueta": "base",
+  "secuencial": {
+    "evolution 7d": {
+      "n": 100,
+      "p50": 14.7,
+      "p95": 20.0,
+      "p99": 22.0,
+      "max": 23.1,
+      "media": 15.1,
+      "bytes": 11404,
+      "noOK": 0
+    },
+    "evolution 90d": {
+      "n": 100,
+      "p50": 22.8,
+      "p95": 24.9,
+      "p99": 85.6,
+      "max": 97.3,
+      "media": 24.4,
+      "bytes": 94386,
+      "noOK": 0
+    },
+    "historial pág.1": {
+      "n": 100,
+      "p50": 13.3,
+      "p95": 14.8,
+      "p99": 16.5,
+      "max": 16.7,
+      "media": 13.4,
+      "bytes": 5234,
+      "noOK": 0
+    },
+    "dashboard personal": {
+      "n": 100,
+      "p50": 34.8,
+      "p95": 45.7,
+      "p99": 48.4,
+      "max": 48.7,
+      "media": 36.3,
+      "bytes": 9757,
+      "noOK": 0
+    },
+    "pacientes pág.1": {
+      "n": 100,
+      "p50": 15.9,
+      "p95": 20.5,
+      "p99": 21.4,
+      "max": 21.6,
+      "media": 16.4,
+      "bytes": 14410,
+      "noOK": 0
+    },
+    "operadores asignables": {
+      "n": 100,
+      "p50": 8.1,
+      "p95": 9.4,
+      "p99": 10.3,
+      "max": 11.4,
+      "media": 8.1,
+      "bytes": 209,
+      "noOK": 0
+    },
+    "dashboard institución": {
+      "n": 100,
+      "p50": 121.6,
+      "p95": 183.2,
+      "p99": 211.4,
+      "max": 226.8,
+      "media": 133.2,
+      "bytes": 17624,
+      "noOK": 0
+    },
+    "dashboard operador": {
+      "n": 100,
+      "p50": 57.4,
+      "p95": 62.8,
+      "p99": 64.9,
+      "max": 143.2,
+      "media": 58.3,
+      "bytes": 20025,
+      "noOK": 0
+    },
+    "indicadores institución": {
+      "n": 100,
+      "p50": 50.5,
+      "p95": 59.4,
+      "p99": 125.7,
+      "max": 130.8,
+      "media": 54.6,
+      "bytes": 389,
+      "noOK": 0
+    }
+  },
+  "concurrencia": {
+    "1": {
+      "n": 353,
+      "p50": 16.8,
+      "p95": 128.0,
+      "p99": 162.1,
+      "max": 256.3,
+      "media": 42.5,
+      "pedidosPorSegundo": 23.5,
+      "errores": 0
+    },
+    "8": {
+      "n": 71,
+      "p50": 524.9,
+      "p95": 6706.8,
+      "p99": 8586.4,
+      "max": 8686.7,
+      "media": 1716.6,
+      "pedidosPorSegundo": 4.6,
+      "errores": 0
+    },
+    "32": {
+      "n": 95,
+      "p50": 3169.9,
+      "p95": 19523.8,
+      "p99": 20709.6,
+      "max": 23768.2,
+      "media": 7328.7,
+      "pedidosPorSegundo": 3.6,
+      "errores": 0
+    }
+  },
+  "muestras": {
+    "1 en paralelo, lotes de 20": {
+      "porLote": {
+        "n": 120,
+        "p50": 30.0,
+        "p95": 43.7,
+        "p99": 54.2,
+        "max": 54.9,
+        "media": 31.0
+      },
+      "medicion400MuestrasMsP50": 603.9,
+      "errores": 0
+    },
+    "1 en paralelo, lotes de 200": {
+      "porLote": {
+        "n": 12,
+        "p50": 114.4,
+        "p95": 151.0,
+        "p99": 161.1,
+        "max": 161.1,
+        "media": 121.1
+      },
+      "medicion400MuestrasMsP50": 234.9,
+      "errores": 0
+    },
+    "8 en paralelo, lotes de 20": {
+      "porLote": {
+        "n": 160,
+        "p50": 410.5,
+        "p95": 561.8,
+        "p99": 668.5,
+        "max": 768.8,
+        "media": 432.4
+      },
+      "medicion400MuestrasMsP50": 8731.5,
+      "errores": 0
+    },
+    "16 en paralelo, lotes de 20": {
+      "porLote": {
+        "n": 320,
+        "p50": 839.4,
+        "p95": 1006.6,
+        "p99": 1248.0,
+        "max": 1418.2,
+        "media": 856.6
+      },
+      "medicion400MuestrasMsP50": 17086.5,
+      "errores": 0
+    }
+  }
+}

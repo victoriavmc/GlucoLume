@@ -69,6 +69,7 @@ Detalle por hallazgo: [docs/SEGURIDAD.md](docs/SEGURIDAD.md) §2.0.1–§2.0.3; 
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Estructura, sistema de diseño y accesibilidad |
 | [docs/funcional/](docs/funcional/) | Especificación por modalidad: [individual](docs/funcional/INDIVIDUAL.md), [grupo familiar](docs/funcional/GRUPO_FAMILIAR.md), [institución](docs/funcional/INSTITUCION.md), [plataforma](docs/funcional/PLATAFORMA.md) |
 | [docs/MANUAL_USUARIO.md](docs/MANUAL_USUARIO.md) | Manual de uso por tipo de cuenta |
+| [docs/RENDIMIENTO.md](docs/RENDIMIENTO.md) | Revisión de rendimiento del 23/10/2026: mediciones antes/después, causas, correcciones y limitaciones |
 | [docs/HISTORIAL.md](docs/HISTORIAL.md) | Cambios, correcciones, decisiones y pruebas, en orden cronológico |
 | [docs/PENDIENTES.md](docs/PENDIENTES.md) | Problemas abiertos y validaciones necesarias |
 | [docs/seguridad/auditorias/](docs/seguridad/auditorias/) | Auditorías de ciberseguridad (PDF, evidencia fechada) |

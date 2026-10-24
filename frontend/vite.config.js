@@ -28,13 +28,13 @@ export default defineConfig(({ command, mode }) => {
     build: {
       rollupOptions: {
         output: {
-          // La carga diferida por pantalla dejaba decenas de archivos de pocos KB (una pantalla pedía hasta 42, en cadena de 3 o 4 viajes):
-          // se juntan los fragmentos chicos (< 40 KB) con los que siempre se piden con ellos. React y el router van aparte: casi no cambian
-          // entre versiones y así el navegador los conserva en caché aunque cambie el código de la aplicación.
-          experimentalMinChunkSize: 40_000,
+          // React, el router y los íconos van en archivos aparte: casi no cambian entre versiones y así el navegador los conserva en caché aunque cambie el
+          // código de la aplicación (el índice cambia en cada despliegue). (experimentalMinChunkSize no tuvo efecto medible con esta estructura.)
           manualChunks(id) {
             if (/node_modules[\/](react|react-dom|scheduler)[\/]/.test(id)) return 'react';
             if (/node_modules[\/](react-router|react-router-dom)[\/]/.test(id)) return 'router';
+            // Sin esto cada ícono compartido entre pantallas diferidas era su propio archivo de ~400 B (una pantalla pedía 25 o más).
+            if (/node_modules[\/]lucide-react[\/]/.test(id)) return 'icons';
             return undefined;
           },
         },

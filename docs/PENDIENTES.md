@@ -28,6 +28,21 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 | P3 | Redis para el **monitor de ráfagas** si hay más de una réplica (los límites por IP ya pueden usar Redis: `compose.redis.yaml`, H-06); WAF delante de Nginx; MFA obligatoria para propietarios (decisión funcional y de costos) | GL-15, auditoría 18/10 |
 | P3 | SQL Server Audit para cambios de límites y vigencia hechos fuera de la aplicación | Auditoría 18/10 |
 
+## Rendimiento
+
+> Revisión del 23/10/2026: [RENDIMIENTO.md](RENDIMIENTO.md). La rama `perf/rendimiento-2026-10-23` espera revisión; no está fusionada en `master`.
+
+| Prioridad | Pendiente | Referencia |
+|---|---|---|
+| P2 | **Compilación del frontend de ~3 min 20 s** (Windows y Docker): el 75 % es el tree-shaking de Rollup al dibujar `<App/>`. Descartados con medición: `lucide-react`, datos de consejos, opciones de `treeshake`, `ErrorBoundary`, CSS. Probar un Rollup/Vite más nuevo **solo si se demuestra beneficio y compatibilidad** | RENDIMIENTO §3.2 |
+| P2 | Dashboards de institución, operador y paciente: 16–31 sentencias y `TOP 50000` traído a Python (institución: p50 142 ms con 8,7 mil mediciones, crece con los datos). Llevar las agregaciones a SQL y comparar los resultados fila a fila | RENDIMIENTO §3.5 |
+| P2 | Correo SMTP **en línea** en unas 40 llamadas (hasta 20 s de *timeout* dentro de la petición HTTP): decidir una cola de salida persistente (*outbox*) conservando la auditoría del resultado del envío | RENDIMIENTO §3.4 |
+| P2 | Repetir en el servidor de destino el barrido de `DB_MAX_CONCURRENT_CALLS` (0/2/3/4) y averiguar la causa dentro del driver `msodbcsql18` (caída de ~9× con ≥ 6 hilos en Docker Desktop/WSL2); probar otra versión del driver solo si se demuestra beneficio | RENDIMIENTO §3.1 |
+| P3 | INP con un guion de interacción real (hoy solo TBT); el TBT del dashboard de institución en 3G con CPU 4× sigue en 1,2 s (render pesado de gráficos); el CLS de `/pacientes` en 3G es inestable (0–0,13) | RENDIMIENTO §9 |
+| P3 | HTTP/2 en el Nginx del frontend (hoy HTTP/1.1; lo da el proxy Caddy): cada pantalla pide más archivos tras la carga diferida | RENDIMIENTO §5 |
+| P3 | `canonical` y `sitemap.xml` de la portada cuando se conozca el dominio de producción; reevaluar el prerenderizado solo si el SEO de la portada pasa a importar | RENDIMIENTO §7 |
+| P3 | Imagen del frontend: `musl` 1.2.6-r2 con el CVE-2026-107891 (sin severidad; corregido en 1.2.6-r6, que Alpine 3.24 todavía no publica: el repositorio ofrece r3). Reconstruir con `--pull`/`--no-cache-filter runtime` cuando salga r6 y repetir `docker scout` | H-10 |
+
 ## Base de datos (DEC-02)
 
 | Prioridad | Pendiente | Referencia |

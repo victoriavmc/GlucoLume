@@ -1,0 +1,30 @@
+# servicio de listado de pacientes: baseline (sin tope), contenedor con 1 CPU
+conexiones nuevas: 1  1 hilos: 160 llamadas en  1.54 s  =  104.1/s  CPU  0.78 s (  4.9 ms CPU por llamada)
+conexiones nuevas: 1  2 hilos: 160 llamadas en  0.93 s  =  172.2/s  CPU  0.79 s (  5.0 ms CPU por llamada)
+conexiones nuevas: 2  4 hilos: 160 llamadas en  2.22 s  =   72.1/s  CPU  1.88 s ( 11.8 ms CPU por llamada)
+conexiones nuevas: 4  8 hilos: 160 llamadas en  7.56 s  =   21.2/s  CPU  7.22 s ( 45.1 ms CPU por llamada)
+# idem con 16 CPU
+conexiones nuevas: 1  1 hilos: 160 llamadas en  1.66 s  =   96.3/s  CPU  0.82 s (  5.1 ms CPU por llamada)
+conexiones nuevas: 1  2 hilos: 160 llamadas en  1.16 s  =  138.4/s  CPU  0.97 s (  6.1 ms CPU por llamada)
+conexiones nuevas: 2  4 hilos: 160 llamadas en  1.50 s  =  107.0/s  CPU  1.98 s ( 12.4 ms CPU por llamada)
+conexiones nuevas: 4  8 hilos: 160 llamadas en  5.44 s  =   29.4/s  CPU  8.79 s ( 54.9 ms CPU por llamada)
+# imagen perf con DB_MAX_CONCURRENT_CALLS=1
+conexiones nuevas: 1  1 hilos: 160 llamadas en  1.57 s  =  102.0/s  CPU  0.77 s (  4.8 ms CPU por llamada)
+conexiones nuevas: 1  2 hilos: 160 llamadas en  1.23 s  =  129.9/s  CPU  0.83 s (  5.2 ms CPU por llamada)
+conexiones nuevas: 2  4 hilos: 160 llamadas en  1.41 s  =  113.5/s  CPU  0.85 s (  5.3 ms CPU por llamada)
+conexiones nuevas: 4  8 hilos: 160 llamadas en  1.15 s  =  138.8/s  CPU  0.81 s (  5.1 ms CPU por llamada)
+# imagen perf con DB_MAX_CONCURRENT_CALLS=2
+conexiones nuevas: 1  1 hilos: 160 llamadas en  1.48 s  =  108.0/s  CPU  0.74 s (  4.6 ms CPU por llamada)
+conexiones nuevas: 1  2 hilos: 160 llamadas en  0.86 s  =  185.1/s  CPU  0.74 s (  4.6 ms CPU por llamada)
+conexiones nuevas: 2  4 hilos: 160 llamadas en  0.98 s  =  163.1/s  CPU  0.98 s (  6.1 ms CPU por llamada)
+conexiones nuevas: 4  8 hilos: 160 llamadas en  1.33 s  =  120.2/s  CPU  1.01 s (  6.3 ms CPU por llamada)
+# imagen perf con DB_MAX_CONCURRENT_CALLS=3
+conexiones nuevas: 1  1 hilos: 160 llamadas en  1.66 s  =   96.3/s  CPU  0.80 s (  5.0 ms CPU por llamada)
+conexiones nuevas: 1  2 hilos: 160 llamadas en  1.33 s  =  120.6/s  CPU  0.85 s (  5.3 ms CPU por llamada)
+conexiones nuevas: 2  4 hilos: 160 llamadas en  1.74 s  =   91.8/s  CPU  1.38 s (  8.6 ms CPU por llamada)
+conexiones nuevas: 4  8 hilos: 160 llamadas en  1.52 s  =  105.3/s  CPU  1.55 s (  9.7 ms CPU por llamada)
+# imagen perf con DB_MAX_CONCURRENT_CALLS=4
+conexiones nuevas: 1  1 hilos: 160 llamadas en  1.47 s  =  108.8/s  CPU  0.72 s (  4.5 ms CPU por llamada)
+conexiones nuevas: 1  2 hilos: 160 llamadas en  1.23 s  =  129.6/s  CPU  0.79 s (  4.9 ms CPU por llamada)
+conexiones nuevas: 2  4 hilos: 160 llamadas en  2.05 s  =   78.2/s  CPU  1.71 s ( 10.7 ms CPU por llamada)
+conexiones nuevas: 4  8 hilos: 160 llamadas en  3.07 s  =   52.1/s  CPU  3.08 s ( 19.2 ms CPU por llamada)

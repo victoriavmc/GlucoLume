@@ -1,0 +1,69 @@
+# Stack de MEDICIÓN de rendimiento (perfil «perf»): una segunda API y un segundo Nginx contra la base descartable GlucoLume_perf del mismo
+# SQL Server del perfil «db». No toca la base «GlucoLume» ni los servicios normales. Mismos límites de CPU y memoria que producción.
+#
+#   PERF_TAG=baseline docker compose -f compose.yaml -f docs/evidencias/rendimiento/compose.rendimiento.yaml --profile db --profile perf up -d backend-perf frontend-perf
+#
+# PERF_TAG elige la imagen (glucolume/backend:<tag> y glucolume/frontend:<tag>): «baseline» = master antes de las optimizaciones, «perf» = ramas con ellas.
+# Publica la API en 127.0.0.1:18000 (medir sin Nginx) y el frontend en 127.0.0.1:18080.
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  backend-perf:
+    profiles: ["perf"]
+    image: glucolume/backend:${PERF_TAG:-baseline}
+    <<: *hardening
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST}}
+      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-1433}}
+      DB_NAME: GlucoLume_perf
+      DB_MAX_CONCURRENT_CALLS: ${PERF_GATE:-2}  # barrido de la sección 3.1: se compara 0 (sin tope), 1, 2, 3 y 4
+      DB_JOBS_USER: ""
+      DB_JOBS_PASSWORD: ""
+      FORWARDED_ALLOW_IPS: "*"
+      # Sin SMTP real: los envíos del backend fallan rápido y se registran (no se mide el correo de Gmail).
+      SMTP_HOST: ""
+      # Origen del navegador de las pruebas (Playwright abre http://localhost:18080): el backend valida Origin en las rutas con cookie.
+      FRONTEND_URL: http://localhost:18080
+      API_BASE_URL: http://localhost:18080
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks: [edge, data]
+    ports:
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  frontend-perf:
+    profiles: ["perf"]
+    image: glucolume/frontend:${PERF_TAG:-baseline}
+    <<: *hardening
+    environment:
+      BACKEND_UPSTREAM: backend-perf:8000
+      TRUSTED_PROXY_CIDR: ${FRONTEND_TRUSTED_PROXY_CIDR:-172.16.0.0/12}
+    ports:
+      - "127.0.0.1:18080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+    networks: [edge]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M

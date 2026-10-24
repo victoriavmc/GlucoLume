@@ -3,6 +3,24 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 23/10/2026 — Revisión y optimización del rendimiento (rama `perf/rendimiento-2026-10-23`)
+
+Informe completo con evidencia, causa, solución, métricas y limitaciones: [RENDIMIENTO.md](RENDIMIENTO.md). Scripts y resultados: [evidencias/rendimiento](evidencias/rendimiento/README.md). Rama aparte de `master`
+para revisión; no mezcla la remediación de seguridad ya validada. Todo medido con datos sintéticos en una base descartable (`GlucoLume_perf`); la base «GlucoLume» y la instancia real no se tocaron.
+
+- **Corregido (cada uno con su medición antes/después):** (1) tope de llamadas simultáneas al driver ODBC (`DB_MAX_CONCURRENT_CALLS=2`, `app/db/gate.py`): con 8 clientes la API pasaba de ~20 a **4,4 req/s** (p95 7 s) y ahora
+  sostiene **28 req/s** (p95 0,75 s); (2) las muestras del sensor se insertan por tandas: 400 muestras pasan de **403 `INSERT`** (211 ms) a **4** (52 ms); (3) condiciones de carrera en pacientes, historial, dispositivos y
+  transferencias (una respuesta vieja pisaba a la nueva), con pruebas que fallan con el código anterior; (4) carga diferida por pantalla con precarga de la ruta: JS inicial de 297 a 124–196 KB transferidos y FCP en 3G de 2,2–2,8 s a 1,26–1,70 s;
+  (5) esqueletos de carga; (6) Nginx: gzip -9 precomprimido, `Vary`, `robots.txt`, 404 para archivos inexistentes (antes devolvían el HTML con 200) y `X-Robots-Tag` en el área privada.
+- **Defecto funcional hallado y corregido (no es de rendimiento):** `notifyGroupMeasurement` usaba `.is_(True)`, que SQL Server recibe como `IS 1` (error 102): el aviso al grupo **nunca se enviaba** y el error quedaba tragado.
+  Ahora compara con `=`, con una guarda estática contra `.is_(True/False)`, y el aviso se envía en segundo plano (no demora el cierre de la medición).
+- **Descartado con medición:** `useHomeData` (ya paralelo y sin repetidas), endpoints `async` con bloqueo, bucles con `commit` (deliberados), SQL con N+1, caché de datos y *optimistic UI* (no hay acciones seguras que lo justifiquen), SSR/Next.js y prerenderizado de la portada.
+  El plugin de íconos directos de `lucide-react` y `experimentalMinChunkSize` se probaron y se retiraron: no mejoraban nada.
+- **Sin resolver:** compilación del frontend de ~3 min 20 s (causa localizada en el tree-shaking de Rollup al dibujar `<App/>`, sin solución); dashboards con `TOP 50000`; correo SMTP en línea en la mayoría de los flujos; causa raíz del precipicio de `pyodbc`
+  dentro del driver. Ver [PENDIENTES.md](PENDIENTES.md).
+- **Pruebas:** backend **1 980 pasaron, 0 fallaron** (13 omitidas por herramientas ausentes en Windows) con las pruebas `*_sqlserver` activadas contra SQL Server 2022 descartable; frontend **700/700** (2 fallas previas eran rutas de Windows). Pruebas nuevas: gate (7), guarda `IS 1` (1), inserción por tandas (2), `useLatestRequest` (3) y 2 de carrera que fallan con el código anterior.
+- **Entorno de la sesión:** Docker Desktop estaba apagado; al iniciarlo mostró un aviso del Secrets Engine (`engine.sock` obsoleto sin permiso para renombrarlo) pero el motor arrancó y se pudo trabajar. Se creó el contenedor `glucolume-db-1` con la base completa para uso local (34 tablas, 27 reglas de matriz, permisos de mínimo privilegio).
+
 ## 23/10/2026 — Integración final en `master` y stack Docker verificado
 
 PR #2 (rama `claude/vigilant-shannon-legfop`, 0 commits por detrás de `master`, sin conflictos) fusionado con un merge commit de GitHub, sin `force push` y **sin borrar la rama**. La auditoría

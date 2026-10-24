@@ -7,6 +7,7 @@ import { AuthenticatedLayout } from './layouts/AuthenticatedLayout.jsx';
 import { SectionGuard } from './pages/Account/institutions/SectionGuard.jsx';
 import { PlatformLayout, RequireMfa, RequirePermission } from './layouts/PlatformLayout.jsx';
 import Landing from './pages/Landing/Landing.jsx';
+import PrivacyPolicy from './pages/Privacy/PrivacyPolicy.jsx';
 import ActivateAccount from './pages/Register/ActivateAccount.jsx';
 import GoogleCallback from './pages/Login/GoogleCallback.jsx';
 import Login from './pages/Login/Login.jsx';
@@ -85,7 +86,6 @@ const PlatformForgot = lazyNamed(loadPlatformAuth, 'PlatformForgot');
 const PlatformLogin = lazyNamed(loadPlatformAuth, 'PlatformLogin');
 const PlatformReset = lazyNamed(loadPlatformAuth, 'PlatformReset');
 const SecurityPage = lazyNamed(() => import('./pages/Account/SecurityPage.jsx'));
-const PrivacyPolicy = lazyNamed(() => import('./pages/Privacy/PrivacyPolicy.jsx'));
 
 const loadAnalytics = () => import('./pages/Account/institutions/analytics/PatientAnalyticsPage.jsx');
 const PatientAnalyticsPage = lazyNamed(loadAnalytics, 'PatientAnalyticsPage');
@@ -152,7 +152,7 @@ export function preloadForPath(pathname) {
   if (match) match[1].forEach((page) => page.preload().catch(() => {}));
 }
 
-/** En la portada y el login, con el navegador ocioso y sin «ahorro de datos», trae el inicio del espacio privado: es adonde se va al ingresar. */
+/** En el login, con el navegador ocioso y sin «ahorro de datos», trae el inicio del espacio privado: es adonde se va al ingresar (no en la portada: quien solo la lee no gasta datos). */
 export function warmPrivateHome() {
   if (navigator.connection?.saveData) return;
   const warm = () => HomePage.preload().catch(() => {});

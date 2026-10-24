@@ -1,0 +1,9 @@
+# imagen glucolume/backend:baseline
+8 hilos, switchinterval 5 ms (defecto)            206.2/s  CPU   4.88 ms/llamada
+8 hilos, switchinterval 1 ms                      185.7/s  CPU   4.97 ms/llamada
+8 hilos, switchinterval 0.2 ms                    190.8/s  CPU   4.83 ms/llamada
+8 hilos, a lo sumo 3 dentro (todo)               3038.7/s  CPU   0.28 ms/llamada
+8 hilos, a lo sumo 3 dentro (solo-execute)        194.3/s  CPU   4.96 ms/llamada
+8 hilos, a lo sumo 3 dentro (solo-fetch)          532.9/s  CPU   1.69 ms/llamada
+8 hilos sin límite                                188.7/s  CPU   4.93 ms/llamada
+1 hilo (referencia)                              1651.9/s  CPU   0.13 ms/llamada

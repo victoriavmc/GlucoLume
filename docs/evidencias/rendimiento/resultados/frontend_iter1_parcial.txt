@@ -1,0 +1,7 @@
+landing | rapida | fría                        load 34 ms · FCP 160.2 · LCP 160.2 · CLS 0 · TBT 24 · JS 111.3 KB/1 · total 133.9 KB · 3 sol. (0 API) · repetidas []
+login | rapida | fría                          load 34 ms · FCP 95.7 · LCP 95.7 · CLS 0 · TBT 0 · JS 111.3 KB/1 · total 134 KB · 3 sol. (0 API) · repetidas []
+privacidad | rapida | fría                     load 34 ms · FCP 56.3 · LCP 412.6 · CLS 0 · TBT 0 · JS 116.3 KB/2 · total 140.4 KB · 5 sol. (0 API) · repetidas []
+inicio-individual | rapida | fría              load 35 ms · FCP 53.1 · LCP 446.6 · CLS 0.02 · TBT 0 · JS 152.9 KB/17 · total 203.5 KB · 25 sol. (4 API) · repetidas []
+inicio-individual | rapida | caché             load 31 ms · FCP 55 · LCP 444.3 · CLS 0.02 · TBT 0 · JS 0 KB/17 · total 23.9 KB · 25 sol. (4 API) · repetidas []
+historial | rapida | fría                      load 34 ms · FCP 52.4 · LCP 430.2 · CLS 0 · TBT 0 · JS 203.4 KB/42 · total 230.1 KB · 48 sol. (3 API) · repetidas []
+historial | rapida | caché                     load 31 ms · FCP 52.8 · LCP 423.2 · CLS 0 · TBT 0 · JS 0 KB/42 · total 4.7 KB · 48 sol. (3 API) · repetidas []

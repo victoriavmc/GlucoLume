@@ -9,7 +9,7 @@ import './styles/global.css';
 import './styles/components.css';
 
 preloadForPath(window.location.pathname); // descarga la pantalla pedida mientras se recupera la sesión
-if (['/', '/login'].includes(window.location.pathname)) warmPrivateHome();
+if (window.location.pathname === '/login') warmPrivateHome();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
