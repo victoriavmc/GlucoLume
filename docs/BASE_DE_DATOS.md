@@ -179,6 +179,15 @@ verificado y restauración de prueba sin diferencias. Tareas programadas «Gluco
 Prueba de restauracion» (cada 4 semanas); corren con la sesión de la cuenta iniciada (DPAPI). Falta: BitLocker y la copia de la clave
 fuera del equipo (SEGURIDAD §5.1).
 
+**Copia de la base de Docker en Windows (25/10/2026):** la base principal es la del contenedor `glucolume-db-1` (la que usa el backend);
+`database/respaldos/GlucoLume_copia_docker.ps1` la replica en `localhost\GLUCOLUME`, base `GlucoLume`, en un solo sentido: `BACKUP … WITH
+COPY_ONLY, CHECKSUM` y `RESTORE VERIFYONLY` dentro del contenedor, `docker cp` a `C:\GlucoLumeRespaldos\copia_docker`, `RESTORE … WITH
+REPLACE` en Windows y la deja en `READ_ONLY` (lo escrito ahí se perdería en la copia siguiente); el `.bak` en claro se borra siempre. Tarea
+programada «GlucoLume - Copia desde Docker» cada 5 minutos, desfasada 2 minutos (…:02, …:07) para no cruzarse con el respaldo diario de
+las 02:30, que así respalda lo mismo que hay en Docker. Registro en `C:\GlucoLumeRespaldos\copia_docker.log`. La copia queda hasta 5 minutos
+atrás y necesita Docker Desktop abierto; antes de la primera copia se respaldó la base que había en Windows (solo datos de referencia:
+`GlucoLume_20261025_200830.bak.gpg`).
+
 **Copia fuera del equipo (H-01, regla 3-2-1):** `GlucoLume_respaldo.ps1 -CopiaExterna <destino>` copia cada respaldo cifrado a otro disco o recurso de
 red y verifica su SHA-256 en el destino; es una copia (no un espejo): no borra nada allí, así un equipo comprometido no puede vaciarla. Si solo
 falla la copia, el respaldo local queda hecho y el script sale con código 2. Sin `-CopiaExterna` el registro lo deja asentado. La frase de cifrado
