@@ -1,0 +1,159 @@
+﻿
+== 1. Contenedores activos
+   2026-10-25 17:38:58 -03:00
+NAMES                  IMAGE                            STATUS                    CREATED AT
+glucolume-frontend-1   glucolume/frontend:dev           Up 27 minutes (healthy)   2026-10-24 19:44:38 -0300 -03
+glucolume-backend-1    glucolume/backend:dev            Up 27 minutes (healthy)   2026-10-24 18:46:05 -0300 -03
+glucolume-db-1         glucolume/mssql:2022-CU16-pdev   Up 27 minutes (healthy)   2026-10-24 18:46:05 -0300 -03
+
+== 2. Conexión backend -> SQL Server (sin secretos)
+   2026-10-25 17:38:58 -03:00
+DB_PORT=1433
+DB_HOST=db
+DB_JOBS_USER=
+DB_TRUST_SERVER_CERTIFICATE=true
+DB_NAME=GlucoLume
+DB_PASSWORD=***
+DB_JOBS_PASSWORD=***
+DB_USER=glucolume_app
+-- Sesiones abiertas en SQL Server por el backend (login de aplicación, no sa):
+login_name|base|client_net_address|program_name|sesiones
+----------|----|------------------|------------|--------
+glucolume_app|GlucoLume|172.18.0.2|python3.14|4
+NT AUTHORITY\SYSTEM|master|127.0.0.1|SQLServerCEIP|1
+-- IP del backend en la red de datos:
+glucolume_data 172.18.0.2
+glucolume_edge 172.19.0.3
+
+-- Rol y permisos efectivos de glucolume_app:
+rol|miembro
+---|-------
+rol_glucolume_api|glucolume_app
+usuario|select_Medicion|insert_Medicion|select_Dispositivo|update_Auditoria|create_table|db_owner
+-------|---------------|---------------|------------------|----------------|------------|--------
+glucolume_app|1|1|1|0|0|0
+
+== 3. Volumen persistente de SQL Server
+   2026-10-25 17:38:59 -03:00
+tipo=volume volumen=glucolume_mssql-data destino=/var/opt/mssql escritura=true
+
+volumen=glucolume_mssql-data driver=local creado=2026-10-24T17:57:08Z etiquetas={"com.docker.compose.config-hash":"46f73a7618208c98c95f1dc3f61bddc323cef0dd59336b081e0ba45fa7c7367c","com.docker.compose.project":"glucolume","com.docker.compose.version":"5.5.1","com.docker.compose.volume":"mssql-data"}
+contenedor=/glucolume-db-1 id=7055cfdfe7a7 creado=2026-10-24T21:46:05.161502209Z iniciado=2026-10-25T20:11:15.173726859Z
+-- Archivos físicos de GlucoLume según SQL Server y en el disco del volumen:
+name|type_desc|physical_name|size_mb
+----|---------|-------------|-------
+GlucoLume|ROWS|/var/opt/mssql/data/GlucoLume.mdf|8
+GlucoLume_log|LOG|/var/opt/mssql/data/GlucoLume_log.ldf|8
+/dev/sdd       1007G  4.4G  952G   1% /var/opt/mssql
+-rw-r----- 1 mssql mssql 8388608 Oct 25 20:36 /var/opt/mssql/data/GlucoLume.mdf
+-rw-r----- 1 mssql mssql 8388608 Oct 25 20:38 /var/opt/mssql/data/GlucoLume_log.ldf
+-- Identidad persistida en master (nombre del contenedor original) frente al contenedor actual:
+servername_guardado_en_master|contenedor_actual|edicion|cu
+-----------------------------|-----------------|-------|--
+812fd60a935e|7055cfdfe7a7|Express Edition (64-bit)|CU16
+
+== 4. Base GlucoLume y sus tablas
+   2026-10-25 17:39:00 -03:00
+name|state_desc|recovery_model_desc|create_date
+----|----------|-------------------|-----------
+GlucoLume|ONLINE|FULL|2026-10-24 17:57:39.300
+tabla|filas
+-----|-----
+dbo.Auditoria|11
+dbo.AuditoriaContexto|11
+dbo.AuditoriaTecnicaMedicion|0
+dbo.CodigoRecuperacionMfa|0
+dbo.ConfiguracionNotificacion|0
+dbo.ConsentimientoUsuario|2
+dbo.CredencialLocal|0
+dbo.Dispositivo|1
+dbo.EnvioResultado|0
+dbo.FactorMfa|0
+dbo.Grupo|0
+dbo.GrupoUsuario|0
+dbo.IdentidadExterna|1
+dbo.Institucion|0
+dbo.InstitucionUsuario|0
+dbo.Matriz|1
+dbo.Medicion|1
+dbo.MedicionReferenciaCapilar|0
+dbo.MuestraSensor|0
+dbo.PerfilMedicion|1
+dbo.PeriodoPrueba|0
+dbo.PlanSuscripcion|0
+dbo.ProveedorPago|0
+dbo.PuenteCredencial|0
+dbo.ReasignacionPaciente|0
+dbo.ReglaMatriz|27
+dbo.SesionUsuario|1
+dbo.Suscripcion|0
+dbo.SuscripcionUsuario|0
+dbo.TokenCuenta|1
+dbo.TransaccionPago|0
+dbo.TransferenciaAdministracion|0
+dbo.TransferenciaPerfil|0
+dbo.Usuario|1
+
+== 5. Mediciones registradas (consulta de solo lectura, sin datos personales)
+   2026-10-25 17:39:01 -03:00
+== Mediciones con su dispositivo
+idMedicion|inicio|fin|duracion_s|dispositivo|modeloDispositivo|sensor|bpm|spo2|origenGlucosa|glucosaDispositivo|unidadGlucosa|modoMedicion|estadoMedicion|lecturasEstabilizadas|versionAlgoritmo|tipoPerfil
+----------|------|---|----------|-----------|-----------------|------|---|----|-------------|------------------|-------------|------------|--------------|---------------------|----------------|----------
+2DE67BF5...|2026-10-25 17:16:06|2026-10-25 17:17:04|57|GL-0001|Arduino UNO + MAX30100|MAX30100|104|97.20|DEMO|115.00|mg/dL|GLUCOSA_EXPERIMENTAL|COMPLETADA|8|firmware-glucolume-max30100-v1|CONSUMIDOR_FINAL
+== Recuento por origen de la glucosa y estado
+origenGlucosa|estadoMedicion|cantidad
+-------------|--------------|--------
+DEMO|COMPLETADA|1
+== Auditoría del flujo de adquisición (sin datos previos/nuevos)
+fechaHora|tipoEvento|accion|tablaAfectada|resultado|modulo
+---------|----------|------|-------------|---------|------
+2026-10-25 17:14:33.323|CRUD|REGISTRAR_DISPOSITIVO|Dispositivo|EXITO|DISPOSITIVOS
+2026-10-25 17:15:27.078|ACCESO|TOMAR_CONTROL_DISPOSITIVO|Dispositivo|EXITO|DISPOSITIVOS
+2026-10-25 17:15:32.003|PERMISO|ORDEN_PUENTE_SERIE|NULL|EXITO|SISTEMA
+2026-10-25 17:16:06.448|CRUD|INICIAR_MEDICION|Medicion|EXITO|MEDICIONES
+2026-10-25 17:16:06.498|CRUD|INICIAR_SESION_DISPOSITIVO|Medicion|EXITO|MEDICIONES
+2026-10-25 17:17:04.139|CRUD|GUARDAR_MEDICION_DISPOSITIVO|Medicion|EXITO|MEDICIONES
+
+== 7. Copia de seguridad externa (.bak) y su verificación
+   2026-10-25 17:39:01 -03:00
+
+Name                                Length LastWriteTime      
+----                                ------ -------------      
+GlucoLume_2026-10-25_COPY_ONLY.bak 7852032 25/10/2026 17:36:54
+
+
+
+SHA-256: C48CC9CB205256F2E2A3C30B2F9B23BF302DFA861BD09A8C5C09380D7AA67E1C
+Excluido de Git: .gitignore:110:respaldos/	respaldos/sqlserver/GlucoLume_2026-10-25_COPY_ONLY.bak
+The backup set on file 1 is valid.
+LogicalName|PhysicalName|Type
+-----------|------------|----
+GlucoLume|/var/opt/mssql/data/GlucoLume.mdf|D
+GlucoLume_log|/var/opt/mssql/data/GlucoLume_log.ldf|L
+
+== 8. Origen físico de la medición (puente serie Bluetooth en este equipo)
+   2026-10-25 17:39:03 -03:00
+-- Configuración del puente (bridge.env; el token se enmascara):
+SERIAL_PORT=COM4
+SERIAL_MEDIUM=BLUETOOTH
+BRIDGE_API_URL=http://localhost
+BRIDGE_TOKEN=***
+BRIDGE_DEVICE_CODE=GL-0001
+-- Puertos serie Bluetooth (SPP) emparejados; el prefijo de la MAC 98D331 es el habitual de los módulos HC-05/HC-06:
+Serie estándar sobre el vínculo Bluetooth (COM5)  estado=OK  MAC remota=000000000000
+Serie estándar sobre el vínculo Bluetooth (COM4)  estado=OK  MAC remota=98D331F5B67E
+-- Proceso del puente en ejecución:
+PID 203520  iniciado 25/10/2026 17:14:14  bridge.env
+-- Pedidos del backend desde el arranque del contenedor (solo recuento por ruta; sin parámetros ni cabeceras):
+
+Count Name                                      
+----- ----                                      
+  484 /api/v1/acquisition/bridge/ingest         
+    1 /api/v1/acquisition/telemetry/control     
+    1 /api/v1/acquisition/bridge/command        
+    1 /api/v1/acquisition/telemetry/session     
+    1 /api/v1/acquisition/telemetry/session/save
+
+
+
+
