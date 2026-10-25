@@ -1,0 +1,37 @@
+Ejecución: 2026-10-25 19:03:11 -0300  (contenedor glucolume-backend-1, cuenta de la API)
+Servidor: db,1433  base: GlucoLume  usuario: glucolume_app  contraseña: ***
+
+seccion | login | usuario_bd | base | servidor | hora_servidor_utc
+1. Conexion | glucolume_app | glucolume_app | GlucoLume | 812fd60a935e | 2026-10-25 22:03:11
+(1 fila)
+
+seccion | idMedicion | estadoMedicion | modoMedicion | inicio_hora_argentina | fin_hora_argentina | duracionMs | codigoDispositivo | modeloDispositivo | sensor | frecuenciaCardiaca | spo2 | glucosaDispositivo | unidadGlucosa | glucosaEstimada | origenGlucosa | indiceOptico | lecturasEstabilizadas | versionAlgoritmo | matriz
+2. Medicion por id | 2DE67BF5-7CA4-4D85-B837-20C68ACBDD1D | COMPLETADA | GLUCOSA_EXPERIMENTAL | 2026-10-25 17:16:06.433 | 2026-10-25 17:17:04.132 | 57699 | GL-0001 | Arduino UNO + MAX30100 | MAX30100 | 104 | 97.20 | 115.00 | mg/dL | NULL | DEMO | 1.95352 | 8 | firmware-glucolume-max30100-v1 | asignada
+(1 fila)
+
+seccion | estado_completada | dispositivo_GL0001 | inicio_17_16 | bpm_104 | spo2_97_2 | glucosaDispositivo_115 | origen_DEMO | glucosaEstimada_vacia | indiceOptico_1_9535 | lecturas_8
+3. Contraste con la interfaz | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1
+(1 fila)
+
+seccion | idMedicion | coincide_con_id
+4. Busqueda por criterios | 2DE67BF5-7CA4-4D85-B837-20C68ACBDD1D | mismo id
+(1 fila)
+
+seccion | mediciones | demo | con_glucosaEstimada
+5. Totales | 1 | 1 | 0
+(1 fila)
+
+seccion | fechaHora_argentina | tipoEvento | accion | tablaAfectada | resultado | modulo | medio | modoMedicion | estadoMedicion | origenGlucosa | lecturasEstabilizadas | versionAlgoritmo
+6. Auditoria | 2026-10-25 17:16:06.448 | CRUD | INICIAR_MEDICION | Medicion | EXITO | MEDICIONES | NULL | GLUCOSA_EXPERIMENTAL | NULL | NULL | NULL | NULL
+6. Auditoria | 2026-10-25 17:16:06.498 | CRUD | INICIAR_SESION_DISPOSITIVO | Medicion | EXITO | MEDICIONES | BLUETOOTH | NULL | ADQUIRIENDO | NULL | NULL | NULL
+6. Auditoria | 2026-10-25 17:17:04.139 | CRUD | GUARDAR_MEDICION_DISPOSITIVO | Medicion | EXITO | MEDICIONES | NULL | NULL | COMPLETADA | DEMO | 8 | firmware-glucolume-max30100-v1
+(3 filas)
+
+seccion | restriccion | estado
+7. Restricciones | CK_Medicion_demoSinEstimacion | activa y confiable
+7. Restricciones | CK_Medicion_glucosaDispositivoOrigen | activa y confiable
+7. Restricciones | CK_Medicion_glucosaTrazable | activa y confiable
+7. Restricciones | CK_Medicion_origenGlucosa | activa y confiable
+(4 filas)
+
+Transacción revertida (solo lectura).

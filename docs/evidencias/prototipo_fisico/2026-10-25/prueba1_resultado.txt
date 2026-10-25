@@ -1,0 +1,34 @@
+﻿Ejecutado: 2026-10-25 18:19:18 -03:00
+Comando: docker exec glucolume-db-1 sqlcmd -S localhost -U sa -C -W -s '|' -d GlucoLume -i prueba1_medicion_sqlserver.sql  (contraseña tomada de SQLCMDPASSWORD del contenedor; no se muestra)
+
+== 0. Instancia consultada
+servername|contenedor|base|version|hora_servidor_utc
+----------|----------|----|-------|-----------------
+812fd60a935e|7055cfdfe7a7|GlucoLume|16.0.4165.4|2026-10-25 21:19:18
+== 1. Medicion por idMedicion
+idMedicion|estadoMedicion|fechaHoraInicio_local|fechaHoraFin_local|duracionMs|frecuenciaCardiaca|spo2|glucosaDispositivo|glucosaEstimada|origenGlucosa|unidadGlucosa|indiceOptico|lecturasEstabilizadas|modoMedicion|versionAlgoritmo|modeloSensorAlMomento
+----------|--------------|---------------------|------------------|----------|------------------|----|------------------|---------------|-------------|-------------|------------|---------------------|------------|----------------|---------------------
+2DE67BF5-7CA4-4D85-B837-20C68ACBDD1D|COMPLETADA|2026-10-25 17:16:06.433|2026-10-25 17:17:04.132|57699|104|97.20|115.00|NULL|DEMO|mg/dL|1.95352|8|GLUCOSA_EXPERIMENTAL|firmware-glucolume-max30100-v1|MAX30100
+== 2. Dispositivo asociado
+codigoDispositivo|modelo|modeloSensor|estado|fechaRegistro_local
+-----------------|------|------------|------|-------------------
+GL-0001|Arduino UNO + MAX30100|MAX30100|OPERATIVO|2026-10-25 17:14:33
+== 3. Búsqueda independiente por criterios (sin usar el id): 25/10 17:00-17:30 local, GL-0001, COMPLETADA, 104 lpm, 97,2 %, 115 mg/dL DEMO
+idMedicion|inicio_local
+----------|------------
+2DE67BF5-7CA4-4D85-B837-20C68ACBDD1D|2026-10-25 17:16:06
+== 4. Origen DEMO: el valor está en glucosaDispositivo (firmware) y glucosaEstimada (estimador del servidor) queda vacía
+verificacion_origen
+-------------------
+OK: DEMO en glucosaDispositivo; glucosaEstimada NULL
+== 5. Auditoría de la medición (sin datosPrevios/datosNuevos)
+fechaHora_local|tipoEvento|accion|tablaAfectada|resultado|modulo
+---------------|----------|------|-------------|---------|------
+2026-10-25 17:16:06.448|CRUD|INICIAR_MEDICION|Medicion|EXITO|MEDICIONES
+2026-10-25 17:16:06.498|CRUD|INICIAR_SESION_DISPOSITIVO|Medicion|EXITO|MEDICIONES
+2026-10-25 17:17:04.139|CRUD|GUARDAR_MEDICION_DISPOSITIVO|Medicion|EXITO|MEDICIONES
+== 6. Correlación de zona horaria: el LOGIN_GOOGLE auditado a las 17:12:15 local figura a las 20:12:15 UTC en el registro del backend
+fechaHora_local|accion
+---------------|------
+2026-10-25 17:12:15.917|LOGIN_GOOGLE
+

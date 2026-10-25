@@ -1,0 +1,93 @@
+Ejecución: 2026-10-25 19:03:47 -0300
+
+== 1. Instancias de SQL Server en Windows (servicios)
+
+Name             Status StartType
+----             ------ ---------
+MSSQL$GLUCOLUME Running Automatic
+MSSQLSERVER     Running Automatic
+SQLSERVERAGENT  Stopped    Manual
+
+
+
+
+== 2. Configuración: .env (solo DB_*, enmascarado) frente al entorno efectivo del backend en ejecución
+-- .env
+DB_HOST=192.168.56.1
+DB_PORT=1435
+DB_NAME=GlucoLume
+DB_USER=glucolume_app
+DB_PASSWORD=***
+-- compose.yaml (servicio backend): DB_HOST/DB_PORT se reemplazan dentro de Docker
+45:      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST}}
+46:      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-1433}}
+-- glucolume-backend-1 (entorno efectivo)
+DB_PORT=1433
+DB_HOST=db
+DB_NAME=GlucoLume
+DB_USER=glucolume_app
+backend creado=2026-10-24T21:46:05.898909678Z iniciado=2026-10-25T20:11:15.181838706Z
+-- el frontend reenvía la API a:
+BACKEND_UPSTREAM=backend:8000
+
+== 3. Sesiones abiertas en la instancia de Docker por el backend
+login_name|base|client_net_address|program_name|sesiones
+----------|----|------------------|------------|--------
+glucolume_app|GlucoLume|172.18.0.2|python3.14|4
+backend glucolume_data 172.18.0.2
+backend glucolume_edge 172.19.0.3
+
+
+== 4. Las instancias de Windows no contienen la medición (autenticación de Windows, solo lectura)
+-- localhost\GLUCOLUME
+servidor|version
+--------|-------
+victoriavmc-win\GLUCOLUME|17.0.1145.4
+mediciones
+----------
+0
+-- localhost
+servidor|version
+--------|-------
+victoriavmc-win|16.0.1210.3
+mediciones
+----------
+0
+
+== 5. Guardado desde la aplicación React: registro de Nginx (frontend) y del backend, en UTC (IP omitida)
+2026-10-25T20:16:06.520596202Z <ip> - [25/Oct/2026:20:16:06 +0000] "POST /api/v1/acquisition/telemetry/session" 201 2405 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0"
+2026-10-25T20:17:04.173000466Z <ip> - [25/Oct/2026:20:17:04 +0000] "POST /api/v1/acquisition/telemetry/session/save" 200 1216 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0"
+2026-10-25T20:17:25.735993978Z <ip> - [25/Oct/2026:20:17:25 +0000] "GET /api/v1/measurements/2de67bf5-7ca4-4d85-b837-20c68acbdd1d" 200 1216 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0"
+2026-10-25T20:16:06.520324485Z INFO:     "POST /api/v1/acquisition/telemetry/session HTTP/1.1" 201 Created
+2026-10-25T20:17:04.172543503Z INFO:     "POST /api/v1/acquisition/telemetry/session/save HTTP/1.1" 200 OK
+2026-10-25T20:17:25.735617008Z INFO:     "GET /api/v1/measurements/2de67bf5-7ca4-4d85-b837-20c68acbdd1d HTTP/1.1" 200 OK
+
+== 6. Zonas horarias: contenedores en UTC; la base guarda hora de Argentina sin zona
+backend 2026-10-25 22:03:50 UTC
+db 2026-10-25 22:03:50 UTC
+windows 2026-10-25 19:03:50 -0300
+13:ARGENTINA_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
+
+== 7. Definición de las restricciones de glucosa en dbo.Medicion (catálogo, solo lectura)
+name|definition
+----|----------
+CK_Medicion_demoSinEstimacion|([origenGlucosa] IS NULL OR [origenGlucosa]<>N'DEMO' OR [glucosaEstimada] IS NULL)
+CK_Medicion_glucosaDispositivoOrigen|([glucosaDispositivo] IS NULL OR coalesce([origenGlucosa],N'')=N'DEMO' OR coalesce([origenGlucosa],N'')=N'EXPERIMENTAL')
+CK_Medicion_glucosaTrazable|([glucosaEstimada] IS NULL OR [idMatriz] IS NOT NULL AND [versionAlgoritmo] IS NOT NULL)
+CK_Medicion_origenGlucosa|([origenGlucosa] IS NULL OR [origenGlucosa]=N'DEMO' OR [origenGlucosa]=N'EXPERIMENTAL' OR [origenGlucosa]=N'SIN_CALIBRAR')
+
+== 8. Versiones y configuración no sensible
+repositorio: rama master, commit 43e99c6
+version|cu|edicion
+-------|--|-------
+16.0.4165.4|CU16|Express Edition (64-bit)
+python 3.14.8 | fastapi 0.142.2 | sqlalchemy 2.1.3 | pyodbc 5.3.0
+glucolume-frontend-1 glucolume/frontend:dev Up 2 hours (healthy)
+glucolume-backend-1 glucolume/backend:dev Up 2 hours (healthy)
+glucolume-db-1 glucolume/mssql:2022-CU16-pdev Up 2 hours (healthy)
+-- puente serie (bridge.env, enmascarado)
+SERIAL_PORT=COM4
+SERIAL_MEDIUM=BLUETOOTH
+BRIDGE_API_URL=http://localhost
+BRIDGE_TOKEN=***
+BRIDGE_DEVICE_CODE=GL-0001

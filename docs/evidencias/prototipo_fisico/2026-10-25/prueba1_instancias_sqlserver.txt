@@ -1,0 +1,28 @@
+﻿Ejecutado: 2026-10-25 18:19:38 -03:00
+.env define DB_HOST=192.168.56.1 / DB_PORT=1435 (uso fuera de Docker), pero el backend en contenedor usa DOCKER_DB_HOST=db / DOCKER_DB_PORT=1433:
+DB_PORT=1433
+DB_HOST=db
+DB_NAME=GlucoLume
+DB_USER=glucolume_app
+
+== Instancia Windows 192.168.56.1,1435 (autenticación integrada, solo lectura)
+srv|ver|ed
+---|---|--
+victoriavmc-win\GLUCOLUME|17.0.1145.4|Express Edition (64-bit)
+name|state_desc|create_date
+----|----------|-----------
+GlucoLume|ONLINE|2026-10-23 17:35:35
+mediciones
+----------
+0
+== Instancia Windows localhost (autenticación integrada, solo lectura)
+srv|ver|ed
+---|---|--
+victoriavmc-win|16.0.1210.3|Developer Edition (64-bit)
+name|state_desc|create_date
+----|----------|-----------
+GlucoLume|ONLINE|2026-09-27 15:37:29
+mediciones
+----------
+0
+

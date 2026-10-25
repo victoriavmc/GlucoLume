@@ -106,8 +106,6 @@ bridge.env
 *.p12
 
 # Backups y archivos comprimidos
-# respaldos/: copias .bak de SQL Server (contienen datos personales; nunca se versionan)
-respaldos/
 *.bak
 *.gpg
 *.zip

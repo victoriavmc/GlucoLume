@@ -1,0 +1,35 @@
+﻿Estado inicial y versiones - 2026-10-25 18:27:26 -03:00
+
+== Puente
+VERSION = "1.3.0"
+Python del puente 3.14.0 | pySerial 3.5
+Proceso del puente: PID 203520, iniciado 25/10/2026 17:14:14, modo --service
+
+== Configuración no sensible (bridge.env)
+SERIAL_PORT=COM4
+SERIAL_MEDIUM=BLUETOOTH
+BRIDGE_API_URL=http://localhost
+BRIDGE_TOKEN=***
+BRIDGE_DEVICE_CODE=GL-0001
+Velocidad: SERIAL_BAUDRATE no definida -> la del medio BLUETOOTH = 9600 baudios (BAUD en glucolume_bridge.py)
+Firma del enlace (BRIDGE_DEVICE_KEY): no configurada (el enlace serie no está autenticado)
+
+== Puertos serie en Windows
+Serie estándar sobre el vínculo Bluetooth (COM5)  estado=OK  MAC remota=000000000000
+Puerto de comunicaciones (COM1)  estado=OK  MAC remota=-
+Serie estándar sobre el vínculo Bluetooth (COM4)  estado=OK  MAC remota=98D331F5B67E
+
+== Otros programas que podrían abrir el COM (Arduino IDE, monitores serie)
+Ninguno en ejecución.
+
+== Backend y base
+glucolume-frontend-1  glucolume/frontend:dev  Up About an hour (healthy)
+glucolume-backend-1  glucolume/backend:dev  Up About an hour (healthy)
+glucolume-db-1  glucolume/mssql:2022-CU16-pdev  Up About an hour (healthy)
+Backend: Python 3.14.8 | FastAPI 0.142.2 | SQLAlchemy 2.1.3 | pyodbc 5.3.0
+SQL Server: 2022 CU16 (16.0.4165.4) Express, contenedor glucolume-db-1
+
+== Firmware: algoritmo declarado firmware-glucolume-max30100-v1 (no se modificó el firmware)
+
+== Windows
+Microsoft Windows 11 Pro 10.0.26300
