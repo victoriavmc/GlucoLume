@@ -619,12 +619,12 @@ describe('Detalle y estados de una medición', () => {
     expect(screen.queryByLabelText('Resultados')).not.toBeInTheDocument();
   });
 
-  it('el detalle muestra «Sin informar» cuando no hay última comida y la hora cuando sí se informó', async () => {
+  it('el detalle omite «Última comida» cuando no se informó: «Después de comer» ya alcanza', async () => {
     open(detail({ modoMedicion: 'GLUCOSA_EXPERIMENTAL', estadoMedicion: 'INVALIDA', fechaHoraFin: '2026-10-08T09:00:12', condicionComida: 'POSTPRANDIAL', fechaHoraUltimaComida: null,
       observacion: 'Estimación de glucosa no disponible por falta de información: no se indicó la hora de la última comida.', puedeOperar: false }));
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     const overview = within(await screen.findByLabelText('Datos generales de la medición'));
-    expect(overview.getByText('Última comida').closest('div')).toHaveTextContent('Sin informar');
+    expect(overview.queryByText('Última comida')).not.toBeInTheDocument();
     expect(overview.getByText('Alimentación').closest('div')).toHaveTextContent('Después de comer');
   });
 

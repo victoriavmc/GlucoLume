@@ -95,7 +95,8 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
     groups: list[ReferenceGroup] = []
     for sex in sexes:
         ofSex = [r for r in rules if r.sexoModelo == sex and _foodMatches(r, condition, minutes)]
-        foodExact = condition in ("AYUNO",) or (condition == "POSTPRANDIAL" and minutes is not None)
+        # «Después de comer» ya determina la condición: la hora de la última comida es opcional y solo afina la ventana de minutos.
+        foodExact = condition in ("AYUNO", "POSTPRANDIAL")
         if condition == "NO_INFORMADA":  # se prefieren las reglas previstas justamente para «alimentación no informada»
             exact = [r for r in ofSex if r.condicionComida == "NO_INFORMADA"]
             if exact:

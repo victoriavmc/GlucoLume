@@ -247,6 +247,16 @@ def test_8_con_el_sexo_definido_se_muestra_solo_su_regla_y_no_se_modifica_nada(d
     assert reference.edad == 30 and reference.condicionComida == "AYUNO"
 
 
+def test_despues_de_comer_sin_hora_de_ultima_comida_igual_elige_la_regla_postprandial(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    addMatrix(db, condicion="POSTPRANDIAL", edad=(18, 64), minutos=(60, 120))  # regla R1: 70–110 mg/dL
+    _, saved = measureAndSave(db, user, profileId, bridge, GLUCOSE, glu="115.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo="FEMENINO", edad=24, condicion="POSTPRANDIAL")
+    group = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos[0]
+    assert stored(db, saved.idMedicion).fechaHoraUltimaComida is None
+    assert group.reglaSeleccionada.codigo == "R1" and group.posicion == "POR_ENCIMA" and group.motivoSinSeleccion is None  # 115 > 110
+
+
 def test_9_sin_regla_aplicable_no_se_elige_una_arbitraria(db, mails, consumer, bridge, clock):
     user, matrix, started, saved = measureWithMatrix(db, consumer, bridge, glu="90.0", origen="EXPERIMENTAL")
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=10, condicion="AYUNO")  # fuera del rango 18–80

@@ -267,8 +267,8 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
         <div><span className="fact-icon"><Settings size={20} aria-hidden="true" /></span><dt>Modo</dt><dd>{MODES[measurement.modoMedicion]}</dd></div>
         <div><span className="fact-icon"><User size={20} aria-hidden="true" /></span><dt>Perfil asociado</dt><dd>{profileLabel}</dd></div>
         <div><span className="fact-icon"><Utensils size={20} aria-hidden="true" /></span><dt>Alimentación</dt><dd>{measurement.condicionComida === 'NO_INFORMADA' ? 'Sin informar' : (MEALS[measurement.condicionComida] ?? measurement.condicionComida)}</dd></div>
-        {glucose && (
-          <div><span className="fact-icon"><Utensils size={20} aria-hidden="true" /></span><dt>Última comida</dt><dd>{measurement.fechaHoraUltimaComida ? formatDateTime(measurement.fechaHoraUltimaComida) : 'Sin informar'}</dd></div>
+        {glucose && measurement.fechaHoraUltimaComida && ( // opcional: «Alimentación» ya dice si fue después de comer
+          <div><span className="fact-icon"><Utensils size={20} aria-hidden="true" /></span><dt>Última comida</dt><dd>{formatDateTime(measurement.fechaHoraUltimaComida)}</dd></div>
         )}
         <div><span className="fact-icon"><Smartphone size={20} aria-hidden="true" /></span><dt>Dispositivo utilizado</dt><dd>{deviceName || 'Sin dato'}</dd></div>
         {glucose && measurement.matriz && (
