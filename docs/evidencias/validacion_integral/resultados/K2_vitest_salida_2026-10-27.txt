@@ -1,0 +1,13 @@
+
+ RUN  v5.0.3 C:/Users/VictoriaVMC/Desktop/GlucoLume/frontend
+
+
+ Test Files  53 passed (53)
+      Tests  700 passed (700)
+   Start at  01:12:40
+   Duration  47.46s (tests 41%, environment 36%, setup 17%, import 4%, transform 2%)
+
+Environment  jsdom was created 53 times · 232.50s total, 36% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+

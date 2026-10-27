@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-BRIDGE_DIR = ROOT / "acquisition" / "bridge"
+BRIDGE_DIR = ROOT / "backend" / "acquisition" / "bridge"
 
 
 def load(name, path):

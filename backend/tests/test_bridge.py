@@ -21,7 +21,7 @@ from tests.test_audit import api  # noqa: F401 - fixture
 from tests.test_measurements import consumer, device  # noqa: F401 - fixtures
 from tests.test_telemetry import CODE, TOKEN, line
 
-BRIDGE_PATH = Path(__file__).resolve().parents[2] / "acquisition" / "bridge" / "glucolume_bridge.py"
+BRIDGE_PATH = Path(__file__).resolve().parents[1] / "acquisition" / "bridge" / "glucolume_bridge.py"
 spec = importlib.util.spec_from_file_location("glucolume_bridge", BRIDGE_PATH)
 bridgeModule = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridgeModule)

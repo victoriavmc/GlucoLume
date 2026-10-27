@@ -1,0 +1,111 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 10%]
+........................................................................ [ 14%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+....................................................................ssss [ 25%]
+sssssssssssssssssssssssssssssss......................................... [ 28%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 50%]
+........................s............................................... [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 61%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+...............................ssssssssssssssssssssssssssssss........... [ 83%]
+................................................................ssssssss [ 86%]
+sss..................................................................... [ 90%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+...................ss...........................s.                       [100%]
+============================== warnings summary ===============================
+app\main.py:17
+  C:\Users\VictoriaVMC\Desktop\GlucoLume\backend\app\main.py:17: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    from app.api.errors import authErrorHandler, validationErrorHandler
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_device_connection.py:66: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:98: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:110: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:132: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:148: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:162: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:178: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:202: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:216: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [2] tests\test_device_connection.py:230: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:242: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:253: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:269: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:279: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:300: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:327: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:341: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:354: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:364: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:376: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:392: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:404: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:417: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:425: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:441: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:455: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:472: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:490: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:509: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:518: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:525: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:532: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:543: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_device_connection.py:590: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_link_auth.py:44: gcc no está instalado
+SKIPPED [1] tests\test_platform_recovery.py:45: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:61: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:69: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:98: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:116: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:128: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:148: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [5] tests\test_platform_recovery.py:159: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:178: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:186: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:205: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:223: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:234: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:261: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:275: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:282: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:294: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:309: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:328: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:342: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_recovery.py:355: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_sqlserver.py:52: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_sqlserver.py:68: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_sqlserver.py:75: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_sqlserver.py:84: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_platform_sqlserver.py:95: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_rate_limiter_shared.py:88: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:96: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:104: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:114: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:123: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:129: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:136: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:153: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:165: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:173: redis-server no está instalado
+SKIPPED [1] tests\test_rate_limiter_shared.py:184: redis-server no está instalado
+SKIPPED [1] tests\test_telemetry_sqlserver.py:67: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_telemetry_sqlserver.py:136: Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+SKIPPED [1] tests\test_zlib_guard.py:34: dpkg no está instalado
+1914 passed, 80 skipped, 1 warning in 1092.68s (0:18:12)

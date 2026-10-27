@@ -1,0 +1,69 @@
+
+=================================== ERRORS ====================================
+____________________ ERROR collecting tests/test_bridge.py ____________________
+tests\test_bridge.py:27: in <module>
+    spec.loader.exec_module(bridgeModule)
+<frozen importlib._bootstrap_external>:758: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:895: in get_code
+    ???
+<frozen importlib._bootstrap_external>:953: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\VictoriaVMC\\Desktop\\GlucoLume\\acquisition\\bridge\\glucolume_bridge.py'
+__________________ ERROR collecting tests/test_bridge_ctl.py __________________
+tests\test_bridge_ctl.py:22: in <module>
+    spec.loader.exec_module(ctl)
+<frozen importlib._bootstrap_external>:758: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:895: in get_code
+    ???
+<frozen importlib._bootstrap_external>:953: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\VictoriaVMC\\Desktop\\GlucoLume\\acquisition\\bridge\\bridge_ctl.py'
+________________ ERROR collecting tests/test_bridge_runtime.py ________________
+tests\test_bridge_runtime.py:16: in <module>
+    from tests.test_bridge import FakePort, bridgeModule, config, waitUntil  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1342: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:938: in _load_unlocked
+    ???
+..\..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\assertion\rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+tests\test_bridge.py:27: in <module>
+    spec.loader.exec_module(bridgeModule)
+<frozen importlib._bootstrap_external>:758: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:895: in get_code
+    ???
+<frozen importlib._bootstrap_external>:953: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\VictoriaVMC\\Desktop\\GlucoLume\\acquisition\\bridge\\glucolume_bridge.py'
+__________________ ERROR collecting tests/test_link_auth.py ___________________
+tests\test_link_auth.py:28: in <module>
+    linkauth = load("linkauth", BRIDGE_DIR / "linkauth.py")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_link_auth.py:24: in load
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:758: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:895: in get_code
+    ???
+<frozen importlib._bootstrap_external>:953: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\VictoriaVMC\\Desktop\\GlucoLume\\acquisition\\bridge\\linkauth.py'
+============================== warnings summary ===============================
+app\main.py:17
+  C:\Users\VictoriaVMC\Desktop\GlucoLume\backend\app\main.py:17: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    from app.api.errors import authErrorHandler, validationErrorHandler
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR tests/test_bridge.py - FileNotFoundError: [Errno 2] No such file or dir...
+ERROR tests/test_bridge_ctl.py - FileNotFoundError: [Errno 2] No such file or...
+ERROR tests/test_bridge_runtime.py - FileNotFoundError: [Errno 2] No such fil...
+ERROR tests/test_link_auth.py - FileNotFoundError: [Errno 2] No such file or ...
+!!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!
+1 warning, 4 errors in 10.92s

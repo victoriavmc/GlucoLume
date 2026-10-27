@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-BRIDGE_DIR = Path(__file__).resolve().parents[2] / "acquisition" / "bridge"
+BRIDGE_DIR = Path(__file__).resolve().parents[1] / "acquisition" / "bridge"
 sys.path.insert(0, str(BRIDGE_DIR))
 spec = importlib.util.spec_from_file_location("bridge_ctl", BRIDGE_DIR / "bridge_ctl.py")
 ctl = importlib.util.module_from_spec(spec)
