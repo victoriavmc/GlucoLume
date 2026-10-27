@@ -122,3 +122,5 @@ dist/
 build/
 *.log
 
+
+graphify-out/
