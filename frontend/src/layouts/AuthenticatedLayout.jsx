@@ -10,6 +10,7 @@ import { PageSkeleton } from '../components/Skeleton.jsx';
 import { GracePeriodNotice } from '../components/GracePeriodNotice.jsx';
 import { Logo } from '../components/Logo.jsx';
 import { SkipLink } from '../components/SkipLink.jsx';
+import { NotificationToasts } from '../notifications/NotificationToasts.jsx';
 import { InstitutionNavContext } from '../pages/Account/institutions/institutionMenu.js';
 import { Sidebar } from './Sidebar.jsx';
 import './AuthenticatedLayout.css';
@@ -67,6 +68,7 @@ export function AuthenticatedLayout() {
         <GracePeriodNotice grace={account?.periodoGracia} />
         <Suspense fallback={<PageSkeleton />}><Outlet /></Suspense>
       </main>
+      <NotificationToasts />
     </div>
     </InstitutionNavContext.Provider>
   );

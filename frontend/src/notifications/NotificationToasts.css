@@ -1,0 +1,92 @@
+/* Carteles de avisos nuevos: columna fija arriba a la derecha, sobre el contenido y el drawer. */
+
+.notif-toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.notif-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid #f0b4ba;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  animation: notif-toast-in 0.25s ease-out;
+}
+
+.notif-toast-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--red-100);
+  color: var(--red-700);
+}
+
+.notif-toast-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.notif-toast-text b {
+  font-size: 16px;
+}
+
+.notif-toast-text span {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.notif-toast-text a {
+  justify-self: start;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.notif-toast-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+}
+
+.notif-toast-close:hover {
+  background: var(--red-50);
+}
+
+@keyframes notif-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-toast {
+    animation: none;
+  }
+}
