@@ -18,6 +18,7 @@ import { Alert } from '../../../components/FormControls.jsx';
 import { CreateInstitutionMatrixForm } from './CreateInstitutionMatrixForm.jsx';
 import { RulesTable } from './MatrixRules.jsx';
 import { MATRIX_SCOPES, MATRIX_STATES, formatDate, formatDateTime } from './matrixFormat.js';
+import { MatrixReference } from './MatrixReference.jsx';
 import './Matrices.css';
 
 const pluralRules = (count) => `${count} regla${count === 1 ? '' : 's'}`;
@@ -104,13 +105,14 @@ function ActiveMatrixCard({ summary, detail, institution, handleOperationError }
       </div>
       <p className="matrix-explain">
         {global
-          ? 'Esta institución utiliza actualmente la matriz global de GlucoLume. Podés consultar sus reglas o crear una matriz institucional propia.'
+          ? 'Esta matriz la define la plataforma GlucoLume y es la que se aplica a las mediciones de la institución. Si querés modificarla, creá tu propia matriz institucional.'
           : `${institution.nombre} utiliza actualmente una matriz institucional propia. La matriz global de GlucoLume queda como respaldo.`}
       </p>
       <dl className="data-list matrix-facts">
         <div><dt>Estado</dt><dd>Activa</dd></div>
         <div><dt>Origen</dt><dd>{MATRIX_SCOPES[summary.ambito]}</dd></div>
         <div><dt>Descripción</dt><dd className={detail?.descripcion ? undefined : 'is-empty'}>{detail ? (detail.descripcion || 'Sin descripción') : 'No disponible'}</dd></div>
+        <div><dt>Referencia base</dt><dd><MatrixReference name={summary.referenciaBase} url={summary.urlReferencia} /></dd></div>
         <div><dt>Reglas</dt><dd>{detail ? detail.cantidadReglas : 'No disponible'}</dd></div>
         <div><dt>Vigente desde</dt><dd>{detail ? formatDate(detail.fechaVigenciaDesde) : 'No disponible'}</dd></div>
         <div><dt>Creada</dt><dd>{detail ? formatDateTime(detail.fechaCreacion) : 'No disponible'}</dd></div>
@@ -134,6 +136,7 @@ function VersionCard({ item, busy, confirming, onConfirm, onCancelConfirm, onAct
       </div>
       <dl className="matrix-version-facts">
         <div><dt>Origen</dt><dd>Institucional</dd></div>
+        <div><dt>Referencia base</dt><dd><MatrixReference name={item.referenciaBase} url={item.urlReferencia} /></dd></div>
         <div><dt>Creada</dt><dd>{formatDate(item.fechaCreacion)}</dd></div>
         <div><dt>Reglas</dt><dd>{item.cantidadReglas}</dd></div>
         <div><dt>Mediciones</dt><dd>{item.medicionesRegistradas > 0 ? `Usada en ${item.medicionesRegistradas}` : 'Sin usar'}</dd></div>
@@ -249,7 +252,7 @@ export function InstitutionMatricesPage() {
         <p className="field-hint" role="status">Cargando matrices…</p>
       ) : overview.efectiva ? (
         <ActiveMatrixCard summary={overview.efectiva} detail={effective} institution={institution} handleOperationError={handleOperationError} />
-      ) : (
+      ) : error ? null : (
         <section className="panel" aria-labelledby="matriz-en-uso">
           <p className="matrix-eyebrow" id="matriz-en-uso">Matriz de estimación actualmente utilizada</p>
           <Alert kind="info">No hay una matriz activa y vigente: no se pueden iniciar mediciones de glucosa experimental hasta que haya una activa.</Alert>
@@ -297,6 +300,7 @@ export function InstitutionMatricesPage() {
           <p>
             <b>{overview.globalActiva.nombre} · versión {overview.globalActiva.version}</b> <span className="chip">Solo lectura</span>
           </p>
+          <p>Referencia base: <MatrixReference name={overview.globalActiva.referenciaBase} url={overview.globalActiva.urlReferencia} /></p>
           <p className="field-hint">Se usa si la institución no tiene una matriz propia activa.</p>
           <RulesDisclosure idMatriz={overview.globalActiva.idMatriz} label="Ver reglas de la matriz global" handleOperationError={handleOperationError}
             readOnlyNote="La matriz global es de solo lectura: ninguna institución puede modificar sus reglas." />

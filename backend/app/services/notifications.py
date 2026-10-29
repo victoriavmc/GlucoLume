@@ -22,6 +22,7 @@ from app.models.groupUser import GroupUser
 from app.models.institution import Institution
 from app.models.user import User
 from app.services import email as emailService
+from app.services import userNotifications
 from app.services.audit import registerEvent
 from app.utils.timeZone import toDbTime
 
@@ -108,12 +109,14 @@ def notifyGroupMeasurement(db: Session, user: User, when: datetime) -> int:
         who = f"{user.nombre or ''} {user.apellido or ''}".strip() or "Un integrante"
         sent = 0
         for recipient in recipients:
-            context = {"nombre": recipient.nombre, "nombreIntegrante": who, "nombreGrupo": group.nombre,
+            context = {"nombreIntegrante": who, "nombreGrupo": group.nombre,
                        "fechaMedicion": when, "urlGrupo": emailService.frontendUrl(f"/app/grupo/{group.idGrupo}")}
-            # En segundo plano: el aviso no puede demorar el cierre de la medición (cada envío SMTP bloquea la respuesta entre 1 y 20 s y los destinatarios
-            # se recorrían de a uno). Nadie espera su resultado: el aviso es informativo y sus errores ya se registran sin deshacer nada.
-            emailService.sendEmailEventInBackground(EmailEventType.MEDICION_MIEMBRO_GRUPO, recipient.correoElectronico, context)
-            sent += 1
+            # Página y correo según las preferencias de NUEVA_ACCION_GRUPO del destinatario. El correo se encola en segundo plano: el aviso no puede
+            # demorar el cierre de la medición (cada envío SMTP bloquea la respuesta entre 1 y 20 s). Nadie espera su resultado.
+            if userNotifications.notify(db, recipient, userNotifications.NUEVA_ACCION_GRUPO, "Novedad en tu grupo",
+                                        f"{who} se midió.", url=userNotifications.URL_GRUPO,
+                                        email=(EmailEventType.MEDICION_MIEMBRO_GRUPO, context)):
+                sent += 1
         return sent
     except Exception as error:  # noqa: BLE001 - un fallo de correo o de consulta no deshace la medición
         logger.error("Aviso de medición al grupo no enviado (%s).", type(error).__name__)

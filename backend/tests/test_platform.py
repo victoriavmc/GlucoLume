@@ -74,8 +74,13 @@ def reauth(db, user, secret, password=PASSWORD) -> Reauthentication:
     return Reauthentication(password=password, codigo=code(db, user, secret))
 
 
-def tokenIn(mails, index=-1) -> str:
-    return re.search(r"(?:token=|#codigo=)([A-Za-z0-9_\-]+)", mails[index]["html"]).group(1)
+def tokenIn(mails) -> str:
+    """Código del correo más reciente que lo trae (el aviso al administrador que invitó no lleva enlace)."""
+    for mail in reversed(mails):
+        found = re.search(r"(?:token=|#codigo=)([A-Za-z0-9_\-]+)", mail["html"])
+        if found:
+            return found.group(1)
+    raise AssertionError("ningún correo trae un código")
 
 
 @pytest.fixture(autouse=True)
@@ -225,7 +230,11 @@ def test_incorporar_un_moderador_nuevo_activarlo_y_configurar_mfa(db, mails, web
     created = reload(db, User, moderator.idUsuario)
     assert created.tipoCuenta == MOD and created.usuario is None  # el rol lo fija el servidor; sin credenciales
     assert db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == created.idUsuario)) is None
-    assert "Moderador del sistema" in mails[-1]["html"] and platform.PERMISSIONS[MOD]
+    assert "Moderador del sistema" in mails[-2]["html"] and platform.PERMISSIONS[MOD]
+    # Al moderador le llega la invitación ("te invitaron") y a quien invitó, la confirmación de que salió.
+    assert mails[-2]["to"] == "luis@example.com" and "Te invitaron" in mails[-2]["subject"]
+    assert mails[-1]["to"] == user.correoElectronico and "Enviaste una invitación" in mails[-1]["subject"]
+    assert "luis@example.com" in mails[-1]["html"]
     token = tokenIn(mails)
     # Mientras no acepte, no puede iniciar sesión.
     with pytest.raises(AuthError):

@@ -293,10 +293,11 @@ export function OperatorDashboardView({ institution, idOperador, handleOperation
 
 /** /personal/operadores/:idOperador — vista operativa de un operador (propietario y moderador). */
 export function OperatorDashboardPage() {
-  const { institution, handleOperationError } = useOutletContext();
+  const { institution, handleOperationError, personnelTabs } = useOutletContext();
   const { idOperador } = useParams();
   return (
     <>
+      {personnelTabs}
       <OperatorDashboardView institution={institution} idOperador={idOperador} handleOperationError={handleOperationError} />
       {/* Actividad laboral del operador, siempre como cantidades: sin pacientes ni valores de salud. */}
       <ManagementDashboard institution={institution} handleOperationError={handleOperationError} fixedOperator={idOperador} />

@@ -62,6 +62,7 @@ from app.schemas.group import (
 from app.services import email as emailService
 from app.services import measurement as measurementService
 from app.services import notifications
+from app.services import userNotifications
 from app.services.audit import registerEvent
 from app.services.rateLimiter import RateLimiter
 from app.services.measurementProfile import calculateAge
@@ -206,6 +207,14 @@ def _detail(db: Session, membership: GroupMembership) -> FamilyGroupDetail:
 def _notify(eventType: EmailEventType, user: User | None, **context) -> None:
     if user is not None and user.correoElectronico:
         emailService.sendEmailEventInBackground(eventType, user.correoElectronico, {"nombre": user.nombre, **context})
+
+
+def _notifyNews(db: Session, group: Group, actor: User, texto: str, now: datetime) -> None:
+    """Novedad del grupo para los demás integrantes, por la página y/o correo según sus preferencias."""
+    userNotifications.notifyGroupNews(
+        db, group.idGrupo, actor.idUsuario, texto,
+        {"nombreGrupo": group.nombre, "fechaEvento": now, "urlGrupo": emailService.frontendUrl(f"/app/grupo/{group.idGrupo}")},
+    )
 
 
 # --- Mi grupo, crear, modificar ---------------------------------------------------------------
@@ -475,9 +484,14 @@ def respondInvitation(db: Session, user: User, idGrupoUsuario: uuid.UUID, accept
             raise AuthError("YA_PERTENECE_A_GRUPO", OWN_OTHER_GROUP_MESSAGE) from error
         raise
     membership = requireMembership(db, user, group.idGrupo)
-    _notify(EmailEventType.AGREGADO_GRUPO, user, nombreGrupo=group.nombre, fechaEvento=now)
+    userNotifications.notify(
+        db, user, userNotifications.AGREGADO_GRUPO, "Ahora formás parte de un grupo",
+        f"Te sumaron al grupo «{group.nombre}».", url=userNotifications.URL_GRUPO,
+        email=(EmailEventType.AGREGADO_GRUPO, {"nombreGrupo": group.nombre, "fechaEvento": now}),
+    )
     _notify(EmailEventType.MIEMBRO_AGREGADO, _admin(db, group.idGrupo), nombreIntegrante=_fullName(user),
             nombreGrupo=group.nombre, fechaEvento=now)
+    _notifyNews(db, group, user, f"{_fullName(user) or 'Un integrante'} se sumó al grupo «{group.nombre}».", now)
     return _detail(db, membership)
 
 
@@ -513,6 +527,8 @@ def leaveGroup(db: Session, actor: User, idGrupo: uuid.UUID) -> None:
     db.commit()
     _notify(EmailEventType.MIEMBRO_ABANDONO_GRUPO, _admin(db, idGrupo), nombreIntegrante=_fullName(actor),
             nombreGrupo=membership.group.nombre, fechaEvento=now)
+    _notifyNews(db, membership.group, actor, f"{_fullName(actor) or 'Un integrante'} abandonó el grupo «{membership.group.nombre}».",
+                now)
 
 
 def transferAdmin(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuario: uuid.UUID) -> FamilyGroupDetail:

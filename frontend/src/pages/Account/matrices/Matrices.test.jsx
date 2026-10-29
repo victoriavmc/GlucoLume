@@ -153,13 +153,43 @@ describe('Matrices institucionales', () => {
     expect(card.getByText('En uso')).toBeInTheDocument();
     expect(card.getAllByText('Global de GlucoLume').length).toBeGreaterThan(0);
     expect(card.getByText('Solo lectura')).toBeInTheDocument();
-    expect(card.getByText('Esta institución utiliza actualmente la matriz global de GlucoLume. Podés consultar sus reglas o crear una matriz institucional propia.')).toBeInTheDocument();
+    expect(card.getByText('Esta matriz la define la plataforma GlucoLume y es la que se aplica a las mediciones de la institución. Si querés modificarla, creá tu propia matriz institucional.')).toBeInTheDocument();
     expect(await card.findByText('Matriz orientativa para adultos no gestantes.')).toBeInTheDocument();
     expect(card.getByText('Reglas', { selector: 'dt' }).nextSibling).toHaveTextContent('3');
     expect(screen.getByRole('button', { name: 'Crear matriz institucional' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Utilizar matriz global' })).not.toBeInTheDocument();
     expect(screen.getByText('Todavía no se crearon matrices institucionales. Actualmente se utiliza la matriz global de GlucoLume.')).toBeInTheDocument();
     expect(screen.getByText(/prototipo tecnológico experimental/)).toBeInTheDocument();
+  });
+
+  it('la referencia de la matriz en uso muestra su nombre y un icono que abre el enlace en otra pestaña', async () => {
+    const GLOBAL_CON_REFERENCIA = { ...GLOBAL, referenciaBase: 'Guía de la ADA 2026', urlReferencia: 'https://ejemplo.org/ada-2026' };
+    routes(INSTITUTIONAL, {
+      [`GET ${BASE}`]: jsonResponse(200, institution('PROPIETARIO')),
+      [`GET ${BASE}/matrices`]: jsonResponse(200, { institucionActiva: null, globalActiva: GLOBAL_CON_REFERENCIA, efectiva: GLOBAL_CON_REFERENCIA, versiones: [] }),
+      'GET /matrices/g': jsonResponse(200, globalDetail()),
+    });
+    renderAt(`/app/instituciones/${ID}/matrices`);
+    const card = within((await screen.findByText('Matriz de estimación actualmente utilizada')).closest('section'));
+    expect(await card.findByText('Guía de la ADA 2026')).toBeInTheDocument();
+    const link = card.getByRole('link', { name: 'Abrir la referencia Guía de la ADA 2026 en otra pestaña' });
+    expect(link).toHaveAttribute('href', 'https://ejemplo.org/ada-2026');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('una referencia sin enlace no es clicleable y al pasar el mouse dice que no está disponible', async () => {
+    const GLOBAL_SIN_ENLACE = { ...GLOBAL, referenciaBase: 'Guía de la ADA 2026', urlReferencia: null };
+    routes(INSTITUTIONAL, {
+      [`GET ${BASE}`]: jsonResponse(200, institution('PROPIETARIO')),
+      [`GET ${BASE}/matrices`]: jsonResponse(200, { institucionActiva: null, globalActiva: GLOBAL_SIN_ENLACE, efectiva: GLOBAL_SIN_ENLACE, versiones: [] }),
+      'GET /matrices/g': jsonResponse(200, globalDetail()),
+    });
+    renderAt(`/app/instituciones/${ID}/matrices`);
+    const card = within((await screen.findByText('Matriz de estimación actualmente utilizada')).closest('section'));
+    const reference = await card.findByTitle('No disponible');
+    expect(reference).toHaveTextContent('Guía de la ADA 2026');
+    expect(card.queryByRole('link', { name: /Abrir la referencia/ })).not.toBeInTheDocument();
   });
 
   it('las reglas de la matriz global están contraídas y se despliegan todas, solo con los criterios que aplican, sin poder modificarlas', async () => {
@@ -228,7 +258,7 @@ describe('Matrices institucionales', () => {
     expect(await card.findByText('Matriz San José · versión 2')).toBeInTheDocument();
     expect(card.getByText('En uso')).toBeInTheDocument();
     expect(card.getAllByText('Institucional').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/utiliza actualmente la matriz global/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/define la plataforma GlucoLume/)).not.toBeInTheDocument();
 
     const backup = within(screen.getByRole('heading', { name: /Matriz global de GlucoLume \(respaldo\)/ }).closest('section'));
     expect(backup.getByText('ADA 2026 · versión 3')).toBeInTheDocument();
@@ -304,7 +334,7 @@ describe('Matrices institucionales', () => {
     expect(screen.getByText(/Tus matrices institucionales se conservan/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Confirmar' }));
     expect(await screen.findByText(/vuelve a utilizar la matriz global de GlucoLume/)).toBeInTheDocument();
-    expect(await screen.findByText(/Esta institución utiliza actualmente la matriz global/)).toBeInTheDocument();
+    expect(await screen.findByText(/Esta matriz la define la plataforma GlucoLume/)).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'Matrices institucionales' })).getAllByRole('listitem')).toHaveLength(1); // se conserva
   });
 

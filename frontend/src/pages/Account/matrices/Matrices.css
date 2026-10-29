@@ -40,6 +40,23 @@
   font-size: 17px;
 }
 
+/* Referencia de la matriz con enlace: se ve como enlace (color, subrayado y icono) */
+.matrix-reference-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--red-700, #b3121c);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.matrix-reference-link:hover,
+.matrix-reference-link:focus-visible {
+  text-decoration-thickness: 2.5px;
+}
+
 .matrix-inuse {
   background: #d8f3e2;
   color: #146c3a;

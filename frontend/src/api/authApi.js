@@ -101,7 +101,7 @@ export function setLocalPassword(password) {
   return request('/auth/password', { method: 'POST', body: { password }, auth: true });
 }
 
-/** PUT /auth/me/notifications/new-login -> AccountResponse */
+/** PUT /auth/me/notifications/new-login -> AccountResponse (lo usa el aviso de inicio de sesión de la administración de GlucoLume) */
 export function setNewLoginNotification(habilitada) {
   return request('/auth/me/notifications/new-login', { method: 'PUT', body: { habilitada }, auth: true });
 }

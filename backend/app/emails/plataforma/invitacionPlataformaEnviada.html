@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Enviaste una invitación para moderar GlucoLume{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Enviamos la invitación a <strong>{{ nombreInvitado }}</strong> para que asuma un rol de administración de la plataforma GlucoLume.</p>
+{{ m.datos([("Invitado/a", nombreInvitado), ("Correo", correoInvitado), ("Rol propuesto", rolPlataforma), ("El enlace vence", fechaExpiracion|fechaHora)]) }}
+<p style="{{ m.P_SUAVE }}">La persona todavía no tiene acceso: su cuenta queda pendiente hasta que active el enlace y configure la verificación en dos pasos (MFA). Si no reconocés esta acción, revisá la seguridad de tu cuenta.</p>
+{% endblock %}

@@ -49,6 +49,7 @@ from app.services import accountGrace
 from app.services import consent as consentService
 from app.services import invitedAccounts, mfa, unverifiedAccounts
 from app.services import user as userService
+from app.services import userNotifications
 from app.services import auditClassification
 from app.services.audit import hashIdentifier, registerEvent, singleInstitutionOf
 from app.utils.normalizers import normalizeEmail, normalizeProperName
@@ -873,6 +874,11 @@ def _authenticatedResponse(
             navegador=client.navegador, sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo,
             urlSeguridad=_securityUrl(), urlDesuscribir=_newLoginUnsubscribeUrl(user),
         )
+    # Aviso en la página (el correo sigue arriba, con su propio enlace de desuscripción).
+    userNotifications.notify(
+        db, user, userNotifications.INICIO_SESION, "Nuevo inicio de sesión",
+        "Se inició sesión en tu cuenta. Si no fuiste vos, revisá la seguridad de tu cuenta.", url="/app/seguridad",
+    )
     missing = userService.missingRequiredFields(user)
     return LoginResponse(
         estado="AUTENTICADO", tokens=tokens, requiereCompletarPerfil=bool(missing), camposFaltantes=missing

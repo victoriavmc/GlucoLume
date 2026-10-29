@@ -1,0 +1,150 @@
+/* «Notificaciones»: bandeja de avisos, canales por aviso y horario para medirse. */
+
+.notifications-page {
+  display: grid;
+  gap: var(--gap-card, 20px);
+}
+
+.notif-empty {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.notif-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.notif-item.is-unread {
+  border-color: #f0b4ba;
+  background: #fff7f8;
+}
+
+.notif-item-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notif-item-text b {
+  font-size: 16px;
+}
+
+.notif-item-text span {
+  overflow-wrap: anywhere;
+}
+
+.notif-item-text small {
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.notif-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.notif-channels {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.notif-channel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.notif-channel:last-child {
+  border-bottom: 0;
+}
+
+.notif-channel-text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.notif-channel-text span {
+  color: var(--ink-500);
+  font-size: 15px;
+}
+
+.notif-channel-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.notif-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notif-switch-label {
+  font-size: 14px;
+}
+
+.notif-schedule {
+  display: grid;
+  gap: 16px;
+}
+
+.notif-modes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.notif-modes legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.notif-times {
+  display: grid;
+  gap: 12px;
+}
+
+.notif-time-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.notif-time-row .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.notif-schedule-actions {
+  display: flex;
+}

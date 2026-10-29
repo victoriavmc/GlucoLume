@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Es hora de medirte{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Llegó el horario que elegiste para medirte. Cuando puedas, conectá tu dispositivo y registrá una medición.</p>
+{{ m.boton(urlMediciones, "Ir a mis mediciones") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Este recordatorio no incluye datos de salud. Podés cambiar los horarios o apagarlos desde «Notificaciones» en GlucoLume.</p>
+{% endblock %}

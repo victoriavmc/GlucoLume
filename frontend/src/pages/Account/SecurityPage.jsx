@@ -2,7 +2,6 @@
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { AccountDeletionSection } from './security/AccountDeletionSection.jsx';
-import { LoginNoticeSection } from './security/LoginNoticeSection.jsx';
 import { MfaSection } from './security/MfaSection.jsx';
 import { PasswordSection } from './security/PasswordSection.jsx';
 
@@ -16,7 +15,6 @@ export default function SecurityPage() {
       </header>
       <PasswordSection account={account} />
       <MfaSection account={account} />
-      <LoginNoticeSection account={account} />
       <AccountDeletionSection account={account} />
     </div>
   );

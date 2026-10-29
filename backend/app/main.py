@@ -31,6 +31,7 @@ from app.api.v1.matrices import router as matricesRouter
 from app.api.v1.platform import router as platformRouter
 from app.api.v1.measurements import router as measurementsRouter
 from app.api.v1.institutions import router as institutionsRouter
+from app.api.v1.userNotifications import router as userNotificationsRouter
 from app.core.config import getSettings
 from app.core.exceptions import AuthError
 from app.services import maintenance
@@ -114,6 +115,7 @@ app.include_router(authRouter, prefix="/api/v1")
 app.include_router(contactRouter, prefix="/api/v1")
 app.include_router(institutionsRouter, prefix="/api/v1")
 app.include_router(groupsRouter, prefix="/api/v1")
+app.include_router(userNotificationsRouter, prefix="/api/v1")
 app.include_router(measurementsRouter, prefix="/api/v1")
 app.include_router(acquisitionRouter, prefix="/api/v1")
 app.include_router(telemetryRouter, prefix="/api/v1")

@@ -327,6 +327,8 @@ class MatrixSummary(BaseModel):
     version: str
     ambito: AmbitoMatriz
     estado: EstadoMatriz
+    referenciaBase: str
+    urlReferencia: str | None = None
 
 
 class MatrixIssue(BaseModel):

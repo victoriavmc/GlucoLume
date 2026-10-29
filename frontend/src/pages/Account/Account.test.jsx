@@ -36,7 +36,7 @@ describe('Layout autenticado', () => {
     expect(screen.getByText('Nos alegra verte de nuevo en GlucoLume.')).toBeInTheDocument();
     const nav = within(sidebar()).getByRole('navigation');
     // Cuenta individual: tiene Grupo y no Instituciones.
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inicio', 'Mediciones', 'Conectar dispositivo', 'Grupo', 'Consejos', 'Perfil', 'Seguridad']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inicio', 'Mediciones', 'Conectar dispositivo', 'Grupo', 'Consejos', 'Notificaciones', 'Perfil', 'Seguridad']);
     expect(within(nav).getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page');
     expect(within(sidebar()).getByText('Victoria Cortés')).toBeInTheDocument();
     expect(within(sidebar()).getByText('@victoria')).toBeInTheDocument();
@@ -356,17 +356,11 @@ describe('Seguridad: contraseña, avisos y baja', () => {
     expect(calls.find((c) => c.key === 'POST /auth/password').body).toEqual({ password: 'Glucolume#2026' });
   });
 
-  it('avisos de inicio de sesión se guardan en el backend', async () => {
-    const { calls } = withSession(PROFILE, {
-      'PUT /auth/me/notifications/new-login': jsonResponse(200, { ...PROFILE, notificarNuevoInicioSesion: false }),
-    });
-    const user = userEvent.setup();
+  it('los avisos de inicio de sesión ya no están en Seguridad: viven en Notificaciones', async () => {
+    withSession();
     renderAt('/app/seguridad');
-    const toggle = await screen.findByRole('switch', { name: 'Avisos de inicio de sesión' });
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
-    await user.click(toggle);
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    expect(calls.find((c) => c.key === 'PUT /auth/me/notifications/new-login').body).toEqual({ habilitada: false });
+    await screen.findByRole('heading', { name: 'Seguridad' });
+    expect(screen.queryByRole('switch', { name: 'Avisos de inicio de sesión' })).not.toBeInTheDocument();
   });
 
   it('eliminar cuenta solo solicita el enlace por correo', async () => {

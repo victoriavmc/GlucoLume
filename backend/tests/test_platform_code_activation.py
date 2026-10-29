@@ -216,9 +216,10 @@ def test_los_correos_nuevos_apuntan_a_la_ruta_principal_con_el_codigo_en_el_frag
     mails.clear()
     platform.inviteModerator(db, admin[0], ModeratorInvite(nombre="Laura", apellido="Díaz", correoElectronico="laura@example.com",
                                                            reautenticacion=reauth(db, admin[0], admin[1])))
-    link = re.search(r"https?://[^\s\"'<>]*administracion/activar[^\s\"'<>]*", mails[-1]["html"]).group(0)
+    invitation = next(mail for mail in reversed(mails) if mail["to"] == "laura@example.com")
+    link = re.search(r"https?://[^\s\"'<>]*administracion/activar[^\s\"'<>]*", invitation["html"]).group(0)
     assert "/administracion/activar#codigo=" in link and "?" not in link  # el fragmento nunca llega a Nginx ni al Referer
-    assert "/plataforma/activar" not in mails[-1]["html"]
+    assert "/plataforma/activar" not in invitation["html"]
     assert platform.activationLink("abc").endswith("/administracion/activar#codigo=abc")
 
 

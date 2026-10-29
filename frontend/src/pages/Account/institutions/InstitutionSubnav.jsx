@@ -22,24 +22,23 @@ export function PatientsTabs() {
   return <SubTabs label="Secciones de pacientes" tabs={tabs} />;
 }
 
-/** Personal: Todos, Moderadores, Operadores e Invitaciones (el equipo lo consultan el propietario y el moderador). Las pestañas no se muestran en el perfil. */
+/** Personal: Todos, Moderadores, Operadores e Invitaciones (el equipo lo consultan el propietario y el moderador). Las pestañas no se muestran en el perfil.
+ * Cada página las ubica después de su resumen (`personnelTabs` del contexto): primero el resumen, luego las pestañas y al final la tabla. */
 export function PersonnelLayout() {
   const context = useOutletContext();
   const { institution } = context;
   const { pathname } = useLocation();
   if (!can(institution, 'CONSULTAR_EQUIPO')) return <Navigate to=".." replace />;
   const onProfile = /\/personal\/perfil\//.test(pathname);
+  // Rutas absolutas: las pestañas se muestran dentro de cada página (rutas hijas), donde las relativas no apuntan al personal.
+  const base = `/app/instituciones/${institution.idInstitucion}/personal`;
   const tabs = [
-    { to: '', label: 'Todos', end: true },
-    { to: 'moderadores', label: 'Moderadores', end: false },
-    { to: 'operadores', label: 'Operadores', end: false },
-    { to: 'invitaciones', label: 'Invitaciones', end: false },
+    { to: base, label: 'Todos', end: true },
+    { to: `${base}/moderadores`, label: 'Moderadores', end: false },
+    { to: `${base}/operadores`, label: 'Operadores', end: false },
+    { to: `${base}/invitaciones`, label: 'Invitaciones', end: false },
   ];
-  return (
-    <>
-      {!onProfile && <SubTabs label="Secciones del personal" tabs={tabs} />}
-      <Outlet context={context} />
-    </>
-  );
+  const personnelTabs = onProfile ? null : <SubTabs label="Secciones del personal" tabs={tabs} />;
+  return <Outlet context={{ ...context, personnelTabs }} />;
 }
 

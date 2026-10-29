@@ -110,6 +110,10 @@ def sampleContexts() -> dict[E, dict]:
         E.MIEMBRO_AGREGADO: {
             **base, "nombreIntegrante": "Laura Díaz", "nombreGrupo": "Grupo de ejemplo", "fechaEvento": now,
         },
+        E.NOVEDAD_GRUPO: {
+            **base, "descripcion": "Laura Díaz se sumó al grupo.", "nombreGrupo": "Grupo de ejemplo",
+            "fechaEvento": now, "urlGrupo": frontendUrl("/app/grupo/ID_DE_EJEMPLO"),
+        },
         E.MIEMBRO_ELIMINADO: {
             **base, "nombreIntegrante": "Laura Díaz", "nombreGrupo": "Grupo de ejemplo", "fechaEvento": now,
         },
@@ -137,6 +141,10 @@ def sampleContexts() -> dict[E, dict]:
         E.INVITACION_PLATAFORMA: {
             **base, "rolPlataforma": "Moderador del sistema", "fechaExpiracion": now + timedelta(days=7),
             "urlActivar": frontendUrl("/administracion/activar#codigo=CODIGO_DE_EJEMPLO"),
+        },
+        E.INVITACION_PLATAFORMA_ENVIADA: {
+            **base, "nombreInvitado": "Laura Díaz", "correoInvitado": "laura@example.com", "rolPlataforma": "Moderador del sistema",
+            "fechaExpiracion": now + timedelta(days=7),
         },
         E.ACCESO_PLATAFORMA_REVOCADO: {**base, "fechaEvento": now},
         E.ALERTA_SEGURIDAD_PLATAFORMA: {
@@ -216,5 +224,6 @@ def sampleContexts() -> dict[E, dict]:
             **base, "fechaMedicion": now, "dispositivo": "GL-DEMO-01", "urlMedicion": medicion, **detalle,
         },
         E.ERROR_MEDICION: {**base, "fechaEvento": now, "dispositivo": "GL-DEMO-01"},
+        E.RECORDATORIO_MEDICION: {**base, "urlMediciones": frontendUrl("/app/mediciones")},
         E.INFORMACION_RETENCION_DATOS: {**base, "fechaEvento": now},
     }

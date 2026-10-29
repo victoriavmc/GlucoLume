@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Hubo novedades en tu grupo{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ descripcion }}</p>
+{{ m.datos([("Grupo", nombreGrupo), ("Fecha", fechaEvento|fechaHora)]) }}
+{{ m.boton(urlGrupo, "Ver el grupo") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Recibís este correo porque elegiste avisarte de las novedades del grupo en «Notificaciones» de GlucoLume.</p>
+{% endblock %}

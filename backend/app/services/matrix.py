@@ -188,7 +188,7 @@ def summary(matrix: Matrix | None) -> MatrixSummary | None:
     if matrix is None:
         return None
     return MatrixSummary(idMatriz=matrix.idMatriz, nombre=matrix.nombre, version=matrix.version, ambito=matrix.ambito,
-                         estado=matrix.estado)
+                         estado=matrix.estado, referenciaBase=matrix.referenciaBase, urlReferencia=matrix.urlReferencia)
 
 
 def _versionOrder(matrix: Matrix):

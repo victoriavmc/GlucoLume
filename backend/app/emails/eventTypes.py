@@ -44,6 +44,8 @@ class EmailEventType(StrEnum):
     MIEMBRO_AGREGADO = "MIEMBRO_AGREGADO"
     # Un integrante completó una medición y autorizó avisar al grupo (quién y cuándo; nunca el valor).
     MEDICION_MIEMBRO_GRUPO = "MEDICION_MIEMBRO_GRUPO"
+    # Novedad para los demás integrantes cuando alguien se suma o abandona el grupo (descripcion no incluye datos de salud).
+    NOVEDAD_GRUPO = "NOVEDAD_GRUPO"
     MIEMBRO_ELIMINADO = "MIEMBRO_ELIMINADO"
     ADMIN_GRUPO_ASIGNADO = "ADMIN_GRUPO_ASIGNADO"
     ADMIN_GRUPO_CAMBIADO = "ADMIN_GRUPO_CAMBIADO"
@@ -85,6 +87,8 @@ class EmailEventType(StrEnum):
     CONFIRMAR_CORREO_RESULTADOS = "CONFIRMAR_CORREO_RESULTADOS"
     MEDICION_FUERA_UMBRAL = "MEDICION_FUERA_UMBRAL"
     ERROR_MEDICION = "ERROR_MEDICION"
+    # Recordatorio del horario de medición que eligió la cuenta (services/userNotifications.py); no incluye datos de medición.
+    RECORDATORIO_MEDICION = "RECORDATORIO_MEDICION"
     # Privacidad
     INFORMACION_RETENCION_DATOS = "INFORMACION_RETENCION_DATOS"
     # Contacto (formulario público de la landing; lo recibe la casilla CONTACT_EMAIL)
@@ -93,6 +97,8 @@ class EmailEventType(StrEnum):
     CONTACTO_CONFIRMACION = "CONTACTO_CONFIRMACION"
     # Administración de la plataforma
     INVITACION_PLATAFORMA = "INVITACION_PLATAFORMA"
+    # Confirmación a quien invitó: la invitación ya salió hacia el correo del moderador.
+    INVITACION_PLATAFORMA_ENVIADA = "INVITACION_PLATAFORMA_ENVIADA"
     ACCESO_PLATAFORMA_REVOCADO = "ACCESO_PLATAFORMA_REVOCADO"
     ALERTA_SEGURIDAD_PLATAFORMA = "ALERTA_SEGURIDAD_PLATAFORMA"
     TRANSFERENCIA_ADMIN_SOLICITADA = "TRANSFERENCIA_ADMIN_SOLICITADA"
@@ -251,6 +257,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
         "grupos/medicionMiembro.html", "Un integrante de tu grupo se midió", CATEGORIA_GRUPO,
         ("nombreIntegrante", "nombreGrupo", "fechaMedicion", "urlGrupo"), ("urlGrupo",),
     ),
+    _E.NOVEDAD_GRUPO: EmailEventSpec(
+        "grupos/novedadGrupo.html", "Hubo novedades en tu grupo", CATEGORIA_GRUPO,
+        ("descripcion", "nombreGrupo", "fechaEvento", "urlGrupo"), ("urlGrupo",),
+    ),
     _E.MIEMBRO_AGREGADO: EmailEventSpec(
         "grupos/miembroAgregado.html", "Se agregó un integrante al grupo", CATEGORIA_GRUPO,
         ("nombreIntegrante", "nombreGrupo", "fechaEvento"),
@@ -395,6 +405,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
         "mediciones/errorMedicion.html", "No se pudo completar una medición", CATEGORIA_MEDICIONES,
         ("fechaEvento",), clinicalDisclaimer=True,
     ),
+    _E.RECORDATORIO_MEDICION: EmailEventSpec(
+        "mediciones/recordatorioMedicion.html", "Es hora de medirte en GlucoLume", CATEGORIA_CUENTA,
+        ("urlMediciones",), ("urlMediciones",),
+    ),
     # --- Privacidad -----------------------------------------------------------------------
     _E.INFORMACION_RETENCION_DATOS: EmailEventSpec(
         "privacidad/informacionRetencionDatos.html", "Información sobre tus datos en GlucoLume", CATEGORIA_PRIVACIDAD,
@@ -413,6 +427,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     _E.INVITACION_PLATAFORMA: EmailEventSpec(
         "plataforma/invitacionPlataforma.html", "Te invitaron a administrar GlucoLume", CATEGORIA_PLATAFORMA,
         ("rolPlataforma", "fechaExpiracion", "urlActivar"), ("urlActivar",), securityNotice=True, highPriority=True,
+    ),
+    _E.INVITACION_PLATAFORMA_ENVIADA: EmailEventSpec(
+        "plataforma/invitacionPlataformaEnviada.html", "Enviaste una invitación para moderar GlucoLume", CATEGORIA_PLATAFORMA,
+        ("nombreInvitado", "correoInvitado", "rolPlataforma", "fechaExpiracion"), securityNotice=True,
     ),
     _E.ACCESO_PLATAFORMA_REVOCADO: EmailEventSpec(
         "plataforma/accesoRevocado.html", "Tu acceso a la administración de GlucoLume fue revocado", CATEGORIA_PLATAFORMA,

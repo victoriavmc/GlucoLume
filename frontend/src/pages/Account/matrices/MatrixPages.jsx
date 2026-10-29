@@ -16,6 +16,7 @@ import { EmptyState } from '../../../components/EmptyState.jsx';
 import { Alert, SubmitButton, TextField } from '../../../components/FormControls.jsx';
 import { PageHeader } from '../../../components/PageHeader.jsx';
 import { MatrixDetail } from './MatrixDetail.jsx';
+import { MatrixReference } from './MatrixReference.jsx';
 import { MATRIX_STATES, formatDate, stateBadge } from './matrixFormat.js';
 
 const PLATFORM_ACCOUNTS = ['MODERADOR_PLATAFORMA', 'ADMINISTRADOR_PLATAFORMA'];
@@ -29,6 +30,7 @@ function VersionList({ items, emptyText }) {
           <span>
             <Link to={item.idMatriz} className="patient-link"><b>{item.nombre} · versión {item.version}</b></Link>
             <small> · {item.cantidadReglas} regla{item.cantidadReglas === 1 ? '' : 's'}
+              {' '}· referencia: <MatrixReference name={item.referenciaBase} url={item.urlReferencia} />
               {' '}· vigente desde {formatDate(item.fechaVigenciaDesde)}{item.fechaVigenciaHasta ? ` hasta ${formatDate(item.fechaVigenciaHasta)}` : ''}
               {item.medicionesRegistradas > 0 ? ` · usada en ${item.medicionesRegistradas} ${item.medicionesRegistradas === 1 ? 'medición' : 'mediciones'}` : ''}</small>
           </span>
@@ -145,7 +147,8 @@ export function GlobalMatricesPage() {
         {items === null ? (
           <p className="field-hint" role="status">Cargando matrices…</p>
         ) : active ? (
-          <p><b>{active.nombre} · versión {active.version}</b> · {active.cantidadReglas} regla{active.cantidadReglas === 1 ? '' : 's'}</p>
+          <p><b>{active.nombre} · versión {active.version}</b> · {active.cantidadReglas} regla{active.cantidadReglas === 1 ? '' : 's'}
+            {' '}· referencia: <MatrixReference name={active.referenciaBase} url={active.urlReferencia} /></p>
         ) : (
           <Alert kind="info">No hay una matriz global activa: las mediciones de glucosa no se pueden iniciar hasta activar una.</Alert>
         )}

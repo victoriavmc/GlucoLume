@@ -89,6 +89,7 @@ const PlatformForgot = lazyNamed(loadPlatformAuth, 'PlatformForgot');
 const PlatformLogin = lazyNamed(loadPlatformAuth, 'PlatformLogin');
 const PlatformReset = lazyNamed(loadPlatformAuth, 'PlatformReset');
 const SecurityPage = lazyNamed(() => import('./pages/Account/SecurityPage.jsx'));
+const NotificationsPage = lazyNamed(() => import('./pages/Account/notifications/NotificationsPage.jsx'));
 
 const loadAnalytics = () => import('./pages/Account/institutions/analytics/PatientAnalyticsPage.jsx');
 const PatientAnalyticsPage = lazyNamed(loadAnalytics, 'PatientAnalyticsPage');
@@ -245,6 +246,7 @@ export function AppRoutes() {
           <Route path="perfil" element={<ProfilePage />} />
           <Route path="conectar-dispositivo" element={<ConnectDevicePage />} />
           <Route path="seguridad" element={<SecurityPage />} />
+          <Route path="notificaciones" element={<NotificationsPage />} />
           <Route path="dispositivos" element={<GlobalDevicesPage />} />
           <Route path="dispositivos/:idDispositivo" element={<GlobalDeviceDetailPage />} />
           <Route path="auditoria" element={<GlobalAuditPage />} />

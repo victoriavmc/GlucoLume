@@ -107,7 +107,8 @@ TABLES = ("Usuario", "TokenCuenta", "Auditoria", "CredencialLocal", "IdentidadEx
           "CodigoRecuperacionMfa", "SesionUsuario", "Grupo", "GrupoUsuario", "Institucion", "InstitucionUsuario",
           "PerfilMedicion", "Medicion", "Dispositivo", "TransferenciaPerfil", "MuestraSensor",
           "MedicionReferenciaCapilar", "Matriz", "ReglaMatriz", "TransferenciaAdministracion", "EnvioResultado",
-          "ConsentimientoUsuario", "AuditoriaTecnicaMedicion", "ReasignacionPaciente", "AuditoriaContexto", "PuenteCredencial")
+          "ConsentimientoUsuario", "AuditoriaTecnicaMedicion", "ReasignacionPaciente", "AuditoriaContexto", "PuenteCredencial",
+          "PreferenciaNotificacion", "RecordatorioMedicion", "NotificacionUsuario")
 
 
 def _withDependencies(names) -> set:

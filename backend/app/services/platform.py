@@ -278,9 +278,19 @@ def inviteModerator(db: Session, actor: User, data: ModeratorInvite) -> tuple[Mo
                   modulo=MODULE, datosNuevos={"rol": MOD, "resultado": outcome})
     db.commit()
     sent = _sendInvitation(user, token, expires)
+    if sent:
+        _notifyInvitationSent(actor, user, expires)
     message = ("Enviamos la invitación al correo indicado." if sent
                else "La invitación se creó, pero no pudimos enviar el correo. Reenviala más tarde.")
     return _moderatorRead(db, user), sent, message
+
+
+def _notifyInvitationSent(actor: User, invitee: User, expires: datetime) -> None:
+    """Avisa a quien invitó que la invitación salió hacia el correo del moderador (el moderador recibe la suya aparte)."""
+    emailService.sendEmailEventInBackground(
+        EmailEventType.INVITACION_PLATAFORMA_ENVIADA, actor.correoElectronico,
+        {"nombre": actor.nombre, "nombreInvitado": _fullName(invitee) or invitee.correoElectronico,
+         "correoInvitado": invitee.correoElectronico, "rolPlataforma": ROLE_LABELS[invitee.tipoCuenta], "fechaExpiracion": expires})
 
 
 def resendInvitation(db: Session, actor: User, idUsuario: uuid.UUID, reauth: Reauthentication) -> tuple[ModeratorRead, bool, str]:

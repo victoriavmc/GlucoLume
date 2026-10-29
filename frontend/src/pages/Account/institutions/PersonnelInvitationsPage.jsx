@@ -23,7 +23,7 @@ export const INVITATION_STATES = {
 };
 
 export function PersonnelInvitationsPage() {
-  const { institution, handleOperationError } = useOutletContext();
+  const { institution, handleOperationError, personnelTabs } = useOutletContext();
   const location = useLocation();
   const [state, setState] = useState('');
   const [page, setPage] = useState(null);
@@ -85,6 +85,7 @@ export function PersonnelInvitationsPage() {
         </ul>
       </section>
 
+      {personnelTabs}
       {notice && <Alert kind="success">{notice}</Alert>}
       {error && <Alert>{error}</Alert>}
 

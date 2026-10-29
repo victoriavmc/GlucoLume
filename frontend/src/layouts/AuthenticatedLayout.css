@@ -1887,13 +1887,12 @@ a.dash-card:hover { border-color: var(--red-600); }
 .connect-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-card); align-items: start; }
 @media (max-width: 1100px) { .connect-cols { grid-template-columns: minmax(0, 1fr); } }
 
-/* Seguridad: contraseña y verificación en dos pasos como secciones principales (dos columnas); los avisos y la zona de riesgo, a todo el ancho y al final. */
+/* Seguridad: contraseña a todo el ancho; verificación en dos pasos a la izquierda y zona de riesgo a la derecha. Los avisos de inicio de sesión están en «Notificaciones». */
 .security-page { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--gap-card); }
 .security-page > :first-child, .security-page > :nth-child(n+5) { grid-column: 1 / -1; }
 .security-page { grid-template-rows: auto max-content 1fr; }
 .security-page > :nth-child(2) { grid-column: 1; grid-row: 2 / span 2; }
 .security-page > :nth-child(3) { grid-column: 2; grid-row: 2; }
-.security-page > :nth-child(4) { grid-column: 2; grid-row: 3; }
 @media (max-width: 1000px) {
   .security-page { grid-template-columns: minmax(0, 1fr); }
   .security-page > :nth-child(n) { grid-column: 1 / -1; grid-row: auto; }

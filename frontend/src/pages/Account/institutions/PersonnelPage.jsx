@@ -35,7 +35,7 @@ function PersonCell({ person }) {
 }
 
 export function PersonnelPage({ rol }) {
-  const { institution, reload, handleOperationError } = useOutletContext();
+  const { institution, reload, handleOperationError, personnelTabs } = useOutletContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [role, setRole] = useState(searchParams.get('rol') ?? '');
@@ -175,6 +175,7 @@ export function PersonnelPage({ rol }) {
         {!rol && <QuotaLine institution={institution} refreshKey={`${version}-${summary?.totalActivos ?? ''}-${summary?.invitacionesPendientes ?? ''}`} />}
       </section>
 
+      {personnelTabs}
       {notice && <Alert kind="success">{notice}</Alert>}
       {error && <Alert>{error}</Alert>}
       {exportError && <Alert>{exportError}</Alert>}
