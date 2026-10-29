@@ -72,7 +72,7 @@ def _grantedDeletes() -> dict[str, set[str]]:
 def deleteGrants():
     """H-02 (minimo privilegio): el script de permisos concede DELETE tabla por tabla. Falla la prueba en la que el codigo de app/ emita un DELETE
     sobre una tabla que el rol correspondiente no tiene concedida en GlucoLume_permisos.sql: en produccion esa operacion fallaria con el error 229.
-    La depuracion de la auditoria (services/auditRetention.py) se compara con el rol de conservacion; todo lo demas, con el de la API."""
+    La depuracion de la auditoria (services/auditRetention.py) y la de los avisos (services/notificationRetention.py) se comparan con el rol de conservacion; todo lo demas, con el de la API."""
     import re
     import traceback
 
@@ -93,7 +93,8 @@ def deleteGrants():
             if "/backend/tests/" in path:
                 return  # preparar datos en una prueba no es el codigo de la aplicacion
             if "/backend/app/" in path:
-                role = "rol_glucolume_retencion" if path.endswith("/app/services/auditRetention.py") else "rol_glucolume_api"
+                retentionFiles = ("/app/services/auditRetention.py", "/app/services/notificationRetention.py")
+                role = "rol_glucolume_retencion" if path.endswith(retentionFiles) else "rol_glucolume_api"
                 found.append((match.group(1), role, f"{path.split('/backend/', 1)[1]}:{frame.lineno}"))
                 return
 

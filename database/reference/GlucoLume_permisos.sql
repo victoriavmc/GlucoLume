@@ -100,6 +100,7 @@ GRANT DELETE ON OBJECT::dbo.SesionUsuario TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.TokenCuenta TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.Usuario TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.Auditoria TO rol_glucolume_retencion;
+GRANT DELETE ON OBJECT::dbo.NotificacionUsuario TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.AuditoriaContexto TO rol_glucolume_retencion;
 
 -- Auditoria de solo agregado para la API. DENY prevalece sobre el GRANT del esquema y sobre db_datawriter.

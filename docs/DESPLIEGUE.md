@@ -27,6 +27,10 @@ Imágenes base fijadas por digest (backend, frontend, SQL Server, firmware y Cad
 al iniciar Docker Desktop un contenedor que no se detuvo con `docker compose stop`: si el `.env` apunta a la base real, detener los
 servicios con `docker compose stop` (o `docker update --restart=no`) antes de cerrar Docker.
 
+**Recordatorios de medición y avisos (`python -m app.jobs.reminders`):** no tienen servicio propio en Compose. Para que los recordatorios lleguen también por correo, agendar
+`python -m app.jobs.reminders ejecutar` cada ~5 minutos (Tareas programadas de Windows o `docker compose exec -T backend …`). Es idempotente y seguro con varios procesos a la vez. `depurar` elimina avisos vencidos de la
+bandeja (`NOTIFICATION_READ_RETENTION_DAYS`, `NOTIFICATION_UNREAD_RETENTION_DAYS`) y necesita la cuenta de procesos (`DB_JOBS_USER`); `previsualizar` solo cuenta. Ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §5.
+
 **`lifecycle` modifica datos reales** (elimina y anonimiza cuentas con plazo vencido, depura auditoría vencida): no levantarlo contra una
 base de prueba ajena ni contra una base real sin decidirlo. El backend también corre un mantenimiento de mediciones cada
 `MAINTENANCE_INTERVAL_SECONDS` (60 s; 0 lo desactiva) que cierra mediciones vencidas o abandonadas.

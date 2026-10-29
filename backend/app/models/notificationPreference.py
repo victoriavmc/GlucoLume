@@ -11,17 +11,14 @@ from sqlalchemy.dialects.mssql import BIT, DATETIME2, UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.models.notificationEvents import eventCheck
 
 
 class NotificationPreference(Base):
     __tablename__ = "PreferenciaNotificacion"
     __table_args__ = (
         UniqueConstraint("idUsuario", "evento", name="UQ_PreferenciaNotificacion_usuarioEvento"),
-        CheckConstraint(
-            "[evento]=N'INICIO_SESION' OR [evento]=N'AGREGADO_GRUPO' OR [evento]=N'RECORDATORIO_MEDICION'"
-            " OR [evento]=N'NUEVA_ACCION_GRUPO'",
-            name="CK_PreferenciaNotificacion_evento",
-        ),
+        CheckConstraint(eventCheck(), name="CK_PreferenciaNotificacion_evento"),
     )
 
     idPreferenciaNotificacion: Mapped[uuid.UUID] = mapped_column(

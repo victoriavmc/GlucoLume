@@ -110,7 +110,7 @@ def test_schema_check_prepara_validaciones_que_solo_cuentan():
     from app.cli import schemaCheck
 
     expected = schemaCheck.expected()
-    assert len(expected["tablas"]) == 37 and len(expected["pk"]) == 37 and len(expected["indices"]) == 17
+    assert len(expected["tablas"]) == 38 and len(expected["pk"]) == 38 and len(expected["indices"]) == 17
     queries = schemaCheck.validationQueries({"check": {"faltan": ["CK_Medicion_lecturas"], "sobran": []},
                                              "unicos": {"faltan": ["UX_Usuario_administradorUnico"], "sobran": []}})
     assert len(queries) == 2 and all(q.startswith("SELECT N'") and "COUNT_BIG(*)" in q for q in queries)

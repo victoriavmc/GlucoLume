@@ -44,7 +44,7 @@ from app.models.userSession import UserSession
 from app.schemas.auth import LoginResponse
 from app.services import auth as authService
 from app.services import email as emailService
-from app.services import mfa
+from app.services import mfa, userNotifications
 from app.services.audit import registerEvent
 from app.utils.timeZone import nowForDb
 from app.utils.userAgent import ClientInfo
@@ -301,6 +301,10 @@ def _verifyCodeAndUnlink(db: Session, user: User, factor: MfaFactor, codigo: str
         {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad"),
          "porRecuperacion": True},
     )
+    userNotifications.notifySecurity(
+        db, user, userNotifications.CAMBIO_MFA, "Cambio en la verificación en dos pasos",
+        "Se desactivó la verificación en dos pasos de tu cuenta con un código de recuperación. Si no fuiste vos, revisá tu seguridad.",
+        f"{now:%Y-%m-%dT%H:%M:%S.%f}")
 
 
 def verifyRecovery(

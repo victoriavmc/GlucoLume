@@ -13,7 +13,7 @@ ni migra bases: todo lo de este documento se hace a mano, con un usuario adminis
 
 | Qué | Dónde |
 |---|---|
-| Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026 y corregido el 23/10/2026; **34 tablas** —incluye `PuenteCredencial`, H-16—, 49 claves foráneas, 127 `CHECK` y los **31 índices** que el export original había perdido; **no crea usuarios, roles ni permisos**: los aplican los scripts de permisos) |
+| Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026 y corregido el 23/10/2026; **38 tablas** —incluye `PuenteCredencial` (H-16) y las de «Notificaciones», con `AccesoConocido` desde el 29/10/2026—, 49 claves foráneas, 127 `CHECK` y los **31 índices** que el export original había perdido; **no crea usuarios, roles ni permisos**: los aplican los scripts de permisos) |
 | Matriz global de referencia | `database/reference/MATRIZ.SQL`: carga la matriz global (27 reglas: 3 sexos × 3 rangos de edad × 3 condiciones de comida) y el procedimiento `usp_GlucoLume_CompararGlucosa`; sus cambios de esquema sobre `ReglaMatriz` ya están en v5 (v5 no contiene filas de datos) |
 | Vaciado de datos (no es instalación) | `database/reference/BorrarRap.sql`: borra todas las filas; exige `-v BASE=<base> CONFIRMAR_BORRADO=<base>` iguales a la base conectada; nunca sobre una base con datos reales |
 | Permisos de mínimo privilegio (no es instalación) | `GlucoLume_permisos.sql` (roles de API y de conservación; `DELETE` solo en 14 tablas; `DENY UPDATE, DELETE` sobre la auditoría), `GlucoLume_permisos_quitar_roles_fijos.sql` (quita `db_datareader`/`db_datawriter`; reversible con `…_restaurar_roles_fijos.sql`), `GlucoLume_permisos_verificar.sql` (solo comprueba) y `GlucoLume_permisos_revertir.sql`. Validados en SQL Server 2022 descartable; **no aplicados a tu instancia** (§5) |
@@ -141,6 +141,8 @@ actualiza con scripts **idempotentes y transaccionales** que no tocan filas, sie
    - `GlucoLume_actualizar_instalada.sql -v CONFIRMAR="ACTUALIZAR_GLUCOLUME_V5"`: las 6 `CK_Medicion_*` y los 31 índices que falten (cada uno se crea solo si no existe; los `UX_*` son
      únicos filtrados: si los datos violaran una regla, el script falla y se revierte entero).
    - `GlucoLume_agregar_puente_credencial.sql -v CONFIRMAR="AGREGAR_PUENTE_CREDENCIAL"`: la tabla `PuenteCredencial` (H-16).
+   - `GlucoLume_notificaciones_usuario.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_USUARIO"` y, después, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"`:
+     tablas de «Notificaciones» y su rediseño (claves de unicidad, estado del correo, nuevos avisos, `AccesoConocido`; corrige −3 h las fechas anteriores). Detalle en [NOTIFICACIONES.md](NOTIFICACIONES.md) §8. Sin ellos el módulo queda «no disponible», sin fallar.
    - Los permisos de §2 paso 4 / §5 (`GlucoLume_permisos.sql` y, aparte, `…_quitar_roles_fijos.sql`).
 3. Repetir `schemaCheck` (debe informar «Sin diferencias») y registrar el cambio (fecha, responsable, objetos) en [HISTORIAL.md](HISTORIAL.md).
 

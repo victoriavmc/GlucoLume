@@ -18,7 +18,7 @@ from app.models.mfaFactor import MfaFactor
 from app.models.mfaRecoveryCode import MfaRecoveryCode
 from app.models.user import User
 from app.services import email as emailService
-from app.services import auditClassification
+from app.services import auditClassification, userNotifications
 from app.services.audit import registerEvent, singleInstitutionOf
 from app.utils.timeZone import nowForDb
 
@@ -33,6 +33,13 @@ def _notify(eventType: EmailEventType, user: User, **context) -> None:
         user.correoElectronico,
         {"nombre": user.nombre, "urlSeguridad": emailService.frontendUrl("seguridad"), **context},
     )
+
+
+def _mfaNotice(db: Session, user: User, mensaje: str, when) -> None:
+    """Alerta crítica en la página (no se puede apagar); el correo MFA_ACTIVADO / MFA_DESACTIVADO ya salió por su propio flujo."""
+    userNotifications.notifySecurity(
+        db, user, userNotifications.CAMBIO_MFA, "Cambio en la verificación en dos pasos",
+        f"{mensaje} Si no fuiste vos, revisá tu seguridad.", f"{when:%Y-%m-%dT%H:%M:%S.%f}")
 
 
 def getFactor(db: Session, user: User) -> MfaFactor | None:
@@ -88,6 +95,7 @@ def enable(db: Session, user: User, codigo: str) -> list[str]:
     registerEvent(db, "PERMISO", "MFA_HABILITADO", True, user.idUsuario, "FactorMfa", factor.idFactorMfa)
     db.commit()
     _notify(EmailEventType.MFA_ACTIVADO, user, fechaEvento=now, metodo=factor.tipo)
+    _mfaNotice(db, user, "Activaste la verificación en dos pasos en tu cuenta.", now)
     return codes
 
 
@@ -104,7 +112,9 @@ def disable(db: Session, user: User, codigo: str | None, codigoRecuperacion: str
     db.delete(factor)
     registerEvent(db, "PERMISO", "MFA_DESHABILITADO", True, user.idUsuario, "FactorMfa", factor.idFactorMfa)
     db.commit()
-    _notify(EmailEventType.MFA_DESACTIVADO, user, fechaEvento=nowForDb())
+    now = nowForDb()
+    _notify(EmailEventType.MFA_DESACTIVADO, user, fechaEvento=now)
+    _mfaNotice(db, user, "Se desactivó la verificación en dos pasos de tu cuenta.", now)
 
 
 def _noActiveLock(now):
@@ -217,6 +227,12 @@ def verifyFactor(db: Session, factor: MfaFactor, codigo: str | None, codigoRecup
                 EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
                 motivo="Se ingresaron varios códigos de verificación incorrectos al intentar acceder a tu cuenta.",
                 bloqueadoHasta=factor.bloqueadoHasta,
+            )
+            userNotifications.notifySecurity(
+                db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Códigos de verificación incorrectos",
+                "Se ingresaron varios códigos de verificación incorrectos al intentar entrar a tu cuenta y la bloqueamos unos minutos. "
+                "Si no fuiste vos, revisá tu seguridad.",
+                f"BLOQUEO_MFA:{factor.bloqueadoHasta}",  # sin formato: nunca puede romper el rechazo del acceso
             )
         raise AuthError("MFA_BLOQUEADO", "Demasiados códigos inválidos. Intentá más tarde.")
     raise AuthError("CODIGO_INVALIDO", "Código inválido.")

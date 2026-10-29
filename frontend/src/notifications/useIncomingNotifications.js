@@ -1,4 +1,4 @@
-// Revisa cada tanto si llegaron avisos nuevos a la página y los entrega a `onArrive` (cartel + sonido).
+// Revisa cada tanto si llegaron avisos nuevos a la página y los entrega a `onArrive` (cartel + sonido). Pide solo los no leídos.
 // La primera lectura solo fija el punto de partida: los avisos que ya estaban no se anuncian. Los errores (sin conexión, sección
 // todavía no disponible en la instalación) se ignoran: la bandeja de la sección es la que informa.
 
@@ -19,7 +19,7 @@ export function useIncomingNotifications(onArrive) {
     async function check() {
       if (document.visibilityState === 'hidden') return;
       try {
-        const inbox = await getNotifications();
+        const inbox = await getNotifications({ soloNoLeidas: true, limite: 20 });
         if (!active) return;
         const unread = (inbox?.notificaciones ?? []).filter((item) => !item.leida);
         if (known === null) {

@@ -1,6 +1,6 @@
-// Horario para recordarme medirme: cada cierto tiempo o a horas fijas (hasta 6). Los canales (página y correo) se eligen arriba.
+// Horario para recordarme medirme: cada cierto tiempo o a horas fijas (hasta 6). Se puede modificar o eliminar. Los canales (aplicación y correo) se eligen arriba.
 
-import { Clock, Plus, X } from 'lucide-react';
+import { Clock, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { Alert, RadioField, SelectField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
@@ -11,6 +11,12 @@ const HORA_VACIA = '08:00';
 
 function intervaloLabel(horas) {
   return horas === 1 ? 'Cada hora' : `Cada ${horas} horas`;
+}
+
+export function scheduleSummary(schedule) {
+  if (schedule.modo === 'INTERVALO') return `Te recordamos ${intervaloLabel(schedule.intervaloHoras).toLowerCase()}.`;
+  if (schedule.modo === 'HORARIOS') return `Te recordamos todos los días a las ${schedule.horarios.join(', ')}.`;
+  return 'No tenés ningún recordatorio programado.';
 }
 
 export function ReminderSchedule({ schedule, onSave }) {
@@ -56,6 +62,19 @@ export function ReminderSchedule({ schedule, onSave }) {
     setSaved(ok);
   }
 
+  async function remove() {
+    setSaved(false);
+    setError('');
+    setSaving(true);
+    const ok = await onSave({ modo: 'NINGUNO' });
+    setSaving(false);
+    if (ok) {
+      setModo('NINGUNO');
+      setHorarios([HORA_VACIA]);
+      setSaved(true);
+    }
+  }
+
   return (
     <section className="panel" aria-labelledby="notif-horario">
       <div className="panel-title">
@@ -64,7 +83,7 @@ export function ReminderSchedule({ schedule, onSave }) {
         </span>
         <div>
           <h2 id="notif-horario">Horario para medirme</h2>
-          <p>Te avisamos según el horario que elijas. Los canales (página y correo) se eligen en «Qué avisos recibir».</p>
+          <p aria-live="polite">{scheduleSummary(schedule)} Los canales se eligen en «Recordatorios de medición».</p>
         </div>
       </div>
       <form className="notif-schedule" onSubmit={submit} noValidate>
@@ -107,9 +126,14 @@ export function ReminderSchedule({ schedule, onSave }) {
         )}
 
         {error && <Alert>{error}</Alert>}
-        {saved && <Alert kind="success">Guardamos tu horario.</Alert>}
+        {saved && <Alert kind="success">{modo === 'NINGUNO' ? 'Quitamos tu programación.' : 'Guardamos tu horario.'}</Alert>}
         <div className="notif-schedule-actions">
           <SubmitButton className="btn btn-primary" loading={saving} loadingLabel="Guardando…">Guardar horario</SubmitButton>
+          {schedule.modo !== 'NINGUNO' && (
+            <button type="button" className="btn btn-ghost" onClick={remove} disabled={saving}>
+              <Trash2 size={16} aria-hidden="true" /> Eliminar programación
+            </button>
+          )}
         </div>
       </form>
     </section>

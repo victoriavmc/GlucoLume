@@ -36,6 +36,7 @@ Los P1 son:
 | 23/10 | Integración en `master`, validación integral en entorno descartable, revisión de rendimiento en rama aparte | [HISTORIAL.md](HISTORIAL.md), [seguridad/](seguridad/) |
 | 24/10 | Revisión de rendimiento: causas, cambios y mediciones | [RENDIMIENTO.md](RENDIMIENTO.md), [evidencias/rendimiento/](evidencias/rendimiento/README.md) |
 | 25/10 | Prototipo físico, persistencia en SQL Server, copia automática de la base de Docker a Windows | [evidencias/prototipo_fisico/](evidencias/prototipo_fisico/), [evidencias/persistencia_sqlserver/](evidencias/persistencia_sqlserver/) |
+| 29/10 | Rediseño del módulo de Notificaciones: bandeja y preferencias separadas, unicidad de avisos y recordatorios, aviso de equipo nuevo | [NOTIFICACIONES.md](NOTIFICACIONES.md), [HISTORIAL.md](HISTORIAL.md) |
 
 ## 3. Documentos por estado
 
@@ -50,6 +51,7 @@ Estado según su papel y según lo que dicen [PENDIENTES.md](PENDIENTES.md) e [H
 | [DESPLIEGUE.md](DESPLIEGUE.md) | 20/10 | Guía de Windows y estado de cada servicio. Tiene pendientes abiertos. |
 | [DISPOSITIVOS_Y_ADQUISICION.md](DISPOSITIVOS_Y_ADQUISICION.md) | 20/10 | Dispositivo, Bluetooth y adquisición |
 | [FRONTEND.md](FRONTEND.md) | 20/10 | Interfaz |
+| [NOTIFICACIONES.md](NOTIFICACIONES.md) | 29/10 | Bandeja, preferencias, reglas de negocio, deduplicación, recordatorios, endpoints, migración y pruebas del módulo de Notificaciones. Tiene pendientes abiertos. |
 | [RENDIMIENTO.md](RENDIMIENTO.md) | 24/10 | Revisión de rendimiento. Los cambios están en una rama aparte, sin fusionar. |
 | [PRIVACIDAD_Y_RETENCION.md](PRIVACIDAD_Y_RETENCION.md) | 20/10 | Política de privacidad. Tiene un pendiente P1. |
 | [MANUAL_USUARIO.md](MANUAL_USUARIO.md) | 20/10 | Manual de usuario |

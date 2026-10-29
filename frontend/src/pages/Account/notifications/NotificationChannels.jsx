@@ -1,47 +1,60 @@
-// Qué avisos recibir y por qué canal: en la página, por correo o en ambos. Cada interruptor guarda al instante.
+// Qué avisos recibir y por qué canal, de una categoría: en la aplicación, por correo o en ambos. Cada interruptor guarda al instante.
+// Las alertas críticas de seguridad son obligatorias: se muestran activas y no se pueden apagar.
 
-import { Bell } from 'lucide-react';
+import { Bell, Clock, ShieldCheck, Users } from 'lucide-react';
 
-import { EVENTOS } from './notificationsCopy.js';
+import { Badge } from '../../../components/Badge.jsx';
+import { CATEGORIAS, EVENTOS } from './notificationsCopy.js';
 
-function ChannelSwitch({ canal, titulo, checked, onToggle }) {
+const CATEGORY_ICONS = { SEGURIDAD: ShieldCheck, GRUPO: Users, RECORDATORIO: Clock };
+const CATEGORY_TEXT = {
+  SEGURIDAD: 'Las alertas críticas de seguridad se entregan siempre en la aplicación: no se pueden desactivar.',
+  GRUPO: 'Los avisos de mediciones respetan lo que cada integrante decidió compartir.',
+  RECORDATORIO: 'Elegí por dónde recibir el recordatorio y, más abajo, cuándo.',
+};
+
+function ChannelSwitch({ canal, titulo, checked, disabled, onToggle }) {
   return (
     <div className="notif-switch">
       <span className="notif-switch-label" aria-hidden="true">{canal}</span>
       <button type="button" role="switch" className="switch" aria-checked={checked} aria-label={`${canal}: ${titulo}`}
-        onClick={onToggle} />
+        disabled={disabled} onClick={onToggle} />
     </div>
   );
 }
 
-export function NotificationChannels({ preferencias, visibles, onChange }) {
-  const porEvento = Object.fromEntries(preferencias.map((preferencia) => [preferencia.evento, preferencia]));
+export function NotificationChannels({ categoria, preferencias, savingEvent, onChange }) {
+  const Icon = CATEGORY_ICONS[categoria] ?? Bell;
+  const headingId = `notif-categoria-${categoria}`;
   return (
-    <section className="panel" aria-labelledby="notif-canales">
+    <section className="panel" aria-labelledby={headingId}>
       <div className="panel-title">
         <span className="panel-icon">
-          <Bell size={22} aria-hidden="true" />
+          <Icon size={22} aria-hidden="true" />
         </span>
         <div>
-          <h2 id="notif-canales">Qué avisos recibir</h2>
-          <p>Elegí si cada aviso aparece en esta página, llega por correo o ambas cosas.</p>
+          <h2 id={headingId}>{CATEGORIAS[categoria].titulo}</h2>
+          <p>{CATEGORY_TEXT[categoria]}</p>
         </div>
       </div>
       <ul className="notif-channels">
-        {visibles.map((evento) => {
-          const { titulo, descripcion } = EVENTOS[evento];
-          const preferencia = porEvento[evento];
+        {preferencias.map((preferencia) => {
+          const { titulo, descripcion } = EVENTOS[preferencia.evento] ?? { titulo: preferencia.evento, descripcion: '' };
+          const busy = savingEvent === preferencia.evento;
           return (
-            <li key={evento} className="notif-channel">
+            <li key={preferencia.evento} className="notif-channel">
               <div className="notif-channel-text">
                 <b>{titulo}</b>
                 <span>{descripcion}</span>
+                {preferencia.obligatoria && <Badge tone="info" size="sm">Siempre activa</Badge>}
               </div>
               <div className="notif-channel-switches">
-                <ChannelSwitch canal="En la página" titulo={titulo} checked={preferencia.enPagina}
-                  onToggle={() => onChange(evento, { enPagina: !preferencia.enPagina })} />
+                <ChannelSwitch canal="En la aplicación" titulo={titulo} checked={preferencia.enPagina}
+                  disabled={preferencia.obligatoria || busy}
+                  onToggle={() => onChange(preferencia.evento, { enPagina: !preferencia.enPagina })} />
                 <ChannelSwitch canal="Por correo" titulo={titulo} checked={preferencia.porCorreo}
-                  onToggle={() => onChange(evento, { porCorreo: !preferencia.porCorreo })} />
+                  disabled={preferencia.obligatoria || busy}
+                  onToggle={() => onChange(preferencia.evento, { porCorreo: !preferencia.porCorreo })} />
               </div>
             </li>
           );

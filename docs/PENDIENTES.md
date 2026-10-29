@@ -82,6 +82,18 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 | P3 | Exportaciones: deben usar `auditedExport`; `test_toda_exportacion_futura_pasa_por_audited_export` lo exige |
 | P3 | Interfaz administrativa avanzada para la política de retención (la creación de una institución ya informa consentimiento y conservación) |
 
+## Notificaciones
+
+Detalle y causas en [NOTIFICACIONES.md](NOTIFICACIONES.md) §11.
+
+| Prioridad | Pendiente |
+|---|---|
+| P1 | Aplicar `GlucoLume_notificaciones_v2.sql` (después de `GlucoLume_notificaciones_usuario.sql`) y el nuevo `GRANT DELETE` de `GlucoLume_permisos.sql` en la instancia real, **primero en una copia restaurada**. Solo se probó el mismo esquema en SQLite; falta verificarlo en SQL Server |
+| P2 | Agendar `python -m app.jobs.reminders ejecutar` (cada ~5 min) y, si se quiere conservar menos, `depurar`. Sin el job, los recordatorios por correo solo salen con la aplicación abierta |
+| P2 | Repetir con SQL Server real las pruebas de concurrencia de avisos y recordatorios (hoy hilos sobre SQLite) |
+| P3 | Llevar a la bandeja los avisos de cuentas de plataforma e instituciones (hoy solo correo) y definir una zona horaria por usuario (hoy todo es hora de Argentina) |
+| P3 | Prueba visual automatizada de la bandeja y las preferencias en móvil y escritorio (hoy solo se revisó a mano en un navegador) |
+
 ## Frontend
 
 | Prioridad | Pendiente |

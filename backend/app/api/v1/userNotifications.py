@@ -3,22 +3,26 @@
 # Solo traduce HTTP <-> servicio (services/userNotifications.py). La identidad sale siempre de la sesión.
 # El correo de inicio de sesión se guarda en authService (es el mismo interruptor del correo de nuevo acceso).
 
+import logging
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentAuth, DbSession
 from app.schemas.userNotification import (
+    CategoriaAviso,
     EventoAviso,
     NotificationPreferenceUpdate,
     NotificationSettingsRead,
     ReminderScheduleUpdate,
     UserNotificationInbox,
+    UserNotificationReadResult,
 )
 from app.services import auth as authService
 from app.services import userNotifications as notificationService
 
 router = APIRouter(prefix="/notificaciones", tags=["notificaciones"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/preferencias", response_model=NotificationSettingsRead, summary="Avisos y horario de medición de la cuenta")
@@ -51,18 +55,42 @@ def updateReminder(data: ReminderScheduleUpdate, auth: CurrentAuth, db: DbSessio
     return notificationService.settings(db, auth.user)
 
 
-@router.get("", response_model=UserNotificationInbox, summary="Avisos de la página")
-def inbox(auth: CurrentAuth, db: DbSession):
-    return notificationService.inbox(db, auth.user)
+@router.get(
+    "", response_model=UserNotificationInbox, summary="Avisos de la página",
+    description=(
+        "Una página de los avisos propios, del más nuevo al más viejo. `categoria` (SEGURIDAD, GRUPO o RECORDATORIO) y `soloNoLeidas` "
+        "filtran; `limite` (1 a 50, 20 por omisión) y `desplazamiento` paginan: `hayMas` indica que quedan más. `noLeidas` cuenta todos "
+        "los propios sin leer, sin importar el filtro."
+    ),
+)
+def inbox(
+    auth: CurrentAuth, db: DbSession,
+    categoria: CategoriaAviso | None = None,
+    soloNoLeidas: bool = False,
+    limite: int = Query(notificationService.INBOX_LIMIT, ge=1, le=notificationService.INBOX_MAX_LIMIT),
+    desplazamiento: int = Query(0, ge=0, le=100_000),
+):
+    if desplazamiento == 0:
+        # Respaldo del proceso programado (app/jobs/reminders.py): la reserva de la ocurrencia evita repetir un recordatorio ya enviado.
+        try:
+            notificationService.processOwnReminder(db, auth.user)
+        except Exception as error:  # noqa: BLE001 - un recordatorio fallido no impide ver la bandeja
+            db.rollback()
+            logger.error("Recordatorio no procesado al abrir la bandeja (%s).", type(error).__name__)
+    return notificationService.inbox(db, auth.user, categoria=categoria, soloNoLeidas=soloNoLeidas, limite=limite,
+                                     desplazamiento=desplazamiento)
 
 
-@router.post("/leer-todas", response_model=UserNotificationInbox, summary="Marcar todos los avisos como leídos")
+@router.post("/leer-todas", response_model=UserNotificationReadResult, summary="Marcar todos los avisos propios como leídos")
 def markAllRead(auth: CurrentAuth, db: DbSession):
-    notificationService.markRead(db, auth.user)
-    return notificationService.inbox(db, auth.user)
+    marked = notificationService.markRead(db, auth.user)
+    return UserNotificationReadResult(noLeidas=notificationService.unreadCount(db, auth.user), marcadas=marked)
 
 
-@router.post("/{idNotificacion}/leer", response_model=UserNotificationInbox, summary="Marcar un aviso como leído")
+@router.post(
+    "/{idNotificacion}/leer", response_model=UserNotificationReadResult, summary="Marcar un aviso propio como leído",
+    description="Un aviso de otra cuenta o inexistente responde 404 NOTIFICACION_NO_ENCONTRADA, sin distinguir cuál de los dos es.",
+)
 def markRead(idNotificacion: uuid.UUID, auth: CurrentAuth, db: DbSession):
-    notificationService.markRead(db, auth.user, idNotificacion)
-    return notificationService.inbox(db, auth.user)
+    marked = notificationService.markRead(db, auth.user, idNotificacion)
+    return UserNotificationReadResult(noLeidas=notificationService.unreadCount(db, auth.user), marcadas=marked)

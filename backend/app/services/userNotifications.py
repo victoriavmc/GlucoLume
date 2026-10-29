@@ -1,11 +1,20 @@
 # UserNotifications - Avisos de la cuenta que la persona elige en «Notificaciones»
 #
-# Cada aviso tiene dos canales: la página (NotificacionUsuario, la lista de avisos de la sección) y el correo (services/email.py).
-# Los eventos son: inicio de sesión, alta en un grupo, recordatorio de medición y novedades del grupo. El correo de inicio de sesión
-# sigue en Usuario.notificarNuevoInicioSesion (lo cambia authService.setNewLoginNotification); aquí solo se decide la página.
+# Cada aviso tiene dos canales que se respetan por separado: la página (NotificacionUsuario, la bandeja de la sección) y el correo
+# (services/email.py). El catálogo de avisos, sus categorías y cuáles son obligatorios está en app/models/notificationEvents.py. El correo
+# de inicio de sesión sigue en Usuario.notificarNuevoInicioSesion (lo cambia authService.setNewLoginNotification); aquí solo se decide la página.
 #
-# Los recordatorios de horario (RecordatorioMedicion) se revisan con processReminders(): desde la sección (al abrirla) y desde
-# app/jobs/recordatorios.py para que lleguen también por correo. ultimoAviso evita repetir un recordatorio.
+# Unicidad (RN-NOT-01): todo aviso lleva una `clave` que identifica el hecho que lo origina para esa cuenta (p. ej.
+# «RECORDATORIO_MEDICION:2026-10-29T08:00:00» o «AGREGADO_GRUPO:<idGrupoUsuario>»). La fila de NotificacionUsuario es a la vez el aviso y el
+# registro de su entrega, y un índice único (idUsuario, claveEvento) lo respalda en la base: procesar dos veces el mismo hecho, también
+# en paralelo, deja una sola fila y un solo correo.
+#
+# Recordatorios (RN-NOT-02): los horarios (RecordatorioMedicion) se revisan con processReminders(), desde app/jobs/reminders.py (recomendado,
+# llega también por correo) y como respaldo al abrir la bandeja. Cada ocurrencia se RESERVA antes de enviar con un UPDATE condicional sobre
+# ultimoAviso: solo quien lo cambia envía, así que dos solicitudes o procesos simultáneos no repiten el recordatorio.
+#
+# Correo (RN-NOT-07): el aviso de la página se confirma ANTES de intentar el correo; una falla SMTP queda en estadoCorreo = FALLIDO y no lo
+# quita. Reintentar el mismo hecho solo reenvía el correo, nunca crea otro aviso.
 #
 # Un aviso nunca revierte el hecho que lo causa (ya está confirmado): sus errores se registran y se siguen. Ningún texto incluye datos
 # de salud ni valores de medición. Mientras el esquema nuevo no esté aplicado en la base (services/schemaCompat.py), los avisos se omiten
@@ -15,12 +24,28 @@ import logging
 import uuid
 from datetime import datetime, time, timedelta
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthError
 from app.emails.eventTypes import EmailEventType
 from app.models.groupUser import GroupUser
+from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexportan: los demás servicios los usan como userNotifications.X
+    ACTIVIDAD_SOSPECHOSA,
+    AGREGADO_GRUPO,
+    CAMBIO_CONTRASENA,
+    CAMBIO_MFA,
+    CATALOGO,
+    CATEGORIAS,
+    EVENTOS,
+    INICIO_SESION,
+    INVITACION_GRUPO,
+    MEDICION_GRUPO,
+    NUEVA_ACCION_GRUPO,
+    RECORDATORIO_MEDICION,
+    eventsOf,
+)
 from app.models.notificationPreference import NotificationPreference
 from app.models.reminderSchedule import ReminderSchedule
 from app.models.user import User
@@ -40,18 +65,6 @@ from app.utils.timeZone import nowForDb, withArgentinaZone
 
 logger = logging.getLogger(__name__)
 
-INICIO_SESION = "INICIO_SESION"
-AGREGADO_GRUPO = "AGREGADO_GRUPO"
-RECORDATORIO_MEDICION = "RECORDATORIO_MEDICION"
-NUEVA_ACCION_GRUPO = "NUEVA_ACCION_GRUPO"
-EVENTOS = (INICIO_SESION, AGREGADO_GRUPO, RECORDATORIO_MEDICION, NUEVA_ACCION_GRUPO)
-# (en la página, por correo) mientras la cuenta no elija otra cosa. INICIO_SESION por correo se lee de Usuario.notificarNuevoInicioSesion.
-DEFAULTS = {
-    INICIO_SESION: (True, True),
-    AGREGADO_GRUPO: (True, True),
-    RECORDATORIO_MEDICION: (True, False),
-    NUEVA_ACCION_GRUPO: (True, True),
-}
 MODO_NINGUNO = "NINGUNO"
 MODO_INTERVALO = "INTERVALO"
 MODO_HORARIOS = "HORARIOS"
@@ -62,15 +75,25 @@ TIPO_INDIVIDUAL = "CONSUMIDOR_FINAL"
 URL_MEDICIONES = "/app/mediciones"
 URL_GRUPO = "/app/grupo"
 URL_SEGURIDAD = "/app/seguridad"
-INBOX_LIMIT = 50
+# Destinos que un aviso puede abrir: rutas que existen en la aplicación (frontend/src/App.jsx). Cualquier otra se descarta al guardar.
+URLS_PERMITIDAS = (URL_MEDICIONES, URL_GRUPO, URL_SEGURIDAD)
+INBOX_LIMIT = 20
+INBOX_MAX_LIMIT = 50
+ENVIO_PENDIENTE = "PENDIENTE"
+ENVIO_ENVIADO = "ENVIADO"
+ENVIO_FALLIDO = "FALLIDO"
+# Intentos totales de un correo (el primero más los reintentos). Más allá queda FALLIDO: el aviso de la página no depende de él.
+MAX_INTENTOS_CORREO = 3
+REINTENTO_VENTANA = timedelta(hours=6)
 ESQUEMA_PENDIENTE = "NOTIFICACIONES_NO_DISPONIBLES"
 ESQUEMA_PENDIENTE_MESSAGE = "Las notificaciones todavía no están disponibles en esta instalación. Avisá al administrador."
 
 
 def ready(db: Session) -> bool:
-    """¿Tiene la base las tablas de «Notificaciones»? Sin ellas, los avisos se omiten y la sección no escribe."""
+    """¿Tiene la base el esquema de «Notificaciones» (tablas y claves de unicidad)? Sin él, los avisos se omiten y la sección no escribe."""
     return all(schemaCompat.hasTable(db, table) for table in ("PreferenciaNotificacion", "RecordatorioMedicion",
-                                                              "NotificacionUsuario"))
+                                                              "NotificacionUsuario")) \
+        and schemaCompat.hasColumn(db, "NotificacionUsuario", "claveEvento")
 
 
 def requireReady(db: Session) -> None:
@@ -78,11 +101,21 @@ def requireReady(db: Session) -> None:
         raise AuthError(ESQUEMA_PENDIENTE, ESQUEMA_PENDIENTE_MESSAGE)
 
 
+def safeUrl(url: str | None) -> str | None:
+    """Solo rutas internas conocidas (o debajo de ellas): nunca un enlace externo ni una ruta inventada."""
+    if not url or "//" in url or "\\" in url or ":" in url or "?" in url:
+        return None
+    return url if any(url == base or url.startswith(base + "/") for base in URLS_PERMITIDAS) else None
+
+
 # --- Canales y preferencias ----------------------------------------------------------------------
 
 
 def _channels(user: User, row: NotificationPreference | None, evento: str) -> tuple[bool, bool]:
-    enPagina, porCorreo = DEFAULTS[evento]
+    spec = CATALOGO[evento]
+    if spec.obligatorio:
+        return True, True  # alerta crítica: la página siempre; el correo lo envía el flujo de seguridad que la origina
+    enPagina, porCorreo = spec.enPagina, spec.porCorreo
     if row is not None:
         enPagina, porCorreo = row.enPagina, row.porCorreo
     if evento == INICIO_SESION:
@@ -106,7 +139,9 @@ def settings(db: Session, user: User) -> NotificationSettingsRead:
     preferencias = []
     for evento in EVENTOS:
         enPagina, porCorreo = _channels(user, rows.get(evento), evento)
-        preferencias.append(NotificationPreferenceRead(evento=evento, enPagina=enPagina, porCorreo=porCorreo))
+        preferencias.append(NotificationPreferenceRead(
+            evento=evento, categoria=CATALOGO[evento].categoria, enPagina=enPagina, porCorreo=porCorreo,
+            obligatoria=CATALOGO[evento].obligatorio))
     return NotificationSettingsRead(preferencias=preferencias, recordatorio=_scheduleRead(schedule))
 
 
@@ -114,10 +149,12 @@ def updatePreference(db: Session, user: User, evento: str, *, enPagina: bool | N
                      porCorreo: bool | None = None) -> None:
     """Cambia los canales de un aviso. El correo de INICIO_SESION lo guarda authService (ver api/v1/userNotifications.py).
 
-    Sin cambio no se audita. Solo se registra qué canal cambió, no datos personales.
+    Las alertas críticas de seguridad no se pueden apagar. Sin cambio no se audita. Solo se registra qué canal cambió, no datos personales.
     """
-    if evento not in EVENTOS:
+    if evento not in CATALOGO:
         raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
+    if CATALOGO[evento].obligatorio:
+        raise AuthError("AVISO_OBLIGATORIO", "Es una alerta de seguridad: se entrega siempre y no se puede desactivar.")
     requireReady(db)
     row = _preferenceRow(db, user, evento)
     previousPagina, previousCorreo = _channels(user, row, evento)
@@ -130,7 +167,7 @@ def updatePreference(db: Session, user: User, evento: str, *, enPagina: bool | N
         db.add(row)
     row.enPagina = newPagina
     # El correo de INICIO_SESION vive en Usuario.notificarNuevoInicioSesion: esta fila solo guarda la página para ese aviso.
-    row.porCorreo = DEFAULTS[evento][1] if evento == INICIO_SESION else newCorreo
+    row.porCorreo = CATALOGO[evento].porCorreo if evento == INICIO_SESION else newCorreo
     row.fechaActualizacion = nowForDb()
     registerEvent(db, "CRUD", "PREFERENCIA_NOTIFICACION", True, user.idUsuario, "Usuario", user.idUsuario,
                   datosPrevios={"evento": evento, "enPagina": previousPagina, "porCorreo": previousCorreo},
@@ -153,6 +190,7 @@ def _scheduleRead(schedule: ReminderSchedule | None) -> ReminderScheduleRead:
 
 
 def updateSchedule(db: Session, user: User, data: ReminderScheduleUpdate) -> None:
+    """Guarda (o apaga, con modo NINGUNO) el horario. La API no borra filas: «eliminar» la programación es apagarla."""
     if user.tipoCuenta != TIPO_INDIVIDUAL:
         raise AuthError("RECORDATORIO_NO_DISPONIBLE", "Los horarios de medición son para cuentas individuales.")
     requireReady(db)
@@ -192,51 +230,151 @@ def dueReminderAt(schedule: ReminderSchedule, now: datetime) -> datetime | None:
     return None
 
 
+def _claimOccurrence(db: Session, schedule: ReminderSchedule, due: datetime) -> bool:
+    """Reserva la ocurrencia `due`: solo UNA ejecución puede mover ultimoAviso hasta ese instante y, por lo tanto, enviar."""
+    claimed = db.execute(
+        update(ReminderSchedule)
+        .where(ReminderSchedule.idUsuario == schedule.idUsuario,
+               or_(ReminderSchedule.ultimoAviso.is_(None), ReminderSchedule.ultimoAviso < due))
+        .values(ultimoAviso=due).execution_options(synchronize_session=False)
+    ).rowcount == 1
+    db.commit()
+    if claimed:
+        schedule.ultimoAviso = due
+    return claimed
+
+
+def _reminderEmail() -> tuple[EmailEventType, dict]:
+    return EmailEventType.RECORDATORIO_MEDICION, {"urlMediciones": emailService.frontendUrl(URL_MEDICIONES)}
+
+
+def reminderKey(due: datetime) -> str:
+    return f"{RECORDATORIO_MEDICION}:{due:%Y-%m-%dT%H:%M:%S}"
+
+
 def processReminders(db: Session, user: User, schedule: ReminderSchedule, now: datetime | None = None) -> bool:
-    """Envía el recordatorio vencido de esta cuenta por los canales que eligió. Devuelve True si hubo recordatorio."""
+    """Envía el recordatorio vencido de esta cuenta por los canales que eligió. Devuelve True si esta ejecución lo reservó y emitió."""
     now = now or nowForDb()
     due = dueReminderAt(schedule, now)
-    if due is None:
+    if due is None or not _claimOccurrence(db, schedule, due):
         return False
-    schedule.ultimoAviso = due
-    db.commit()
     notify(db, user, RECORDATORIO_MEDICION, "Es hora de medirte",
            "Conectá tu dispositivo y registrá una medición cuando puedas.", url=URL_MEDICIONES,
-           email=(EmailEventType.RECORDATORIO_MEDICION,
-                  {"urlMediciones": emailService.frontendUrl(URL_MEDICIONES)}))
+           email=_reminderEmail(), clave=reminderKey(due))
     return True
+
+
+def processOwnReminder(db: Session, user: User) -> bool:
+    """Respaldo al abrir la bandeja: revisa solo el horario de esta cuenta (la reserva evita repetir lo que ya hizo el proceso programado)."""
+    if not ready(db):
+        return False
+    schedule = db.get(ReminderSchedule, user.idUsuario)
+    if schedule is None or schedule.modo == MODO_NINGUNO:
+        return False
+    return processReminders(db, user, schedule)
+
+
+def retryFailedReminderEmails(db: Session, now: datetime | None = None) -> int:
+    """Reenvía solo el CORREO de recordatorios recientes que fallaron (hasta MAX_INTENTOS_CORREO). No crea avisos nuevos."""
+    if not ready(db):
+        return 0
+    now = now or nowForDb()
+    rows = db.scalars(select(UserNotification).where(
+        UserNotification.evento == RECORDATORIO_MEDICION, UserNotification.estadoCorreo == ENVIO_FALLIDO,
+        UserNotification.intentosCorreo < MAX_INTENTOS_CORREO, UserNotification.fechaCreacion >= now - REINTENTO_VENTANA
+    ).execution_options(populate_existing=True)).all()
+    retried = 0
+    for row in rows:
+        user = db.get(User, row.idUsuario)
+        if user is None or user.estado != ESTADO_ACTIVO or not user.correoElectronico:
+            continue
+        if not _channels(user, _preferenceRow(db, user, RECORDATORIO_MEDICION), RECORDATORIO_MEDICION)[1]:
+            continue  # la cuenta apagó el correo después: se respeta
+        if _resendEmail(db, row, user, _reminderEmail()):
+            retried += 1
+    return retried
 
 
 # --- Envío -----------------------------------------------------------------------------------------
 
 
+def _sendAndRecord(bind, idNotificacion: uuid.UUID, eventType: EmailEventType, to: str, context: dict) -> None:
+    """Envía el correo y anota el resultado en el aviso, con una sesión propia (el hilo no comparte la de la solicitud)."""
+    try:
+        sent = emailService.sendEmailEvent(eventType, to, context)
+    except Exception as error:  # noqa: BLE001 - un error del correo nunca debe terminar el hilo ni tocar el aviso
+        logger.error("Correo %s no generado (%s).", eventType, type(error).__name__)
+        sent = False
+    try:
+        with Session(bind) as session:
+            session.execute(update(UserNotification).where(UserNotification.idNotificacion == idNotificacion).values(
+                estadoCorreo=ENVIO_ENVIADO if sent else ENVIO_FALLIDO,
+                intentosCorreo=UserNotification.intentosCorreo + 1).execution_options(synchronize_session=False))
+            session.commit()
+    except Exception as error:  # noqa: BLE001 - el correo ya salió o falló; solo se pierde el rastro
+        logger.error("No se pudo anotar el resultado del correo %s (%s).", eventType, type(error).__name__)
+
+
+def _queueEmail(db: Session, row: UserNotification, user: User, email: tuple[EmailEventType, dict]) -> None:
+    eventType, context = email
+    emailService.runInBackground(_sendAndRecord, db.get_bind(), row.idNotificacion, eventType, user.correoElectronico,
+                                 {"nombre": user.nombre, **context})
+
+
+def _resendEmail(db: Session, row: UserNotification, user: User, email: tuple[EmailEventType, dict]) -> bool:
+    """Vuelve a intentar SOLO el correo de un aviso cuyo envío falló. El aviso de la página no se toca."""
+    if row.estadoCorreo != ENVIO_FALLIDO or row.intentosCorreo >= MAX_INTENTOS_CORREO:
+        return False
+    row.estadoCorreo = ENVIO_PENDIENTE
+    db.commit()
+    _queueEmail(db, row, user, email)
+    return True
+
+
 def notify(db: Session, user: User, evento: str, titulo: str, mensaje: str, *, url: str | None = None,
-           email: tuple[EmailEventType, dict] | None = None) -> bool:
+           email: tuple[EmailEventType, dict] | None = None, clave: str | None = None) -> bool:
     """Avisa a `user` por la página y/o por correo según sus preferencias. Devuelve True si encoló un correo.
 
-    `email` es (evento de correo, contexto). Nunca propaga errores: el hecho que avisa ya está confirmado.
+    `email` es (evento de correo, contexto); sin él el aviso es solo de la página (las alertas críticas ya envían su correo por su flujo).
+    `clave` identifica el hecho de origen para esta cuenta: un segundo aviso con la misma clave no crea otra fila ni otro correo (solo,
+    si el correo falló antes, lo reintenta). Sin clave el aviso se trata como un hecho único. Nunca propaga errores: el hecho que avisa
+    ya está confirmado.
     """
     try:
         if not ready(db):
             return False
         enPagina, porCorreo = _channels(user, _preferenceRow(db, user, evento), evento)
-        if enPagina:
-            db.add(UserNotification(idUsuario=user.idUsuario, evento=evento, titulo=titulo, mensaje=mensaje, url=url))
+        sendMail = bool(porCorreo and email is not None and user.correoElectronico)
+        if not enPagina and not sendMail:
+            return False
+        clave = clave or f"{evento}:{uuid.uuid4()}"
+        existing = db.scalar(select(UserNotification).where(
+            UserNotification.idUsuario == user.idUsuario, UserNotification.claveEvento == clave
+        ).execution_options(populate_existing=True))  # el estado del correo lo anota otro hilo: se lee el vigente
+        if existing is not None:
+            return bool(sendMail and _resendEmail(db, existing, user, email))
+        row = UserNotification(
+            idUsuario=user.idUsuario, evento=evento, titulo=titulo, mensaje=mensaje, url=safeUrl(url), claveEvento=clave,
+            fechaCreacion=nowForDb(), visible=enPagina, estadoCorreo=ENVIO_PENDIENTE if sendMail else None, intentosCorreo=0)
+        db.add(row)
+        try:
             db.commit()
-        if porCorreo and email is not None and user.correoElectronico:
-            eventType, context = email
-            emailService.sendEmailEventInBackground(eventType, user.correoElectronico, {"nombre": user.nombre, **context})
-            return True
-        return False
+        except IntegrityError:
+            db.rollback()  # otro proceso registró el mismo hecho un instante antes: ya hay un aviso
+            return False
+        if sendMail:
+            _queueEmail(db, row, user, email)
+        return sendMail
     except Exception as error:  # noqa: BLE001 - un aviso fallido nunca deshace el hecho que avisa
         db.rollback()
         logger.error("Aviso %s no registrado (%s).", evento, type(error).__name__)
         return False
 
 
-def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: str, context: dict) -> None:
+def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: str, context: dict, origen: str) -> None:
     """Novedad del grupo para los demás integrantes ACTIVOS (página y correo según sus preferencias).
 
+    `origen` identifica el hecho (p. ej. el idGrupoUsuario de quien se sumó o salió): junto con cada destinatario forma la clave de unicidad.
     El administrador ya recibe el correo de MIEMBRO_AGREGADO / MIEMBRO_ABANDONO_GRUPO: a él solo se le avisa en la página.
     """
     idAdministrador = db.scalar(select(GroupUser.idUsuario).where(
@@ -250,7 +388,8 @@ def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: 
     for member in members:
         email = None if member.idUsuario == idAdministrador else (EmailEventType.NOVEDAD_GRUPO,
                                                                  {"descripcion": texto, **context})
-        notify(db, member, NUEVA_ACCION_GRUPO, "Novedad en tu grupo", texto, url=URL_GRUPO, email=email)
+        notify(db, member, NUEVA_ACCION_GRUPO, "Novedad en tu grupo", texto, url=URL_GRUPO, email=email,
+               clave=f"{NUEVA_ACCION_GRUPO}:{origen}")
 
 
 # --- Bandeja de avisos ----------------------------------------------------------------------------
@@ -258,32 +397,72 @@ def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: 
 
 def _readRow(row: UserNotification) -> UserNotificationRead:
     return UserNotificationRead(
-        idNotificacion=row.idNotificacion, evento=row.evento, titulo=row.titulo, mensaje=row.mensaje, url=row.url,
-        fechaCreacion=withArgentinaZone(row.fechaCreacion), leida=row.fechaLectura is not None,
+        idNotificacion=row.idNotificacion, evento=row.evento, categoria=CATALOGO[row.evento].categoria, titulo=row.titulo,
+        mensaje=row.mensaje, url=safeUrl(row.url), fechaCreacion=withArgentinaZone(row.fechaCreacion),
+        leida=row.fechaLectura is not None,
     )
 
 
-def inbox(db: Session, user: User) -> UserNotificationInbox:
+def _ownVisible(user: User):
+    # BIT: se compara con = (SQL Server no admite «IS 1»).
+    return (UserNotification.idUsuario == user.idUsuario, UserNotification.visible == True)  # noqa: E712
+
+
+def unreadCount(db: Session, user: User) -> int:
+    return db.scalar(select(func.count(UserNotification.idNotificacion)).where(
+        *_ownVisible(user), UserNotification.fechaLectura.is_(None))) or 0
+
+
+def inbox(db: Session, user: User, *, categoria: str | None = None, soloNoLeidas: bool = False,
+          limite: int = INBOX_LIMIT, desplazamiento: int = 0) -> UserNotificationInbox:
+    """Una página de los avisos propios, del más nuevo al más viejo, con el filtro pedido. `noLeidas` ignora el filtro."""
     if not ready(db):
         return UserNotificationInbox(noLeidas=0, notificaciones=[])
-    schedule = db.get(ReminderSchedule, user.idUsuario)
-    if schedule is not None and schedule.modo != MODO_NINGUNO:
-        processReminders(db, user, schedule)
+    if categoria is not None and categoria not in CATEGORIAS:
+        raise AuthError("CATEGORIA_NO_VALIDA", "Esa categoría de avisos no existe.")
+    limite = min(max(limite, 1), INBOX_MAX_LIMIT)
+    desplazamiento = max(desplazamiento, 0)
+    filters = list(_ownVisible(user))
+    if categoria is not None:
+        filters.append(UserNotification.evento.in_(eventsOf(categoria)))
+    if soloNoLeidas:
+        filters.append(UserNotification.fechaLectura.is_(None))
+    total = db.scalar(select(func.count(UserNotification.idNotificacion)).where(*filters)) or 0
     rows = db.scalars(
-        select(UserNotification).where(UserNotification.idUsuario == user.idUsuario)
-        .order_by(UserNotification.fechaCreacion.desc()).limit(INBOX_LIMIT)
+        select(UserNotification).where(*filters)
+        .order_by(UserNotification.fechaCreacion.desc(), UserNotification.idNotificacion)
+        .limit(limite).offset(desplazamiento)
     ).all()
-    noLeidas = db.scalar(select(func.count(UserNotification.idNotificacion)).where(
-        UserNotification.idUsuario == user.idUsuario, UserNotification.fechaLectura.is_(None))) or 0
-    return UserNotificationInbox(noLeidas=noLeidas, notificaciones=[_readRow(row) for row in rows])
+    return UserNotificationInbox(noLeidas=unreadCount(db, user), total=total,
+                                 hayMas=desplazamiento + len(rows) < total,
+                                 notificaciones=[_readRow(row) for row in rows])
 
 
-def markRead(db: Session, user: User, idNotificacion: uuid.UUID | None = None) -> None:
-    """Marca como leído un aviso propio, o todos si no se indica ninguno."""
+def markRead(db: Session, user: User, idNotificacion: uuid.UUID | None = None) -> int:
+    """Marca como leído un aviso propio, o todos los propios si no se indica ninguno. Devuelve cuántos cambió.
+
+    Un aviso ajeno o inexistente responde igual (NOTIFICACION_NO_ENCONTRADA): no revela si existe.
+    """
     requireReady(db)
-    query = update(UserNotification).where(
-        UserNotification.idUsuario == user.idUsuario, UserNotification.fechaLectura.is_(None))
+    query = update(UserNotification).where(*_ownVisible(user), UserNotification.fechaLectura.is_(None))
     if idNotificacion is not None:
+        exists = db.scalar(select(UserNotification.idNotificacion).where(
+            UserNotification.idNotificacion == idNotificacion, *_ownVisible(user)))
+        if exists is None:
+            raise AuthError("NOTIFICACION_NO_ENCONTRADA", "No encontramos ese aviso.")
         query = query.where(UserNotification.idNotificacion == idNotificacion)
-    db.execute(query.values(fechaLectura=nowForDb()).execution_options(synchronize_session=False))
+    marked = db.execute(query.values(fechaLectura=nowForDb()).execution_options(synchronize_session=False)).rowcount
     db.commit()
+    return marked
+
+
+# --- Alertas de seguridad ---------------------------------------------------------------------------
+
+
+def notifySecurity(db: Session, user: User, evento: str, titulo: str, mensaje: str, hecho: str) -> bool:
+    """Alerta crítica de seguridad en la página (cambio de contraseña o de MFA, actividad sospechosa). No se puede apagar.
+
+    El correo de estas alertas lo envía el flujo que las origina; aquí solo se guarda el aviso. `hecho` identifica el suceso (p. ej. el
+    instante del cambio o el fin del bloqueo): repetir el mismo suceso no crea otro aviso.
+    """
+    return notify(db, user, evento, titulo, mensaje, url=URL_SEGURIDAD, clave=f"{evento}:{hecho}")

@@ -47,7 +47,7 @@ from app.services import email as emailService
 from app.models.consent import TipoConsentimiento
 from app.services import accountGrace
 from app.services import consent as consentService
-from app.services import invitedAccounts, mfa, unverifiedAccounts
+from app.services import invitedAccounts, knownAccess, mfa, unverifiedAccounts
 from app.services import user as userService
 from app.services import userNotifications
 from app.services import auditClassification
@@ -90,6 +90,13 @@ def _notify(eventType: EmailEventType, user: User, **context) -> None:
 
 def _securityUrl() -> str:
     return emailService.frontendUrl("seguridad")
+
+
+def _passwordNotice(db: Session, user: User, mensaje: str, when: datetime) -> None:
+    """Alerta crítica en la página (no se puede apagar); el correo PASSWORD_CAMBIADA ya salió por su propio flujo."""
+    userNotifications.notifySecurity(
+        db, user, userNotifications.CAMBIO_CONTRASENA, "Cambio de contraseña",
+        f"{mensaje} Si no fuiste vos, recuperá el acceso y revisá tu seguridad.", f"{when:%Y-%m-%dT%H:%M:%S.%f}")
 
 
 # --- Consultas ---------------------------------------------------------------------------
@@ -613,6 +620,11 @@ def loginLocal(
                 cantidadIntentos=credential.intentosFallidosConsecutivos,
                 bloqueadoHasta=credential.bloqueadoHasta, urlSeguridad=_securityUrl(),
             )
+            userNotifications.notifySecurity(
+                db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
+                "Hubo varios intentos fallidos de entrar a tu cuenta y la bloqueamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
+                f"BLOQUEO:{credential.bloqueadoHasta}",  # sin formato: nunca puede romper el rechazo del acceso
+            )
             raise _lockedError(credential.bloqueadoHasta, now)
         raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
     db.commit()
@@ -874,11 +886,15 @@ def _authenticatedResponse(
             navegador=client.navegador, sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo,
             urlSeguridad=_securityUrl(), urlDesuscribir=_newLoginUnsubscribeUrl(user),
         )
-    # Aviso en la página (el correo sigue arriba, con su propio enlace de desuscripción).
-    userNotifications.notify(
-        db, user, userNotifications.INICIO_SESION, "Nuevo inicio de sesión",
-        "Se inició sesión en tu cuenta. Si no fuiste vos, revisá la seguridad de tu cuenta.", url="/app/seguridad",
-    )
+    # El inicio de sesión ya quedó auditado (LOGIN_*). Aviso visible solo si viene de un equipo que la cuenta nunca había usado
+    # (services/knownAccess.py); el correo sigue arriba, con su propio enlace de desuscripción.
+    newAccess = knownAccess.registerAccess(db, user, clientInfo)
+    if newAccess is not None:
+        userNotifications.notify(
+            db, user, userNotifications.INICIO_SESION, "Inicio de sesión desde un equipo nuevo",
+            f"Se inició sesión en tu cuenta desde {newAccess.description}. Si no fuiste vos, cambiá tu contraseña y revisá la seguridad de tu cuenta.",
+            url=userNotifications.URL_SEGURIDAD, clave=f"{userNotifications.INICIO_SESION}:{newAccess.huella}",
+        )
     missing = userService.missingRequiredFields(user)
     return LoginResponse(
         estado="AUTENTICADO", tokens=tokens, requiereCompletarPerfil=bool(missing), camposFaltantes=missing
@@ -1065,6 +1081,7 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     registerEvent(db, "PERMISO", "RESTABLECER_PASSWORD", True, user.idUsuario, "CredencialLocal", credential.idCredencialLocal)
     db.commit()
     _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+    _passwordNotice(db, user, "Se restableció la contraseña de tu cuenta.", now)
 
 
 def _revokeAllSessions(db: Session, idUsuario: uuid.UUID, now) -> None:
@@ -1115,7 +1132,9 @@ def setLocalPassword(db: Session, user: User, password: str) -> None:
     db.add(LocalCredential(idUsuario=user.idUsuario, passwordHash=security.hashPassword(password)))
     registerEvent(db, "PERMISO", "CREDENCIAL_LOCAL_AGREGADA", True, user.idUsuario, "CredencialLocal")
     db.commit()
-    _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=nowForDb(), urlSeguridad=_securityUrl())
+    now = nowForDb()
+    _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+    _passwordNotice(db, user, "Se agregó una contraseña a tu cuenta.", now)
 
 
 def changeLocalPassword(db: Session, user: User, currentSession: UserSession, actual: str, new: str,
@@ -1150,6 +1169,7 @@ def changeLocalPassword(db: Session, user: User, currentSession: UserSession, ac
     registerEvent(db, "PERMISO", "CAMBIAR_PASSWORD", True, user.idUsuario, "CredencialLocal", credential.idCredencialLocal)
     db.commit()
     _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+    _passwordNotice(db, user, "Se cambió la contraseña de tu cuenta.", now)
 
 
 # --- Aviso de nuevo inicio de sesión ----------------------------------------------------

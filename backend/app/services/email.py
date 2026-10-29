@@ -214,3 +214,11 @@ def sendEmailEventInBackground(
     if not destinatario:
         return
     _executor.submit(_sendSafely, eventType, destinatario, dict(context), incluirDetalleMedicion)
+
+
+def runInBackground(task, *args) -> None:
+    """Ejecuta `task(*args)` en el mismo hilo auxiliar de los avisos, sin bloquear la respuesta HTTP.
+
+    Para quien necesita el resultado del envío (p. ej. registrar si el correo salió): `task` llama a sendEmailEvent y anota el resultado.
+    """
+    _executor.submit(task, *args)

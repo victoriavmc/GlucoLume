@@ -4,6 +4,7 @@ import { BellRing, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { destinoSeguro } from '../pages/Account/notifications/notificationsCopy.js';
 import { playNotificationSound } from './notificationSound.js';
 import { useIncomingNotifications } from './useIncomingNotifications.js';
 import './NotificationToasts.css';
@@ -32,7 +33,7 @@ export function NotificationToasts() {
           <div className="notif-toast-text">
             <b>{toast.titulo}</b>
             <span>{toast.mensaje}</span>
-            {toast.url && <Link to={toast.url} onClick={() => dismiss(toast.idNotificacion)}>Ver</Link>}
+            {destinoSeguro(toast.url) && <Link to={destinoSeguro(toast.url)} onClick={() => dismiss(toast.idNotificacion)}>Ver</Link>}
           </div>
           <button type="button" className="notif-toast-close" aria-label="Cerrar aviso" onClick={() => dismiss(toast.idNotificacion)}>
             <X size={18} aria-hidden="true" />

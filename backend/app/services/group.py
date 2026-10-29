@@ -209,11 +209,12 @@ def _notify(eventType: EmailEventType, user: User | None, **context) -> None:
         emailService.sendEmailEventInBackground(eventType, user.correoElectronico, {"nombre": user.nombre, **context})
 
 
-def _notifyNews(db: Session, group: Group, actor: User, texto: str, now: datetime) -> None:
-    """Novedad del grupo para los demás integrantes, por la página y/o correo según sus preferencias."""
+def _notifyNews(db: Session, group: Group, actor: User, texto: str, now: datetime, origen: str) -> None:
+    """Novedad del grupo para los demás integrantes, por la página y/o correo según sus preferencias. `origen`: la relación que cambió y qué le pasó."""
     userNotifications.notifyGroupNews(
         db, group.idGrupo, actor.idUsuario, texto,
         {"nombreGrupo": group.nombre, "fechaEvento": now, "urlGrupo": emailService.frontendUrl(f"/app/grupo/{group.idGrupo}")},
+        origen,
     )
 
 
@@ -392,9 +393,15 @@ def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str)
             raise AuthError("INVITACION_PENDIENTE", PENDING_INVITATION_MESSAGE) from error
         raise
     url = emailService.frontendUrl("grupoFamiliar")
-    _notify(EmailEventType.INVITACION_GRUPO, target, nombreGrupo=membership.group.nombre,
-            nombreInvitante=_fullName(actor), fechaEvento=now, fechaExpiracion=_expiry(relation),
-            urlAceptar=url, urlRechazar=url)
+    # Página y correo según las preferencias de INVITACION_GRUPO de quien recibe la invitación.
+    userNotifications.notify(
+        db, target, userNotifications.INVITACION_GRUPO, "Te invitaron a un grupo",
+        f"{_fullName(actor) or 'Un integrante'} te invitó al grupo «{membership.group.nombre}».", url=userNotifications.URL_GRUPO,
+        email=(EmailEventType.INVITACION_GRUPO, {
+            "nombreGrupo": membership.group.nombre, "nombreInvitante": _fullName(actor), "fechaEvento": now,
+            "fechaExpiracion": _expiry(relation), "urlAceptar": url, "urlRechazar": url}),
+        clave=f"{userNotifications.INVITACION_GRUPO}:{relation.idGrupoUsuario}",
+    )
     return GroupInvitationRead(idGrupoUsuario=relation.idGrupoUsuario, nombre=target.nombre, apellido=target.apellido,
                                fechaInvitacion=now, fechaVencimiento=_expiry(relation), vencida=False)
 
@@ -488,10 +495,11 @@ def respondInvitation(db: Session, user: User, idGrupoUsuario: uuid.UUID, accept
         db, user, userNotifications.AGREGADO_GRUPO, "Ahora formás parte de un grupo",
         f"Te sumaron al grupo «{group.nombre}».", url=userNotifications.URL_GRUPO,
         email=(EmailEventType.AGREGADO_GRUPO, {"nombreGrupo": group.nombre, "fechaEvento": now}),
+        clave=f"{userNotifications.AGREGADO_GRUPO}:{idGrupoUsuario}",
     )
     _notify(EmailEventType.MIEMBRO_AGREGADO, _admin(db, group.idGrupo), nombreIntegrante=_fullName(user),
             nombreGrupo=group.nombre, fechaEvento=now)
-    _notifyNews(db, group, user, f"{_fullName(user) or 'Un integrante'} se sumó al grupo «{group.nombre}».", now)
+    _notifyNews(db, group, user, f"{_fullName(user) or 'Un integrante'} se sumó al grupo «{group.nombre}».", now, f"{idGrupoUsuario}:SUMA")
     return _detail(db, membership)
 
 
@@ -528,7 +536,7 @@ def leaveGroup(db: Session, actor: User, idGrupo: uuid.UUID) -> None:
     _notify(EmailEventType.MIEMBRO_ABANDONO_GRUPO, _admin(db, idGrupo), nombreIntegrante=_fullName(actor),
             nombreGrupo=membership.group.nombre, fechaEvento=now)
     _notifyNews(db, membership.group, actor, f"{_fullName(actor) or 'Un integrante'} abandonó el grupo «{membership.group.nombre}».",
-                now)
+                now, f"{membership.relation.idGrupoUsuario}:SALE")
 
 
 def transferAdmin(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuario: uuid.UUID) -> FamilyGroupDetail:

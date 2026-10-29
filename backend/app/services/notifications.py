@@ -113,9 +113,10 @@ def notifyGroupMeasurement(db: Session, user: User, when: datetime) -> int:
                        "fechaMedicion": when, "urlGrupo": emailService.frontendUrl(f"/app/grupo/{group.idGrupo}")}
             # Página y correo según las preferencias de NUEVA_ACCION_GRUPO del destinatario. El correo se encola en segundo plano: el aviso no puede
             # demorar el cierre de la medición (cada envío SMTP bloquea la respuesta entre 1 y 20 s). Nadie espera su resultado.
-            if userNotifications.notify(db, recipient, userNotifications.NUEVA_ACCION_GRUPO, "Novedad en tu grupo",
+            if userNotifications.notify(db, recipient, userNotifications.MEDICION_GRUPO, "Novedad en tu grupo",
                                         f"{who} se midió.", url=userNotifications.URL_GRUPO,
-                                        email=(EmailEventType.MEDICION_MIEMBRO_GRUPO, context)):
+                                        email=(EmailEventType.MEDICION_MIEMBRO_GRUPO, context),
+                                        clave=f"{userNotifications.MEDICION_GRUPO}:{user.idUsuario}:{when:%Y%m%dT%H%M%S%f}"):
                 sent += 1
         return sent
     except Exception as error:  # noqa: BLE001 - un fallo de correo o de consulta no deshace la medición

@@ -3,6 +3,18 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 29/10/2026 — Rediseño del módulo de Notificaciones (rama `claude/glucolume-notifications-redesign-ff6c02`)
+
+Descripción, reglas, endpoints, esquema y pruebas: [NOTIFICACIONES.md](NOTIFICACIONES.md). Sin fusionar ni desplegar.
+
+- **Defecto corregido (recordatorios repetidos):** `processReminders` leía, enviaba y escribía `ultimoAviso` sin reserva atómica y corría desde `GET /notificaciones` (consultado cada 30 s por el cartel de avisos) y desde el job. Con el código anterior,
+  6 ejecuciones en paralelo crearon 6 avisos del mismo recordatorio (3 de 3 corridas). Ahora la ocurrencia se reserva con un `UPDATE` condicional y cada aviso lleva una clave de unicidad respaldada por un índice único filtrado.
+- **Otros defectos corregidos:** fecha de los avisos 3 h adelantada (UTC leída como hora de Argentina), aviso visible en cada inicio de sesión, marcar un aviso ajeno respondía 200, sin paginación y sin política de retención.
+- **Nuevo:** bandeja y preferencias en pantallas separadas; filtros, agrupación por día, «cargar más»; tarjetas interactivas sin enlace «Ver»; 9 avisos en 3 categorías con alertas críticas de seguridad obligatorias; canales independientes
+  (aplicación y correo) con estado y reintento del correo; aviso de inicio de sesión solo desde un equipo nuevo (`AccesoConocido`); depuración parametrizable de avisos que no toca la auditoría.
+- **Migración:** `database/reference/GlucoLume_notificaciones_v2.sql` (idempotente, sin borrar filas). **No se aplicó a ninguna base real ni se probó en SQL Server.**
+- **Pruebas:** ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §10.
+
 ## 23/10/2026 — Revisión y optimización del rendimiento (rama `perf/rendimiento-2026-10-23`)
 
 Informe completo con evidencia, causa, solución, métricas y limitaciones: [RENDIMIENTO.md](RENDIMIENTO.md). Scripts y resultados: [evidencias/rendimiento](evidencias/rendimiento/README.md). Rama aparte de `master`
