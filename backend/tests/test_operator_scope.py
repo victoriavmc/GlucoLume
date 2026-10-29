@@ -140,7 +140,7 @@ def test_el_operador_ve_solo_su_propia_actividad(db, mails, team, api):
     theirs = patients.createPatient(db, otherUser, team.id, patientData(dni="30.222.333", nombre="ana", apellido="paz"))
     completeOximetry(db, team.operator, mine.idPerfilMedicion, dev)
     completeOximetry(db, otherUser, theirs.idPerfilMedicion, dev)  # de otro operador
-    matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Del propietario"))
+    matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Del propietario"))
     institutional(db, "nuevo-mod@example.com", "nuevomod")
     institutions.invite(db, team.owner, team.id, "MODERADOR", "nuevo-mod@example.com")  # administrativa del propietario
 
@@ -212,9 +212,9 @@ def test_el_detalle_de_la_institucion_no_entrega_estadisticas_generales_al_opera
 
 
 def test_el_operador_no_administra_matrices_ni_personal(db, mails, team, api):
-    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X"))
+    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X"))
     expectError("PERMISO_INSUFICIENTE", matrices.createMatrix, db, team.operator,
-                MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Mía"))
+                MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Mía"))
     for action in (matrices.activate, matrices.deactivate, matrices.archive, matrices.newVersion, matrices.validateMatrix):
         expectError("MATRIZ_NO_ENCONTRADA", action, db, team.operator, created.idMatriz)  # para él, la matriz no existe
     assert api(team.operator).get(f"/api/v1/institutions/{team.id}/matrices").status_code == 403

@@ -173,7 +173,7 @@ def test_despues_de_activar_se_ingresa_con_contrasena_y_mfa_sin_volver_a_pedir_e
     assert web.post(URL, json=body(user, code)).status_code == 200
     account = reload(db, User, user.idUsuario)
     secret = enableMfa(db, account)  # la persona configura su segundo factor
-    first = web.post("/api/v1/auth/login", json={"identificador": "elegido", "password": NEW_PASSWORD}).json()
+    first = web.post("/api/v1/auth/login", json={"identificador": "elegido", "acceso": "PLATAFORMA", "password": NEW_PASSWORD}).json()
     assert first["estado"] == "MFA_REQUERIDO" and not first.get("tokens")  # la contraseña sola no alcanza, y no se pide ningún código de activación
     account.usuario = "elegido"
     headers = login(web, account, secret, password=NEW_PASSWORD)

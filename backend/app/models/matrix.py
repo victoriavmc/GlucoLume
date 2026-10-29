@@ -27,6 +27,8 @@ class Matrix(Base):
             "[fechaVigenciaHasta] IS NULL OR [fechaVigenciaHasta]>=[fechaVigenciaDesde]",
             name="CK_Matriz_vigencia",
         ),
+        # De dónde se tomaron los criterios: obligatorio (el servicio ya lo recorta y exige al menos 2 caracteres).
+        CheckConstraint("[referenciaBase]<>N''", name="CK_Matriz_referenciaBase"),
         # Una sola matriz ACTIVA por ámbito.
         Index(
             "UX_Matriz_globalActiva", "ambito", unique=True,
@@ -52,7 +54,9 @@ class Matrix(Base):
     fechaVigenciaDesde: Mapped[date] = mapped_column(Date)
     fechaVigenciaHasta: Mapped[date | None] = mapped_column(Date)
     descripcion: Mapped[str | None] = mapped_column(NVARCHAR(500))
-    estado: Mapped[str] = mapped_column(NVARCHAR(30), server_default=text("N'BORRADOR'"))
+    urlReferencia: Mapped[str | None] = mapped_column(NVARCHAR(500))
+    referenciaBase: Mapped[str] = mapped_column(NVARCHAR(200))
+    estado:Mapped[str] = mapped_column(NVARCHAR(30), server_default=text("N'BORRADOR'"))
     fechaCreacion: Mapped[datetime] = mapped_column(DATETIME2(precision=3), server_default=text("sysutcdatetime()"))
 
     institucion: Mapped[Institution | None] = relationship()

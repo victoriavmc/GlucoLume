@@ -54,6 +54,8 @@ from app.services import email as emailService
 from app.services import institution as institutions
 from app.services import measurementRetention, patientAccess, reassignments, resultEmailStore
 from app.services.audit import registerEvent
+from app.services.csvExport import csvBytes, csvDate, csvText
+from app.services.exportAudit import auditedExport, rejectExport
 from app.services.measurementProfile import EDAD_MAXIMA, buildInstitutionalProfile, calculateAge
 from app.services.measurementVisibility import ACTIVE_STATES, VISIBLE_MINUTES
 from app.utils.timeZone import nowForDb
@@ -248,6 +250,23 @@ def _escapeLike(value: str) -> str:
 # --- Consultas ------------------------------------------------------------------------------
 
 
+def _applySearch(query, busqueda: str | None, membership: institutions.Membership):
+    """Nombre, apellido, documento o seudónimo. Un operador busca por documento solo entre sus pacientes."""
+    if not (busqueda and busqueda.strip()):
+        return query
+    term = f"%{_escapeLike(busqueda.strip())}%"
+    byDocument = MeasurementProfile.dni.ilike(term, escape="\\")
+    if membership.role == institutions.ROL_OPERADOR:
+        # El documento de un paciente ajeno no se expone ni por búsqueda: un operador solo busca por documento a los suyos.
+        byDocument = and_(byDocument, MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
+    return query.where(or_(
+        MeasurementProfile.nombre.ilike(term, escape="\\"),
+        MeasurementProfile.apellido.ilike(term, escape="\\"),
+        byDocument,
+        MeasurementProfile.identificadorPseudonimo.ilike(term, escape="\\"),
+    ))
+
+
 def listPatients(
     db: Session, actor: User, idInstitucion: uuid.UUID, *, busqueda: str | None = None,
     idResponsable: uuid.UUID | None = None, estado: str = PACIENTE_ACTIVO, soloMios: bool = False,
@@ -256,19 +275,7 @@ def listPatients(
     membership = institutions.requireMembership(db, actor, idInstitucion, institutions.P_PACIENTES)
     tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
     pagina = max(1, pagina)
-    query = _patientsOf(idInstitucion).where(_IS_ACTIVE if estado == PACIENTE_ACTIVO else _IS_DISCHARGED)
-    if busqueda and busqueda.strip():
-        term = f"%{_escapeLike(busqueda.strip())}%"
-        byDocument = MeasurementProfile.dni.ilike(term, escape="\\")
-        if membership.role == institutions.ROL_OPERADOR:
-            # El documento de un paciente ajeno no se expone ni por búsqueda: un operador solo busca por documento a los suyos.
-            byDocument = and_(byDocument, MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
-        query = query.where(or_(
-            MeasurementProfile.nombre.ilike(term, escape="\\"),
-            MeasurementProfile.apellido.ilike(term, escape="\\"),
-            byDocument,
-            MeasurementProfile.identificadorPseudonimo.ilike(term, escape="\\"),
-        ))
+    query = _applySearch(_patientsOf(idInstitucion).where(_IS_ACTIVE if estado == PACIENTE_ACTIVO else _IS_DISCHARGED), busqueda, membership)
     if soloMios:
         query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
     elif idResponsable is not None:
@@ -541,3 +548,69 @@ def dischargePatient(db: Session, actor: User, idInstitucion: uuid.UUID, idPerfi
                          .where(MeasurementProfile.idPerfilMedicion == idPerfilMedicion)).one()
         return _read(membership, *row, now)
     return _read(membership, *_load(db, idInstitucion, idPerfilMedicion), now)
+
+
+# --- Exportación de pacientes (CSV) ----------------------------------------------------------------------------------------------
+#
+# Permiso: CONSULTAR_PACIENTES (propietario, moderador y operador), validado en el servidor en cada pedido. Se exporta lo mismo que el
+# listado muestra, con los mismos enmascarados (`_read`). Un operador exporta SOLO los pacientes a su cargo: un paciente ajeno no entra
+# en una exportación ni en una selección (DATOS_INVALIDOS). No salen mediciones ni información de salud: esa autorización es otra
+# (patientAccess). Toda exportación pasa por `auditedExport`; la auditoría guarda cuántos pacientes salieron, nunca sus datos.
+
+EXPORT_TIPO_DATOS = "PACIENTES_INSTITUCION"
+PATIENT_EXPORT_COLUMNS = (
+    "Identificador", "Nombre", "Apellido", "Documento", "Fecha de nacimiento", "Edad", "Sexo", "Estado", "Operador responsable",
+    "Registrado por", "Fecha de alta", "Fecha de vencimiento de datos personales",
+)
+_ESTADO_LABELS = {PACIENTE_ACTIVO: "Activo", PACIENTE_BAJA: "Baja"}
+
+
+def _exportRows(db: Session, membership: institutions.Membership, idInstitucion: uuid.UUID, *, alcance: str, ids: list[uuid.UUID],
+                busqueda: str | None, idResponsable: uuid.UUID | None, estado: str):
+    query = _patientsOf(idInstitucion)
+    if membership.role == institutions.ROL_OPERADOR:
+        query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
+    if alcance == "SELECCION":
+        if not ids:
+            raise AuthError("DATOS_INVALIDOS", "Elegí al menos un paciente para exportar.")
+        wanted = list(dict.fromkeys(ids))
+        rows = db.execute(query.where(MeasurementProfile.idPerfilMedicion.in_(wanted))).all()
+        if len(rows) != len(wanted):
+            raise AuthError("DATOS_INVALIDOS", "Alguno de los pacientes seleccionados no está disponible para tu usuario. Actualizá el listado.")
+        return rows
+    query = _applySearch(query.where(_IS_ACTIVE if estado == PACIENTE_ACTIVO else _IS_DISCHARGED), busqueda, membership)
+    if idResponsable is not None:
+        query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == idResponsable)
+    return db.execute(query.order_by(MeasurementProfile.apellido, MeasurementProfile.nombre, MeasurementProfile.idPerfilMedicion)).all()
+
+
+def _csvPatient(patient: PatientRead) -> list[str]:
+    responsable = " ".join(part for part in (patient.responsable.nombre, patient.responsable.apellido) if part)
+    registrant = patient.registradoPor
+    registrado = " ".join(part for part in ((registrant.nombre, registrant.apellido) if registrant else ()) if part)
+    return [
+        csvText(patient.identificadorPseudonimo), csvText(patient.nombre), csvText(patient.apellido), csvText(patient.dni),
+        csvDate(patient.fechaNacimiento), csvText(patient.edad), csvText(patient.sexoModelo),
+        csvText(_ESTADO_LABELS.get(patient.estado, patient.estado)), csvText(responsable), csvText(registrado),
+        csvDate(patient.fechaCreacion), csvDate(patient.fechaExpiracionDatosPersonales),
+    ]
+
+
+def exportPatients(db: Session, actor: User, idInstitucion: uuid.UUID, *, alcance: str, ids: list[uuid.UUID] | None = None,
+                   busqueda: str | None = None, idResponsable: uuid.UUID | None = None, estado: str = PACIENTE_ACTIVO) -> tuple[bytes, str]:
+    """CSV de pacientes (`SELECCION` o `TODOS`), con lo que muestra el listado. Devuelve (contenido, nombre del archivo)."""
+    try:
+        membership = institutions.requireMembership(db, actor, idInstitucion, institutions.P_PACIENTES)
+    except AuthError as error:
+        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV", motivo=error.code)
+        db.commit()
+        raise
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV") as export:
+        rows = _exportRows(db, membership, idInstitucion, alcance=alcance, ids=ids or [], busqueda=busqueda, idResponsable=idResponsable,
+                           estado=estado)
+        now = nowForDb()
+        registrants = _registrants(db, [row[0].idPerfilMedicion for row in rows])
+        patients = [_read(membership, *row, now, registrants.get(row[0].idPerfilMedicion)) for row in rows]
+        export.registros = len(patients)
+        content = csvBytes(PATIENT_EXPORT_COLUMNS, [_csvPatient(patient) for patient in patients])
+        return content, f"pacientes-institucion-{now:%Y%m%d-%H%M}.csv"

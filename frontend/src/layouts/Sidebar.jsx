@@ -1,4 +1,4 @@
-import { Activity, Building2, ClipboardList, Cpu, House, Layers, LogOut, PlugZap, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { Activity, Building2, ClipboardList, Cpu, House, Layers, Lightbulb, LogOut, PlugZap, ShieldCheck, UserRound, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/app/mediciones', label: 'Mediciones', icon: Activity, accountType: 'CONSUMIDOR_FINAL' },
   { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo', icon: PlugZap, accountType: 'CONSUMIDOR_FINAL' },
   { to: '/app/grupo', label: 'Grupo', icon: Users, accountType: 'CONSUMIDOR_FINAL' },
+  { to: '/app/consejos', label: 'Consejos', icon: Lightbulb },
   { to: '/app/perfil', label: 'Perfil', icon: UserRound },
   { to: '/app/seguridad', label: 'Seguridad', icon: ShieldCheck },
 ];

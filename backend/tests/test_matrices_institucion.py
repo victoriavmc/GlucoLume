@@ -81,7 +81,7 @@ def test_validar_y_revisar_una_matriz_con_reglas_de_edad_no_especificada_no_fall
 
 def test_se_crea_una_matriz_institucional_con_sus_reglas_en_borrador_sin_reemplazar_a_la_global(db, mails, team, platform):
     seeded = globalWithGeneralRules(db, platform)
-    created = matrices.createMatrix(db, team.moderator, MatrixCreateRequest(
+    created = matrices.createMatrix(db, team.moderator, MatrixCreateRequest(referenciaBase="Fuente de prueba",
         ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", descripcion="Rangos del servicio",
         reglas=[rule(), rule(sexoModelo="MASCULINO"), rule(edadDesde=61, edadHasta=90)]))
     assert (created.estado, created.version, created.cantidadReglas, created.ambito) == ("BORRADOR", "1", 3, "INSTITUCION")
@@ -97,12 +97,12 @@ def test_el_alta_es_todo_o_nada_si_una_regla_es_duplicada_o_se_solapa(db, mails,
     before = countMatrices(db), db.scalar(select(func.count()).select_from(MatrixRule))
     for bad, code in (([rule(), rule()], "REGLA_DUPLICADA"), ([rule(), rule(edadDesde=50, edadHasta=70)], "REGLA_SOLAPADA")):
         expectError(code, matrices.createMatrix, db, team.owner,
-                    MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Mala", reglas=bad))
+                    MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Mala", reglas=bad))
     assert (countMatrices(db), db.scalar(select(func.count()).select_from(MatrixRule))) == before
 
 
 def test_solo_el_equipo_de_la_institucion_crea_matrices_con_reglas(db, mails, team, north):
-    request = MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()])
+    request = MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()])
     expectError("PERMISO_INSUFICIENTE", matrices.createMatrix, db, team.operator, request)
     expectError("INSTITUCION_NO_ENCONTRADA", matrices.createMatrix, db, north.owner, request)
     assert countMatrices(db, team.id) == 0
@@ -135,7 +135,7 @@ def test_la_revision_previa_exige_ser_del_equipo(db, mails, team):
 
 def test_activar_una_institucional_y_volver_a_la_global_conserva_todas_las_versiones(db, mails, team, platform):
     seeded = globalWithGeneralRules(db, platform)
-    v1 = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()]))
+    v1 = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()]))
     matrices.activate(db, team.owner, v1.idMatriz)
     v2 = matrices.newVersion(db, team.owner, v1.idMatriz)
     matrices.addRule(db, team.owner, v2.idMatriz, rule(sexoModelo="MASCULINO"))
@@ -159,14 +159,14 @@ def test_activar_una_institucional_y_volver_a_la_global_conserva_todas_las_versi
 
 
 def test_el_moderador_no_activa_ni_desactiva_la_matriz_de_otra_institucion(db, mails, team, north, platform):
-    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()]))
+    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()]))
     expectError("MATRIZ_NO_ENCONTRADA", matrices.activate, db, north.owner, created.idMatriz)
     expectError("MATRIZ_NO_ENCONTRADA", matrices.deactivate, db, north.moderator, created.idMatriz)
 
 
 def test_cambiar_a_la_global_no_modifica_las_mediciones_historicas(db, mails, team, platform):
     globalActive = activeMatrix(db, platform)
-    v1 = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()]))
+    v1 = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Hospital X", reglas=[rule()]))
     matrices.activate(db, team.owner, v1.idMatriz)
     patient = patients.createPatient(db, team.operator, team.id, patientData(sexoModelo="femenino"))
     dev = device(db, institucion=team.id)
@@ -186,8 +186,19 @@ def test_cambiar_a_la_global_no_modifica_las_mediciones_historicas(db, mails, te
 # --- HTTP --------------------------------------------------------------------------------------------------------------
 
 
+def test_http_el_alta_sin_referencia_base_se_rechaza_y_el_enlace_mal_formado_tambien(db, mails, team, api):
+    sinReferencia = {"ambito": "INSTITUCION", "idInstitucion": str(team.id), "nombre": "Hospital X"}
+    assert api(team.owner).post("/api/v1/matrices", json=sinReferencia).status_code == 422
+    malUrl = {**sinReferencia, "referenciaBase": "Guía del servicio", "urlReferencia": "ftp://ejemplo.org"}
+    response = api(team.owner).post("/api/v1/matrices", json=malUrl)
+    assert response.status_code == 422 and "urlReferencia" in response.text
+    created = api(team.owner).post("/api/v1/matrices", json={**sinReferencia, "referenciaBase": "Guía del servicio"})
+    assert created.status_code == 201 and created.json()["referenciaBase"] == "Guía del servicio"
+    assert created.json()["urlReferencia"] is None
+
+
 def test_http_revision_alta_con_reglas_y_permisos(db, mails, team, platform, api):
-    body = {"ambito": "INSTITUCION", "idInstitucion": str(team.id), "nombre": "Hospital X",
+    body = {"ambito": "INSTITUCION", "idInstitucion": str(team.id), "nombre": "Hospital X", "referenciaBase": "Guía del servicio",
             "reglas": [{"sexoModelo": "FEMENINO", "edadDesde": 18, "edadHasta": 60, "condicionComida": "AYUNO",
                         "glucosaMinReferencia": "70", "glucosaMaxReferencia": "110"}]}
     checked = api(team.moderator).post("/api/v1/matrices/check-rules", json={"reglas": body["reglas"]})

@@ -86,7 +86,7 @@ def test_el_administrador_consulta_la_auditoria_general_de_todos_los_modulos(db,
 
 
 def test_el_administrador_filtra_por_institucion_modulo_accion_resultado_usuario_y_periodo(db, mails, team, north, admin):
-    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
+    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
     matrices.addRule(db, team.owner, created.idMatriz, rule())
     with pytest.raises(AuthError):
         matrices.activate(db, team.operator, created.idMatriz)  # rechazada: queda como FALLO
@@ -270,7 +270,7 @@ def test_las_acciones_de_moderadores_y_operadores_quedan_registradas_aunque_no_p
 
 
 def test_las_modificaciones_de_matrices_generan_eventos(db, mails, team):
-    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
+    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
     added = matrices.addRule(db, team.moderator, created.idMatriz, rule())
     matrices.updateDraft(db, team.owner, created.idMatriz, __import__("app.schemas.matrix", fromlist=["x"]).MatrixDraftUpdateRequest(descripcion="d"))
     matrices.activate(db, team.moderator, created.idMatriz)
@@ -351,7 +351,7 @@ def test_un_propietario_de_varias_instituciones_elige_el_contexto(db, mails, tea
 
 
 def test_un_intento_rechazado_de_una_operacion_relevante_queda_registrado(db, mails, team):
-    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
+    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
     before = db.scalar(select(func.count()).select_from(Audit).where(Audit.resultado == "FALLO"))
     with pytest.raises(AuthError):
         matrices.activate(db, team.operator, created.idMatriz)
@@ -406,7 +406,7 @@ def test_el_servicio_descarta_las_claves_sensibles_antes_de_guardar(db, mails):
 
 
 def test_el_detalle_devuelve_los_valores_sin_datos_sensibles(db, mails, team, admin):
-    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
+    created = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Matriz X"))
     event = next(i for i in listing(db, admin, accion="CREAR_MATRIZ").items)
     detail = auditQuery.detailGlobal(db, admin, event.idAuditoria)
     assert detail.valoresNuevos["ambito"] == "INSTITUCION" and detail.tipoEntidad == "Matriz" and detail.idEntidad == created.idMatriz

@@ -71,11 +71,12 @@ BEGIN TRY
         SET @idMatriz=NEWID();
         INSERT INTO dbo.Matriz
             (idMatriz, idInstitucion, nombre, version, ambito, fechaVigenciaDesde,
-             fechaVigenciaHasta, descripcion, estado)
+             fechaVigenciaHasta, descripcion, referenciaBase, estado)
         VALUES
             (@idMatriz, NULL, @nombre, @version, N'GLOBAL', CONVERT(DATE, SYSDATETIME()),
              NULL, N'Matriz orientativa para adultos con diabetes no gestantes. '
-                 + N'27 reglas, incluye datos no informados. DEMO no representa una glucemia real.', N'BORRADOR');
+                 + N'27 reglas, incluye datos no informados. DEMO no representa una glucemia real.',
+             N'GlucoLume: matriz de prueba DEMO (ficticia, sin fuente clínica)', N'BORRADOR');
         SET @estado=N'BORRADOR';
     END;
 

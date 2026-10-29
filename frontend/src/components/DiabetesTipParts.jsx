@@ -42,8 +42,8 @@ export function CategoryBadge({ id }) {
   return <span className={`dt-badge is-${id}`}>{category?.label ?? id}</span>;
 }
 
-/** Tarjeta de vista previa: ícono, categoría, título, resumen y «Leer artículo». `search` conserva el filtro para volver. */
-export function TipCard({ article, search = '', compact = false }) {
+/** Tarjeta de vista previa: ícono, categoría, título, resumen y «Leer artículo». `search` conserva el filtro para volver; `basePath` es la colección (privada o pública). */
+export function TipCard({ article, search = '', compact = false, basePath = '/app/consejos' }) {
   return (
     <article className={`dt-card${compact ? ' is-compact' : ''}`} aria-label={article.title}>
       <span className={`dt-card-icon is-${article.category}`}><TipIcon name={article.icon} size={compact ? 36 : 40} /></span>
@@ -51,7 +51,7 @@ export function TipCard({ article, search = '', compact = false }) {
         <CategoryBadge id={article.category} />
         <h3>{article.title}</h3>
         <p>{article.summary}</p>
-        <Link to={`/app/consejos/${article.id}`} state={{ search }} className="dt-link" aria-label={`Leer artículo: ${article.title}`}>
+        <Link to={`${basePath}/${article.id}`} state={{ search }} className="dt-link" aria-label={`Leer artículo: ${article.title}`}>
           Leer artículo <ArrowRight size={18} aria-hidden="true" />
         </Link>
       </div>

@@ -177,6 +177,16 @@ class PatientCreateRequest(InstitutionalProfileCreate):
     idInstitucionUsuarioResponsable: uuid.UUID | None = None
 
 
+class PatientExportRequest(BaseModel):
+    """`SELECCION`: los pacientes de `idsPerfilMedicion`. `TODOS`: los que coinciden con los filtros del listado (un operador, solo los suyos)."""
+
+    alcance: Literal["SELECCION", "TODOS"]
+    idsPerfilMedicion: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    busqueda: str | None = Field(default=None, max_length=100)
+    idResponsable: uuid.UUID | None = None
+    estado: Literal["ACTIVO", "BAJA"] = "ACTIVO"
+
+
 class PatientUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

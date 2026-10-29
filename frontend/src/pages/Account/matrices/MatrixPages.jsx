@@ -39,8 +39,10 @@ function VersionList({ items, emptyText }) {
   );
 }
 
+const URL_REFERENCIA = /^https?:\/\/\S+$/i; // igual que el backend: http(s) y sin espacios
+
 function CreateMatrixForm({ ambito, idInstitucion, onCreated, onCancel, handleOperationError }) {
-  const [form, setForm] = useState({ nombre: '', descripcion: '', desde: '', hasta: '' });
+  const [form, setForm] = useState({ nombre: '', descripcion: '', referenciaBase: '', urlReferencia: '', desde: '', hasta: '' });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -57,6 +59,10 @@ function CreateMatrixForm({ ambito, idInstitucion, onCreated, onCancel, handleOp
     if (saving) return;
     const found = {};
     if (form.nombre.trim().length < 2) found.nombre = 'Ingresá el nombre de la matriz.';
+    if (form.referenciaBase.trim().length < 2) found.referenciaBase = 'Indicá de dónde se tomaron los criterios: es obligatorio.';
+    if (form.urlReferencia.trim() && !URL_REFERENCIA.test(form.urlReferencia.trim())) {
+      found.urlReferencia = 'El enlace tiene que empezar con http:// o https:// y no llevar espacios.';
+    }
     if (form.hasta && form.desde && form.hasta < form.desde) found.hasta = 'La vigencia no puede terminar antes de empezar.';
     setErrors(found);
     if (Object.keys(found).length) return;
@@ -65,6 +71,7 @@ function CreateMatrixForm({ ambito, idInstitucion, onCreated, onCancel, handleOp
     try {
       onCreated(await matricesApi.createMatrix({
         ambito, idInstitucion, nombre: form.nombre.trim(), descripcion: form.descripcion.trim(),
+        referenciaBase: form.referenciaBase.trim(), urlReferencia: form.urlReferencia.trim(),
         fechaVigenciaDesde: form.desde, fechaVigenciaHasta: form.hasta,
       }));
     } catch (createError) {
@@ -81,6 +88,8 @@ function CreateMatrixForm({ ambito, idInstitucion, onCreated, onCancel, handleOp
       <div className="form-grid">
         <TextField label="Nombre" maxLength={100} value={form.nombre} onChange={update('nombre')} error={errors.nombre} />
         <TextField label="Descripción (opcional)" maxLength={500} value={form.descripcion} onChange={update('descripcion')} />
+        <TextField label="Referencia base (obligatoria)" maxLength={200} value={form.referenciaBase} onChange={update('referenciaBase')} error={errors.referenciaBase} />
+        <TextField label="Enlace de la referencia (opcional)" maxLength={500} value={form.urlReferencia} onChange={update('urlReferencia')} error={errors.urlReferencia} />
         <TextField label="Vigente desde (opcional, por defecto hoy)" type="date" value={form.desde} onChange={update('desde')} />
         <TextField label="Vigente hasta (opcional)" type="date" value={form.hasta} onChange={update('hasta')} error={errors.hasta} />
       </div>

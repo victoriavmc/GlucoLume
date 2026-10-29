@@ -12,7 +12,7 @@ from fastapi import APIRouter, Query, Request, Response, status
 from app.api.deps import CurrentAuth, DbSession
 from app.api.rateLimit import normalizeIp, rateLimit
 from app.schemas.institutionActivity import ActivityPage
-from app.schemas.personnel import PersonnelPage, PersonnelProfile, SentInvitationsPage
+from app.schemas.personnel import PersonnelExportRequest, PersonnelPage, PersonnelProfile, SentInvitationsPage
 from app.schemas.institution import (
     InstitutionCreateRequest,
     InstitutionDeletionRequest,
@@ -40,6 +40,7 @@ from app.schemas.measurementProfile import (
     AssignableOperator,
     PatientAssignRequest,
     PatientCreateRequest,
+    PatientExportRequest,
     PatientPage,
     PatientRead,
     PatientResultEmailRequest,
@@ -287,6 +288,24 @@ def listPersonnel(
 ):
     return personnelService.listPersonnel(db, auth.user, idInstitucion, rol=rol, estado=estado, busqueda=busqueda, pagina=pagina,
                                           tamanioPagina=tamanioPagina)
+
+
+@router.post(
+    "/{idInstitucion}/personnel/export",
+    response_class=Response,
+    summary="Exportar el personal (CSV)",
+    description="PROPIETARIO o MODERADOR (CONSULTAR_EQUIPO), validado en el servidor. `alcance` = SELECCION (las personas de "
+    "`idsInstitucionUsuario`) o TODOS (todas las que coinciden con los filtros `rol`, `estado` y `busqueda`, como el listado). "
+    "Devuelve un CSV separado por punto y coma, en UTF-8. 403 si no tiene el permiso. Cada intento queda en la auditoría: "
+    "EXPORTACION_SOLICITADA, y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA.",
+)
+def exportPersonnel(idInstitucion: uuid.UUID, body: PersonnelExportRequest, auth: CurrentAuth, db: DbSession):
+    content, filename = personnelService.exportPersonnel(
+        db, auth.user, idInstitucion, alcance=body.alcance, idsInstitucionUsuario=body.idsInstitucionUsuario,
+        rol=body.rol, estado=body.estado, busqueda=body.busqueda,
+    )
+    return Response(content=content, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 @router.get(
@@ -572,6 +591,24 @@ def regularizeReassignments(idInstitucion: uuid.UUID, data: ReassignmentRegulari
 )
 def createPatient(idInstitucion: uuid.UUID, data: PatientCreateRequest, auth: CurrentAuth, db: DbSession):
     return patientService.createPatient(db, auth.user, idInstitucion, data)
+
+
+@router.post(
+    "/{idInstitucion}/patients/export",
+    response_class=Response,
+    summary="Exportar pacientes (CSV)",
+    description="Propietario, moderador u operador (CONSULTAR_PACIENTES), validado en el servidor. `alcance` = SELECCION (los pacientes de "
+    "`idsPerfilMedicion`) o TODOS (los que coinciden con `busqueda`, `idResponsable` y `estado`). El operador exporta solo los pacientes "
+    "a su cargo: un paciente ajeno se rechaza (409 `DATOS_INVALIDOS`). Sin mediciones ni información de salud. Cada intento queda en la "
+    "auditoría: EXPORTACION_SOLICITADA, y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA.",
+)
+def exportPatients(idInstitucion: uuid.UUID, body: PatientExportRequest, auth: CurrentAuth, db: DbSession):
+    content, filename = patientService.exportPatients(
+        db, auth.user, idInstitucion, alcance=body.alcance, ids=body.idsPerfilMedicion, busqueda=body.busqueda,
+        idResponsable=body.idResponsable, estado=body.estado,
+    )
+    return Response(content=content, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 @router.get("/{idInstitucion}/patients/{idPerfilMedicion}", response_model=PatientRead,

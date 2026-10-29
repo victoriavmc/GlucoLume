@@ -58,7 +58,7 @@ def test_los_eventos_de_acceso_nuevos_registran_el_tipo_de_cuenta_de_quien_se_au
     authService.loginLocal(db, "ana", PASSWORD)  # individual, correcto
     with pytest.raises(AuthError):
         authService.loginLocal(db, "duenia", WRONG)  # institucional, fallido
-    authService.loginLocal(db, "adminsys", PASSWORD)  # plataforma: primer factor
+    authService.loginLocal(db, "adminsys", PASSWORD, acceso=authService.ACCESO_PLATAFORMA)  # plataforma: primer factor
     with pytest.raises(AuthError):
         authService.loginLocal(db, "nadie-existe", WRONG)  # sin cuenta identificable
     db.expire_all()

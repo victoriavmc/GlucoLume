@@ -114,6 +114,7 @@ describe('Acceso administrativo', () => {
     await user.click(screen.getByRole('button', { name: /Verificar|Continuar|Ingresar/ }));
     expect(await screen.findByRole('heading', { name: 'Dashboard general' })).toBeInTheDocument();
     expect(calls.some((call) => call.key === 'GET /platform/me')).toBe(true);
+    expect(calls.find((call) => call.key === 'POST /auth/login').body).toMatchObject({ acceso: 'PLATAFORMA' });
   });
 
   it('la dirección /administracion/login lleva al mismo acceso administrativo y no concede nada por conocerla', async () => {

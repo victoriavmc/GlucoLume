@@ -26,7 +26,6 @@ import {
   SECTIONS,
 } from "../../components/Navbar.jsx";
 import { ContactSection } from "./ContactSection.jsx";
-import { Features } from "./Features.jsx";
 import { Solutions } from "./Solutions.jsx";
 import "./Landing.css";
 
@@ -278,7 +277,6 @@ export default function Landing() {
         </section>
 
         <Solutions />
-        <Features />
         <ContactSection />
       </main>
 

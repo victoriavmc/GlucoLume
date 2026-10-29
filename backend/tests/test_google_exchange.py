@@ -170,6 +170,34 @@ def test_callback_con_correo_no_verificado_redirige_con_error(db, mails, googleE
 # --- CORS ----------------------------------------------------------------------------------
 
 
+def test_callback_del_acceso_general_rechaza_la_cuenta_de_administracion(db, mails, googleEnv, monkeypatch):
+    makeUser(db, tipoCuenta="ADMINISTRADOR_PLATAFORMA", email=IDENTITY.email, usuario="adminsys")
+
+    async def fetchIdentity(request):
+        return IDENTITY
+
+    assert runCallback(db, monkeypatch, fetchIdentity, {"glucolume_acceso": "GENERAL"}) == "error=ACCESO_PLATAFORMA_REQUERIDO"
+    assert runCallback(db, monkeypatch, fetchIdentity, {}) == "error=ACCESO_PLATAFORMA_REQUERIDO", "Sin acceso guardado: general."
+
+
+def test_callback_del_acceso_administrativo_rechaza_la_cuenta_comun(db, mails, googleEnv, monkeypatch):
+    makeUser(db, email=IDENTITY.email, usuario="nueva")
+
+    async def fetchIdentity(request):
+        return IDENTITY
+
+    assert runCallback(db, monkeypatch, fetchIdentity, {"glucolume_acceso": "PLATAFORMA"}) == "error=ACCESO_PLATAFORMA_DENEGADO"
+
+
+def test_callback_del_acceso_administrativo_entrega_codigo_a_cuenta_de_plataforma(db, mails, googleEnv, monkeypatch):
+    makeUser(db, tipoCuenta="MODERADOR_PLATAFORMA", email=IDENTITY.email, usuario="modsys")
+
+    async def fetchIdentity(request):
+        return IDENTITY
+
+    assert runCallback(db, monkeypatch, fetchIdentity, {"glucolume_acceso": "PLATAFORMA"}).startswith("code=")
+
+
 def test_cors_solo_admite_el_origen_del_frontend(engine):
     from fastapi.middleware.cors import CORSMiddleware
 
@@ -329,11 +357,11 @@ def test_google_login_guarda_la_intencion_y_la_conserva_al_redirigir(googleEnv, 
                        "query_string": b"registro=institucion&acepta=true", "scheme": "http",
                        "server": ("localhost", 8000), "session": session})
     assert asyncio.run(authRoutes.googleLogin(request, "institucion", False, True)) == "redirigido"
-    assert session == {"glucolume_registro": "institucion", "glucolume_politica": True}
+    assert session == {"glucolume_registro": "institucion", "glucolume_politica": True, "glucolume_acceso": "GENERAL"}
 
     # Iniciar sesión (sin registro) descarta una intención anterior.
     assert asyncio.run(authRoutes.googleLogin(request, None)) == "redirigido"
-    assert session == {}
+    assert session == {"glucolume_acceso": "GENERAL"}
 
     other = Request({"type": "http", "method": "GET", "path": "/api/v1/auth/google/login", "headers": [],
                      "query_string": b"registro=institucion&acepta=true", "scheme": "http",

@@ -74,6 +74,11 @@ class RegisterRequest(UserCreate):
         return self
 
 
+# Acceso por el que se inicia sesión. GENERAL: login de todas las cuentas (localhost:8080/login). PLATAFORMA: solo la
+# administración de GlucoLume (/plataforma/login). Cada uno rechaza al otro tipo de cuenta antes de abrir sesión o pedir MFA.
+AccesoLogin = Literal["GENERAL", "PLATAFORMA"]
+
+
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -88,6 +93,13 @@ class LoginRequest(BaseModel):
         ),
     ]
     password: Password
+    acceso: AccesoLogin = Field(
+        default="GENERAL",
+        description=(
+            "GENERAL (por omisión): el login de todas las cuentas; una cuenta de administración de GlucoLume no entra por acá. "
+            "PLATAFORMA: solo la administración de GlucoLume (ADMINISTRADOR o MODERADOR de plataforma); cualquier otra cuenta es rechazada."
+        ),
+    )
 
 
 class TokenPair(BaseModel):

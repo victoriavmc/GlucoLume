@@ -113,8 +113,11 @@ def web(engine, db):
     app.dependency_overrides.clear()
 
 
-def login(web, user, secret=None, password=PASSWORD):
-    response = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "password": password})
+def login(web, user, secret=None, password=PASSWORD, acceso=None):
+    """Entra con el acceso que corresponde a la cuenta: el administrativo para administradores y moderadores de plataforma."""
+    if acceso is None:
+        acceso = "PLATAFORMA" if user.tipoCuenta in (ADMIN, MOD) else "GENERAL"
+    response = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "acceso": acceso, "password": password})
     assert response.status_code == 200, response.text
     body = response.json()
     if body["estado"] == "MFA_REQUERIDO":
@@ -176,7 +179,7 @@ def test_la_base_impide_dos_administradores_vigentes(db, mails, admin):
 
 def test_el_administrador_inicia_sesion_con_mfa_y_entra_al_panel(db, mails, web, admin):
     user, secret = admin
-    login_response = web.post("/api/v1/auth/login", json={"identificador": "adminsys", "password": PASSWORD}).json()
+    login_response = web.post("/api/v1/auth/login", json={"identificador": "adminsys", "acceso": "PLATAFORMA", "password": PASSWORD}).json()
     assert login_response["estado"] == "MFA_REQUERIDO"  # la política administrativa exige MFA
     headers = login(web, user, secret)
     me = web.get("/api/v1/platform/me", headers=headers).json()
@@ -271,7 +274,7 @@ def test_cuentas_existentes_solo_se_reinvitan_si_ya_son_de_plataforma(db, mails,
         nombre="x", apellido="y", correoElectronico="ya@example.com", reautenticacion=reauth(db, user, secret)))
     assert sent and again.estadoCuenta == "PENDIENTE" and again.idUsuario == mod.idUsuario  # sin duplicar el Usuario
     with pytest.raises(AuthError):
-        platform.authService.loginLocal(db, "yamod", PASSWORD)  # hasta aceptar no entra
+        platform.authService.loginLocal(db, "yamod", PASSWORD, acceso=platform.authService.ACCESO_PLATAFORMA)  # hasta aceptar no entra
     platform.completeActivation(db, tokenIn(mails), "yamod2", NEW_PASSWORD)
     assert reload(db, User, mod.idUsuario).estado == "ACTIVO"
 
@@ -361,7 +364,7 @@ def test_inventario_global_y_funciones_tecnicas_del_moderador(db, mails, web, ad
         listing = web.get("/api/v1/devices", headers=login(web, who, who_secret))
         assert listing.status_code == 200 and [d["codigoDispositivo"] for d in listing.json()["items"]] == ["INV-1"]
     # El moderador administra las matrices globales (versiones y reglas), no las privadas de una institución.
-    created = matrices.createMatrix(db, mod, MatrixCreateRequest(ambito="GLOBAL", nombre="Matriz técnica"))
+    created = matrices.createMatrix(db, mod, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="GLOBAL", nombre="Matriz técnica"))
     assert created.ambito == "GLOBAL"
     assert web.get("/api/v1/matrices/global", headers=login(web, mod, modSecret)).status_code == 200
 

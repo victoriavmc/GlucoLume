@@ -168,7 +168,7 @@ def test_el_ingreso_con_mfa_cuenta_una_vez_y_el_paso_intermedio_no_es_un_ingreso
 
 
 def test_un_inicio_de_sesion_con_mfa_pendiente_no_es_un_ingreso_correcto(db, mails, admin):
-    authService.loginLocal(db, "adminsys", PASSWORD)  # solo el primer factor
+    authService.loginLocal(db, "adminsys", PASSWORD, acceso=authService.ACCESO_PLATAFORMA)  # solo el primer factor
     assert pair(access(db, admin[0]).accesosPorTipo.plataforma) == (0, 0)
 
 

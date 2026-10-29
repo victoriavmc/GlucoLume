@@ -1,5 +1,6 @@
 # Matrix - Matriz
 
+import re
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
@@ -10,6 +11,24 @@ from app.utils.normalizers import normalizeDate, normalizeSentence, normalizeSta
 
 AmbitoMatriz = Literal["GLOBAL", "INSTITUCION"]
 EstadoMatriz = Literal["BORRADOR", "ACTIVA", "INACTIVA", "ARCHIVADA"]
+
+_URL_REFERENCIA = re.compile(r"https?://\S+", re.IGNORECASE)
+
+
+def normalizeReferenciaBase(value):
+    """Nombre del lugar de donde se tomaron los criterios: se recorta y no puede quedar vacío (lo exige el alta)."""
+    return value.strip() if isinstance(value, str) else value
+
+
+def normalizeUrlReferencia(value):
+    """Enlace opcional a la referencia: vacío = sin enlace; si se informa, tiene que ser http(s) y sin espacios."""
+    if isinstance(value, str):
+        value = value.strip()
+        if value == "":
+            return None
+    if value is not None and not (isinstance(value, str) and _URL_REFERENCIA.fullmatch(value)):
+        raise ValueError("El enlace de referencia tiene que empezar con http:// o https:// y no llevar espacios.")
+    return value
 
 
 class MatrixBase(BaseModel):
@@ -160,6 +179,9 @@ class MatrixCreateRequest(BaseModel):
     idInstitucion: uuid.UUID | None = None
     nombre: Annotated[str, Field(min_length=2, max_length=100)]
     descripcion: Annotated[str, Field(max_length=500)] | None = None
+    # Obligatorio: de dónde se tomaron los criterios (p. ej., el nombre de la guía o del servicio). Opcional: el enlace.
+    referenciaBase: Annotated[str, Field(min_length=2, max_length=200)]
+    urlReferencia: Annotated[str, Field(max_length=500)] | None = None
     fechaVigenciaDesde: _date | None = None
     fechaVigenciaHasta: _date | None = None
     reglas: Annotated[list[MatrixRuleInput], Field(max_length=300)] = []
@@ -178,6 +200,16 @@ class MatrixCreateRequest(BaseModel):
     @classmethod
     def normalizarDescripcion(cls, value):
         return normalizeSentence(value)
+
+    @field_validator("referenciaBase", mode="before")
+    @classmethod
+    def normalizarReferenciaBase(cls, value):
+        return normalizeReferenciaBase(value)
+
+    @field_validator("urlReferencia", mode="before")
+    @classmethod
+    def normalizarUrlReferencia(cls, value):
+        return normalizeUrlReferencia(value)
 
     @field_validator("fechaVigenciaDesde", "fechaVigenciaHasta", mode="before")
     @classmethod
@@ -200,6 +232,8 @@ class MatrixDraftUpdateRequest(BaseModel):
 
     nombre: Annotated[str, Field(min_length=2, max_length=100)] | None = None
     descripcion: Annotated[str, Field(max_length=500)] | None = None
+    referenciaBase: Annotated[str, Field(min_length=2, max_length=200)] | None = None
+    urlReferencia: Annotated[str, Field(max_length=500)] | None = None
     fechaVigenciaDesde: _date | None = None
     fechaVigenciaHasta: _date | None = None
 
@@ -212,6 +246,19 @@ class MatrixDraftUpdateRequest(BaseModel):
     @classmethod
     def normalizarDescripcion(cls, value):
         return normalizeSentence(value)
+
+    @field_validator("referenciaBase", mode="before")
+    @classmethod
+    def referenciaBaseObligatoria(cls, value):
+        # Enviada explícitamente en null, quedaría sin valor: la base la exige (NOT NULL). Si no se envía, no se toca.
+        if value is None:
+            raise ValueError("Indicá de dónde se tomaron los criterios: es obligatorio.")
+        return normalizeReferenciaBase(value)
+
+    @field_validator("urlReferencia", mode="before")
+    @classmethod
+    def normalizarUrlReferencia(cls, value):
+        return normalizeUrlReferencia(value)
 
     @field_validator("fechaVigenciaDesde", "fechaVigenciaHasta", mode="before")
     @classmethod
@@ -262,6 +309,8 @@ class MatrixItem(BaseModel):
     ambito: AmbitoMatriz
     estado: EstadoMatriz
     descripcion: str | None = None
+    referenciaBase: str
+    urlReferencia: str | None = None
     fechaVigenciaDesde: _date
     fechaVigenciaHasta: _date | None
     fechaCreacion: datetime

@@ -3,8 +3,8 @@
 // mg/dL). «Guardar» registra la matriz con todas sus reglas en una sola operación (todo o nada) y NO la activa: la activación es una
 // acción aparte y explícita. La validación se hace acá (campos, rangos, duplicadas y solapadas) y se repite en FastAPI, que además
 // informa advertencias de cobertura (edades o sexos sin regla) con «Revisar configuración». No existe precedencia entre reglas: una
-// configuración que se pisa no se puede guardar. La versión la asigna el servidor. El modelo no tiene un campo «fuente»: si hay una
-// referencia, se indica en la descripción.
+// configuración que se pisa no se puede guardar. La versión la asigna el servidor. La referencia base (de dónde se tomaron los
+// criterios) es obligatoria; el enlace a esa fuente es opcional.
 
 import { Pencil, Plus, Save, SearchCheck, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -18,9 +18,31 @@ import './Matrices.css';
 
 const withCodes = (rules) => rules.map((rule, index) => ({ ...rule, idReglaMatriz: rule.key, codigoRegla: `Regla ${index + 1}` }));
 const toPayload = ({ key, idReglaMatriz, codigoRegla, ...rule }) => rule; // eslint-disable-line no-unused-vars
+const URL_REFERENCIA = /^https?:\/\/\S+$/i; // igual que el backend: http(s) y sin espacios
+
+// Campo del formulario según la ruta que informa el backend en un 422 (ver api/client.js).
+const FIELD_BY_PATH = {
+  nombre: 'nombre', descripcion: 'descripcion', referenciaBase: 'referenciaBase', urlReferencia: 'urlReferencia',
+  fechaVigenciaDesde: 'desde', fechaVigenciaHasta: 'hasta',
+};
+
+/** Mensaje legible: Pydantic informa en inglés los tipos de dato inválidos (p. ej., una fecha que no existe). */
+function spanishMessage(message) {
+  return message.startsWith('Input should be a valid date') ? 'Ingresá una fecha válida (AAAA-MM-DD).' : message;
+}
+
+/** Errores del backend por campo: cada mensaje se muestra bajo el campo que lo causó. */
+function fieldErrorsFrom(apiError) {
+  const byField = {};
+  for (const field of apiError.fields ?? []) {
+    const key = FIELD_BY_PATH[field.ruta];
+    if (key && !byField[key]) byField[key] = spanishMessage(field.mensaje);
+  }
+  return byField;
+}
 
 export function CreateInstitutionMatrixForm({ idInstitucion, onCreated, onCancel, handleOperationError }) {
-  const [form, setForm] = useState({ nombre: '', descripcion: '', desde: '', hasta: '' });
+  const [form, setForm] = useState({ nombre: '', descripcion: '', referenciaBase: '', urlReferencia: '', desde: '', hasta: '' });
   const [errors, setErrors] = useState({});
   const [rules, setRules] = useState([]); // cada regla local lleva una `key` propia
   const [editing, setEditing] = useState(null); // null · 'new' · regla
@@ -54,6 +76,10 @@ export function CreateInstitutionMatrixForm({ idInstitucion, onCreated, onCancel
   function validateForm() {
     const found = {};
     if (form.nombre.trim().length < 2) found.nombre = 'Ingresá el nombre de la matriz.';
+    if (form.referenciaBase.trim().length < 2) found.referenciaBase = 'Indicá de dónde se tomaron los criterios: es obligatorio.';
+    if (form.urlReferencia.trim() && !URL_REFERENCIA.test(form.urlReferencia.trim())) {
+      found.urlReferencia = 'El enlace tiene que empezar con http:// o https:// y no llevar espacios.';
+    }
     if (form.hasta && form.desde && form.hasta < form.desde) found.hasta = 'La vigencia no puede terminar antes de empezar.';
     setErrors(found);
     return Object.keys(found).length === 0;
@@ -99,10 +125,18 @@ export function CreateInstitutionMatrixForm({ idInstitucion, onCreated, onCancel
     try {
       onCreated(await matricesApi.createMatrix({
         ambito: 'INSTITUCION', idInstitucion, nombre: form.nombre.trim(), descripcion: form.descripcion.trim(),
+        referenciaBase: form.referenciaBase.trim(), urlReferencia: form.urlReferencia.trim(),
         fechaVigenciaDesde: form.desde, fechaVigenciaHasta: form.hasta, reglas: rules.map(toPayload),
       }));
     } catch (saveError) {
-      setError(handleOperationError(saveError));
+      const byField = fieldErrorsFrom(saveError);
+      if (Object.keys(byField).length) {
+        // El rechazo es de datos concretos: se marcan los campos y el aviso general no repite el texto técnico.
+        setErrors((current) => ({ ...current, ...byField }));
+        setError('Revisá los campos marcados en el formulario.');
+      } else {
+        setError(handleOperationError(saveError));
+      }
       setSaving(false);
     }
   }
@@ -121,13 +155,15 @@ export function CreateInstitutionMatrixForm({ idInstitucion, onCreated, onCancel
         <legend>1. Datos generales</legend>
         <div className="form-grid">
           <TextField label="Nombre" maxLength={100} value={form.nombre} onChange={update('nombre')} error={errors.nombre} />
-          <TextField label="Descripción y fuente o referencia (opcional)" maxLength={500} value={form.descripcion} onChange={update('descripcion')} />
-          <TextField label="Vigente desde (opcional, por defecto hoy)" type="date" value={form.desde} onChange={update('desde')} />
+          <TextField label="Descripción (opcional)" maxLength={500} value={form.descripcion} onChange={update('descripcion')} error={errors.descripcion} />
+          <TextField label="Referencia base (obligatoria)" maxLength={200} value={form.referenciaBase} onChange={update('referenciaBase')} error={errors.referenciaBase} />
+          <TextField label="Enlace de la referencia (opcional)" maxLength={500} value={form.urlReferencia} onChange={update('urlReferencia')} error={errors.urlReferencia} />
+          <TextField label="Vigente desde (opcional, por defecto hoy)" type="date" value={form.desde} onChange={update('desde')} error={errors.desde} />
           <TextField label="Vigente hasta (opcional)" type="date" value={form.hasta} onChange={update('hasta')} error={errors.hasta} />
         </div>
         <p className="field-hint">
-          En la descripción podés indicar la fuente o referencia de los criterios que cargás. La versión la asigna GlucoLume automáticamente
-          (1, 2, 3…) y no se puede cambiar.
+          La referencia base es el nombre del lugar de donde se tomaron los criterios (una guía, un protocolo o un servicio). La versión la asigna
+          GlucoLume automáticamente (1, 2, 3…) y no se puede cambiar.
         </p>
       </fieldset>
 

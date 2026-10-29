@@ -141,7 +141,7 @@ def test_reemplazar_al_administrador_cambia_ambos_roles_en_una_transaccion_y_cie
     # La persona nueva entra con su MFA y ya es la administradora; la anterior no puede volver a entrar.
     me = web.get("/api/v1/platform/me", headers=login(web, new, newSecret)).json()
     assert me["rol"] == ADMIN and "GESTIONAR_MODERADORES" in me["permisos"]
-    blocked = web.post("/api/v1/auth/login", json={"identificador": old.usuario, "password": PASSWORD})
+    blocked = web.post("/api/v1/auth/login", json={"identificador": old.usuario, "acceso": "PLATAFORMA", "password": PASSWORD})
     assert blocked.status_code >= 400 or blocked.json().get("estado") != "AUTENTICADO"
 
 
@@ -224,7 +224,7 @@ def test_reinvitar_conservando_el_mfa_exige_el_segundo_factor_al_volver(db, mail
     user, secret = admin
     _, link, _, _ = platform.reinviteAdministrator(db, "Olvidó la contraseña")
     platform.completeActivation(db, link.split("codigo=")[1], user.usuario, NEW_PASSWORD)
-    response = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "password": NEW_PASSWORD}).json()
+    response = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "acceso": "PLATAFORMA", "password": NEW_PASSWORD}).json()
     assert response["estado"] == "MFA_REQUERIDO"  # la contraseña sola no alcanza
 
 
@@ -251,7 +251,7 @@ def test_el_comando_pide_motivo_y_confirmacion_y_se_niega_con_datos_invalidos(db
 
 
 def loginTokens(web, user, secret):
-    body = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "password": PASSWORD}).json()
+    body = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "acceso": "PLATAFORMA", "password": PASSWORD}).json()
     factor = platform.mfa.getFactor(web.testDb, user)
     factor.ultimoPasoUsado = None
     web.testDb.commit()
@@ -318,7 +318,7 @@ def test_conocer_el_correo_del_administrador_no_alcanza_para_tomar_su_cuenta_ni_
     # Aun si alguien con acceso a ese correo restablece la contraseña, el segundo factor sigue siendo obligatorio.
     reset = web.post("/api/v1/platform/password/reset", json={"token": tokenIn(mails), "password": NEW_PASSWORD})
     assert reset.status_code in (200, 204)
-    entered = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "password": NEW_PASSWORD}).json()
+    entered = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "acceso": "PLATAFORMA", "password": NEW_PASSWORD}).json()
     assert entered["estado"] == "MFA_REQUERIDO" and not entered.get("tokens")
     # Ninguna ruta HTTP resetea el MFA del administrador a partir del correo.
     for path in ("/platform/mfa/reset", "/platform/administrator/recover", "/platform/recover"):
@@ -330,7 +330,7 @@ def test_reinvitar_con_reinicio_de_mfa_solo_sirve_a_quien_recibe_el_enlace_y_no_
     mails.clear()
     _, link, _, _ = platform.reinviteAdministrator(db, "Perdió el segundo factor", resetMfa=True)
     assert [m["to"] for m in mails] == [user.correoElectronico]  # el enlace va solo al correo registrado de la cuenta
-    assert web.post("/api/v1/auth/login", json={"identificador": user.usuario, "password": PASSWORD}).status_code >= 400  # sin el enlace nadie entra
+    assert web.post("/api/v1/auth/login", json={"identificador": user.usuario, "acceso": "PLATAFORMA", "password": PASSWORD}).status_code >= 400  # sin el enlace nadie entra
     session = platform.completeActivation(db, link.split("codigo=")[1], user.usuario, NEW_PASSWORD)
     headers = {"Authorization": f"Bearer {session.tokens.accessToken}"}
     assert web.get("/api/v1/platform/me", headers=headers).json()["requiereConfigurarMfa"] is True

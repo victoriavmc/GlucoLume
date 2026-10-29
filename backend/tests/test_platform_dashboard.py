@@ -186,7 +186,7 @@ def test_el_resumen_de_seguridad_sale_de_la_auditoria_y_del_estado_real_de_las_c
             authService.loginLocal(db, "objetivo", "incorrecta-1A#")
     with pytest.raises(AuthError):
         authService.loginLocal(db, "nadie-existe", "incorrecta-1A#")
-    authService.loginLocal(db, "adminsys", PASSWORD)  # solo el primer paso (pide MFA): todavía no es un ingreso
+    authService.loginLocal(db, "adminsys", PASSWORD, acceso=authService.ACCESO_PLATAFORMA)  # solo el primer paso (pide MFA): todavía no es un ingreso
     makeUser(db, email="entra@example.com", usuario="entra")
     authService.loginLocal(db, "entra", PASSWORD)  # un ingreso correcto
     blocked = makeUser(db, email="bloqueada@example.com", usuario="bloqueada")

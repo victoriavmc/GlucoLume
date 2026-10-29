@@ -54,7 +54,7 @@ describe('Login local', () => {
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
 
     expect(await screen.findByRole('heading', { name: 'Hola, Victoria' })).toBeInTheDocument();
-    expect(calls[0].body).toEqual({ identificador: 'victoria', password: 'Clave#2026' });
+    expect(calls[0].body).toEqual({ identificador: 'victoria', password: 'Clave#2026', acceso: 'GENERAL' });
     expect(calls[1].options.headers.Authorization).toBe('Bearer access-1');
     // Sin Recordarme: solo la marca de sesión, en sessionStorage; el refresh token no pasa por el JavaScript (cookie HttpOnly, H-09).
     expect(window.sessionStorage.getItem('glucolume.sessionHint')).toBe('1');
@@ -178,7 +178,7 @@ describe('Login local', () => {
     await fillLogin(user);
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
     await screen.findByRole('alert');
-    expect(Object.keys(calls[0].body)).toEqual(['identificador', 'password']);
+    expect(Object.keys(calls[0].body)).toEqual(['identificador', 'password', 'acceso']);
   });
 
   it('cuenta sin verificar: ofrece reenviar el correo de verificación', async () => {

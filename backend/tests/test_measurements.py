@@ -85,7 +85,8 @@ def addMatrix(db, ambito="GLOBAL", idInstitucion=None, estado="ACTIVA", hasta=No
               edad=(18, 80), sexo="FEMENINO", minutos=(None, None), desde=None, nombre="Matriz experimental") -> Matrix:
     matrix = Matrix(idMatriz=uuid.uuid4(), nombre=nombre, version="1", ambito=ambito,
                     idInstitucion=idInstitucion, estado=estado,
-                    fechaVigenciaDesde=desde or date.today() - timedelta(days=30), fechaVigenciaHasta=hasta)
+                    fechaVigenciaDesde=desde or date.today() - timedelta(days=30), fechaVigenciaHasta=hasta,
+                    referenciaBase="Fuente de prueba")
     db.add(matrix)
     db.flush()
     if rule:

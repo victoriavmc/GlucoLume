@@ -1,4 +1,5 @@
-// /app/consejos y /app/consejos/:idConsejo — colección completa de «Consejos para diabéticos».
+// /app/consejos y /app/consejos/:idConsejo (privada, dentro del espacio de la cuenta) y /consejos y /consejos/:idConsejo (pública, sin iniciar
+// sesión, con el navbar de la portada) — colección completa de «Consejos para diabéticos».
 // Lista con etiquetas, buscador y tarjetas; al abrir un artículo se lee dentro de GlucoLume (y «Volver a consejos» conserva el filtro).
 // El filtro vive en la URL (?categoria=&q=), así el botón «atrás» del navegador y el enlace desde Inicio funcionan sin recargar.
 
@@ -8,9 +9,12 @@ import { Link } from 'react-router-dom';
 
 import { DiabetesArticle } from '../../components/DiabetesArticle.jsx';
 import { CategoryTags, TipCard } from '../../components/DiabetesTipParts.jsx';
+import { Navbar } from '../../components/Navbar.jsx';
+import { SiteFooter } from '../../components/SiteFooter.jsx';
+import { SkipLink } from '../../components/SkipLink.jsx';
 import { CATEGORIES, DISCLAIMER, articleById, categoryOf, filterArticles } from '../../data/diabetesTips.js';
 
-function TipsList() {
+function TipsList({ basePath }) {
   const [params, setParams] = useSearchParams();
   const requested = params.get('categoria') ?? 'todos';
   const category = requested === 'todos' || categoryOf(requested) ? requested : 'todos';
@@ -73,16 +77,16 @@ function TipsList() {
       ) : (
         <div className="dt-grid">
           <h2 className="sr-only">Artículos</h2>
-          {articles.map((article) => <TipCard key={article.id} article={article} search={search} />)}
+          {articles.map((article) => <TipCard key={article.id} article={article} search={search} basePath={basePath} />)}
         </div>
       )}
     </div>
   );
 }
 
-export default function DiabetesTipsPage() {
+function TipsPage({ basePath }) {
   const { idConsejo } = useParams();
-  if (!idConsejo) return <TipsList />;
+  if (!idConsejo) return <TipsList basePath={basePath} />;
   const article = articleById(idConsejo);
   if (!article) {
     return (
@@ -90,10 +94,31 @@ export default function DiabetesTipsPage() {
         <div className="dt-empty">
           <b>No encontramos ese consejo.</b>
           <p>Puede que el enlace esté incompleto o que el artículo ya no exista.</p>
-          <Link to="/app/consejos" className="btn btn-primary">Volver a consejos</Link>
+          <Link to={basePath} className="btn btn-primary">Volver a consejos</Link>
         </div>
       </div>
     );
   }
-  return <div className="page dt-page"><DiabetesArticle article={article} /></div>;
+  return <div className="page dt-page"><DiabetesArticle article={article} basePath={basePath} /></div>;
+}
+
+/** Dentro del espacio privado (/app/consejos). */
+export default function DiabetesTipsPage() {
+  return <TipsPage basePath="/app/consejos" />;
+}
+
+/** Pública (/consejos): sin iniciar sesión, con el navbar y el pie de la portada. */
+export function PublicTipsPage() {
+  return (
+    <div className="landing">
+      <SkipLink />
+      <Navbar />
+      <main className="section" id="contenido" tabIndex={-1}>
+        <div className="container">
+          <TipsPage basePath="/consejos" />
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
+  );
 }

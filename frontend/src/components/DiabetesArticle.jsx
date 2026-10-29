@@ -21,9 +21,9 @@ function Block({ block }) {
   return <p className="dt-article-p">{block.text}</p>;
 }
 
-export function DiabetesArticle({ article }) {
+export function DiabetesArticle({ article, basePath = '/app/consejos' }) {
   const { state } = useLocation();
-  const back = `/app/consejos${state?.search ?? ''}`;
+  const back = `${basePath}${state?.search ?? ''}`;
 
   return (
     <article className="dt-article" aria-labelledby="dt-article-title">

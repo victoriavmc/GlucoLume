@@ -8,6 +8,7 @@ import { SectionGuard } from './pages/Account/institutions/SectionGuard.jsx';
 import { PlatformLayout, RequireMfa, RequirePermission } from './layouts/PlatformLayout.jsx';
 import Landing from './pages/Landing/Landing.jsx';
 import PrivacyPolicy from './pages/Privacy/PrivacyPolicy.jsx';
+import CaracteristicasPage from './pages/Landing/CaracteristicasPage.jsx';
 import ActivateAccount from './pages/Register/ActivateAccount.jsx';
 import GoogleCallback from './pages/Login/GoogleCallback.jsx';
 import Login from './pages/Login/Login.jsx';
@@ -40,7 +41,9 @@ const loadGroupDashboard = () => import('./pages/Account/groups/GroupDashboard.j
 const GroupMemberPage = lazyNamed(loadGroupDashboard, 'GroupMemberPage');
 const loadSharedData = () => import('./pages/Account/groups/SharedData.jsx');
 const SharedData = lazyNamed(loadSharedData, 'SharedData');
-const DiabetesTipsPage = lazyNamed(() => import('./pages/Account/DiabetesTipsPage.jsx'));
+const loadDiabetesTips = () => import('./pages/Account/DiabetesTipsPage.jsx');
+const DiabetesTipsPage = lazyNamed(loadDiabetesTips);
+const PublicTipsPage = lazyNamed(loadDiabetesTips, 'PublicTipsPage');
 const loadHomePage = () => import('./pages/Account/HomePage.jsx');
 const HomePage = lazyNamed(loadHomePage);
 const loadInstitutionDataPage = () => import('./pages/Account/institutions/InstitutionDataPage.jsx');
@@ -181,6 +184,10 @@ export function AppRoutes() {
         />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/privacidad" element={<PrivacyPolicy />} />
+        {/* Consejos para diabéticos sin iniciar sesión (mismo contenido que /app/consejos). */}
+        <Route path="/consejos" element={<PublicTipsPage />} />
+        <Route path="/consejos/:idConsejo" element={<PublicTipsPage />} />
+        <Route path="/caracteristicas" element={<CaracteristicasPage />} />
         <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
         <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
         <Route

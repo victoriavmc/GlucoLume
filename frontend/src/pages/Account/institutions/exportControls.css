@@ -1,0 +1,23 @@
+/* Exportar datos (personal y pacientes): barra de acciones y casillas de selección del listado. */
+
+.export-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-toolbar--end {
+  margin-left: auto;
+}
+
+.export-check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--red-600);
+  cursor: pointer;
+}
+
+.export-check-cell {
+  width: 1%;
+}

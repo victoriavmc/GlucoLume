@@ -47,7 +47,6 @@ describe("Landing: estructura", () => {
       "que-es",
       "como-funciona",
       "soluciones",
-      "caracteristicas",
       "contacto",
     ]);
 
@@ -59,8 +58,9 @@ describe("Landing: estructura", () => {
       ["¿Qué es?", "#que-es"],
       ["Cómo funciona", "#como-funciona"],
       ["Soluciones", "#soluciones"],
-      ["Características", "#caracteristicas"],
+      ["Características", "/caracteristicas"],
       ["Contacto", "#contacto"],
+      ["Consejos", "/consejos"],
     ]);
   });
 
@@ -124,7 +124,7 @@ describe("Landing: estructura", () => {
 
   it("características: privacidad, Ley 25.326 y datos anonimizados", () => {
     mockApi({});
-    renderAt("/");
+    renderAt("/caracteristicas");
     const features = screen.getByRole("region", {
       name: /protegida en cada etapa/,
     });

@@ -36,7 +36,7 @@ describe('Layout autenticado', () => {
     expect(screen.getByText('Nos alegra verte de nuevo en GlucoLume.')).toBeInTheDocument();
     const nav = within(sidebar()).getByRole('navigation');
     // Cuenta individual: tiene Grupo y no Instituciones.
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inicio', 'Mediciones', 'Conectar dispositivo', 'Grupo', 'Perfil', 'Seguridad']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inicio', 'Mediciones', 'Conectar dispositivo', 'Grupo', 'Consejos', 'Perfil', 'Seguridad']);
     expect(within(nav).getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page');
     expect(within(sidebar()).getByText('Victoria Cortés')).toBeInTheDocument();
     expect(within(sidebar()).getByText('@victoria')).toBeInTheDocument();

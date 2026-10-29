@@ -49,7 +49,8 @@ const RULE = {
 function item(overrides = {}) {
   return {
     idMatriz: MID, nombre: 'Matriz GlucoLume', version: '1', ambito: 'GLOBAL', estado: 'BORRADOR', fechaVigenciaDesde: '2026-10-01',
-    fechaVigenciaHasta: null, fechaCreacion: '2026-10-01T10:00:00', cantidadReglas: 1, medicionesRegistradas: 0, ...overrides,
+    fechaVigenciaHasta: null, fechaCreacion: '2026-10-01T10:00:00', cantidadReglas: 1, medicionesRegistradas: 0,
+    referenciaBase: 'Guía de referencia', urlReferencia: null, ...overrides,
   };
 }
 
@@ -105,10 +106,12 @@ describe('Matrices globales (plataforma)', () => {
     const form = screen.getByRole('form', { name: 'Crear matriz' });
     await user.click(within(form).getByRole('button', { name: 'Crear matriz' }));
     expect(within(form).getByText('Ingresá el nombre de la matriz.')).toBeInTheDocument();
+    expect(within(form).getByText('Indicá de dónde se tomaron los criterios: es obligatorio.')).toBeInTheDocument();
     await user.type(within(form).getByLabelText('Nombre'), 'Matriz GlucoLume');
+    await user.type(within(form).getByLabelText('Referencia base (obligatoria)'), 'Guía de referencia');
     await user.click(within(form).getByRole('button', { name: 'Crear matriz' }));
     expect(await screen.findByRole('heading', { name: /Matriz GlucoLume · versión 1/ })).toBeInTheDocument();
-    expect(calls.find((call) => call.key === 'POST /matrices').body).toEqual({ ambito: 'GLOBAL', nombre: 'Matriz GlucoLume' });
+    expect(calls.find((call) => call.key === 'POST /matrices').body).toEqual({ ambito: 'GLOBAL', nombre: 'Matriz GlucoLume', referenciaBase: 'Guía de referencia' });
   });
 
   it('una cuenta que no es de plataforma no accede a la administración global', async () => {
@@ -342,7 +345,9 @@ describe('Matrices institucionales', () => {
     expect(calls.some((call) => call.key === 'POST /matrices')).toBe(false);
 
     await user.type(within(form).getByLabelText('Nombre'), 'Matriz San José');
-    await user.type(within(form).getByLabelText(/Descripción y fuente o referencia/), 'Rangos del servicio');
+    await user.type(within(form).getByLabelText('Descripción (opcional)'), 'Rangos del servicio');
+    await user.type(within(form).getByLabelText('Referencia base (obligatoria)'), 'Guía del servicio');
+    await user.type(within(form).getByLabelText('Enlace de la referencia (opcional)'), 'https://ejemplo.org/guia');
 
     async function fillRule(sex, from, to, min, max) {
       await user.click(within(form).getByRole('button', { name: 'Agregar regla' }));
@@ -380,7 +385,8 @@ describe('Matrices institucionales', () => {
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
     expect(await screen.findByText(/Todavía no se usa: activala cuando quieras/)).toBeInTheDocument();
     const body = calls.find((call) => call.key === 'POST /matrices').body;
-    expect(body).toMatchObject({ ambito: 'INSTITUCION', idInstitucion: ID, nombre: 'Matriz San José', descripcion: 'Rangos del servicio' });
+    expect(body).toMatchObject({ ambito: 'INSTITUCION', idInstitucion: ID, nombre: 'Matriz San José', descripcion: 'Rangos del servicio',
+      referenciaBase: 'Guía del servicio', urlReferencia: 'https://ejemplo.org/guia' });
     const common = { edadDesde: 18, edadHasta: 60, condicionComida: 'AYUNO', minutosComidaMin: null, minutosComidaMax: null, glucosaMinReferencia: '70', glucosaMaxReferencia: '110' };
     expect(body.reglas).toEqual([{ sexoModelo: 'FEMENINO', ...common }, { sexoModelo: 'MASCULINO', ...common }]);
     expect(calls.some((call) => call.key.endsWith('/activate'))).toBe(false); // guardar no activa
@@ -398,6 +404,7 @@ describe('Matrices institucionales', () => {
     await user.click(await screen.findByRole('button', { name: 'Crear matriz institucional' }));
     const form = screen.getByRole('form', { name: 'Crear matriz institucional' });
     await user.type(within(form).getByLabelText('Nombre'), 'Matriz');
+    await user.type(within(form).getByLabelText('Referencia base (obligatoria)'), 'Guía del servicio');
     await user.click(within(form).getByRole('button', { name: 'Agregar regla' }));
     const editor = within(screen.getByRole('form', { name: 'Agregar regla' }));
     await user.type(editor.getByLabelText('Edad mínima'), '18');
@@ -407,6 +414,33 @@ describe('Matrices institucionales', () => {
     await user.click(editor.getByRole('button', { name: /Agregar regla/ }));
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
     expect(await within(form).findByText(/se solapa con Regla 1/)).toBeInTheDocument();
+  });
+
+  it('una fecha inválida del servidor se marca bajo el campo de fecha, no como un problema del nombre', async () => {
+    routes(INSTITUTIONAL, {
+      [`GET ${BASE}`]: jsonResponse(200, institution('PROPIETARIO')),
+      [`GET ${BASE}/matrices`]: jsonResponse(200, overviewGlobal()),
+      'GET /matrices/g': jsonResponse(200, globalDetail()),
+      'POST /matrices': jsonResponse(422, { detail: [{ type: 'date_from_datetime_parsing', loc: ['body', 'fechaVigenciaDesde'], msg: 'Input should be a valid date or datetime, invalid date' }] }),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/matrices`);
+    await user.click(await screen.findByRole('button', { name: 'Crear matriz institucional' }));
+    const form = screen.getByRole('form', { name: 'Crear matriz institucional' });
+    await user.type(within(form).getByLabelText('Nombre'), 'Matriz');
+    await user.type(within(form).getByLabelText('Referencia base (obligatoria)'), 'Guía del servicio');
+    await user.click(within(form).getByRole('button', { name: 'Agregar regla' }));
+    const editor = within(screen.getByRole('form', { name: 'Agregar regla' }));
+    await user.type(editor.getByLabelText('Edad mínima'), '18');
+    await user.type(editor.getByLabelText('Edad máxima'), '60');
+    await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.type(editor.getByLabelText('Glucosa de referencia máxima (mg/dL)'), '110');
+    await user.click(editor.getByRole('button', { name: /Agregar regla/ }));
+    await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
+    expect(await within(form).findByText('Ingresá una fecha válida (AAAA-MM-DD).')).toBeInTheDocument();
+    expect(within(form).getByText('Revisá los campos marcados en el formulario.')).toBeInTheDocument();
+    expect(within(form).queryByText(/Input should be/)).not.toBeInTheDocument();
+    expect(within(form).getByLabelText('Nombre')).not.toHaveAttribute('aria-invalid', 'true');
   });
 
   it('el menú de la institución ofrece «Matrices» a propietario y moderador, no al operador', async () => {
@@ -706,5 +740,57 @@ describe('Medición: matriz aplicada', () => {
     });
     renderAt('/app/mediciones/m-1');
     expect(await screen.findByText('Matriz San José, versión 2 · Institucional')).toBeInTheDocument();
+  });
+});
+
+// Exportar una matriz con sus reglas: lo puede ver quien la ve. El archivo lo devuelve la API y el frontend solo lo descarga.
+const csvMatrix = () => ({
+  ok: true, status: 200, headers: new Headers({ 'Content-Disposition': 'attachment; filename="matriz-prueba.csv"' }),
+  blob: async () => new Blob(['csv'], { type: 'text/csv' }),
+});
+
+describe('Exportar una matriz con sus reglas', () => {
+  const open = (extra = {}, account = PLATFORM) => routes(account, extra);
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:matriz');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it('la plataforma exporta la matriz global con sus reglas', async () => {
+    const { calls } = open({
+      [`GET /matrices/${MID}`]: jsonResponse(200, detail()),
+      [`POST /matrices/${MID}/export`]: csvMatrix,
+    }, PLATFORM);
+    renderAt(`/app/matrices/${MID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Exportar matriz y reglas' }));
+    expect(await screen.findByText('Exportación lista: matriz-prueba.csv.')).toBeInTheDocument();
+    expect(calls.some((call) => call.key === `POST /matrices/${MID}/export`)).toBe(true);
+    expect(URL.createObjectURL).toHaveBeenCalled();
+  });
+
+  it('el propietario de una institución exporta su matriz', async () => {
+    open({
+      [`GET ${BASE}`]: jsonResponse(200, institution('PROPIETARIO')),
+      [`GET /matrices/${MID}`]: jsonResponse(200, detail({ ambito: 'INSTITUCION', idInstitucion: ID, nombreInstitucion: 'Centro Médico San José', creadaPor: null })),
+      [`POST /matrices/${MID}/export`]: csvMatrix,
+    }, INSTITUTIONAL);
+    renderAt(`/app/instituciones/${ID}/matrices/${MID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Exportar matriz y reglas' }));
+    expect(await screen.findByText('Exportación lista: matriz-prueba.csv.')).toBeInTheDocument();
+  });
+
+  it('si la API rechaza la exportación, se informa el motivo y no se descarga nada', async () => {
+    open({
+      [`GET /matrices/${MID}`]: jsonResponse(200, detail()),
+      [`POST /matrices/${MID}/export`]: jsonResponse(404, { codigo: 'MATRIZ_NO_ENCONTRADA', detail: 'No encontramos esa matriz.' }),
+    }, PLATFORM);
+    renderAt(`/app/matrices/${MID}`);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Exportar matriz y reglas' }));
+    expect(await screen.findByText('No encontramos esa matriz.')).toBeInTheDocument();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });

@@ -64,7 +64,7 @@ async function parseError(response) {
 export const CSRF_HEADER = 'X-GlucoLume-CSRF';
 export const REMEMBER_HEADER = 'X-GlucoLume-Recordarme';
 
-async function send(path, { method = 'GET', body, token, remember } = {}) {
+async function send(path, { method = 'GET', body, token, remember, file = false } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -86,6 +86,7 @@ async function send(path, { method = 'GET', body, token, remember } = {}) {
     throw new ApiError(0, NETWORK_ERROR, 'No se pudo conectar con el servidor. Verificá tu conexión e intentá de nuevo.');
   }
   if (!response.ok) throw await parseError(response);
+  if (file) return response; // archivo (p. ej. CSV): quien lo pide lee el cuerpo y el nombre
   if (response.status === 204) return null;
   return response.json();
 }
@@ -128,21 +129,27 @@ export function refreshSession() {
   return refreshInFlight;
 }
 
+/** Una respuesta de descarga (`file: true`) -> { blob, filename }, con el nombre que indicó el servidor en Content-Disposition. */
+export async function fileFrom(response, fallbackName) {
+  const filename = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName;
+  return { blob: await response.blob(), filename };
+}
+
 /**
  * Llamada a la API. `auth: true` envía el access token y, ante un 401, renueva la sesión una vez.
  */
-export async function request(path, { method = 'GET', body, auth = false, remember = false } = {}) {
-  if (!auth) return send(path, { method, body, remember });
+export async function request(path, { method = 'GET', body, auth = false, remember = false, file = false } = {}) {
+  if (!auth) return send(path, { method, body, remember, file });
 
   let token = getAccessToken();
   if (!token) token = (await refreshSession()).accessToken;
   try {
-    return await send(path, { method, body, token });
+    return await send(path, { method, body, token, file });
   } catch (error) {
     // Solo un access token vencido o revocado (TOKEN_INVALIDO) justifica renovar y reintentar. Otros 401
     // (CODIGO_INVALIDO de MFA, credenciales) son respuestas de negocio: reintentar repetiría el intento.
     if (error.status !== 401 || error.codigo !== 'TOKEN_INVALIDO') throw error;
     const renewed = await refreshSession();
-    return send(path, { method, body, token: renewed.accessToken });
+    return send(path, { method, body, token: renewed.accessToken, file });
   }
 }

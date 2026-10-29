@@ -88,8 +88,8 @@ export function AuthProvider({ children }) {
   );
 
   const login = useCallback(
-    async (identificador, password, remember) =>
-      handleLoginResponse(await authApi.login(identificador, password, remember), remember),
+    async (identificador, password, remember, acceso) =>
+      handleLoginResponse(await authApi.login(identificador, password, remember, acceso), remember),
     [handleLoginResponse],
   );
 

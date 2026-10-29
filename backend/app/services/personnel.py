@@ -43,7 +43,9 @@ from app.schemas.personnel import (
 )
 from app.services import institution as institutions
 from app.services.audit import personName, registerEvent
-from app.services.auditQuery import ROLE_VALUES, Resolver, _json
+from app.services.auditQuery import ROLE_VALUES, STATE_VALUES, Resolver, _json
+from app.services.csvExport import csvBytes, csvDate, csvText
+from app.services.exportAudit import auditedExport, rejectExport
 from app.utils.timeZone import nowForDb
 
 MAX_PAGE_SIZE = 100
@@ -151,6 +153,18 @@ def _matches(term: str, user: User, relations: list[InstitutionUser]) -> bool:
     return any(term in _fold(value) for value in haystack if value)
 
 
+def _select(groups, rol: str | None, estado: str | None, term: str) -> list[tuple[InstitutionUser, User, list[InstitutionUser]]]:
+    """Las personas que cumplen los filtros del listado (rol, estado y búsqueda ya normalizada), en el orden de la lista."""
+    chosen = [
+        (rep, user, relations) for rep, user, relations in groups
+        if (rol is None or any(r.rolInstitucion == rol for r in relations))
+        and (estado is None or rep.estadoRelacion == estado)
+        and (not term or _matches(term, user, relations))
+    ]
+    chosen.sort(key=lambda g: (ROLE_ORDER.get(g[0].rolInstitucion, 3), _fold(_name(g[0], g[1])[1]), _fold(_name(g[0], g[1])[0])))
+    return chosen
+
+
 def listPersonnel(db: Session, actor: User, idInstitucion: uuid.UUID, *, rol: str | None = None, estado: str | None = None,
                   busqueda: str | None = None, pagina: int = 1, tamanioPagina: int = 20) -> PersonnelPage:
     """Todo el personal (incluye al propietario y a las personas dadas de baja) con filtros combinables."""
@@ -162,14 +176,7 @@ def listPersonnel(db: Session, actor: User, idInstitucion: uuid.UUID, *, rol: st
     now = nowForDb()
     groups = _groups(db, idInstitucion, now)
     summary = _summary(groups, now)
-    term = _fold(busqueda).strip()
-    chosen = [
-        (rep, user, relations) for rep, user, relations in groups
-        if (rol is None or any(r.rolInstitucion == rol for r in relations))
-        and (estado is None or rep.estadoRelacion == estado)
-        and (not term or _matches(term, user, relations))
-    ]
-    chosen.sort(key=lambda g: (ROLE_ORDER.get(g[0].rolInstitucion, 3), _fold(_name(g[0], g[1])[1]), _fold(_name(g[0], g[1])[0])))
+    chosen = _select(groups, rol, estado, _fold(busqueda).strip())
     tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
     pagina = max(1, pagina)
     page = chosen[(pagina - 1) * tamanioPagina: pagina * tamanioPagina]
@@ -356,6 +363,61 @@ def erasePersonalData(db: Session, actor: User, idInstitucion: uuid.UUID, idInst
     registerEvent(db, "PERMISO", "ELIMINAR_DATOS_PERSONAL_HISTORICO", True, actor.idUsuario, "InstitucionUsuario",
                   target.idInstitucionUsuario, datosNuevos={"roles": roles, "periodos": len(relations), "campos": erased})
     db.commit()
+
+
+# --- Exportación del personal (CSV) ---------------------------------------------------------------------------------------
+#
+# Permiso: CONSULTAR_EQUIPO (propietario y moderador), validado en el servidor en cada pedido: el botón del frontend solo presenta la opción.
+# Quien no lo tiene (operador, o quien no pertenece a la institución) recibe 403 y el intento queda en la auditoría como
+# EXPORTACION_FALLIDA. Toda exportación pasa por `auditedExport` (ExportAudit): nunca queda una sin evento.
+# Formato: CSV separado por punto y coma, en UTF-8 con BOM, para que Excel en español muestre bien las tildes. Los valores que empiezan con
+# = + - @ se escapan con una comilla simple: no pueden ejecutarse como fórmula al abrir el archivo.
+
+EXPORT_TIPO_DATOS = "PERSONAL_INSTITUCION"
+EXPORT_COLUMNS = (
+    "Nombre", "Apellido", "Correo electrónico", "Rol", "Roles anteriores", "Estado", "Legajo", "Matrícula profesional",
+    "Fecha de invitación", "Fecha de incorporación", "Fecha de baja",
+)
+def _csvRow(item: PersonnelItem) -> list[str]:
+    return [
+        csvText(item.nombre), csvText(item.apellido), csvText(item.correoElectronico), csvText(_role(item.rolInstitucion)),
+        csvText(", ".join(_role(r) for r in item.rolesAnteriores)), csvText(STATE_VALUES.get(item.estadoRelacion, item.estadoRelacion)),
+        csvText(item.legajoInstitucional), csvText(item.matriculaProfesional), csvDate(item.fechaInvitacion),
+        csvDate(item.fechaIncorporacion), csvDate(item.fechaBaja),
+    ]
+
+
+def _exportItems(db: Session, idInstitucion: uuid.UUID, alcance: str, ids: list[uuid.UUID], rol: str | None, estado: str | None,
+                 busqueda: str | None) -> list[PersonnelItem]:
+    now = nowForDb()
+    groups = _groups(db, idInstitucion, now)
+    if alcance == "SELECCION":
+        if not ids:
+            raise _error("DATOS_INVALIDOS", "Elegí al menos una persona para exportar.")
+        byRep = {rep.idInstitucionUsuario: (rep, user, relations) for rep, user, relations in groups}
+        if any(i not in byRep for i in ids):
+            # Un id que no es personal de esta institución (ajeno, dado de baja sin incorporación o inexistente) no se exporta.
+            raise _error("DATOS_INVALIDOS", "Alguna persona seleccionada ya no figura en el personal de esta institución. Actualizá el listado.")
+        chosen = [byRep[i] for i in dict.fromkeys(ids)]  # sin repetidos, en el orden elegido
+    else:
+        chosen = _select(groups, rol, estado, _fold(busqueda).strip())
+    return [_item(rep, user, relations, now) for rep, user, relations in chosen]
+
+
+def exportPersonnel(db: Session, actor: User, idInstitucion: uuid.UUID, *, alcance: str, idsInstitucionUsuario: list[uuid.UUID] | None = None,
+                    rol: str | None = None, estado: str | None = None, busqueda: str | None = None) -> tuple[bytes, str]:
+    """CSV del personal (`SELECCION` o `TODOS`). Devuelve (contenido, nombre del archivo)."""
+    try:
+        institutions.requireMembership(db, actor, idInstitucion, institutions.P_EQUIPO)
+    except AuthError as error:
+        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV", motivo=error.code)
+        db.commit()
+        raise
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV") as export:
+        items = _exportItems(db, idInstitucion, alcance, idsInstitucionUsuario or [], rol, estado, busqueda)
+        export.registros = len(items)
+        content = csvBytes(EXPORT_COLUMNS, [_csvRow(item) for item in items])
+        return content, f"personal-institucion-{nowForDb():%Y%m%d-%H%M}.csv"
 
 
 # --- Invitaciones enviadas por la institución -----------------------------------------------------------------------------

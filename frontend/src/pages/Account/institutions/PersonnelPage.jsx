@@ -4,7 +4,7 @@
 // Los filtros y la página viven en la URL: al volver desde un perfil se recupera el mismo listado.
 
 import {
-  ChevronLeft, ChevronRight, Filter, MailPlus, Search, UserCheck, UserMinus, UserPlus, Users, UsersRound,
+  ChevronLeft, ChevronRight, Download, Filter, MailPlus, Search, UserCheck, UserMinus, UserPlus, Users, UsersRound,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useOutletContext, useSearchParams } from 'react-router-dom';
@@ -18,6 +18,8 @@ import { AddMemberForm, CONFIG } from './PersonnelForms.jsx';
 import { QuotaLine } from './QuotaSection.jsx';
 import { ROLE_LABELS, can, personName } from './institutionFormat.js';
 import { RELATION_STATES, stateInfo, when } from './personnelFormat.js';
+import { saveBlob } from '../../../utils/downloadFile.js';
+import './exportControls.css';
 import './Personnel.css';
 
 const PAGE_SIZE = 15;
@@ -45,6 +47,9 @@ export function PersonnelPage({ rol }) {
   const [notice, setNotice] = useState('');
   const [adding, setAdding] = useState(null); // 'MODERADOR' | 'OPERADOR' | null
   const [version, setVersion] = useState(0);
+  const [selected, setSelected] = useState(() => new Set()); // personas marcadas para exportar (solo de la página visible)
+  const [exporting, setExporting] = useState(null); // clave de la exportación en curso: evita pedidos repetidos
+  const [exportError, setExportError] = useState('');
   const effectiveRole = rol ?? role; // en las pestañas Moderadores y Operadores el rol lo fija la pestaña
 
   const filtersActive = Boolean(state || query || (!rol && role));
@@ -60,6 +65,7 @@ export function PersonnelPage({ rol }) {
   useEffect(() => {
     let active = true;
     setPage(null);
+    setSelected(new Set()); // una selección no sobrevive a un cambio de filtros o de página
     const timer = setTimeout(() => {
       institutionsApi.listPersonnel(institution.idInstitucion, { ...params, pagina, tamanioPagina: PAGE_SIZE }).then(
         (result) => active && (setPage(result), setError('')),
@@ -78,6 +84,39 @@ export function PersonnelPage({ rol }) {
   const summary = page?.resumen;
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
   const config = CONFIG[rol] ?? null;
+  // Exportar: lo ve quien consulta el equipo (propietario y moderador). La API lo vuelve a validar en cada pedido.
+  const canExport = can(institution, 'CONSULTAR_EQUIPO');
+  const selectedIds = [...selected];
+  const pageIds = page?.items.map((person) => person.idInstitucionUsuario) ?? [];
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  function toggle(id) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePage() {
+    setSelected(allOnPageSelected ? new Set() : new Set(pageIds));
+  }
+
+  async function handleExport(key, body) {
+    setExporting(key);
+    setExportError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await institutionsApi.exportPersonnel(institution.idInstitucion, body);
+      saveBlob(blob, filename);
+      setNotice(`Exportación lista: ${filename}.`);
+    } catch (failure) {
+      setExportError(handleOperationError(failure));
+    } finally {
+      setExporting(null);
+    }
+  }
 
   function update(setter) {
     return (event) => {
@@ -138,6 +177,7 @@ export function PersonnelPage({ rol }) {
 
       {notice && <Alert kind="success">{notice}</Alert>}
       {error && <Alert>{error}</Alert>}
+      {exportError && <Alert>{exportError}</Alert>}
       {!canAddOperator && rol === 'OPERADOR' && (
         <Alert kind="info">Los operadores los incorpora un moderador de la institución. Desde acá podés consultarlos y administrarlos.</Alert>
       )}
@@ -150,6 +190,18 @@ export function PersonnelPage({ rol }) {
         <div className="panel-head">
           <h2 id="personal-listado">{rol ? TITLES[rol] : 'Todo el personal'}</h2>
           {page && page.total > 0 && <span className="audit-count">{page.total.toLocaleString('es-AR')} {page.total === 1 ? 'persona' : 'personas'}</span>}
+          {canExport && page && page.total > 0 && (
+            <div className="export-toolbar export-toolbar--end">
+              <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting !== null}
+                onClick={() => handleExport('SELECCION', { alcance: 'SELECCION', idsInstitucionUsuario: selectedIds })}>
+                <Download size={18} aria-hidden="true" /> Exportar seleccionados{selected.size > 0 ? ` (${selected.size})` : ''}
+              </button>
+              <button type="button" className="btn btn-outline" disabled={exporting !== null}
+                onClick={() => handleExport('TODOS', { alcance: 'TODOS', ...params })}>
+                <Download size={18} aria-hidden="true" /> Exportar todos{filtersActive ? ' los filtrados' : ''} ({page.total})
+              </button>
+            </div>
+          )}
         </div>
         <form className="personnel-filters" aria-label="Filtros del personal" onSubmit={(event) => event.preventDefault()}>
           <div className="personnel-search">
@@ -187,6 +239,12 @@ export function PersonnelPage({ rol }) {
               <table className="data-table personnel-table" aria-label="Personal de la institución">
                 <thead>
                   <tr>
+                    {canExport && (
+                      <th scope="col" className="export-check-cell">
+                        <input type="checkbox" className="export-check" checked={allOnPageSelected} onChange={togglePage}
+                          aria-label="Seleccionar todas las personas de esta página" />
+                      </th>
+                    )}
                     <th scope="col">Persona</th><th scope="col">Rol</th><th scope="col">Legajo</th><th scope="col">Matrícula</th>
                     <th scope="col">Fecha de incorporación</th><th scope="col">Fecha de baja</th><th scope="col">Estado</th><th scope="col"><span className="sr-only">Acciones</span></th>
                   </tr>
@@ -196,6 +254,12 @@ export function PersonnelPage({ rol }) {
                     const info = stateInfo(person);
                     return (
                       <tr key={person.idInstitucionUsuario}>
+                        {canExport && (
+                          <td data-label="Seleccionar" className="export-check-cell">
+                            <input type="checkbox" className="export-check" checked={selected.has(person.idInstitucionUsuario)}
+                              onChange={() => toggle(person.idInstitucionUsuario)} aria-label={`Seleccionar a ${person.nombreCompleto}`} />
+                          </td>
+                        )}
                         <th scope="row" data-label="Persona"><PersonCell person={person} /></th>
                         <td data-label="Rol">
                           <Badge tone="brand">{ROLE_LABELS[person.rolInstitucion]}</Badge>
@@ -216,6 +280,13 @@ export function PersonnelPage({ rol }) {
                           <Link to={`/app/instituciones/${institution.idInstitucion}/personal/perfil/${person.idInstitucionUsuario}`}
                             state={{ from: location.pathname, search: location.search }} className="btn btn-ghost"
                             aria-label={`Ver perfil de ${person.nombreCompleto}`}>Ver perfil</Link>
+                          {canExport && (
+                            <button type="button" className="btn btn-ghost" disabled={exporting !== null}
+                              onClick={() => handleExport(person.idInstitucionUsuario, { alcance: 'SELECCION', idsInstitucionUsuario: [person.idInstitucionUsuario] })}
+                              aria-label={`Exportar los datos de ${person.nombreCompleto}`}>
+                              <Download size={16} aria-hidden="true" /> Exportar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

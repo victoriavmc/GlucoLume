@@ -6,7 +6,7 @@
 
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
 from app.api.deps import CurrentAuth, DbSession, PlatformMfaGate
 from app.schemas.matrix import (
@@ -86,6 +86,16 @@ def deactivate(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
              description="Solo un borrador o una versión inactiva. Se conserva para la trazabilidad; no se borra.")
 def archive(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return matrixService.archive(db, auth.user, idMatriz)
+
+
+@router.post("/{idMatriz}/export", response_class=Response, summary="Exportar la matriz con sus reglas (CSV)",
+             description="Quien puede ver la matriz: la plataforma (globales); el propietario y el moderador de la institución (las suyas y "
+             "la global activa). Un operador u otra institución recibe 404 y el intento queda en la auditoría de exportaciones. Una fila "
+             "por regla. Cada exportación queda registrada.")
+def exportMatrix(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
+    content, filename = matrixService.exportMatrix(db, auth.user, idMatriz)
+    return Response(content=content, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 @router.get("/{idMatriz}/audit", response_model=list[MatrixAuditEntry], summary="Auditoría de la matriz",

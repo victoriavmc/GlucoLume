@@ -18,6 +18,7 @@ from app.core.exceptions import AuthError
 from app.integrations.google import oauth as googleOAuth
 from app.services import email as emailService
 from app.schemas.auth import (
+    AccesoLogin,
     AccountDeletionPreview,
     AccountActivationCompleteRequest,
     ConsentsResponse,
@@ -78,6 +79,8 @@ GOOGLE_REGISTRATION_TYPES = {"usuario": "CONSUMIDOR_FINAL", "institucion": "USUA
 GOOGLE_REMEMBER_KEY = "glucolume_recordar"
 # Confirmación de lectura de la Política de Privacidad hecha antes de ir a Google (registro o activación de cuenta).
 GOOGLE_POLICY_KEY = "glucolume_politica"
+# Acceso elegido al iniciar el flujo (GENERAL o PLATAFORMA). Se valida en el callback, antes de emitir el código de intercambio.
+GOOGLE_ACCESO_KEY = "glucolume_acceso"
 
 
 def _clientInfo(request: Request) -> ClientInfo:
@@ -112,12 +115,14 @@ def resendVerification(data: ResendVerificationRequest, db: DbSession):
     description=(
         "`identificador` acepta el **correo electrónico** o el **nombre de usuario** de la cuenta, junto con "
         "la contraseña local. Si contiene `@` se busca por correo; si no, por nombre de usuario. "
-        "Las cuentas creadas solo con Google no tienen contraseña local: ingresan con `/google/login`."
+        "Las cuentas creadas solo con Google no tienen contraseña local: ingresan con `/google/login`. "
+        "`acceso` separa los dos ingresos: `GENERAL` (por omisión) no admite cuentas de administración de GlucoLume; "
+        "`PLATAFORMA` solo admite esas cuentas."
     ),
 )
 def login(data: LoginRequest, request: Request, response: Response, db: DbSession):
     return sessionCookie.deliver(request, response, authService.loginLocal(
-        db, data.identificador, data.password.get_secret_value(), _clientInfo(request)
+        db, data.identificador, data.password.get_secret_value(), _clientInfo(request), data.acceso
     ))
 
 
@@ -183,6 +188,9 @@ async def googleLogin(
     acepta: Annotated[bool, Query(description=(
         "El usuario confirmó haber leído la Política de Privacidad. Obligatorio para registrarse (`registro`) o activar "
         "una cuenta invitada; el backend lo registra al crear o activar la cuenta."))] = False,
+    acceso: Annotated[AccesoLogin, Query(description=(
+        "Acceso por el que se inicia sesión: `GENERAL` (por omisión) o `PLATAFORMA` (administración de GlucoLume). "
+        "Cada uno rechaza al otro tipo de cuenta en el callback."))] = "GENERAL",
 ):
     _requireGoogle()
     canonicalOrigin = getSettings().googleOrigin
@@ -203,6 +211,7 @@ async def googleLogin(
         request.session[GOOGLE_REMEMBER_KEY] = True
     if acepta:
         request.session[GOOGLE_POLICY_KEY] = True
+    request.session[GOOGLE_ACCESO_KEY] = acceso
     return await googleOAuth.authorizeRedirect(request)
 
 
@@ -270,6 +279,8 @@ async def googleCallback(request: Request, db: DbSession):
     tipoCuentaNueva = GOOGLE_REGISTRATION_TYPES.get(request.session.pop(GOOGLE_REGISTRATION_KEY, None))
     remember = bool(request.session.pop(GOOGLE_REMEMBER_KEY, False))
     aceptaPolitica = bool(request.session.pop(GOOGLE_POLICY_KEY, False))
+    # Sin acceso guardado (cookie anterior o manipulada) se usa el general: nunca abre el administrativo por omisión.
+    acceso = request.session.pop(GOOGLE_ACCESO_KEY, authService.ACCESO_GENERAL)
     try:
         identity = await googleOAuth.fetchIdentity(request)
     except Exception as error:  # noqa: BLE001 - state inválido, código vencido o error de Google
@@ -277,6 +288,7 @@ async def googleCallback(request: Request, db: DbSession):
         return _frontendGoogleRedirect("error=TOKEN_INVALIDO")
     try:
         user = await run_in_threadpool(authService.identifyGoogleUser, db, identity, tipoCuentaNueva, aceptaPolitica)
+        await run_in_threadpool(authService.requireAccesoLogin, db, user, acceso, "LOGIN_GOOGLE")
         code = await run_in_threadpool(authService.createGoogleExchangeCode, db, user)
     except AuthError as error:
         # Los códigos de error son estables y no contienen datos personales.

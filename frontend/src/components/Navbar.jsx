@@ -6,11 +6,12 @@ import { Logo } from "./Logo.jsx";
 import "./Navbar.css";
 
 // Secciones de la Landing, en el orden en que aparecen. El logo lleva a «Proyecto académico» (sección de inicio de la Landing).
+// Las que tienen `path` son páginas propias: el enlace va a esa ruta en vez de a un ancla.
 export const SECTIONS = [
   { id: "que-es", label: "¿Qué es?" },
   { id: "como-funciona", label: "Cómo funciona" },
   { id: "soluciones", label: "Soluciones" },
-  { id: "caracteristicas", label: "Características" },
+  { id: "caracteristicas", label: "Características", path: "/caracteristicas" },
   { id: "contacto", label: "Contacto" },
 ];
 
@@ -47,26 +48,39 @@ export function Navbar({ activeSection }) {
         >
           <nav aria-label="Secciones">
             <ul className="navbar-links">
-              {SECTIONS.map((section) => (
-                <li key={section.id}>
-                  <a
-                    href={onLanding ? `#${section.id}` : `/#${section.id}`}
-                    className={
-                      onLanding && activeSection === section.id
-                        ? "is-active"
-                        : undefined
-                    }
-                    aria-current={
-                      onLanding && activeSection === section.id
-                        ? "true"
-                        : undefined
-                    }
-                    onClick={() => setOpen(false)}
-                  >
-                    {section.label}
-                  </a>
-                </li>
-              ))}
+              {SECTIONS.map((section) => {
+                const current = section.path
+                  ? pathname === section.path
+                  : onLanding && activeSection === section.id;
+                const linkProps = {
+                  className: current ? "is-active" : undefined,
+                  "aria-current": current ? "true" : undefined,
+                  onClick: () => setOpen(false),
+                };
+                return (
+                  <li key={section.id}>
+                    {section.path ? (
+                      <Link to={section.path} {...linkProps}>
+                        {section.label}
+                      </Link>
+                    ) : (
+                      <a href={onLanding ? `#${section.id}` : `/#${section.id}`} {...linkProps}>
+                        {section.label}
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+              <li>
+                <Link
+                  to="/consejos"
+                  className={pathname.startsWith("/consejos") ? "is-active" : undefined}
+                  aria-current={pathname.startsWith("/consejos") ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  Consejos
+                </Link>
+              </li>
             </ul>
           </nav>
           <div className="navbar-actions">

@@ -132,3 +132,31 @@ describe('Página de consejos', () => {
     expect(screen.getByRole('link', { name: 'Volver a consejos' })).toHaveAttribute('href', '/app/consejos');
   });
 });
+
+describe('Consejos públicos (sin iniciar sesión)', () => {
+  it('se llega desde el navbar de la portada, se lee un artículo y se vuelve, todo sin cuenta', async () => {
+    clearTokens();
+    mockApi({});
+    const user = userEvent.setup();
+    renderAt('/');
+    const nav = screen.getByRole('navigation', { name: 'Secciones' });
+    await user.click(within(nav).getByRole('link', { name: 'Consejos' }));
+    expect(await screen.findByRole('heading', { name: 'Consejos para diabéticos', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Iniciar sesión' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Iniciar sesión' })).toBeInTheDocument();
+
+    await user.click(await screen.findByRole('link', { name: 'Leer artículo: Revisá tus pies todos los días' }));
+    expect(await screen.findByRole('heading', { name: 'Revisá tus pies todos los días', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Volver a consejos/ })).toHaveAttribute('href', '/consejos');
+    await user.click(screen.getByRole('link', { name: /Volver a consejos/ }));
+    expect(await screen.findByRole('heading', { name: 'Consejos para diabéticos', level: 1 })).toBeInTheDocument();
+  });
+
+  it('las tarjetas enlazan a la ruta pública y no a /app', async () => {
+    clearTokens();
+    mockApi({});
+    renderAt('/consejos?categoria=pies');
+    const link = await screen.findByRole('link', { name: 'Leer artículo: Revisá tus pies todos los días' });
+    expect(link.getAttribute('href')).toMatch(/^\/consejos\/[^/]+$/);
+  });
+});

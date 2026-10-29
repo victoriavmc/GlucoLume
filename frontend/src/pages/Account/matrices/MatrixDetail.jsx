@@ -5,22 +5,25 @@
 //
 // Aviso: los límites de glucosa de referencia no son un algoritmo de estimación. Elegir una regla no calcula glucosa.
 
-import { Archive, CheckCircle2, CopyPlus, History, Pencil, Play, PowerOff, ShieldCheck, Trash2 } from 'lucide-react';
+import { Archive, CheckCircle2, CopyPlus, Download, History, Pencil, Play, PowerOff, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import * as matricesApi from '../../../api/matricesApi.js';
 import { Badge, toneFromClass } from '../../../components/Badge.jsx';
 import { Alert, SubmitButton, TextField } from '../../../components/FormControls.jsx';
+import { saveBlob } from '../../../utils/downloadFile.js';
 import { RuleEditor } from './RuleEditor.jsx';
 import { RulesTable } from './MatrixRules.jsx';
 import {
   AUDIT_ACTIONS, MATRIX_SCOPES, MATRIX_STATES, formatDate, formatDateTime, stateBadge,
 } from './matrixFormat.js';
 
+const URL_REFERENCIA = /^https?:\/\/\S+$/i; // igual que el backend: http(s) y sin espacios
+
 function DraftForm({ matrix, onSaved, handleOperationError }) {
   const [form, setForm] = useState({
-    nombre: matrix.nombre, descripcion: matrix.descripcion ?? '', desde: matrix.fechaVigenciaDesde,
-    hasta: matrix.fechaVigenciaHasta ?? '',
+    nombre: matrix.nombre, descripcion: matrix.descripcion ?? '', referenciaBase: matrix.referenciaBase ?? '',
+    urlReferencia: matrix.urlReferencia ?? '', desde: matrix.fechaVigenciaDesde, hasta: matrix.fechaVigenciaHasta ?? '',
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -36,6 +39,14 @@ function DraftForm({ matrix, onSaved, handleOperationError }) {
       setError('Ingresá el nombre de la matriz.');
       return;
     }
+    if (form.referenciaBase.trim().length < 2) {
+      setError('Indicá de dónde se tomaron los criterios: es obligatorio.');
+      return;
+    }
+    if (form.urlReferencia.trim() && !URL_REFERENCIA.test(form.urlReferencia.trim())) {
+      setError('El enlace tiene que empezar con http:// o https:// y no llevar espacios.');
+      return;
+    }
     if (form.hasta && form.desde && form.hasta < form.desde) {
       setError('La vigencia no puede terminar antes de empezar.');
       return;
@@ -44,7 +55,8 @@ function DraftForm({ matrix, onSaved, handleOperationError }) {
     setError('');
     try {
       onSaved(await matricesApi.updateDraft(matrix.idMatriz, {
-        nombre: form.nombre.trim(), descripcion: form.descripcion.trim() || null, fechaVigenciaDesde: form.desde || null,
+        nombre: form.nombre.trim(), descripcion: form.descripcion.trim() || null, referenciaBase: form.referenciaBase.trim(),
+        urlReferencia: form.urlReferencia.trim() || null, fechaVigenciaDesde: form.desde || null,
         fechaVigenciaHasta: form.hasta || null,
       }));
     } catch (saveError) {
@@ -61,6 +73,8 @@ function DraftForm({ matrix, onSaved, handleOperationError }) {
       <div className="form-grid">
         <TextField label="Nombre" maxLength={100} value={form.nombre} onChange={update('nombre')} />
         <TextField label="Descripción (opcional)" maxLength={500} value={form.descripcion} onChange={update('descripcion')} />
+        <TextField label="Referencia base (obligatoria)" maxLength={200} value={form.referenciaBase} onChange={update('referenciaBase')} />
+        <TextField label="Enlace de la referencia (opcional)" maxLength={500} value={form.urlReferencia} onChange={update('urlReferencia')} />
         <TextField label="Vigente desde" type="date" value={form.desde} onChange={update('desde')} />
         <TextField label="Vigente hasta (opcional)" type="date" value={form.hasta} onChange={update('hasta')} />
       </div>
@@ -78,6 +92,7 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
   const [notice, setNotice] = useState('');
   const [confirming, setConfirming] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [editingRule, setEditingRule] = useState(null); // null: cerrado · 'new' · regla
   const [validation, setValidation] = useState(null);
   const [audit, setAudit] = useState(null);
@@ -125,6 +140,23 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
       setError(message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Exportar: la API decide quién puede ver la matriz (la plataforma, para las globales; propietario y moderador, para las suyas)
+  // y audita cada exportación. Acá solo se descarga lo que devuelve.
+  async function exportRules() {
+    setExporting(true);
+    setError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await matricesApi.exportMatrix(idMatriz);
+      saveBlob(blob, filename);
+      setNotice(`Exportación lista: ${filename}.`);
+    } catch (exportFailure) {
+      setError(handleOperationError(exportFailure));
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -191,6 +223,10 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
         <dl className="data-list">
           <div><dt>Vigencia</dt><dd>{formatDate(matrix.fechaVigenciaDesde)}{matrix.fechaVigenciaHasta ? ` al ${formatDate(matrix.fechaVigenciaHasta)}` : ' en adelante'}</dd></div>
           <div><dt>Descripción</dt><dd className={matrix.descripcion ? undefined : 'is-empty'}>{matrix.descripcion || 'Sin descripción'}</dd></div>
+          <div><dt>Referencia base</dt><dd>{matrix.referenciaBase || 'Sin registrar'}</dd></div>
+          <div><dt>Enlace de la referencia</dt><dd className={matrix.urlReferencia ? undefined : 'is-empty'}>
+            {matrix.urlReferencia ? <a href={matrix.urlReferencia} target="_blank" rel="noopener noreferrer">{matrix.urlReferencia}</a> : 'Sin enlace'}
+          </dd></div>
           <div><dt>Reglas</dt><dd>{matrix.cantidadReglas}</dd></div>
           <div><dt>Creada</dt><dd>{formatDateTime(matrix.fechaCreacion)}{matrix.creadaPor?.por ? ` · ${matrix.creadaPor.por}` : ''}</dd></div>
           {matrix.ultimaModificacion && (
@@ -242,6 +278,9 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
                   <Archive size={16} aria-hidden="true" /> Archivar
                 </button>
               )}
+              <button type="button" className="btn btn-outline" disabled={exporting} onClick={exportRules}>
+                <Download size={16} aria-hidden="true" /> Exportar matriz y reglas
+              </button>
               {permisos.puedeVerAuditoria && (
                 <button type="button" className="btn btn-ghost" onClick={toggleAudit}>
                   <History size={16} aria-hidden="true" /> {audit ? 'Ocultar auditoría' : 'Ver auditoría'}

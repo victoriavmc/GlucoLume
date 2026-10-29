@@ -14,6 +14,10 @@ Administración global (`backend/app/services/{platform,platformDashboard,platfo
 Cuentas propias, sin vínculos institucionales; no se convierte una cuenta existente (se invita otro correo). El rol se lee de SQL Server en
 cada pedido. Accesos: `/administracion/login` (redirige a `/plataforma/login`), `/administracion/activar` (activación con el código de un solo
 uso en el fragmento `#codigo=…`, que no llega a los registros de Nginx), `/plataforma/recuperar` y `/plataforma/restablecer`.
+Dos ingresos separados, aplicados por el backend (`acceso` en `POST /auth/login` y en el inicio con Google): el general (`localhost:8080/login`,
+por omisión) **no admite** administradores ni moderadores de plataforma (`ACCESO_PLATAFORMA_REQUERIDO`), y el administrativo
+(`/plataforma/login`, `acceso=PLATAFORMA`) **solo admite** a esas cuentas (`ACCESO_PLATAFORMA_DENEGADO` para el resto). El rechazo ocurre
+antes de abrir la sesión o pedir MFA, y queda en la auditoría.
 
 ## 2. Permisos (`PERMISSIONS`)
 

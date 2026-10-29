@@ -2,7 +2,12 @@
 // Quién puede ver o modificar cada matriz lo decide el backend por ámbito y rol; las acciones disponibles llegan en
 // `permisos` de cada detalle. El cliente nunca elige qué matriz se usa en una medición.
 
-import { request } from './client.js';
+import { fileFrom, request } from './client.js';
+
+/** POST /matrices/{id}/export -> { blob, filename }: la matriz con sus reglas en CSV. La API decide quién puede verla y audita la exportación. */
+export async function exportMatrix(idMatriz) {
+  return fileFrom(await request(`/matrices/${idMatriz}/export`, { method: 'POST', auth: true, file: true }), 'matriz.csv');
+}
 
 /** Todas las versiones globales (cuentas de plataforma). */
 export function listGlobalMatrices() {
@@ -14,10 +19,14 @@ export function getInstitutionMatrices(idInstitucion) {
   return request(`/institutions/${idInstitucion}/matrices`, { auth: true });
 }
 
-export function createMatrix({ ambito, idInstitucion, nombre, descripcion, fechaVigenciaDesde, fechaVigenciaHasta, reglas }) {
-  const body = { ambito, nombre };
+/** `referenciaBase` es obligatoria (de dónde se tomaron los criterios); `urlReferencia` es el enlace opcional a esa fuente. */
+export function createMatrix({
+  ambito, idInstitucion, nombre, descripcion, referenciaBase, urlReferencia, fechaVigenciaDesde, fechaVigenciaHasta, reglas,
+}) {
+  const body = { ambito, nombre, referenciaBase };
   if (idInstitucion) body.idInstitucion = idInstitucion;
   if (descripcion) body.descripcion = descripcion;
+  if (urlReferencia) body.urlReferencia = urlReferencia;
   if (fechaVigenciaDesde) body.fechaVigenciaDesde = fechaVigenciaDesde;
   if (fechaVigenciaHasta) body.fechaVigenciaHasta = fechaVigenciaHasta;
   if (reglas?.length) body.reglas = reglas; // se guardan junto con la matriz (todo o nada)
@@ -28,7 +37,7 @@ export function getMatrix(idMatriz) {
   return request(`/matrices/${idMatriz}`, { auth: true });
 }
 
-/** Solo un borrador: { nombre?, descripcion?, fechaVigenciaDesde?, fechaVigenciaHasta? }. */
+/** Solo un borrador: { nombre?, descripcion?, referenciaBase?, urlReferencia?, fechaVigenciaDesde?, fechaVigenciaHasta? }. */
 export function updateDraft(idMatriz, changes) {
   return request(`/matrices/${idMatriz}`, { method: 'PATCH', body: changes, auth: true });
 }

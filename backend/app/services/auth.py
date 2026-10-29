@@ -364,6 +364,28 @@ def verifyEmail(db: Session, token: str) -> None:
 # --- Autenticación primaria -------------------------------------------------------------
 
 
+# Accesos de inicio de sesión (AccesoLogin en schemas/auth.py). Las cuentas de administración de GlucoLume solo entran por PLATAFORMA;
+# el resto solo por GENERAL. Los roles de plataforma son los de platform.PLATFORM_ROLES; no se importan porque platform importa este módulo.
+ACCESO_GENERAL = "GENERAL"
+ACCESO_PLATAFORMA = "PLATAFORMA"
+_CUENTAS_PLATAFORMA = ("ADMINISTRADOR_PLATAFORMA", "MODERADOR_PLATAFORMA")
+
+
+def requireAccesoLogin(db: Session, user: User, acceso: str, accion: str) -> None:
+    """La contraseña (o la identidad de Google) ya fue verificada, pero la cuenta solo entra por su acceso. Se audita y se rechaza antes de
+    abrir la sesión o el desafío MFA: la regla no depende de lo que haga el cliente."""
+    esPlataforma = user.tipoCuenta in _CUENTAS_PLATAFORMA
+    if (acceso == ACCESO_PLATAFORMA) == esPlataforma:
+        return
+    if acceso == ACCESO_PLATAFORMA:
+        _auditFailedLogin(db, accion, user, "SIN_ROL_PLATAFORMA", "Acceso administrativo con una cuenta sin rol de plataforma")
+        db.commit()
+        raise AuthError("ACCESO_PLATAFORMA_DENEGADO", "Esta cuenta no tiene acceso a la administración de la plataforma.")
+    _auditFailedLogin(db, accion, user, "CUENTA_DE_PLATAFORMA", "Cuenta de administración de GlucoLume en el acceso general")
+    db.commit()
+    raise AuthError("ACCESO_PLATAFORMA_REQUERIDO", "Esta cuenta administra GlucoLume: ingresá por el acceso administrativo.")
+
+
 def _auditFailedLogin(db: Session, accion: str, user: User | None, motivo: str, observacion: str | None = None,
                       identificador: str | None = None) -> None:
     """Deja constancia de un acceso fallido (el llamador confirma). `motivo` es un código estable, nunca texto libre ni lo que escribió la
@@ -519,8 +541,11 @@ def verifyCurrentPassword(db: Session, credential: LocalCredential, password: st
     return False
 
 
-def loginLocal(db: Session, identificador: str, password: str, clientInfo: ClientInfo | None = None) -> LoginResponse:
-    """Casos 1 y 3: correo o username + contraseña, con bloqueo temporal por intentos fallidos."""
+def loginLocal(
+    db: Session, identificador: str, password: str, clientInfo: ClientInfo | None = None, acceso: str = ACCESO_GENERAL
+) -> LoginResponse:
+    """Casos 1 y 3: correo o username + contraseña, con bloqueo temporal por intentos fallidos. `acceso` separa el login general
+    del administrativo (requireAccesoLogin)."""
     now = nowForDb()
     user = _findUserByIdentifier(db, identificador)
 
@@ -592,6 +617,7 @@ def loginLocal(db: Session, identificador: str, password: str, clientInfo: Clien
     db.commit()
 
     _requireActive(db, user, "LOGIN_LOCAL")
+    requireAccesoLogin(db, user, acceso, "LOGIN_LOCAL")
     return _completePrimaryAuthentication(db, user, METHOD_PASSWORD, clientInfo)
 
 

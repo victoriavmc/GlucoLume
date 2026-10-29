@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 from app.schemas.institutionUser import RolInstitucion
 from app.utils.timeZone import withArgentinaZone
@@ -61,6 +61,16 @@ class PersonnelPage(BaseModel):
     pagina: int
     tamanioPagina: int
     resumen: PersonnelSummary
+
+
+class PersonnelExportRequest(BaseModel):
+    """`SELECCION`: las personas de `idsInstitucionUsuario`. `TODOS`: todas las que coinciden con los filtros del listado."""
+
+    alcance: Literal["SELECCION", "TODOS"]
+    idsInstitucionUsuario: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    rol: Literal["PROPIETARIO", "MODERADOR", "OPERADOR"] | None = None
+    estado: Literal["ACTIVO", "PENDIENTE", "SUSPENDIDO", "BAJA"] | None = None
+    busqueda: str | None = Field(default=None, max_length=100)
 
 
 class PersonnelPeriod(_Dated):

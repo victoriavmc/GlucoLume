@@ -2,7 +2,7 @@
 // ve la identificación administrativa; las mediciones solo las ve el operador responsable (el backend lo decide en cada consulta: acá
 // solo se distingue «registrado en la institución» de «a mi cargo» y se ofrece «Medir» en los propios).
 
-import { ChevronLeft, ChevronRight, Plus, Search, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Plus, Search, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 
@@ -11,8 +11,10 @@ import { Badge } from '../../../../components/Badge.jsx';
 import { EmptyState } from '../../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../../components/FormControls.jsx';
 import { SkeletonList } from '../../../../components/Skeleton.jsx';
+import { saveBlob } from '../../../../utils/downloadFile.js';
 import { useLatestRequest } from '../../../../utils/useLatestRequest.js';
 import { can, formatDateTime } from '../institutionFormat.js';
+import '../exportControls.css';
 
 const PAGE_SIZE = 20;
 
@@ -34,6 +36,10 @@ export function PatientsPage() {
   const [page, setPage] = useState(null);
   const [operators, setOperators] = useState([]);
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState(() => new Set()); // pacientes marcados para exportar (solo de la página visible)
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [exportNotice, setExportNotice] = useState('');
 
   const beginRequest = useLatestRequest(); // una respuesta lenta de un filtro anterior no pisa a la del filtro actual
 
@@ -54,6 +60,11 @@ export function PatientsPage() {
     load();
   }, [load]);
 
+  // Una selección no sobrevive a un cambio de filtros o de página.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [filters]);
+
   useEffect(() => {
     let active = true;
     institutionsApi.getAssignableOperators(institution.idInstitucion).then(
@@ -71,6 +82,42 @@ export function PatientsPage() {
   function setFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value, pagina: 1 }));
   }
+
+  // Exportar: propietario y moderador exportan a todos los pacientes; el operador, solo a los que tiene a su cargo. La API lo valida
+  // en cada pedido: acá solo se ofrecen las opciones que corresponden.
+  const canExportPatient = (patient) => !isOperator || patient.esMio;
+
+  function toggle(id) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleExport(body) {
+    setExporting(true);
+    setExportError('');
+    setExportNotice('');
+    try {
+      const { blob, filename } = await institutionsApi.exportPatients(institution.idInstitucion, body);
+      saveBlob(blob, filename);
+      setExportNotice(`Exportación lista: ${filename}.`);
+    } catch (failure) {
+      setExportError(handleOperationError(failure));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // «Todos» exporta con los mismos filtros del listado (búsqueda, estado y operador responsable).
+  const exportAllBody = {
+    alcance: 'TODOS',
+    busqueda: filters.busqueda || null,
+    estado: filters.estado,
+    idResponsable: filters.idResponsable || null,
+  };
 
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
 
@@ -96,6 +143,7 @@ export function PatientsPage() {
       </div>
 
       {error && <Alert>{error}</Alert>}
+      {exportError && <Alert>{exportError}</Alert>}
       {choosingToMeasure && <Alert kind="info">Elegí el paciente al que vas a medir y tocá «Medir».</Alert>}
       <p className="field-hint">
         Las mediciones de cada paciente están disponibles únicamente para su operador responsable autorizado; el resto del personal ve su
@@ -136,9 +184,24 @@ export function PatientsPage() {
               : filters.soloMios ? 'Todavía no tenés pacientes asignados. Podés agregar uno nuevo con «Agregar paciente».' : 'Todavía no hay pacientes registrados.'} />
       ) : (
         <>
+          <div className="export-toolbar">
+            <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting}
+              onClick={() => handleExport({ alcance: 'SELECCION', idsPerfilMedicion: [...selected] })}>
+              <Download size={18} aria-hidden="true" /> Exportar seleccionados{selected.size > 0 ? ` (${selected.size})` : ''}
+            </button>
+            <button type="button" className="btn btn-outline" disabled={exporting} onClick={() => handleExport(exportAllBody)}>
+              <Download size={18} aria-hidden="true" />{' '}
+              {isOperator ? 'Exportar mis pacientes' : `Exportar todos${filters.busqueda || filters.idResponsable || filters.estado === 'BAJA' ? ' los filtrados' : ''} (${page.total})`}
+            </button>
+            {exportNotice && <p className="field-hint" role="status">{exportNotice}</p>}
+          </div>
           <ul className="member-list-items" aria-label="Listado de pacientes">
             {page.items.map((patient) => (
               <li key={patient.idPerfilMedicion} className="member-row">
+                {canExportPatient(patient) && (
+                  <input type="checkbox" className="export-check" checked={selected.has(patient.idPerfilMedicion)}
+                    onChange={() => toggle(patient.idPerfilMedicion)} aria-label={`Seleccionar a ${patientName(patient)}`} />
+                )}
                 <span>
                   <Link to={entryTo(patient)} className="patient-link">
                     <b>{patientName(patient)}</b>
@@ -165,6 +228,13 @@ export function PatientsPage() {
                 <span className="member-actions">
                   {patient.medicionesAutorizadas && patient.estado === 'ACTIVO' && (
                     <Link to={`${patient.idPerfilMedicion}/medir`} className="btn btn-outline" aria-label={`Medir a ${patientName(patient)}`}>Medir</Link>
+                  )}
+                  {canExportPatient(patient) && (
+                    <button type="button" className="btn btn-ghost" disabled={exporting}
+                      onClick={() => handleExport({ alcance: 'SELECCION', idsPerfilMedicion: [patient.idPerfilMedicion] })}
+                      aria-label={`Exportar los datos de ${patientName(patient)}`}>
+                      <Download size={16} aria-hidden="true" /> Exportar
+                    </button>
                   )}
                   <Link to={entryTo(patient)} className="btn btn-ghost" aria-label={`Ver ${patientName(patient)}`}>
                     Ver detalle

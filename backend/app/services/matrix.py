@@ -31,6 +31,7 @@
 # Auditoría (Auditoria.idRegistro = idMatriz; idRelacionado = institución): solo el PROPIETARIO consulta la de su
 # institución (el moderador puede modificar pero no auditar) y solo las cuentas de plataforma consultan la global.
 
+import re
 import uuid
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -66,6 +67,8 @@ from app.schemas.matrix import (
 )
 from app.services import institution as institutions
 from app.services.audit import registerEvent
+from app.services.csvExport import csvBytes, csvDate, csvText
+from app.services.exportAudit import auditedExport, rejectExport
 from app.utils.timeZone import nowForDb
 
 GLOBAL, INSTITUCION = "GLOBAL", "INSTITUCION"
@@ -175,7 +178,8 @@ def _item(db: Session, matrix: Matrix) -> MatrixItem:
     return MatrixItem(
         idMatriz=matrix.idMatriz, nombre=matrix.nombre, version=matrix.version, ambito=matrix.ambito,
         estado=matrix.estado, fechaVigenciaDesde=matrix.fechaVigenciaDesde, fechaVigenciaHasta=matrix.fechaVigenciaHasta,
-        descripcion=matrix.descripcion, fechaCreacion=matrix.fechaCreacion, cantidadReglas=_ruleCount(db, matrix.idMatriz),
+        descripcion=matrix.descripcion, referenciaBase=matrix.referenciaBase, urlReferencia=matrix.urlReferencia,
+        fechaCreacion=matrix.fechaCreacion, cantidadReglas=_ruleCount(db, matrix.idMatriz),
         medicionesRegistradas=_usage(db, matrix.idMatriz),
     )
 
@@ -480,7 +484,8 @@ def createMatrix(db: Session, actor: User, data: MatrixCreateRequest) -> MatrixD
         raise _error(issues[0].codigo if len(issues) == 1 else "MATRIZ_INVALIDA", " ".join(issue.mensaje for issue in issues))
     matrix = Matrix(
         idInstitucion=data.idInstitucion, nombre=data.nombre, version=_nextVersion(db, data.ambito, data.idInstitucion, data.nombre),
-        ambito=data.ambito, descripcion=data.descripcion, estado=BORRADOR,
+        ambito=data.ambito, descripcion=data.descripcion, referenciaBase=data.referenciaBase, urlReferencia=data.urlReferencia,
+        estado=BORRADOR,
         fechaVigenciaDesde=data.fechaVigenciaDesde or nowForDb().date(), fechaVigenciaHasta=data.fechaVigenciaHasta,
     )
     try:
@@ -506,6 +511,7 @@ def newVersion(db: Session, actor: User, idMatriz: uuid.UUID) -> MatrixDetail:
         raise _error("MATRIZ_ESTADO_INVALIDO", "Esa matriz ya es un borrador: editala directamente.")
     copy = Matrix(
         idInstitucion=source.idInstitucion, nombre=source.nombre, ambito=source.ambito, descripcion=source.descripcion,
+        referenciaBase=source.referenciaBase, urlReferencia=source.urlReferencia,
         version=_nextVersion(db, source.ambito, source.idInstitucion, source.nombre), estado=BORRADOR,
         fechaVigenciaDesde=nowForDb().date(), fechaVigenciaHasta=None,
     )
@@ -708,3 +714,75 @@ def archive(db: Session, actor: User, idMatriz: uuid.UUID) -> MatrixDetail:
     db.commit()
     db.expire_all()
     return _detail(db, _access(db, actor, idMatriz))
+
+
+# --- Exportación de una matriz con sus reglas (CSV) ----------------------------------------------------------------------------
+#
+# Quién exporta: exactamente quien puede VER la matriz (`_access`): la plataforma, para las globales; el propietario y el moderador de
+# la institución, para las suyas y para la global ACTIVA. Un operador o un integrante de otra institución no exporta, y su intento queda
+# en la auditoría de exportaciones (EXPORTACION_FALLIDA). Toda exportación pasa por `auditedExport`.
+# Formato: una fila por regla, con los datos de la matriz repetidos en cada fila; una matriz sin reglas sale en una sola fila con las
+# reglas vacías. Un límite sin valor sale como «Sin límite» (así lo define el modelo). Glucosa con coma decimal, para Excel en español.
+
+EXPORT_TIPO_DATOS = "MATRIZ_REGLAS"
+MATRIX_EXPORT_COLUMNS = (
+    "Matriz", "Versión", "Origen", "Estado", "Vigencia desde", "Vigencia hasta", "Referencia base", "URL de referencia",
+    "Código de regla", "Sexo", "Edad desde", "Edad hasta", "Condición de comida", "Minutos desde la comida (mín.)",
+    "Minutos desde la comida (máx.)", "Glucosa mínima de referencia", "Glucosa máxima de referencia",
+)
+_ESTADO_LABELS = {BORRADOR: "Borrador", ACTIVA: "Activa", INACTIVA: "Inactiva", ARCHIVADA: "Archivada"}
+_SEXO_LABELS = {"MASCULINO": "Masculino", "FEMENINO": "Femenino", "NO_INFORMADO": "No informado"}
+_CONDICION_LABELS = {"NO_INFORMADA": "No informada", "POSTPRANDIAL": "Posprandial", "AYUNO": "Ayuno"}
+
+
+def _exportAmbito(matrix: Matrix) -> str:
+    return "PLATAFORMA" if matrix.ambito == GLOBAL else "INSTITUCION"
+
+
+def _limit(value) -> str:
+    return "Sin límite" if value is None else str(value)
+
+
+def _glucose(value: Decimal) -> str:
+    return f"{value:.2f}".replace(".", ",")
+
+
+def _safeName(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip("-") or "matriz"
+
+
+def _matrixRows(matrix: Matrix, institutionName: str | None, rules: list[MatrixRule]) -> list[list[str]]:
+    origin = "Global (GlucoLume)" if matrix.ambito == GLOBAL else (institutionName or "Institución")
+    common = [
+        csvText(matrix.nombre), csvText(matrix.version), csvText(origin), csvText(_ESTADO_LABELS.get(matrix.estado, matrix.estado)),
+        csvDate(matrix.fechaVigenciaDesde), csvDate(matrix.fechaVigenciaHasta), csvText(matrix.referenciaBase), csvText(matrix.urlReferencia),
+    ]
+    if not rules:
+        return [common + [""] * 9]
+    return [common + [
+        csvText(r.codigoRegla), csvText(_SEXO_LABELS.get(r.sexoModelo, r.sexoModelo)), csvText(_limit(r.edadDesde)),
+        csvText(_limit(r.edadHasta)), csvText(_CONDICION_LABELS.get(r.condicionComida, r.condicionComida)),
+        csvText(_limit(r.minutosComidaMin)), csvText(_limit(r.minutosComidaMax)), csvText(_glucose(r.glucosaMinReferencia)),
+        csvText(_glucose(r.glucosaMaxReferencia)),
+    ] for r in rules]
+
+
+def exportMatrix(db: Session, actor: User, idMatriz: uuid.UUID) -> tuple[bytes, str]:
+    """CSV de la matriz y sus reglas, si la cuenta puede verla. Devuelve (contenido, nombre del archivo)."""
+    matrix = db.get(Matrix, idMatriz)
+    try:
+        access = _access(db, actor, idMatriz)
+    except AuthError as error:
+        if matrix is not None:  # existe, pero no le corresponde: el intento queda en la auditoría de exportaciones
+            rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato="CSV",
+                         motivo=error.code)
+            db.commit()
+        raise
+    matrix = access.matrix
+    institution = db.get(Institution, matrix.idInstitucion) if matrix.idInstitucion else None
+    rules = db.scalars(select(MatrixRule).where(MatrixRule.idMatriz == matrix.idMatriz).order_by(MatrixRule.codigoRegla)).all()
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato="CSV") as export:
+        export.registros = len(rules)
+        content = csvBytes(MATRIX_EXPORT_COLUMNS, _matrixRows(matrix, institution.nombre if institution else None, rules))
+        filename = f"matriz-{_safeName(matrix.nombre)}-{_safeName(matrix.version)}-{nowForDb():%Y%m%d-%H%M}.csv"
+        return content, filename

@@ -79,7 +79,7 @@ export function PlatformLogin() {
     setError('');
     setLoading(true);
     try {
-      const result = await login(form.identificador.trim(), form.password, false);
+      const result = await login(form.identificador.trim(), form.password, false, 'PLATAFORMA');
       if (result.mfaRequired) {
         setChallengeToken(result.challengeToken);
         setLoading(false);
@@ -109,7 +109,7 @@ export function PlatformLogin() {
 
   function handleGoogle() {
     window.sessionStorage.setItem(PLATFORM_LOGIN_KEY, '1'); // al volver del callback se entra al panel
-    startGoogleLogin(false);
+    startGoogleLogin(false, undefined, false, 'PLATAFORMA');
   }
 
   return (

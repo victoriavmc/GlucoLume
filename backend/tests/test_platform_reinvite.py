@@ -43,7 +43,7 @@ def test_activar_una_reinvitacion_con_mfa_exige_el_segundo_factor(db, mails, web
     response = platform.completeActivation(db, tokenIn(mails), "modreinv", NEW_PASSWORD)
     assert response.estado == "MFA_REQUERIDO" and response.tokens is None and response.challengeToken
     # El panel no se abre con el enlace del correo solo: ni siquiera existe un access token.
-    assert web.post("/api/v1/auth/login", json={"identificador": "modreinv", "password": NEW_PASSWORD}).json()["estado"] == "MFA_REQUERIDO"
+    assert web.post("/api/v1/auth/login", json={"identificador": "modreinv", "acceso": "PLATAFORMA", "password": NEW_PASSWORD}).json()["estado"] == "MFA_REQUERIDO"
 
 
 def test_un_login_anonimo_no_elimina_a_un_moderador_reinvitado(db, mails, web, admin, moderator):

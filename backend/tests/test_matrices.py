@@ -63,7 +63,7 @@ def platform(db, mails):
 
 
 def newMatrix(db, actor, ambito="GLOBAL", idInstitucion=None, nombre="Matriz GlucoLume", rules=(None,)):
-    created = matrices.createMatrix(db, actor, MatrixCreateRequest(ambito=ambito, idInstitucion=idInstitucion, nombre=nombre))
+    created = matrices.createMatrix(db, actor, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito=ambito, idInstitucion=idInstitucion, nombre=nombre))
     for item in rules:
         matrices.addRule(db, actor, created.idMatriz, item or rule())
     return matrices.getMatrix(db, actor, created.idMatriz)
@@ -119,7 +119,7 @@ def test_las_cuentas_de_plataforma_gestionan_las_matrices_globales(db, mails, ti
 def test_solo_la_plataforma_lista_y_crea_matrices_globales(db, mails, team, platform):
     for actor in (team.owner, team.moderator, team.operator, makeUser(db, email="c@example.com", usuario="c")):
         expectError("PERMISO_INSUFICIENTE", matrices.listGlobal, db, actor)
-        expectError("PERMISO_INSUFICIENTE", matrices.createMatrix, db, actor, MatrixCreateRequest(ambito="GLOBAL", nombre="Intento"))
+        expectError("PERMISO_INSUFICIENTE", matrices.createMatrix, db, actor, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="GLOBAL", nombre="Intento"))
     assert db.scalar(select(func.count()).select_from(Matrix)) == 0
 
 
@@ -159,7 +159,7 @@ def test_el_propietario_crea_su_matriz_y_el_moderador_edita_el_borrador_y_la_act
 def test_un_operador_no_modifica_matrices_solo_consulta_cual_se_aplica(db, mails, team, platform):
     created = newMatrix(db, team.owner, "INSTITUCION", team.id)
     expectError("PERMISO_INSUFICIENTE", matrices.createMatrix, db, team.operator,
-                MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Intento"))
+                MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Intento"))
     expectError("MATRIZ_NO_ENCONTRADA", matrices.getMatrix, db, team.operator, created.idMatriz)
     expectError("MATRIZ_NO_ENCONTRADA", matrices.updateDraft, db, team.operator, created.idMatriz, MatrixDraftUpdateRequest(nombre="X1"))
     expectError("PERMISO_INSUFICIENTE", matrices.institutionOverview, db, team.operator, team.id)
@@ -177,23 +177,63 @@ def test_una_institucion_no_ve_ni_modifica_las_matrices_de_otra(db, mails, team,
         expectError("MATRIZ_NO_ENCONTRADA", matrices.auditTrail, db, actor, mine.idMatriz)
     # Tampoco se puede crear una matriz a nombre de otra institución.
     expectError("INSTITUCION_NO_ENCONTRADA", matrices.createMatrix, db, north.owner,
-                MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Intrusa"))
+                MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Intrusa"))
     expectError("INSTITUCION_NO_ENCONTRADA", matrices.institutionOverview, db, north.owner, team.id)
     assert reload(db, Matrix, mine.idMatriz).estado == "BORRADOR"
 
 
 def test_la_plataforma_no_administra_matrices_privadas_de_una_institucion(db, mails, team, platform):
     with pytest.raises(AuthError) as error:
-        matrices.createMatrix(db, platform, MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Privada"))
+        matrices.createMatrix(db, platform, MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Privada"))
     assert error.value.code in ("INSTITUCION_NO_ENCONTRADA", "PERMISO_INSUFICIENTE")
     assert db.scalar(select(func.count()).select_from(Matrix)) == 0
 
 
 def test_el_esquema_exige_coherencia_entre_ambito_e_institucion():
     with pytest.raises(ValidationError):
-        MatrixCreateRequest(ambito="GLOBAL", idInstitucion=uuid.uuid4(), nombre="Global con institución")
+        MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="GLOBAL", idInstitucion=uuid.uuid4(), nombre="Global con institución")
     with pytest.raises(ValidationError):
-        MatrixCreateRequest(ambito="INSTITUCION", nombre="Institucional sin institución")
+        MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", nombre="Institucional sin institución")
+
+
+# --- Referencia de la matriz: de dónde se tomaron los criterios ------------------------------------------------
+
+
+def test_el_alta_exige_la_referencia_base_y_el_enlace_es_opcional():
+    with pytest.raises(ValidationError):
+        MatrixCreateRequest(ambito="GLOBAL", nombre="Sin referencia")
+    with pytest.raises(ValidationError):
+        MatrixCreateRequest(referenciaBase="   ", ambito="GLOBAL", nombre="Solo espacios")
+    request = MatrixCreateRequest(referenciaBase="  Guía de práctica  ", ambito="GLOBAL", nombre="Con referencia", urlReferencia="  ")
+    assert (request.referenciaBase, request.urlReferencia) == ("Guía de práctica", None)
+
+
+@pytest.mark.parametrize("url", ["ftp://ejemplo.org/guia", "www.ejemplo.org/guia", "https://ejemplo.org/guia con espacios"])
+def test_el_enlace_de_referencia_debe_ser_http_o_https_sin_espacios(url):
+    with pytest.raises(ValidationError):
+        MatrixCreateRequest(referenciaBase="Guía", ambito="GLOBAL", nombre="Enlace", urlReferencia=url)
+
+
+def test_la_referencia_se_guarda_y_se_conserva_al_crear_una_version(db, mails, platform):
+    created = matrices.createMatrix(db, platform, MatrixCreateRequest(
+        referenciaBase="Guía de práctica clínica", urlReferencia="https://ejemplo.org/guia", ambito="GLOBAL", nombre="Referenciada"))
+    assert (created.referenciaBase, created.urlReferencia) == ("Guía de práctica clínica", "https://ejemplo.org/guia")
+    matrices.addRule(db, platform, created.idMatriz, rule())
+    matrices.activate(db, platform, created.idMatriz)
+    version = matrices.newVersion(db, platform, created.idMatriz)
+    assert (version.referenciaBase, version.urlReferencia) == ("Guía de práctica clínica", "https://ejemplo.org/guia")
+    assert matrices.getMatrix(db, platform, version.idMatriz).referenciaBase == "Guía de práctica clínica"
+
+
+def test_el_borrador_permite_corregir_la_referencia_y_quitar_el_enlace_pero_no_dejarla_vacia(db, mails, team):
+    draft = newMatrix(db, team.owner, "INSTITUCION", team.id)
+    updated = matrices.updateDraft(db, team.owner, draft.idMatriz,
+                                   MatrixDraftUpdateRequest(referenciaBase="Protocolo del servicio", urlReferencia=""))
+    assert (updated.referenciaBase, updated.urlReferencia) == ("Protocolo del servicio", None)
+    with pytest.raises(ValidationError):
+        MatrixDraftUpdateRequest(referenciaBase=None)
+    with pytest.raises(ValidationError):
+        MatrixDraftUpdateRequest(referenciaBase="")
 
 
 # --- Una sola activa por ámbito --------------------------------------------------------------------------
@@ -219,6 +259,7 @@ def test_la_base_impide_dos_activas_en_el_mismo_ambito(db, mails, team, north, p
         if ambito == "INSTITUCION":
             activeMatrix(db, team.owner, ambito="INSTITUCION", idInstitucion=team.id)
         duplicate = Matrix(nombre="Duplicada", version="9", ambito=ambito, idInstitucion=institution, estado="ACTIVA",
+                           referenciaBase="Fuente de prueba",
                            fechaVigenciaDesde=nowForDb().date())
         db.add(duplicate)
         with pytest.raises(IntegrityError):
@@ -434,7 +475,7 @@ def test_no_se_activa_una_matriz_invalida_o_fuera_de_vigencia(db, mails, team):
     expectError("REGLA_SOLAPADA", matrices.activate, db, team.owner, created.idMatriz)
     report = matrices.validateMatrix(db, team.owner, created.idMatriz)
     assert not report.valida and report.problemas[0].codigo == "REGLA_SOLAPADA"
-    future = matrices.createMatrix(db, team.owner, MatrixCreateRequest(
+    future = matrices.createMatrix(db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba",
         ambito="INSTITUCION", idInstitucion=team.id, nombre="Futura", fechaVigenciaDesde=nowForDb().date().replace(year=2099)))
     matrices.addRule(db, team.owner, future.idMatriz, rule())
     expectError("MATRIZ_FUERA_DE_VIGENCIA", matrices.activate, db, team.owner, future.idMatriz)
@@ -453,7 +494,7 @@ def test_una_institucion_cerrada_no_modifica_sus_matrices(db, mails, team):
                      (matrices.updateDraft, (MatrixDraftUpdateRequest(descripcion="x"),))):
         expectError("MATRIZ_NO_ENCONTRADA", fn, db, team.owner, draft.idMatriz, *args)
     expectError("INSTITUCION_NO_ENCONTRADA", matrices.createMatrix, db, team.owner,
-                MatrixCreateRequest(ambito="INSTITUCION", idInstitucion=team.id, nombre="Nueva"))
+                MatrixCreateRequest(referenciaBase="Fuente de prueba", ambito="INSTITUCION", idInstitucion=team.id, nombre="Nueva"))
     assert reload(db, Matrix, draft.idMatriz).estado == "BORRADOR"  # nada se perdió
 
 

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearTokens, saveTokens } from "../../../auth/tokenStore.js";
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from "../../../test/helpers.js";
@@ -109,7 +109,7 @@ describe("Personal: vista general", () => {
     renderAt(`/app/instituciones/${ID}/personal`);
     const table = await screen.findByRole("table", { name: "Personal de la institución" });
     const labels = Array.from(table.querySelectorAll("tbody tr:first-child [data-label]")).map((cell) => cell.getAttribute("data-label"));
-    expect(labels).toEqual(["Persona", "Rol", "Legajo", "Matrícula", "Fecha de incorporación", "Fecha de baja", "Estado"]);
+    expect(labels).toEqual(["Seleccionar", "Persona", "Rol", "Legajo", "Matrícula", "Fecha de incorporación", "Fecha de baja", "Estado"]);
   });
 
   it("filtra por rol (incluido propietario), por estado y combina filtros", async () => {
@@ -528,5 +528,82 @@ describe("Desvincular a un operador con pacientes", () => {
     await user.click(await screen.findByRole("button", { name: "Confirmar" }));
     expect(await screen.findByRole("dialog", { name: "Reasignación de pacientes" })).toBeInTheDocument();
     expect(calls.filter((call) => call.key.includes("/offboarding")).length).toBeGreaterThanOrEqual(2); // vuelve a consultar el estado real
+  });
+});
+
+// Exportar el personal: el archivo lo devuelve la API (CSV); el frontend solo presenta las opciones y descarga el resultado.
+const csvResponse = () => ({
+  ok: true, status: 200, headers: new Headers({ "Content-Disposition": 'attachment; filename="personal-institucion-prueba.csv"' }),
+  blob: async () => new Blob(["csv"], { type: "text/csv" }),
+});
+
+describe("Personal: exportar", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:personal");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it("el propietario exporta solo las personas marcadas y descarga el archivo que devuelve la API", async () => {
+    const { calls } = routes("PROPIETARIO", {
+      [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE),
+      [`POST ${BASE}/personnel/export`]: csvResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/personal`);
+    await screen.findByRole("table", { name: "Personal de la institución" });
+    expect(screen.getByRole("button", { name: /Exportar seleccionados/ })).toBeDisabled();
+
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar a Lucía Sosa" }));
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar a Pablo Ríos" }));
+    await user.click(screen.getByRole("button", { name: "Exportar seleccionados (2)" }));
+
+    expect(await screen.findByText("Exportación lista: personal-institucion-prueba.csv.")).toBeInTheDocument();
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    const exported = calls.find((call) => call.key === `POST ${BASE}/personnel/export`);
+    expect(exported.body).toEqual({ alcance: "SELECCION", idsInstitucionUsuario: ["r-1", "r-2"] });
+  });
+
+  it("una persona se exporta sola desde su fila", async () => {
+    const { calls } = routes("PROPIETARIO", {
+      [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE),
+      [`POST ${BASE}/personnel/export`]: csvResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/personal`);
+    await user.click(await screen.findByRole("button", { name: "Exportar los datos de Pablo Ríos" }));
+    await screen.findByText(/Exportación lista/);
+    expect(calls.find((call) => call.key === `POST ${BASE}/personnel/export`).body).toEqual({ alcance: "SELECCION", idsInstitucionUsuario: ["r-2"] });
+  });
+
+  it("«Exportar todos» envía los filtros del listado, no la selección", async () => {
+    const { calls } = routes("PROPIETARIO", {
+      [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE),
+      [`POST ${BASE}/personnel/export`]: csvResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/personal?rol=OPERADOR`);
+    await user.click(await screen.findByRole("button", { name: "Exportar todos los filtrados (2)" }));
+    await screen.findByText(/Exportación lista/);
+    expect(calls.find((call) => call.key === `POST ${BASE}/personnel/export`).body).toEqual({ alcance: "TODOS", rol: "OPERADOR" });
+  });
+
+  it("el operador no llega al listado, así que no tiene ninguna opción de exportar", async () => {
+    const { calls } = routes("OPERADOR", { [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE) });
+    renderAt(`/app/instituciones/${ID}/personal`);
+    await screen.findByRole("link", { name: "Volver a instituciones" });
+    expect(screen.queryByRole("button", { name: /Exportar/ })).not.toBeInTheDocument();
+    expect(calls.some((call) => call.key === `POST ${BASE}/personnel/export`)).toBe(false);
+  });
+
+  it("si la API rechaza la exportación, muestra el motivo y no descarga nada", async () => {
+    routes("PROPIETARIO", {
+      [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE),
+      [`POST ${BASE}/personnel/export`]: jsonResponse(403, { codigo: "PERMISO_INSUFICIENTE", detail: "Tu rol no permite esta operación." }),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/personal`);
+    await user.click(await screen.findByRole("button", { name: "Exportar los datos de Pablo Ríos" }));
+    expect(await screen.findByText("Tu rol no permite esta operación.")).toBeInTheDocument();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });

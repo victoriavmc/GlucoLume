@@ -2,9 +2,12 @@
 
 import { apiUrl, request } from './client.js';
 
-/** POST /auth/login -> LoginResponse { estado: AUTENTICADO | MFA_REQUERIDO, tokens?, challengeToken? } */
-export function login(identificador, password, remember = false) {
-  return request('/auth/login', { method: 'POST', body: { identificador, password }, remember });
+/**
+ * POST /auth/login -> LoginResponse { estado: AUTENTICADO | MFA_REQUERIDO, tokens?, challengeToken? }
+ * acceso: 'GENERAL' (login de todas las cuentas, por omisión) o 'PLATAFORMA' (administración de GlucoLume).
+ */
+export function login(identificador, password, remember = false, acceso = 'GENERAL') {
+  return request('/auth/login', { method: 'POST', body: { identificador, password, acceso }, remember });
 }
 
 /** POST /auth/mfa/verify: exactamente uno de codigo o codigoRecuperacion. */
@@ -31,13 +34,15 @@ export function logout() {
 /**
  * URL a la que el navegador navega para iniciar OAuth (redirección 302 a Google; no es un fetch).
  * registro: 'usuario' | 'institucion' solo al registrarse; decide el tipo si Google crea una cuenta nueva.
+ * acceso: 'PLATAFORMA' solo desde /plataforma/login; sin él el backend usa el acceso general.
  */
-export function googleLoginUrl(registro, recordar = false, acepta = false) {
+export function googleLoginUrl(registro, recordar = false, acepta = false, acceso = undefined) {
   const params = new URLSearchParams();
   if (registro) params.set('registro', registro);
   if (recordar) params.set('recordar', 'true');
   // Confirmación de la Política de Privacidad: el backend la exige para crear o activar una cuenta con Google.
   if (acepta) params.set('acepta', 'true');
+  if (acceso) params.set('acceso', acceso);
   const query = params.toString();
   return apiUrl(`/auth/google/login${query ? `?${query}` : ''}`);
 }

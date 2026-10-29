@@ -1,7 +1,7 @@
 // Módulo Institución (backend/app/api/v1/institutions.py). Requiere una cuenta USUARIO_INSTITUCIONAL.
 // El rol y los permisos los decide el backend en cada llamada; el frontend solo los usa para presentar opciones.
 
-import { request } from './client.js';
+import { fileFrom, request } from './client.js';
 import { queryString } from './measurementsApi.js';
 
 /** POST /institutions/{id}/support-request -> { mensaje, confirmacionEnviada }. Solo el propietario de una institución pausada. */
@@ -57,6 +57,27 @@ function membersPath(idInstitucion, rol) {
 /** Activos e invitaciones pendientes; con `incluirBajas`, también el historial dado de baja. */
 export function listMembers(idInstitucion, rol, { incluirBajas = false } = {}) {
   return request(`${membersPath(idInstitucion, rol)}${incluirBajas ? '?incluirBajas=true' : ''}`, { auth: true });
+}
+
+// Exportaciones CSV: el backend decide qué sale (permiso, pertenencia y filtros) y audita cada intento. El frontend solo pide y descarga.
+async function postExport(path, body, fallbackName) {
+  return fileFrom(await request(path, { method: 'POST', body, auth: true, file: true }), fallbackName);
+}
+
+/**
+ * POST /institutions/{id}/personnel/export -> { blob, filename }. `body`: { alcance: 'SELECCION', idsInstitucionUsuario } o
+ * { alcance: 'TODOS', rol?, estado?, busqueda? }. Propietario y moderador.
+ */
+export function exportPersonnel(idInstitucion, body) {
+  return postExport(`/institutions/${idInstitucion}/personnel/export`, body, 'personal-institucion.csv');
+}
+
+/**
+ * POST /institutions/{id}/patients/export -> { blob, filename }. `body`: { alcance: 'SELECCION', idsPerfilMedicion } o
+ * { alcance: 'TODOS', busqueda?, idResponsable?, estado? }. Propietario, moderador y operador (el operador solo obtiene sus pacientes).
+ */
+export function exportPatients(idInstitucion, body) {
+  return postExport(`/institutions/${idInstitucion}/patients/export`, body, 'pacientes-institucion.csv');
 }
 
 /** -> { nombre, apellido, rolPropuesto } solo si la cuenta se puede invitar; si no, un error con el motivo. */

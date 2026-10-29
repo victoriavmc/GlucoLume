@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearTokens, saveTokens } from '../../../../auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../../../test/helpers.js';
@@ -517,5 +517,82 @@ describe('Acceso a las mediciones del paciente', () => {
       [`GET ${PATIENTS_URL}/p-1/measurements/evolution`]: jsonResponse(403, { codigo: 'MEDICIONES_NO_AUTORIZADAS', detail: NOTICE }) });
     renderAt(`/app/instituciones/${ID}/pacientes/p-1`);
     expect((await screen.findAllByText(new RegExp(NOTICE.slice(0, 40)))).length).toBeGreaterThan(0);
+  });
+});
+
+// Exportar pacientes: el archivo lo devuelve la API; la UI solo ofrece las opciones que corresponden a cada rol.
+const csvResponse = () => ({
+  ok: true, status: 200, headers: new Headers({ 'Content-Disposition': 'attachment; filename="pacientes-institucion-prueba.csv"' }),
+  blob: async () => new Blob(['csv'], { type: 'text/csv' }),
+});
+
+describe('Exportar pacientes', () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:pacientes');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  const foreign = () => patient({ idPerfilMedicion: 'p-2', apellido: 'Gómez', nombre: 'Luis', dni: null, edad: null, sexoModelo: null,
+    fechaNacimiento: null, responsable: { idInstitucionUsuario: 'op-9', nombre: 'Bruno', apellido: 'Ríos', activo: true },
+    puedeModificar: false, esMio: false, medicionesAutorizadas: false });
+
+  it('el propietario exporta los pacientes marcados y, con «todos», el listado completo con sus filtros', async () => {
+    const { calls } = routes('PROPIETARIO', {
+      [`GET ${PATIENTS_URL}`]: () => jsonResponse(200, page([patient(), foreign()], 2)),
+      [`POST ${PATIENTS_URL}/export`]: csvResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    expect(await screen.findByRole('button', { name: 'Exportar seleccionados' })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar a Pérez, Juan' }));
+    await user.click(screen.getByRole('button', { name: 'Exportar seleccionados (1)' }));
+    expect(await screen.findByText('Exportación lista: pacientes-institucion-prueba.csv.')).toBeInTheDocument();
+    expect(calls.filter((call) => call.key === `POST ${PATIENTS_URL}/export`).at(-1).body)
+      .toEqual({ alcance: 'SELECCION', idsPerfilMedicion: ['p-1'] });
+
+    await user.click(screen.getByRole('button', { name: 'Exportar todos (2)' }));
+    await waitFor(() => expect(calls.filter((call) => call.key === `POST ${PATIENTS_URL}/export`)).toHaveLength(2));
+    expect(calls.filter((call) => call.key === `POST ${PATIENTS_URL}/export`).at(-1).body)
+      .toEqual({ alcance: 'TODOS', busqueda: null, estado: 'ACTIVO', idResponsable: null });
+  });
+
+  it('una persona se exporta sola desde su fila', async () => {
+    const { calls } = routes('MODERADOR', {
+      [`GET ${PATIENTS_URL}`]: () => jsonResponse(200, page([patient(), foreign()], 2)),
+      [`POST ${PATIENTS_URL}/export`]: csvResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    await user.click(await screen.findByRole('button', { name: 'Exportar los datos de Gómez, Luis' }));
+    await screen.findByText(/Exportación lista/);
+    expect(calls.find((call) => call.key === `POST ${PATIENTS_URL}/export`).body).toEqual({ alcance: 'SELECCION', idsPerfilMedicion: ['p-2'] });
+  });
+
+  it('el operador solo puede exportar los pacientes a su cargo: las casillas y la acción aparecen solo en los suyos', async () => {
+    const { calls } = routes('OPERADOR', {
+      [`GET ${PATIENTS_URL}`]: () => jsonResponse(200, page([patient(), foreign()], 2)),
+      [`POST ${PATIENTS_URL}/export`]: csvResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    await screen.findByRole('list', { name: 'Listado de pacientes' });
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar a Pérez, Juan' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Seleccionar a Gómez, Luis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Exportar los datos de Gómez, Luis' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Exportar mis pacientes' }));
+    await screen.findByText(/Exportación lista/);
+    expect(calls.find((call) => call.key === `POST ${PATIENTS_URL}/export`).body).toEqual({ alcance: 'TODOS', busqueda: null, estado: 'ACTIVO', idResponsable: null });
+  });
+
+  it('si la API rechaza la exportación, muestra el motivo y no descarga nada', async () => {
+    routes('PROPIETARIO', {
+      [`GET ${PATIENTS_URL}`]: () => jsonResponse(200, page([patient()], 1)),
+      [`POST ${PATIENTS_URL}/export`]: jsonResponse(409, { codigo: 'DATOS_INVALIDOS', detail: 'Alguno de los pacientes seleccionados no está disponible para tu usuario.' }),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    await user.click(await screen.findByRole('button', { name: 'Exportar los datos de Pérez, Juan' }));
+    expect(await screen.findByText('Alguno de los pacientes seleccionados no está disponible para tu usuario.')).toBeInTheDocument();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,8 @@ const MESSAGES = {
   CUENTA_OTRO_TIPO:
     'Ese correo ya está registrado con otro tipo de cuenta, por lo que no podés registrarte de nuevo. Iniciá sesión con tu cuenta existente.',
   POLITICA_NO_ACEPTADA: 'Para continuar tenés que confirmar que leíste la Política de Privacidad.',
+  ACCESO_PLATAFORMA_REQUERIDO: 'Esta cuenta administra GlucoLume: ingresá por el acceso administrativo.',
+  ACCESO_PLATAFORMA_DENEGADO: 'Esta cuenta no tiene acceso a la administración de la plataforma.',
   CONSENTIMIENTO_REQUERIDO:
     'Para medir tenés que autorizar el tratamiento de tus mediciones experimentales desde «Mis mediciones».',
   CUENTA_NO_REGISTRADA:
