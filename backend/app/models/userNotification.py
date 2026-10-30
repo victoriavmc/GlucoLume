@@ -5,8 +5,12 @@
 #
 # La fila es también el registro de entrega del evento: claveEvento identifica el hecho que la originó (quién, qué y de dónde viene) y
 # el índice único impide que procesar dos veces el mismo hecho, aunque sea en paralelo, cree un segundo aviso o un segundo correo.
-# `visible` es falso cuando la cuenta apagó el canal «en la página» (la fila queda solo como registro del correo). estadoCorreo sigue
-# el envío: PENDIENTE -> ENVIADO | FALLIDO; una falla SMTP nunca quita el aviso de la página.
+# Tres conceptos independientes (no se reutiliza uno como indicador de otro):
+#   - fechaLectura: la persona ya lo leyó (sigue visible);
+#   - fechaEliminacion: la persona lo quitó de SU bandeja (eliminación lógica: la fila queda, con su clave, para que el mismo hecho no vuelva a
+#     crear el aviso; la depuración física la hace app/services/notificationRetention.py);
+#   - visible: falso cuando la cuenta apagó el canal «en la página» (la fila queda solo como registro del correo).
+# estadoCorreo sigue el envío: PENDIENTE -> ENVIADO | FALLIDO; una falla SMTP nunca quita el aviso de la página.
 
 import uuid
 from datetime import datetime
@@ -46,5 +50,6 @@ class UserNotification(Base):
     fechaLectura: Mapped[datetime | None] = mapped_column(DATETIME2(precision=3), nullable=True)
     claveEvento: Mapped[str | None] = mapped_column(NVARCHAR(200), nullable=True)
     visible: Mapped[bool] = mapped_column(BIT, server_default=text("1"))
+    fechaEliminacion: Mapped[datetime | None] = mapped_column(DATETIME2(precision=3), nullable=True)
     estadoCorreo: Mapped[str | None] = mapped_column(NVARCHAR(12), nullable=True)
     intentosCorreo: Mapped[int] = mapped_column(Integer, server_default=text("0"))

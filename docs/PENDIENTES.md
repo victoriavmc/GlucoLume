@@ -88,7 +88,7 @@ Detalle y causas en [NOTIFICACIONES.md](NOTIFICACIONES.md) §9 y §11; pasos en 
 
 | Prioridad | Pendiente |
 |---|---|
-| P1 | **Aplicar en la instalación en uso** `GlucoLume_notificaciones_v2.sql` (después de `GlucoLume_notificaciones_usuario.sql`), el nuevo `GRANT DELETE` de `GlucoLume_permisos.sql`, definir `DB_JOBS_USER` y levantar el servicio `notifications` (NOTIFICACIONES.md §12). Ensayado con SQL Server 2022 real **descartable**, no en tu base: allí, hoy, los recordatorios solo se generan al abrir la bandeja y el backend nuevo dejaría Notificaciones «no disponible» |
+| P1 | **Aplicar en la instalación en uso** `GlucoLume_notificaciones_v2.sql` y `GlucoLume_notificaciones_v3.sql` (en ese orden; después de `GlucoLume_notificaciones_usuario.sql`), el nuevo `GRANT DELETE` de `GlucoLume_permisos.sql`, definir `DB_JOBS_USER` y levantar el servicio `notifications` (NOTIFICACIONES.md §12). Ensayado con SQL Server 2022 real **descartable**, no en tu base: allí, hoy, los recordatorios solo se generan al abrir la bandeja y el backend nuevo dejaría Notificaciones «no disponible» |
 | P2 | Probar la entrega real por el SMTP configurado (Gmail): se verificó el envío contra un SMTP de prueba con STARTTLS, no la aceptación del proveedor ni SPF/DKIM |
 | P2 | Completar una medición real con el dispositivo y comprobar el aviso `MEDICION_GRUPO` (se probó con la función que invocan `measurement.py` y `telemetry.py`) |
 | P3 | Llevar a la bandeja los avisos de cuentas de plataforma e instituciones (hoy solo correo) y definir una zona horaria por usuario (hoy todo es hora de Argentina) |

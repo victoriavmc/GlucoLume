@@ -16,6 +16,7 @@ EventoAviso = Literal[
 ]
 CategoriaAviso = Literal["SEGURIDAD", "GRUPO", "RECORDATORIO"]
 ModoRecordatorio = Literal["NINGUNO", "INTERVALO", "HORARIOS"]
+AlcanceEliminacion = Literal["leidas", "todas"]
 
 INTERVALOS_HORAS = (1, 2, 3, 4, 6, 8, 12, 24)
 MAX_HORARIOS = 6
@@ -95,3 +96,8 @@ class UserNotificationInbox(BaseModel):
 class UserNotificationReadResult(BaseModel):
     noLeidas: int
     marcadas: int
+
+
+class UserNotificationDeleteResult(BaseModel):
+    noLeidas: int
+    eliminadas: int

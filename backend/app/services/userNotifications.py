@@ -96,7 +96,8 @@ def ready(db: Session) -> bool:
     """¿Tiene la base el esquema de «Notificaciones» (tablas y claves de unicidad)? Sin él, los avisos se omiten y la sección no escribe."""
     return all(schemaCompat.hasTable(db, table) for table in ("PreferenciaNotificacion", "RecordatorioMedicion",
                                                               "NotificacionUsuario")) \
-        and schemaCompat.hasColumn(db, "NotificacionUsuario", "claveEvento")
+        and schemaCompat.hasColumn(db, "NotificacionUsuario", "claveEvento") \
+        and schemaCompat.hasColumn(db, "NotificacionUsuario", "fechaEliminacion")
 
 
 def requireReady(db: Session) -> None:
@@ -409,8 +410,10 @@ def _readRow(row: UserNotification) -> UserNotificationRead:
 
 
 def _ownVisible(user: User):
+    """Los avisos que esta cuenta ve en su bandeja: propios, con el canal de la página activo y no eliminados de su bandeja."""
     # BIT: se compara con = (SQL Server no admite «IS 1»).
-    return (UserNotification.idUsuario == user.idUsuario, UserNotification.visible == True)  # noqa: E712
+    return (UserNotification.idUsuario == user.idUsuario, UserNotification.visible == True,  # noqa: E712
+            UserNotification.fechaEliminacion.is_(None))
 
 
 def unreadCount(db: Session, user: User) -> int:
@@ -471,3 +474,44 @@ def notifySecurity(db: Session, user: User, evento: str, titulo: str, mensaje: s
     instante del cambio o el fin del bloqueo): repetir el mismo suceso no crea otro aviso.
     """
     return notify(db, user, evento, titulo, mensaje, url=URL_SEGURIDAD, clave=f"{evento}:{hecho}")
+
+
+def deleteNotification(db: Session, user: User, idNotificacion: uuid.UUID) -> int:
+    """Quita un aviso propio de la bandeja (eliminación lógica). Devuelve cuántos quitó (1).
+
+    Ajeno, inexistente o ya eliminado responden igual (NOTIFICACION_NO_ENCONTRADA). La fila queda con su clave: el mismo hecho no vuelve a crear el
+    aviso, pero un hecho nuevo sí. No se toca la auditoría ni el estado de lectura.
+    """
+    requireReady(db)
+    deleted = db.execute(
+        update(UserNotification).where(UserNotification.idNotificacion == idNotificacion, *_ownVisible(user))
+        .values(fechaEliminacion=nowForDb()).execution_options(synchronize_session=False)).rowcount
+    if deleted != 1:
+        db.rollback()
+        raise AuthError("NOTIFICACION_NO_ENCONTRADA", "No encontramos ese aviso.")
+    db.commit()
+    return deleted
+
+
+def deleteMany(db: Session, user: User, alcance: str) -> int:
+    """Quita de la bandeja todos los avisos leídos (`leidas`) o todos (`todas`) de ESTA cuenta, en una sola sentencia y una sola transacción.
+
+    Queda un evento de auditoría con la cantidad (nunca el contenido). Los avisos no se destruyen aquí: la depuración física es la de
+    services/notificationRetention.py, con sus plazos.
+    """
+    if alcance not in ("leidas", "todas"):
+        raise AuthError("ALCANCE_NO_VALIDO", "Elegí si eliminar los avisos leídos o todos.")
+    requireReady(db)
+    query = update(UserNotification).where(*_ownVisible(user))
+    if alcance == "leidas":
+        query = query.where(UserNotification.fechaLectura.is_not(None))
+    try:
+        deleted = db.execute(query.values(fechaEliminacion=nowForDb()).execution_options(synchronize_session=False)).rowcount
+        if deleted:
+            registerEvent(db, "CRUD", "ELIMINAR_NOTIFICACIONES", True, user.idUsuario, "Usuario", user.idUsuario,
+                          datosNuevos={"alcance": alcance, "cantidad": deleted})
+        db.commit()
+    except Exception:
+        db.rollback()  # todo o nada: sin eliminación a medias ni auditoría sin eliminación
+        raise
+    return deleted

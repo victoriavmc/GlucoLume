@@ -141,7 +141,7 @@ actualiza con scripts **idempotentes y transaccionales** que no tocan filas, sie
    - `GlucoLume_actualizar_instalada.sql -v CONFIRMAR="ACTUALIZAR_GLUCOLUME_V5"`: las 6 `CK_Medicion_*` y los 31 índices que falten (cada uno se crea solo si no existe; los `UX_*` son
      únicos filtrados: si los datos violaran una regla, el script falla y se revierte entero).
    - `GlucoLume_agregar_puente_credencial.sql -v CONFIRMAR="AGREGAR_PUENTE_CREDENCIAL"`: la tabla `PuenteCredencial` (H-16).
-   - `GlucoLume_notificaciones_usuario.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_USUARIO"` y, después, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"`:
+   - `GlucoLume_notificaciones_usuario.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_USUARIO"` y, después, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"` y `GlucoLume_notificaciones_v3.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` (eliminación lógica de avisos de la bandeja, `fechaEliminacion`):
      tablas de «Notificaciones» y su rediseño (claves de unicidad, estado del correo, nuevos avisos, `AccesoConocido`; corrige −3 h las fechas anteriores). Detalle en [NOTIFICACIONES.md](NOTIFICACIONES.md) §8. Sin ellos el módulo queda «no disponible», sin fallar.
    - Los permisos de §2 paso 4 / §5 (`GlucoLume_permisos.sql` y, aparte, `…_quitar_roles_fijos.sql`).
 3. Repetir `schemaCheck` (debe informar «Sin diferencias») y registrar el cambio (fecha, responsable, objetos) en [HISTORIAL.md](HISTORIAL.md).

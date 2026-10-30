@@ -3,6 +3,16 @@
 Registro acumulativo de cambios implementados, vulnerabilidades corregidas, decisiones, pruebas y funcionalidades reemplazadas. Lo abierto
 está en [PENDIENTES.md](PENDIENTES.md). Se agrega al principio; no se reescribe lo anterior salvo para corregir un error de registro.
 
+## 30/10/2026 — Notificaciones: eliminar de la bandeja (rama `claude/glucolume-notifications-redesign-ff6c02`)
+
+Detalle: [NOTIFICACIONES.md](NOTIFICACIONES.md) (RN-NOT-08, §7, §8). Evidencia con SQL Server real: [evidencias/notificaciones](evidencias/notificaciones/README.md). Sin fusionar ni desplegar.
+
+- **Problema:** la bandeja solo conocía leído y no leído; todo aviso seguía a la vista para siempre (la depuración física por antigüedad no corría con `lifecycle` apagado y, aunque corra, es otra cosa).
+- **Nuevo:** tercer estado independiente, *eliminado de la bandeja* (`NotificacionUsuario.fechaEliminacion`, eliminación lógica por destinatario; migración `GlucoLume_notificaciones_v3.sql`, solo agrega la columna). `DELETE /notificaciones/{id}` y
+  `DELETE /notificaciones?alcance=leidas|todas` (alcance obligatorio; una transacción; auditoría de la cantidad). Menú ⋮ por tarjeta con «Abrir», «Marcar como leída» y, aparte, «Eliminar de la bandeja»; «Eliminar…» en el encabezado
+  con «Eliminar las leídas» y «Vaciar la bandeja…» (con confirmación); estado vacío «No tenés notificaciones».
+- **Sin cambios:** los plazos de depuración física (30 días leídos / 365 sin leer); lo eliminado de la bandeja se depura con el plazo de los leídos. La clave de evento se conserva: un reintento del mismo hecho no recrea el aviso; un hecho nuevo sí.
+
 ## 29/10/2026 — Rediseño del módulo de Notificaciones (rama `claude/glucolume-notifications-redesign-ff6c02`)
 
 Descripción, reglas, endpoints, esquema y pruebas: [NOTIFICACIONES.md](NOTIFICACIONES.md). Sin fusionar ni desplegar.

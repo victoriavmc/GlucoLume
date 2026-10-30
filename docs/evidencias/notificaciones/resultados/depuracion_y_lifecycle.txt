@@ -1,0 +1,20 @@
+== filas por estado antes (eliminadas lógicamente / visibles / total)
+eliminadas visibles total
+---------- -------- -----
+5008 0 5008
+== se envejecen 2 eliminadas (40 días: vencidas para la depuración de leídos de 30) y 1 eliminada queda reciente
+== lifecycle completo (cuenta de procesos): no debe tocar ningún aviso
+{'cuentas': {'revisadas': 0, 'eliminadas': 0, 'omitidas': 0, 'errores': 0}, 'pendientesDepuradas': 0, 'relacionesMinimizadas': 0, 'auditoria': {'contextosMinimizados': 0, 'intentosSinCuentaEliminados': 0, 'eventosEliminados': 0}}
+avisos antes=5008 después=5008
+== depuración física con la cuenta de procesos
+previsualizar: {"avisosVencidos": 2, "diasLeidos": 30, "diasNoLeidos": 365}
+depurar:       {"avisosEliminados": 2}
+avisos después de depurar: 5006 (solo salieron las 2 eliminadas vencidas)
+eliminadas visibles
+---------- --------
+5006 0
+auditoría antes=16 después=16
+== la cuenta de la API puede eliminar lógicamente (UPDATE) pero no borrar físicamente
+update fechaEliminacion ok
+Msg 229, Level 14, State 5, Server c3c4f3f69c4f, Line 1
+The DELETE permission was denied on the object 'NotificacionUsuario', database 'GlucoLume', schema 'dbo'.

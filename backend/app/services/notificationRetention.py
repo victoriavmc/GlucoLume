@@ -2,7 +2,8 @@
 #
 # Qué se elimina: filas de NotificacionUsuario, que son solo el texto del aviso y el rastro de su entrega. Qué NO se toca: la auditoría
 # (Auditoria, AuditoriaContexto), ni los hechos que originaron el aviso, ni nada de otras tablas. Los plazos son parámetros:
-#   NOTIFICATION_READ_RETENTION_DAYS    avisos ya leídos (y los que la cuenta no quiso ver en la página, que solo son rastro de correo)
+#   NOTIFICATION_READ_RETENTION_DAYS    avisos ya leídos, los que la persona quitó de su bandeja (fechaEliminacion) y los que la cuenta no quiso
+#                                       ver en la página (solo son rastro de correo)
 #   NOTIFICATION_UNREAD_RETENTION_DAYS  avisos que nunca se leyeron
 # 0 desactiva cada parte. Corre SOLA en cada pasada del servicio «lifecycle» (app/jobs/accountLifecycle.py, cada hora) y también a mano con
 # `python -m app.jobs.reminders depurar`. Usa la cuenta de procesos de conservación, la única con DELETE sobre esta tabla (ver
@@ -26,6 +27,7 @@ def _conditions(now: datetime):
         cutoff = now - timedelta(days=settings.NOTIFICATION_READ_RETENTION_DAYS)
         parts.append(and_(UserNotification.fechaCreacion < cutoff,
                           or_(UserNotification.fechaLectura.is_not(None),
+                              UserNotification.fechaEliminacion.is_not(None),
                               UserNotification.visible == False)))  # noqa: E712 - BIT: se compara con =, no con IS
     if settings.NOTIFICATION_UNREAD_RETENTION_DAYS > 0:
         cutoff = now - timedelta(days=settings.NOTIFICATION_UNREAD_RETENTION_DAYS)

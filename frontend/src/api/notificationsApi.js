@@ -40,3 +40,13 @@ export function markNotificationRead(idNotificacion) {
 export function markAllNotificationsRead() {
   return request('/notificaciones/leer-todas', { method: 'POST', auth: true });
 }
+
+/** DELETE /notificaciones/{idNotificacion} -> { noLeidas, eliminadas }: la quita de la bandeja de la cuenta (eliminación lógica). Un aviso ajeno responde 404. */
+export function deleteNotification(idNotificacion) {
+  return request(`/notificaciones/${idNotificacion}`, { method: 'DELETE', auth: true });
+}
+
+/** DELETE /notificaciones?alcance=leidas|todas -> { noLeidas, eliminadas }: quita de la bandeja los avisos leídos, o todos, de la cuenta autenticada. */
+export function deleteNotifications(alcance) {
+  return request(`/notificaciones?alcance=${alcance}`, { method: 'DELETE', auth: true });
+}

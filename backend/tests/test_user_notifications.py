@@ -8,6 +8,7 @@
 # el mismo archivo SQLite: demuestran que el índice único y la reserva de la ocurrencia se comportan bien, pero NO reemplazan una prueba
 # con SQL Server real (aislamiento y bloqueos distintos).
 
+import json
 import threading
 import uuid
 from datetime import datetime, timedelta
@@ -1205,3 +1206,236 @@ def test_abrir_la_bandeja_varias_veces_envia_el_recordatorio_una_sola_vez(db, ht
         assert client.get("/api/v1/notificaciones").status_code == 200
 
     assert len(rows(db, holder["user"], "RECORDATORIO_MEDICION")) == 1
+
+
+# --- Eliminar de la bandeja (eliminación lógica) ---------------------------------------------------------------
+
+
+def _three(db, user, prefix="x"):
+    """Tres avisos propios (del más viejo al más nuevo): uno sin leer, uno leído y otro sin leer."""
+    base = nowForDb() - timedelta(hours=3)
+    for n in range(3):
+        db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo=f"{prefix}{n}", mensaje="m", claveEvento=f"{prefix}{n}",
+                                fechaCreacion=base + timedelta(hours=n), fechaLectura=nowForDb() if n == 1 else None))
+    db.commit()
+    return {n.titulo: n.idNotificacion for n in service.inbox(db, user).notificaciones}
+
+
+def test_eliminar_un_aviso_lo_quita_de_la_bandeja_y_de_los_contadores_pero_conserva_la_fila(db):
+    user = makeUser(db)
+    ids = _three(db, user)
+
+    assert service.deleteNotification(db, user, ids["x2"]) == 1
+
+    inbox = service.inbox(db, user)
+    assert [n.titulo for n in inbox.notificaciones] == ["x1", "x0"]
+    assert (inbox.total, inbox.noLeidas) == (2, 1)
+    row = next(r for r in rows(db, user) if r.titulo == "x2")
+    assert row.fechaEliminacion is not None and row.fechaLectura is None  # eliminar no es leer
+    assert service.inbox(db, user, soloNoLeidas=True).total == 1 and service.inbox(db, user, categoria="SEGURIDAD").total == 2
+
+
+def test_eliminar_un_aviso_leido_no_cambia_el_contador_de_no_leidas(db):
+    user = makeUser(db)
+    ids = _three(db, user)
+
+    service.deleteNotification(db, user, ids["x1"])
+
+    assert service.unreadCount(db, user) == 2
+    row = next(r for r in rows(db, user) if r.titulo == "x1")
+    assert row.fechaLectura is not None and row.fechaEliminacion is not None  # leída y eliminada son cosas distintas
+
+
+def test_los_tres_estados_son_independientes(db):
+    user = makeUser(db)
+    ids = _three(db, user)
+    service.markRead(db, user, ids["x0"])
+    service.deleteNotification(db, user, ids["x2"])
+
+    estados = {r.titulo: (r.fechaLectura is not None, r.fechaEliminacion is not None, r.visible) for r in rows(db, user)}
+
+    assert estados == {"x0": (True, False, True), "x1": (True, False, True), "x2": (False, True, True)}
+
+
+def test_no_se_puede_eliminar_un_aviso_ajeno_inexistente_o_ya_eliminado(db):
+    ana = makeUser(db, usuario="ana", email="ana@example.com")
+    beto = makeUser(db, usuario="beto", email="beto@example.com")
+    ids = _three(db, ana)
+
+    expectError("NOTIFICACION_NO_ENCONTRADA", service.deleteNotification, db, beto, ids["x0"])
+    expectError("NOTIFICACION_NO_ENCONTRADA", service.deleteNotification, db, ana, uuid.uuid4())
+    service.deleteNotification(db, ana, ids["x0"])
+    expectError("NOTIFICACION_NO_ENCONTRADA", service.deleteNotification, db, ana, ids["x0"])
+
+    assert [r.fechaEliminacion is not None for r in rows(db, ana)] == [True, False, False]
+
+
+def test_un_aviso_eliminado_no_se_puede_marcar_como_leido(db):
+    user = makeUser(db)
+    ids = _three(db, user)
+    service.deleteNotification(db, user, ids["x2"])
+
+    expectError("NOTIFICACION_NO_ENCONTRADA", service.markRead, db, user, ids["x2"])
+    assert service.markRead(db, user) == 1  # «marcar todas» solo alcanza lo visible (queda x0)
+
+
+def test_eliminar_los_leidos_no_toca_los_sin_leer_ni_a_otras_cuentas_y_deja_auditoria(db):
+    ana = makeUser(db, usuario="ana", email="ana@example.com")
+    beto = makeUser(db, usuario="beto", email="beto@example.com")
+    _three(db, ana, "a")
+    _three(db, beto, "b")
+
+    assert service.deleteMany(db, ana, "leidas") == 1
+
+    assert [n.titulo for n in service.inbox(db, ana).notificaciones] == ["a2", "a0"]
+    assert service.unreadCount(db, ana) == 2 and len(service.inbox(db, beto).notificaciones) == 3
+    [event] = audits(db, "ELIMINAR_NOTIFICACIONES")
+    assert event.idUsuario == ana.idUsuario and json.loads(event.datosNuevos) == {"alcance": "leidas", "cantidad": 1}
+    assert service.deleteMany(db, ana, "leidas") == 0 and len(audits(db, "ELIMINAR_NOTIFICACIONES")) == 1  # sin cambios no se audita
+
+
+def test_vaciar_la_bandeja_quita_todo_lo_propio_y_solo_lo_propio(db):
+    ana = makeUser(db, usuario="ana", email="ana@example.com")
+    beto = makeUser(db, usuario="beto", email="beto@example.com")
+    _three(db, ana, "a")
+    _three(db, beto, "b")
+
+    assert service.deleteMany(db, ana, "todas") == 3
+
+    empty = service.inbox(db, ana)
+    assert (empty.notificaciones, empty.total, empty.noLeidas, empty.hayMas) == ([], 0, 0, False)
+    assert len(service.inbox(db, beto).notificaciones) == 3 and service.unreadCount(db, beto) == 2
+    assert len(rows(db, ana)) == 3  # la fila sigue: es lógica
+
+
+def test_el_alcance_de_la_eliminacion_masiva_es_obligatorio_y_cerrado(db):
+    user = makeUser(db)
+
+    expectError("ALCANCE_NO_VALIDO", service.deleteMany, db, user, "")
+    expectError("ALCANCE_NO_VALIDO", service.deleteMany, db, user, "ninguna")
+
+
+def test_la_eliminacion_masiva_es_todo_o_nada(db, monkeypatch):
+    user = makeUser(db)
+    _three(db, user)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("auditoría caída")
+
+    monkeypatch.setattr(service, "registerEvent", broken)
+    with pytest.raises(RuntimeError):
+        service.deleteMany(db, user, "todas")
+
+    assert len(service.inbox(db, user).notificaciones) == 3  # nada quedó a medias
+    assert all(r.fechaEliminacion is None for r in rows(db, user))
+
+
+def test_el_mismo_hecho_no_resucita_un_aviso_eliminado_pero_un_hecho_nuevo_si_crea_otro(db, mails):
+    user = makeUser(db)
+    service.notify(db, user, "AGREGADO_GRUPO", "Te sumaron", "m", clave="AGREGADO_GRUPO:1")
+    service.deleteMany(db, user, "todas")
+
+    assert service.notify(db, user, "AGREGADO_GRUPO", "Te sumaron", "m", clave="AGREGADO_GRUPO:1") is False  # reintento del mismo hecho
+    assert service.inbox(db, user).notificaciones == []
+
+    service.notify(db, user, "AGREGADO_GRUPO", "Te sumaron otra vez", "m", clave="AGREGADO_GRUPO:2")  # otro hecho
+    assert [n.titulo for n in service.inbox(db, user).notificaciones] == ["Te sumaron otra vez"]
+
+
+def test_un_recordatorio_eliminado_no_reaparece_al_volver_a_procesar_su_ocurrencia(db):
+    user = makeUser(db)
+    service.updateSchedule(db, user, ReminderScheduleUpdate(modo="INTERVALO", intervaloHoras=1))
+    row = scheduleOf(db, user)
+    first = row.ultimoAviso + timedelta(hours=1, minutes=1)
+    assert service.processReminders(db, user, row, first) is True
+    service.deleteMany(db, user, "todas")
+
+    assert service.processReminders(db, user, row, first + timedelta(minutes=5)) is False  # la misma ocurrencia
+    assert service.inbox(db, user).notificaciones == []
+    assert service.processReminders(db, user, row, first + timedelta(hours=1)) is True  # la ocurrencia siguiente sí
+    assert len(service.inbox(db, user).notificaciones) == 1
+
+
+def test_la_paginacion_cuenta_solo_lo_que_no_se_elimino(db):
+    user = makeUser(db)
+    _fill(db, user, 25)
+    primeros = service.inbox(db, user, limite=10).notificaciones
+    for aviso in primeros[:3]:
+        service.deleteNotification(db, user, aviso.idNotificacion)
+
+    pagina = service.inbox(db, user, limite=10)
+
+    assert pagina.total == 22 and pagina.hayMas is True
+    assert service.inbox(db, user, limite=10, desplazamiento=20).hayMas is False
+    assert len(service.inbox(db, user, limite=50).notificaciones) == 22
+
+
+def test_la_depuracion_fisica_incluye_lo_eliminado_con_el_plazo_de_los_leidos_y_no_toca_la_auditoria(db, monkeypatch):
+    user = makeUser(db)
+    now = nowForDb()
+
+    def add(clave, days, deleted_days=None, read=False):
+        db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo=clave, mensaje="m", claveEvento=clave,
+                                fechaCreacion=now - timedelta(days=days), fechaLectura=now if read else None,
+                                fechaEliminacion=None if deleted_days is None else now - timedelta(days=deleted_days)))
+
+    add("eliminado-viejo-sin-leer", 60, deleted_days=50)
+    add("eliminado-reciente", 5, deleted_days=1)
+    add("sin-leer-visible-medio", 60)
+    db.commit()
+    audits_before = len(audits(db))
+    _retention(monkeypatch, read=30, unread=365)
+
+    assert notificationRetention.purge(db, now) == 1
+
+    assert sorted(r.claveEvento for r in rows(db)) == ["eliminado-reciente", "sin-leer-visible-medio"]
+    assert len(audits(db)) == audits_before
+
+
+def test_la_migracion_v3_agrega_solo_la_columna_y_es_idempotente():
+    import re
+
+    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_notificaciones_v3.sql").read_text(encoding="utf-8")
+    code = re.sub(r"--[^\n]*", "", script)
+
+    assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V3'" in script
+    assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
+    assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script
+    assert "ADD [fechaEliminacion] [datetime2](3) NULL" in script
+    for forbidden in ("DELETE", "UPDATE", "TRUNCATE", "DROP TABLE", "INSERT"):
+        assert forbidden not in code.upper(), forbidden  # solo agrega la columna: no modifica ni borra datos
+
+
+def test_las_rutas_eliminan_un_aviso_y_vacian_la_bandeja(db, http):
+    client, holder = http
+    ana = makeUser(db, usuario="ana", email="ana@example.com")
+    beto = makeUser(db, usuario="beto", email="beto@example.com")
+    ids = _three(db, ana, "a")
+    _three(db, beto, "b")
+    holder["user"] = ana
+
+    assert client.delete(f"/api/v1/notificaciones/{ids['a2']}").json() == {"noLeidas": 1, "eliminadas": 1}
+    assert [n["titulo"] for n in client.get("/api/v1/notificaciones").json()["notificaciones"]] == ["a1", "a0"]
+    assert client.delete(f"/api/v1/notificaciones/{ids['a2']}").status_code == 404  # ya eliminado
+    assert client.delete("/api/v1/notificaciones", params={"alcance": "leidas"}).json() == {"noLeidas": 1, "eliminadas": 1}
+    assert client.delete("/api/v1/notificaciones", params={"alcance": "todas"}).json() == {"noLeidas": 0, "eliminadas": 1}
+    assert client.get("/api/v1/notificaciones").json() == {"noLeidas": 0, "total": 0, "hayMas": False, "notificaciones": []}
+    # lo de beto quedó intacto
+    holder["user"] = beto
+    assert client.get("/api/v1/notificaciones").json()["total"] == 3
+
+
+def test_la_ruta_de_vaciado_exige_un_alcance_valido_y_no_borra_ajenos(db, http):
+    client, holder = http
+    ana = makeUser(db, usuario="ana", email="ana@example.com")
+    beto = makeUser(db, usuario="beto", email="beto@example.com")
+    ids = _three(db, ana, "a")
+    holder["user"] = beto
+
+    assert client.delete("/api/v1/notificaciones").status_code == 422  # sin alcance no vacía nada
+    assert client.delete("/api/v1/notificaciones", params={"alcance": "otro"}).status_code == 422
+    response = client.delete(f"/api/v1/notificaciones/{ids['a0']}")
+    assert response.status_code == 404 and response.json()["codigo"] == "NOTIFICACION_NO_ENCONTRADA"
+    assert client.delete(f"/api/v1/notificaciones/{uuid.uuid4()}").json() == response.json()
+    assert client.delete("/api/v1/notificaciones", params={"alcance": "todas"}).json()["eliminadas"] == 0
+    assert all(r.fechaEliminacion is None for r in rows(db, ana))

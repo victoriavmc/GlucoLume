@@ -105,5 +105,58 @@ export function useNotificationList(params) {
     }
   }, []);
 
-  return { ...state, loadingMore, actionError, reload, loadMore, markRead, markAllRead };
+  // Quitar de la bandeja (eliminación lógica en el backend): desaparece al instante y, si el backend lo rechaza, vuelve a su lugar. Es independiente de
+  // leer: un aviso eliminado deja de contarse como no leído, uno leído sigue contándose como leído hasta eliminarse.
+  const deleteOne = useCallback(async (idNotificacion) => {
+    const before = latest.current;
+    const index = before.items.findIndex((item) => item.idNotificacion === idNotificacion);
+    if (index < 0 || pending.current.has(idNotificacion)) return;
+    const target = before.items[index];
+    pending.current.add(idNotificacion);
+    setActionError('');
+    setState((current) => ({
+      ...current,
+      items: current.items.filter((item) => item.idNotificacion !== idNotificacion),
+      total: Math.max(0, current.total - 1),
+      noLeidas: target.leida ? current.noLeidas : Math.max(0, (current.noLeidas ?? 0) - 1),
+    }));
+    try {
+      const result = await notificationsApi.deleteNotification(idNotificacion);
+      setState((current) => ({ ...current, noLeidas: result.noLeidas }));
+    } catch (error) {
+      setState((current) => {
+        const items = [...current.items];
+        items.splice(Math.min(index, items.length), 0, target);
+        return { ...current, items, total: current.total + 1, noLeidas: target.leida ? current.noLeidas : (current.noLeidas ?? 0) + 1 };
+      });
+      setActionError(friendlyError(error));
+    } finally {
+      pending.current.delete(idNotificacion);
+    }
+  }, []);
+
+  const deleteMany = useCallback(async (alcance) => {
+    const before = latest.current;
+    setActionError('');
+    setState((current) => {
+      const items = alcance === 'todas' ? [] : current.items.filter((item) => !item.leida);
+      return {
+        ...current, items, total: alcance === 'todas' ? 0 : Math.max(0, current.total - (current.items.length - items.length)),
+        hayMas: alcance === 'todas' ? false : current.hayMas, noLeidas: alcance === 'todas' ? 0 : current.noLeidas,
+      };
+    });
+    try {
+      const result = await notificationsApi.deleteNotifications(alcance);
+      setState((current) => ({ ...current, noLeidas: result.noLeidas }));
+      // Había más avisos de los cargados: la lista se vuelve a pedir para traer lo que quedó (y el total real).
+      if (before.hayMas && alcance === 'leidas') setReloadKey((key) => key + 1);
+      return result.eliminadas;
+    } catch (error) {
+      setState((current) => ({ ...current, items: before.items, total: before.total, hayMas: before.hayMas, noLeidas: before.noLeidas }));
+      setActionError(friendlyError(error));
+      return null;
+    }
+  }, []);
+
+  return { ...state, loadingMore, actionError, reload, loadMore, markRead, markAllRead, deleteOne, deleteMany };
 }

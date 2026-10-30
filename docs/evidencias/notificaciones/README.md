@@ -26,7 +26,8 @@ Variables: `IT_DIR` (carpeta con `secrets.json`, `backend.env` y el certificado)
 python e2e_security.py     # inicio de sesión (equipo nuevo / habitual), contraseña, MFA, actividad sospechosa, preferencias, autorización, lectura
 python e2e_groups.py       # invitación recibida/aceptada/rechazada, nuevo integrante, desvinculación, medición compartida con y sin permiso
 python e2e_reminders.py    # horario sin servicio (no llega), con servicio (llega), simultáneo, periódico, cambio, eliminación, SMTP caído y reintento
+python e2e_delete.py       # eliminar de la bandeja: uno, leídas, todas; persistencia, contadores, aislamiento, hecho repetido vs. nuevo, auditoría, 5 000 avisos
 ```
 
 Cada script termina con `RESUMEN: N/N comprobaciones` y sale con código distinto de 0 si alguna falla. `rebuild.sh` (en la carpeta del ensayo) deja la base como al principio.
-`seed_legacy.sql` y `seed_old.sql` son los datos sintéticos de partida.
+`seed_legacy.sql` y `seed_old.sql` son los datos sintéticos de partida. `rebuild.sh` aplica el esquema anterior, la migración v2 y la v3. `verificar_depuracion_y_lifecycle.sh` comprueba la depuración física de lo eliminado y que `lifecycle` no toca avisos.

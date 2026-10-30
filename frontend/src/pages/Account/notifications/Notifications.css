@@ -215,6 +215,125 @@
   }
 }
 
+/* Tarjeta + menú de acciones: el menú (⋮) vive aparte del botón de la tarjeta (no se anidan controles) y deja libre el borde derecho. */
+.notif-item {
+  position: relative;
+}
+
+.notif-item .notif-card {
+  padding-right: 64px;
+}
+
+.notif-item > .notif-item-menu {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.action-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.action-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-700);
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-menu-button:hover,
+.action-menu-button[aria-expanded='true'] {
+  background: var(--page);
+  border-color: var(--line);
+}
+
+.action-menu-button:focus-visible,
+.action-menu-item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.notif-clear-menu .action-menu-button {
+  border-color: var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  padding: 0 18px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.action-menu-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  min-width: 230px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.action-menu-list.is-right {
+  right: 0;
+}
+
+.action-menu-list.is-left {
+  left: 0;
+}
+
+.action-menu-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.action-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-900);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.action-menu-item:hover:not(:disabled),
+.action-menu-item:focus-visible {
+  background: var(--page);
+}
+
+.action-menu-item:disabled {
+  color: var(--ink-400);
+  cursor: not-allowed;
+}
+
+.action-menu-item.is-danger {
+  color: var(--danger-700);
+}
+
+.action-menu-item.is-danger:hover:not(:disabled) {
+  background: var(--danger-50);
+}
+
 /* --- Preferencias --------------------------------------------------------------------------------------- */
 
 .notif-prefs {

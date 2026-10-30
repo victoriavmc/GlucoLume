@@ -1,0 +1,26 @@
+PASA   punto de partida: ana tiene avisos de varios eventos  [['NUEVA_ACCION_GRUPO', 'CAMBIO_CONTRASENA', 'INICIO_SESION', 'RECORDATORIO_MEDICION', 'INICIO_SESION']]
+PASA   DELETE de un aviso propio responde con el contador actualizado  [{'noLeidas': 3, 'eliminadas': 1}]
+PASA   el aviso desaparece de la bandeja y del total  [4]
+PASA   SQL Server: la fila sigue, con fechaEliminacion y SIN fechaLectura (eliminar no es leer)  [(datetime.datetime(2026, 10, 30, 0, 43, 47, 122000), None, True)]
+PASA   tras iniciar una sesión nueva sigue eliminado
+PASA   el contador no cuenta el eliminado  [3]
+PASA   el eliminado no se puede marcar como leído (404)
+PASA   eliminar dos veces el mismo aviso responde 404
+PASA   beto no puede eliminar un aviso de ana (404, igual que uno inexistente)  [404]
+PASA   el aviso de ana sigue sin eliminar en SQL Server
+PASA   vaciar la bandeja de beto no toca la de ana  [4]
+PASA   beto quedó con la bandeja vacía
+PASA   sin alcance no se vacía nada (422)  [422]
+PASA   alcance inválido (422)
+PASA   eliminar las leídas: solo esas, y el contador de no leídas no cambia  [{'noLeidas': 3, 'eliminadas': 1}]
+PASA   las sin leer siguen y las leídas no  [3]
+PASA   auditoría: queda UN evento ELIMINAR_NOTIFICACIONES con la cantidad
+PASA   reprocesar el MISMO hecho no vuelve a crear el aviso eliminado
+PASA   un hecho nuevo e independiente SÍ crea un aviso nuevo  [3 -> 4]
+PASA   vaciar: bandeja y contador en cero  [{'noLeidas': 0, 'eliminadas': 4}]
+PASA   las filas siguen en SQL Server (eliminación lógica)
+PASA   la auditoría de autenticación no se tocó
+PASA   vaciar de nuevo no hace nada ni audita otra vez
+PASA   vaciar 5000 avisos de una vez: todo o nada, en una transacción  [5000 avisos en 106 ms]
+
+RESUMEN: 24/24 comprobaciones

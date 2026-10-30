@@ -13,6 +13,13 @@ Estado de este documento: describe lo **implementado**. Lo **verificado** (con S
 | Preferencias | `/app/notificaciones/preferencias` | Canales «En la aplicación» y «Por correo» por aviso, agrupados por categoría, y el horario de los recordatorios (modificar o eliminar la programación). |
 
 - **La tarjeta entera es el control** (un `<button>`): al elegirla se marca como leída (de forma optimista; si el backend falla, vuelve atrás y se informa) y, si el aviso tiene un destino, se navega. Ya no hay enlace «Ver».
+- **Tres estados independientes (no se reutiliza uno como indicador de otro):** *no leída* (`fechaLectura` vacía), *leída* (con `fechaLectura`, todavía visible) y *eliminada de la bandeja*
+  (`fechaEliminacion`, ya no visible para esa cuenta). Eliminar no marca como leído ni al revés; un aviso eliminado deja de verse y de contarse en `noLeidas`, `total` y los filtros, y no se puede marcar.
+- **Menú de acciones por tarjeta (⋮):** «Abrir» (si hay destino), «Marcar como leída» (si no lo está) y, separada por una línea y en rojo de advertencia, «Eliminar de la bandeja». Es un menú accesible
+  (botón con `aria-haspopup`, `role="menu"`/`menuitem`, flechas, Inicio, Fin, Escape devuelve el foco, Tab y clic fuera cierran). El menú es un control aparte de la tarjeta: no se anidan botones.
+- **Eliminar en bloque («Eliminar…» en el encabezado, separado de «Marcar todas como leídas»):** «Eliminar las leídas» (sin confirmación, no toca las sin leer) y «Vaciar la bandeja…», que **pide
+  confirmación** («también las que todavía no leíste. No se puede deshacer.»). La lista y el contador se actualizan al instante y, si el backend falla, vuelven a como estaban.
+- **Bandeja vacía:** «No tenés notificaciones» (y con filtros, el mensaje de ese filtro).
 - **Destinos:** solo `/app/mediciones`, `/app/grupo`, `/app/seguridad` (y debajo de ellas), rutas que existen en `App.jsx`. El backend descarta otro destino al guardar (`safeUrl`) y la pantalla vuelve a validarlo (`destinoSeguro`): nunca se navega a un texto recibido sin comprobarlo.
 - **Accesibilidad:** filtros con el componente `Tabs` (roles `tablist`/`tab`/`tabpanel`, flechas, Inicio y Fin), tarjetas y interruptores con nombre accesible, foco visible, estados de lectura en texto (no solo color).
 - **Cuentas institucionales:** solo reciben avisos de Seguridad; no ven Grupo ni Recordatorios.
@@ -46,7 +53,8 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | **RN-NOT-02** Recordatorios | Cada ocurrencia se **reserva** antes de enviar con `UPDATE RecordatorioMedicion SET ultimoAviso = :ocurrencia WHERE idUsuario = :id AND (ultimoAviso IS NULL OR ultimoAviso < :ocurrencia)`; solo quien cambia la fila (`rowcount = 1`) envía. Además la ocurrencia es parte de la clave del aviso. Los reintentos son solo del correo (§5). |
 | **RN-NOT-03** Seguridad | El inicio de sesión se sigue auditando entero (`LOGIN_*`). Solo se avisa en pantalla desde un equipo nuevo (§6). La auditoría no se convierte en avisos en bloque ni se debilita. |
 | **RN-NOT-04** Lectura | Estado por aviso (`fechaLectura`). Marcar es idempotente y no cambia la fecha de lectura ya guardada. «Marcar todas» solo actualiza filas con `idUsuario` = el de la sesión. |
-| **RN-NOT-05** Retención | Parametrizable (`NOTIFICATION_READ_RETENTION_DAYS` = 30 y `NOTIFICATION_UNREAD_RETENTION_DAYS` = 365; 0 desactiva). **Automática:** corre una vez por hora dentro del servicio `notifications` (§5; por tandas de 1 000 con tope de 100 tandas por pasada) y elimina los avisos leídos de más de 30 días (y los ocultos por preferencia) y los nunca leídos de más de 365. Solo elimina filas de `NotificacionUsuario`; no toca `Auditoria` ni `AuditoriaContexto`. Antes no había política: la tabla crecía sin límite. |
+| **RN-NOT-05** Retención | Parametrizable (`NOTIFICATION_READ_RETENTION_DAYS` = 30 y `NOTIFICATION_UNREAD_RETENTION_DAYS` = 365; 0 desactiva). **Automática:** corre una vez por hora dentro del servicio `notifications` (§5; por tandas de 1 000 con tope de 100 tandas por pasada) y elimina los avisos leídos de más de 30 días (y los ocultos por preferencia) y los nunca leídos de más de 365. Los avisos eliminados de la bandeja (RN-NOT-08) se depuran con el plazo de los leídos (30 días desde su creación); las reglas de 30 y 365 días **no cambiaron** y son la depuración **física**, distinta de la eliminación manual. Solo elimina filas de `NotificacionUsuario`; no toca `Auditoria` ni `AuditoriaContexto`. Antes no había política: la tabla crecía sin límite. |
+| **RN-NOT-08** Eliminación de la bandeja | Lógica y por destinatario: `UPDATE ... SET fechaEliminacion` sobre filas con `idUsuario` = el de la sesión. La fila **se conserva con su `claveEvento`**: procesar otra vez el mismo hecho (p. ej. el reintento de un recordatorio) no recrea el aviso, pero un hecho nuevo e independiente sí crea uno nuevo. Las acciones masivas son **una sola sentencia y una sola transacción** (con su evento de auditoría `ELIMINAR_NOTIFICACIONES`: alcance y cantidad, nunca el contenido); si algo falla no queda nada a medias. No se toca `Auditoria` ni `AuditoriaContexto`. La depuración física sigue siendo la de RN-NOT-05. |
 | **RN-NOT-06** Autorización | La identidad sale siempre de la sesión. Todas las consultas filtran por `idUsuario`. Un aviso ajeno o inexistente responde igual: `404 NOTIFICACION_NO_ENCONTRADA`. |
 | **RN-NOT-07** Canales | Ver §2. El aviso de la página se confirma **antes** de intentar el correo; una falla SMTP queda en `estadoCorreo = FALLIDO` y no lo quita. |
 
@@ -94,6 +102,8 @@ Sigue igual: cada inicio de sesión (con o sin aviso) queda en `Auditoria` (`LOG
 | `GET /` | **Modificado** | Parámetros `categoria` (`SEGURIDAD`, `GRUPO`, `RECORDATORIO`), `soloNoLeidas`, `limite` (1–50, 20 por omisión), `desplazamiento` (≥ 0). Respuesta `{noLeidas, total, hayMas, notificaciones[{idNotificacion, evento, categoria, titulo, mensaje, url, fechaCreacion, leida}]}`. `noLeidas` ignora el filtro. Con `desplazamiento = 0` revisa el recordatorio propio. Parámetros inválidos: `422`. |
 | `POST /{id}/leer` | **Modificado** | Responde `{noLeidas, marcadas}` (antes devolvía toda la bandeja). Ajeno o inexistente: `404 NOTIFICACION_NO_ENCONTRADA` (antes `200`). |
 | `POST /leer-todas` | **Modificado** | Responde `{noLeidas, marcadas}`; solo avisos de la sesión. |
+| `DELETE /{id}` | **Nuevo** | Quita un aviso propio de la bandeja (eliminación lógica). Responde `{noLeidas, eliminadas}`. Ajeno, inexistente o ya eliminado: `404 NOTIFICACION_NO_ENCONTRADA`, sin distinguirlos. |
+| `DELETE /?alcance=leidas\|todas` | **Nuevo** | Quita de la bandeja los avisos leídos, o todos, de la cuenta autenticada, en una transacción. `alcance` es **obligatorio** (sin él `422`: no hay un valor que vacíe la bandeja por omisión). Responde `{noLeidas, eliminadas}` y deja el evento de auditoría. |
 | `GET /preferencias` | **Modificado** | Cada preferencia suma `categoria` y `obligatoria`; ahora son 9. |
 | `PUT /preferencias/{evento}` | **Modificado** | Admite los 9 avisos. Obligatorios: `409 AVISO_OBLIGATORIO`. |
 | `PUT /recordatorio` | Sin cambio | `NINGUNO` elimina la programación. |
@@ -102,7 +112,12 @@ Comandos: `python -m app.jobs.reminders --loop | --health | ejecutar | depurar |
 
 ## 8. Cambios de esquema
 
-Script versionado e idempotente: [GlucoLume_notificaciones_v2.sql](../database/reference/GlucoLume_notificaciones_v2.sql). Se aplica **después** de `GlucoLume_notificaciones_usuario.sql`, con respaldo previo y de preferencia primero en una copia restaurada:
+**v3 (eliminación de la bandeja):** [GlucoLume_notificaciones_v3.sql](../database/reference/GlucoLume_notificaciones_v3.sql) agrega `NotificacionUsuario.fechaEliminacion` (`datetime2(3) NULL`) y nada más: no modifica ni borra
+filas, es idempotente, exige `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` y se aplica **después** de v2. No hacen falta permisos nuevos (es un `UPDATE`). No se encontró ningún mecanismo de eliminación lógica previo
+para los avisos: `visible` significa «la cuenta apagó el canal de la página» y no se reutilizó. El backend exige la columna (`schemaCompat`): con v2 sin v3, Notificaciones queda «no disponible» en lugar de fallar.
+`GlucoLume_DB_v5.sql` ya la incluye para instalaciones nuevas.
+
+**v2:** script versionado e idempotente: [GlucoLume_notificaciones_v2.sql](../database/reference/GlucoLume_notificaciones_v2.sql). Se aplica **después** de `GlucoLume_notificaciones_usuario.sql`, con respaldo previo y de preferencia primero en una copia restaurada:
 
 ```
 sqlcmd -S <servidor> -d <base> -I -i GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"
@@ -134,6 +149,7 @@ sqlcmd -S <servidor> -d <base> -I -i GlucoLume_notificaciones_v2.sql -v CONFIRMA
 | 11 | `lifecycle` no sirve para esto | En la instalación en uso corre con `ACCOUNT_LIFECYCLE_INTERVAL_SECONDS=0` (desactivado a propósito: elimina cuentas) y sin `DB_JOBS_USER`. La depuración de avisos que se había puesto ahí **nunca corría** y, de activarse `lifecycle`, habría quedado atada a una tarea destructiva. Se sacó de `lifecycle`, que volvió a su estado original. |
 | 12 | Correo fallido sin reintento útil | Los reintentos (3) ocurrían en pasadas consecutivas: una caída del SMTP de pocos minutos los agotaba y el correo quedaba `FALLIDO` para siempre. Ahora son 5 con espera creciente (§5). |
 | 13 | Faltaban avisos de grupo | Quien invitó no se enteraba de un rechazo, y quien era desvinculado por el administrador (y los demás integrantes) no recibían aviso en la página. |
+| 14 | **La bandeja no se podía limpiar** | Solo existían leído y no leído: no había eliminación de ningún tipo (la única baja era la depuración física por antigüedad, que ni siquiera corría con `lifecycle` apagado), así que todo aviso viejo seguía a la vista aunque estuviera leído. No existía ningún mecanismo previo de eliminación lógica para los avisos (`visible` es el canal de la página, no una baja). Se agregó `fechaEliminacion` (RN-NOT-08, §8). |
 
 ## 10. Pruebas
 
@@ -152,9 +168,12 @@ Backend en su imagen de Docker (`glucolume/backend:dev` con el código de la ram
 | Recordatorios: sin servicio (no llega), con servicio (llega con correo), dos servicios simultáneos, periódico, cambio de horario, desactivar, SMTP caído y reintento | **13/13** | [e2e_reminders.txt](evidencias/notificaciones/resultados/e2e_reminders.txt) |
 | Migración v2 sobre el esquema anterior con datos heredados, idempotencia, permisos de API y de procesos, índice único, `CHECK` | Correcta (ver archivo) | [sqlserver_migracion_y_permisos.txt](evidencias/notificaciones/resultados/sqlserver_migracion_y_permisos.txt) |
 | Persistencia tras reiniciar SQL Server y el backend; `lifecycle`; depuración con cuenta de procesos y con la de la API; servicio `notifications` y su healthcheck | Correcto (ver archivo) | [servicios_y_persistencia.txt](evidencias/notificaciones/resultados/servicios_y_persistencia.txt) |
-| `GlucoLume_DB_v5.sql` nuevo: instalación limpia en SQL Server 2022 | Sin errores, 38 tablas | (la usa la base del siguiente punto) |
-| Suite de Notificaciones (91 pruebas) **contra SQL Server real** (`tests/test_user_notifications_sqlserver.py`, mismas pruebas que SQLite, con hilos de conexiones distintas) | **91 pasaron** | ejecución del 30/10 |
+| Eliminar de la bandeja: avisos de eventos reales, eliminar uno, persistencia tras una sesión nueva, contadores, aislamiento entre cuentas (404), eliminar leídas, vaciar, hecho repetido vs. hecho nuevo, auditoría, vaciado de 5 000 avisos en una transacción | **24/24** | [e2e_delete.txt](evidencias/notificaciones/resultados/e2e_delete.txt) |
+| Depuración física de lo eliminado con la cuenta de procesos, pasada completa de `lifecycle` (no toca avisos), auditoría intacta, la API puede eliminar lógicamente pero no borrar | Correcto (ver archivo) | [depuracion_y_lifecycle.txt](evidencias/notificaciones/resultados/depuracion_y_lifecycle.txt) |
+| `GlucoLume_notificaciones_v3.sql` sobre una base con v2 + `GlucoLume_DB_v5.sql` nuevo (instalación limpia) en SQL Server 2022 | Sin errores; 38 tablas; `fechaEliminacion` presente en ambas | (la usa la base del punto siguiente) |
+| Suite de Notificaciones (107 pruebas) **contra SQL Server real** (`tests/test_user_notifications_sqlserver.py`, mismas pruebas que SQLite, con hilos de conexiones distintas) | **107 pasaron** | ejecución del 30/10 |
 | Frontend en un navegador real contra ese backend (cuenta sintética `ana`) | Bandeja con datos reales, filtro Seguridad, fecha corregida a hora de Argentina, la tarjeta abrió `/app/seguridad` y la fila quedó leída en SQL Server, interruptor de preferencia guardado en SQL Server; todas las llamadas `200`, sin errores en la consola ni de CORS | capturas y registro de red de la sesión |
+| Eliminar desde la interfaz real contra ese backend: menú ⋮ de una tarjeta → «Eliminar de la bandeja» (el aviso desaparece, el contador baja y en SQL Server la fila queda con `fechaEliminacion` y sin `fechaLectura`); «Eliminar…» → «Vaciar la bandeja…» con confirmación → «No tenés notificaciones»; al **recargar** sigue vacía y SQL Server muestra las 7 filas de `ana` eliminadas y 1 evento de auditoría | Correcto; sin errores en la consola | capturas y consulta a SQL Server de la sesión |
 
 Hallazgos de esas pruebas (corregidos): los recordatorios no se generaban sin la aplicación abierta (§9, #10); los reintentos del correo se agotaban en dos pasadas (§9, #12); faltaban
 los avisos de rechazo y de desvinculación (§9, #13); la depuración de avisos no corría con `lifecycle` apagado (§9, #11).
@@ -163,10 +182,10 @@ los avisos de rechazo y de desvinculación (§9, #13); la depuración de avisos 
 
 | Conjunto | Resultado |
 |---|---|
-| Backend, suite completa (`python -m pytest tests`, SQLite) | **2 049 pasaron, 2 fallaron, 171 omitidas** (17 min). Las 2 fallas **ya fallaban con el código anterior** y no son de este módulo: `test_toda_exportacion_futura_pasa_por_audited_export` (ya listada como P3 en PENDIENTES) y `test_ningun_cuerpo_de_peticion_acepta_campos_de_mas` (`PatientExportRequest`, `PersonnelExportRequest`). Las omitidas son las que exigen SQL Server real (entre ellas las 91 de Notificaciones, que sí se corrieron aparte contra SQL Server real, ver 10.1) o herramientas ausentes. |
-| Backend, `tests/test_user_notifications.py` | 91 pasaron (antes de este rediseño: 28). SQLite y SQL Server real: el mismo resultado. |
-| Frontend, suite completa (`npx vitest run`) | **761/761 pasaron** (57 archivos). |
-| Frontend, módulo | 44 pruebas en 4 archivos (bandeja 12, preferencias 10, catálogo y destinos, cartel de avisos). |
+| Backend, suite completa (`python -m pytest tests`, SQLite) | **2 065 pasaron, 2 fallaron, 187 omitidas** (18 min). Las 2 fallas **ya fallaban con el código anterior** y no son de este módulo: `test_toda_exportacion_futura_pasa_por_audited_export` (ya listada como P3 en PENDIENTES) y `test_ningun_cuerpo_de_peticion_acepta_campos_de_mas` (`PatientExportRequest`, `PersonnelExportRequest`). Las omitidas son las que exigen SQL Server real (entre ellas las 107 de Notificaciones, que sí se corrieron aparte contra SQL Server real, ver 10.1) o herramientas ausentes. |
+| Backend, `tests/test_user_notifications.py` | 107 pasaron (antes de este rediseño: 28). SQLite y SQL Server real: el mismo resultado. |
+| Frontend, suite completa (`npx vitest run`) | **770/770 pasaron** (57 archivos). |
+| Frontend, módulo | 53 pruebas en 4 archivos (bandeja 21, entre ellas 9 de eliminar de la bandeja: menú y teclado, eliminar uno, persistencia al recargar con un backend con estado, leído vs. eliminado, rollback, eliminar leídas, vaciar con confirmación y cancelación, vaciado fallido, acciones deshabilitadas; preferencias 10; catálogo y destinos; cartel de avisos). |
 | Reproducción del defecto de duplicados | Con el código anterior (extraído de `HEAD`), 6 hilos que procesan la misma ocurrencia crearon 6 avisos (3 de 3 corridas); con el código nuevo, 1. |
 | Revisión visual manual | Bandeja a 1440 px y a 375 px, y preferencias a 375 y 1440 px, en un navegador real: sin desborde horizontal. La prueba responsive **no está automatizada**. |
 
@@ -210,7 +229,7 @@ La instalación en uso **todavía no tiene** nada de esto (se comprobó en lectu
 Hasta que se apliquen, el backend nuevo deja Notificaciones como «no disponible» (no falla). Orden recomendado, **primero en una copia restaurada**:
 
 1. **Respaldo** restaurable de la base (`GlucoLume_respaldo.ps1` o `BACKUP ... WITH CHECKSUM`) y, de preferencia, ensayar los pasos 2 y 3 en una copia.
-2. **Esquema:** con `sqlcmd -I`, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"` (si la base no tenía las tablas, antes `GlucoLume_notificaciones_usuario.sql`). Es idempotente y no borra filas.
+2. **Esquema:** con `sqlcmd -I`, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"` y **después** `GlucoLume_notificaciones_v3.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` (eliminación de la bandeja; si la base no tenía las tablas, antes `GlucoLume_notificaciones_usuario.sql`). Cada uno es idempotente y no borra filas.
 3. **Permisos:** volver a aplicar `GlucoLume_permisos.sql` (agrega el `DELETE` de `NotificacionUsuario` para el rol de conservación) y comprobar con `GlucoLume_permisos_verificar.sql`.
 4. **Cuenta de procesos:** definir `DB_JOBS_USER` y `DB_JOBS_PASSWORD` en el `.env` (cuenta distinta de la de la API, miembro de `rol_glucolume_retencion`). Sin ella los recordatorios funcionan pero la bandeja no se depura.
 5. **Variables (opcionales):** `NOTIFICATIONS_INTERVAL_SECONDS` (60), `NOTIFICATION_READ_RETENTION_DAYS` (30) y `NOTIFICATION_UNREAD_RETENTION_DAYS` (365). No tocar `ACCOUNT_LIFECYCLE_INTERVAL_SECONDS`: son independientes.

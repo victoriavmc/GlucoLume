@@ -10,11 +10,13 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentAuth, DbSession
 from app.schemas.userNotification import (
+    AlcanceEliminacion,
     CategoriaAviso,
     EventoAviso,
     NotificationPreferenceUpdate,
     NotificationSettingsRead,
     ReminderScheduleUpdate,
+    UserNotificationDeleteResult,
     UserNotificationInbox,
     UserNotificationReadResult,
 )
@@ -79,6 +81,27 @@ def inbox(
             logger.error("Recordatorio no procesado al abrir la bandeja (%s).", type(error).__name__)
     return notificationService.inbox(db, auth.user, categoria=categoria, soloNoLeidas=soloNoLeidas, limite=limite,
                                      desplazamiento=desplazamiento)
+
+
+@router.delete(
+    "", response_model=UserNotificationDeleteResult, summary="Quitar avisos propios de la bandeja",
+    description=(
+        "`alcance=leidas` quita los avisos ya leídos y `alcance=todas`, todos los de la bandeja de la cuenta autenticada (eliminación lógica, en una sola "
+        "transacción). Es obligatorio: no hay un valor por omisión que vacíe la bandeja. Queda un evento de auditoría con la cantidad."
+    ),
+)
+def deleteMany(alcance: AlcanceEliminacion, auth: CurrentAuth, db: DbSession):
+    deleted = notificationService.deleteMany(db, auth.user, alcance)
+    return UserNotificationDeleteResult(noLeidas=notificationService.unreadCount(db, auth.user), eliminadas=deleted)
+
+
+@router.delete(
+    "/{idNotificacion}", response_model=UserNotificationDeleteResult, summary="Quitar un aviso propio de la bandeja",
+    description="Eliminación lógica. Un aviso de otra cuenta, inexistente o ya eliminado responde 404 NOTIFICACION_NO_ENCONTRADA.",
+)
+def deleteOne(idNotificacion: uuid.UUID, auth: CurrentAuth, db: DbSession):
+    deleted = notificationService.deleteNotification(db, auth.user, idNotificacion)
+    return UserNotificationDeleteResult(noLeidas=notificationService.unreadCount(db, auth.user), eliminadas=deleted)
 
 
 @router.post("/leer-todas", response_model=UserNotificationReadResult, summary="Marcar todos los avisos propios como leídos")
