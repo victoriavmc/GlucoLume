@@ -148,6 +148,10 @@ class Settings(BaseSettings):
     # suprimen sus datos personales históricos (nombre, legajo, matrícula). 0 (por defecto) lo desactiva: el plazo todavía no fue aprobado.
     ACCOUNT_LIFECYCLE_INTERVAL_SECONDS: int = 3600
     PERSONNEL_RETENTION_MONTHS: int = 0
+    # Avisos y recordatorios de «Notificaciones» (servicio «notifications»; app/jobs/reminders.py): cada cuánto revisa los recordatorios vencidos
+    # y reintenta los correos que fallaron. Distinto de «lifecycle» a propósito: aquello elimina cuentas y suele tenerse apagado; esto solo genera
+    # avisos. Mínimo 10 s; no admite 0 (un recordatorio por horario que nadie procesa es un recordatorio que no llega).
+    NOTIFICATIONS_INTERVAL_SECONDS: int = 60
 
     # Auditoría y detección de actividad sospechosa (docs/AUDITORIA_ADMINISTRATIVA.md). Los umbrales NO bloquean a nadie: solo deciden qué
     # patrones se señalan en la consola de la administración (services/securityDetection.py, services/securityMonitor.py).
@@ -226,6 +230,13 @@ class Settings(BaseSettings):
     def validarUrlDeLimites(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and urlsplit(value.get_secret_value()).scheme not in ("redis", "rediss", "unix"):
             raise ValueError("RATE_LIMIT_REDIS_URL debe empezar con redis://, rediss:// o unix://.")
+        return value
+
+    @field_validator("NOTIFICATIONS_INTERVAL_SECONDS")
+    @classmethod
+    def validarIntervaloDeAvisos(cls, value: int) -> int:
+        if not 10 <= value <= 3600:
+            raise ValueError("NOTIFICATIONS_INTERVAL_SECONDS debe estar entre 10 y 3600 (no se puede desactivar: los recordatorios dependen de él).")
         return value
 
     @field_validator("DB_MAX_CONCURRENT_CALLS")

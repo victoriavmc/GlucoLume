@@ -1,0 +1,1 @@
+UPDATE r SET modo=N'INTERVALO', intervaloHoras=1, horarios=NULL, ultimoAviso=DATEADD(minute,-61,DATEADD(hour,-3,SYSDATETIME())) FROM dbo.RecordatorioMedicion r JOIN dbo.Usuario u ON u.idUsuario=r.idUsuario WHERE u.usuario=N'ana';

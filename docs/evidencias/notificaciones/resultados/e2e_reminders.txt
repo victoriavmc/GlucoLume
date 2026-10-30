@@ -1,0 +1,16 @@
+horario configurado a las 23:26 (hora de Argentina); espero a que pase sin abrir la bandeja ni correr el servicio…
+PASA   SIN el servicio 'notifications' el recordatorio NO se genera aunque el horario venció (causa del 'no llegan')
+PASA   CON el servicio, el recordatorio vencido se genera solo (1 aviso)  [[('RECORDATORIO_MEDICION:2026-10-29T23:26:00', 'ENVIADO', 1, True, None)]]
+PASA   su clave identifica la ocurrencia (horario configurado)  [RECORDATORIO_MEDICION:2026-10-29T23:26:00]
+PASA   el correo salió por SMTP y quedó ENVIADO  [[('RECORDATORIO_MEDICION:2026-10-29T23:26:00', 'ENVIADO', 1, True, None)]]
+PASA   el correo llegó al buzón de ana (SMTP de prueba)  [['Es hora de medirte en GlucoLume']]
+PASA   la API lo devuelve en la bandeja (categoría RECORDATORIO, sin leer)  [2]
+PASA   dos servicios simultáneos + aperturas de bandeja NO duplican el recordatorio  [[('RECORDATORIO_MEDICION:2026-10-29T23:26:00', 'ENVIADO', 1, True, None)]]
+PASA   cambiar el horario se guarda en SQL Server
+PASA   recordatorio periódico (cada 1 h): se genera cuando vence  [('RECORDATORIO_MEDICION:2026-10-29T23:28:01', 'ENVIADO', 1, True, None)]
+PASA   desactivar/eliminar la programación: no se generan más recordatorios  [2]
+PASA   SMTP caído: el aviso de la página se guardó igual y el correo quedó FALLIDO (1 intento; los siguientes esperan)  [('RECORDATORIO_MEDICION:2026-10-29T23:28:55', 'FALLIDO', 1, True, None)]
+PASA   al volver el SMTP el servicio reintenta el correo y queda ENVIADO  [('RECORDATORIO_MEDICION:2026-10-29T23:28:55', 'ENVIADO', 2, True, None)]
+PASA   el reintento NO creó otro aviso  [3 avisos]
+
+RESUMEN: 13/13 comprobaciones

@@ -1,0 +1,25 @@
+== A. persistencia: filas antes y después de reiniciar SQL Server y el backend
+3 2 
+3 2 
+== B. lifecycle (cuenta de procesos): una pasada en seco no elimina nada
+{"plazoVigente":[],"plazoVencido":[],"seEliminarian":[],"seOmitirian":[],"sinPlazoNoSeTocan":[],"pendientesSinSalidaSeDepurarian":[]}
+
+== C. lifecycle con ACCOUNT_LIFECYCLE_INTERVAL_SECONDS=0 (como la instalación en uso): queda inactivo
+2026-10-30 02:37:22,041 glucolume.lifecycle WARNING ACCOUNT_LIFECYCLE_INTERVAL_SECONDS=0: el ciclo de vida automático está desactivado.
+== D. depuración con la cuenta de procesos: elimina solo lo vencido; la auditoría no cambia
+previsualizar: {"avisosVencidos": 3, "diasLeidos": 30, "diasNoLeidos": 365}
+depurar:       {"avisosEliminados": 3}
+titulo
+------
+leido-reciente
+sin-leer-medio
+auditoría antes=0 después=0
+== E. depuración con la cuenta de la API (sin DELETE): falla y no borra
+DELETE permission was denied on the object 'NotificacionUsuario', database 'GlucoLume', schema 'dbo'. (229) (SQLExecDirectW)
+== F. servicio notifications: healthcheck y registro
+health recién arrancado exit=0
+
+(1 rows affected)
+health tras varias pasadas (con un recordatorio vencido en la base) exit=0
+2026-10-30 02:37:50,689 glucolume.notifications INFO Servicio de notificaciones activo (recordatorios cada 10 s, depuración cada 3600 s).
+2026-10-30 02:38:00,886 glucolume.notifications INFO Notificaciones: {'recordatorios': {'revisadas': 1, 'avisadas': 1, 'reintentos': 0}}

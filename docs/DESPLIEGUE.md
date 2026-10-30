@@ -17,6 +17,7 @@ navegador ──HTTPS──▶ proxy Caddy (perfil https) ──HTTP──▶ fr
 |---|---|---|---|---|
 | `backend` | `backend/Dockerfile` (Python 3.14 slim, ODBC 18, usuario 10001) | API `/api/v1`: autenticación local/Google/JWT/MFA, usuarios, grupos, instituciones, dispositivos, mediciones, correo, adquisición | Ninguno (solo `compose.dev.yaml` publica 127.0.0.1:8000) | edge, data |
 | `lifecycle` | Misma imagen (`python -m app.jobs.accountLifecycle --loop`) | Único programador del ciclo de vida de cuentas institucionales y de la retención de la auditoría | Ninguno | data |
+| `notifications` | Misma imagen (`python -m app.jobs.reminders --loop`) | Genera los recordatorios de medición, reintenta correos fallidos y depura avisos vencidos de la bandeja | Ninguno | data |
 | `frontend` | `frontend/Dockerfile` (build Vite → Nginx 1.30 alpine-slim sin privilegios, usuario 101) | Sirve la SPA, reenvía `/api/` y pone las cabeceras de seguridad | 8080 → `127.0.0.1:${FRONTEND_PORT}` | edge |
 | `db` (perfil `db`) | `docker/mssql/Dockerfile` (SQL Server 2022 CU16 parcheado) | SQL Server opcional con volumen `mssql-data` | Ninguno (dev: 127.0.0.1:1433) | data |
 | `proxy` (perfil `https` de `compose.prod.yaml`) | `caddy:2.11-alpine` (digest fijo) | Dominio y HTTPS automático (Let's Encrypt, HSTS) | 80, 443 | edge |
@@ -27,9 +28,10 @@ Imágenes base fijadas por digest (backend, frontend, SQL Server, firmware y Cad
 al iniciar Docker Desktop un contenedor que no se detuvo con `docker compose stop`: si el `.env` apunta a la base real, detener los
 servicios con `docker compose stop` (o `docker update --restart=no`) antes de cerrar Docker.
 
-**Recordatorios de medición y avisos (`python -m app.jobs.reminders`):** no tienen servicio propio en Compose. Para que los recordatorios lleguen también por correo, agendar
-`python -m app.jobs.reminders ejecutar` cada ~5 minutos (Tareas programadas de Windows o `docker compose exec -T backend …`). Es idempotente y seguro con varios procesos a la vez. `depurar` elimina avisos vencidos de la
-bandeja (esa depuración ya corre sola en cada pasada del servicio `lifecycle`; ver NOTIFICACIONES.md §3) (`NOTIFICATION_READ_RETENTION_DAYS`, `NOTIFICATION_UNREAD_RETENTION_DAYS`) y necesita la cuenta de procesos (`DB_JOBS_USER`); `previsualizar` solo cuenta. Ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §5.
+**Servicio `notifications` (`python -m app.jobs.reminders --loop`):** genera los recordatorios de medición a su hora (con la aplicación abierta o no), reintenta con espera creciente los correos que fallaron y, una vez por hora,
+elimina los avisos vencidos de la bandeja (`NOTIFICATION_READ_RETENTION_DAYS`, `NOTIFICATION_UNREAD_RETENTION_DAYS`; no toca la auditoría). Misma imagen que el backend, sin puertos; healthcheck `--health`; intervalo
+`NOTIFICATIONS_INTERVAL_SECONDS` (60 por defecto, no se puede apagar). Es **independiente de `lifecycle`**: puede quedar siempre encendido aunque `lifecycle` esté desactivado. La depuración necesita la cuenta de procesos
+(`DB_JOBS_USER`); sin ella los recordatorios funcionan y la depuración se registra como advertencia. Comandos manuales: `ejecutar` (una pasada), `depurar`, `previsualizar`. Ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §5 y §12.
 
 **`lifecycle` modifica datos reales** (elimina y anonimiza cuentas con plazo vencido, depura auditoría vencida): no levantarlo contra una
 base de prueba ajena ni contra una base real sin decidirlo. El backend también corre un mantenimiento de mediciones cada

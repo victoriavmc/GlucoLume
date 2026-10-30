@@ -84,13 +84,13 @@ procedimientos preparados que requieren autorización están en [SEGURIDAD.md](S
 
 ## Notificaciones
 
-Detalle y causas en [NOTIFICACIONES.md](NOTIFICACIONES.md) §11.
+Detalle y causas en [NOTIFICACIONES.md](NOTIFICACIONES.md) §9 y §11; pasos en §12.
 
 | Prioridad | Pendiente |
 |---|---|
-| P1 | Aplicar `GlucoLume_notificaciones_v2.sql` (después de `GlucoLume_notificaciones_usuario.sql`) y el nuevo `GRANT DELETE` de `GlucoLume_permisos.sql` en la instancia real, **primero en una copia restaurada**. Solo se probó el mismo esquema en SQLite; falta verificarlo en SQL Server |
-| P2 | Agendar `python -m app.jobs.reminders ejecutar` (cada ~5 min). La depuración de avisos ya corre sola en `lifecycle` (si ese servicio está levantado y la cuenta `DB_JOBS_USER` tiene el `DELETE` de `GlucoLume_permisos.sql`). Sin el job de recordatorios, los recordatorios por correo solo salen con la aplicación abierta |
-| P2 | Repetir con SQL Server real las pruebas de concurrencia de avisos y recordatorios (hoy hilos sobre SQLite) |
+| P1 | **Aplicar en la instalación en uso** `GlucoLume_notificaciones_v2.sql` (después de `GlucoLume_notificaciones_usuario.sql`), el nuevo `GRANT DELETE` de `GlucoLume_permisos.sql`, definir `DB_JOBS_USER` y levantar el servicio `notifications` (NOTIFICACIONES.md §12). Ensayado con SQL Server 2022 real **descartable**, no en tu base: allí, hoy, los recordatorios solo se generan al abrir la bandeja y el backend nuevo dejaría Notificaciones «no disponible» |
+| P2 | Probar la entrega real por el SMTP configurado (Gmail): se verificó el envío contra un SMTP de prueba con STARTTLS, no la aceptación del proveedor ni SPF/DKIM |
+| P2 | Completar una medición real con el dispositivo y comprobar el aviso `MEDICION_GRUPO` (se probó con la función que invocan `measurement.py` y `telemetry.py`) |
 | P3 | Llevar a la bandeja los avisos de cuentas de plataforma e instituciones (hoy solo correo) y definir una zona horaria por usuario (hoy todo es hora de Argentina) |
 | P3 | Prueba visual automatizada de la bandeja y las preferencias en móvil y escritorio (hoy solo se revisó a mano en un navegador) |
 

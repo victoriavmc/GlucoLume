@@ -564,6 +564,27 @@ def test_el_proceso_reintenta_el_correo_de_un_recordatorio_fallido_sin_crear_otr
     assert reminders.run(db, now + timedelta(minutes=10))["reintentos"] == 0
 
 
+def test_los_reintentos_del_correo_esperan_cada_vez_mas_y_se_detienen_en_el_tope(db, mails, monkeypatch):
+    user = makeUser(db)
+    service.updateSchedule(db, user, ReminderScheduleUpdate(modo="INTERVALO", intervaloHoras=1))
+    service.updatePreference(db, user, "RECORDATORIO_MEDICION", porCorreo=True)
+    failSmtp(monkeypatch)
+    reminders.run(db, scheduleOf(db, user).ultimoAviso + timedelta(hours=1, minutes=1))
+    created = rows(db, user, "RECORDATORIO_MEDICION")[0].fechaCreacion
+    retry = lambda after: service.retryFailedReminderEmails(db, created + after)  # noqa: E731
+
+    assert retry(timedelta(seconds=30)) == 0  # demasiado pronto: el SMTP recién falló
+    assert retry(timedelta(minutes=2)) == 1  # 2.º intento
+    assert retry(timedelta(minutes=3)) == 0  # el 3.º espera 5 min desde la creación
+    assert retry(timedelta(minutes=6)) == 1  # 3.º
+    assert retry(timedelta(minutes=16)) == 1  # 4.º
+    assert retry(timedelta(minutes=61)) == 1  # 5.º
+    assert retry(timedelta(hours=5)) == 0  # tope de intentos: no se insiste más
+    [row] = rows(db, user, "RECORDATORIO_MEDICION")
+    assert (row.estadoCorreo, row.intentosCorreo) == ("FALLIDO", service.MAX_INTENTOS_CORREO)
+    assert len(service.inbox(db, user).notificaciones) == 1 and mails == []
+
+
 def test_no_se_reintenta_si_la_cuenta_apago_el_correo_despues(db, mails, monkeypatch):
     user = makeUser(db)
     service.updateSchedule(db, user, ReminderScheduleUpdate(modo="INTERVALO", intervaloHoras=1))
@@ -830,6 +851,30 @@ def test_invitar_a_una_cuenta_avisa_en_la_pagina_y_por_correo_segun_sus_preferen
     assert any(n.evento == "INVITACION_GRUPO" for n in service.inbox(db, carla).notificaciones)
 
 
+def test_rechazar_una_invitacion_avisa_al_administrador_una_sola_vez(db, mails):
+    ana, beto, carla, group = _group(db)
+    invitation = groups.invite(db, ana, group.idGrupo, beto.correoElectronico)
+
+    groups.respondInvitation(db, beto, invitation.idGrupoUsuario, accept=False)
+
+    [aviso] = [n for n in service.inbox(db, ana).notificaciones if "rechazó" in n.mensaje]
+    assert (aviso.evento, aviso.categoria) == ("NUEVA_ACCION_GRUPO", "GRUPO")
+    assert [n for n in service.inbox(db, beto).notificaciones if "rechaz" in n.mensaje] == []
+
+
+def test_desvincular_a_un_integrante_avisa_a_la_persona_y_a_los_demas(db, mails):
+    ana, beto, carla, group = _group(db)
+    join(db, ana, group.idGrupo, carla)
+    join(db, ana, group.idGrupo, beto)
+    relation = db.scalar(select(GroupUser).where(GroupUser.idUsuario == beto.idUsuario))
+
+    groups.removeMember(db, ana, group.idGrupo, relation.idGrupoUsuario)
+
+    assert any(n.titulo == "Te desvincularon de un grupo" for n in service.inbox(db, beto).notificaciones)
+    assert any("fue desvinculado" in n.mensaje for n in service.inbox(db, carla).notificaciones)
+    assert not any("fue desvinculado" in n.mensaje for n in service.inbox(db, beto).notificaciones)
+
+
 def test_la_misma_incorporacion_procesada_dos_veces_no_duplica_los_avisos(db, mails):
     ana, beto, carla, group = _group(db)
     join(db, ana, group.idGrupo, carla)
@@ -876,6 +921,62 @@ def test_las_preferencias_de_novedades_y_de_mediciones_del_grupo_son_independien
 
     assert [n for n in service.inbox(db, carla).notificaciones if n.evento == "MEDICION_GRUPO"] == []
     assert any(n.evento == "NUEVA_ACCION_GRUPO" for n in service.inbox(db, carla).notificaciones)
+
+
+# --- Servicio «notifications» (bucle programado) -------------------------------------------------------------
+
+
+def test_el_servicio_genera_los_recordatorios_vencidos_sin_que_nadie_abra_la_bandeja(db, engine, mails, monkeypatch):
+    user = makeUser(db)
+    service.updateSchedule(db, user, ReminderScheduleUpdate(modo="INTERVALO", intervaloHoras=1))
+    db.execute(update(ReminderSchedule).values(ultimoAviso=nowForDb() - timedelta(hours=1, minutes=5)))
+    db.commit()
+    monkeypatch.setattr(reminders, "getJobsSessionFactory", lambda: (lambda: Session(engine)))
+
+    result = reminders.onePass(purge=False)
+
+    assert result["recordatorios"]["avisadas"] == 1
+    assert [n.evento for n in service.inbox(db, user).notificaciones] == ["RECORDATORIO_MEDICION"]
+    assert reminders.onePass(purge=False)["recordatorios"]["avisadas"] == 0  # la siguiente pasada no repite
+
+
+def test_una_pasada_fallida_no_detiene_el_servicio_y_la_depuracion_corre_aparte(db, engine, monkeypatch):
+    monkeypatch.setattr(reminders, "getJobsSessionFactory", lambda: (lambda: Session(engine)))
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("base caída")
+
+    monkeypatch.setattr(reminders, "run", broken)
+    monkeypatch.setattr(notificationRetention, "purge", lambda db: 7)
+
+    assert reminders.onePass(purge=True) == {"recordatorios": None, "avisosEliminados": 7}
+
+    monkeypatch.setattr(notificationRetention, "purge", broken)
+    assert reminders.onePass(purge=True) == {"recordatorios": None, "avisosEliminados": None}
+
+
+def test_el_chequeo_de_salud_del_servicio_usa_la_marca_de_vida(tmp_path, monkeypatch):
+    import os
+    import time as timeModule
+
+    monkeypatch.setattr(reminders, "HEARTBEAT", tmp_path / "latido")
+    assert reminders.healthy() is False  # nunca completó una pasada
+    reminders.beat()
+    assert reminders.healthy() is True
+    old = timeModule.time() - 3 * 60 * 60
+    os.utime(reminders.HEARTBEAT, (old, old))
+    assert reminders.healthy() is False  # hace horas que no completa una pasada
+
+
+def test_el_intervalo_del_servicio_no_se_puede_desactivar(monkeypatch):
+    from pydantic import ValidationError as PydanticValidationError
+
+    from app.core.config import Settings
+
+    for value in ("0", "5", "7200"):
+        monkeypatch.setenv("NOTIFICATIONS_INTERVAL_SECONDS", value)
+        with pytest.raises(PydanticValidationError):
+            Settings()
 
 
 # --- Retención (RN-NOT-05) -----------------------------------------------------------------------------------
@@ -929,7 +1030,7 @@ def test_la_depuracion_trabaja_por_tandas_hasta_vaciar_lo_vencido(db, monkeypatc
     assert [r.claveEvento for r in rows(db)] == ["reciente"]
 
 
-def test_el_ciclo_automatico_de_lifecycle_depura_los_avisos_vencidos(db, engine, monkeypatch):
+def test_el_servicio_notifications_depura_los_avisos_vencidos_y_lifecycle_no_los_toca(db, engine, monkeypatch):
     from app.jobs import accountLifecycle
 
     user = makeUser(db)
@@ -940,16 +1041,18 @@ def test_el_ciclo_automatico_de_lifecycle_depura_los_avisos_vencidos(db, engine,
                             fechaCreacion=now - timedelta(days=60)))
     db.commit()
     _retention(monkeypatch, read=30, unread=365)
+    monkeypatch.setattr(reminders, "getJobsSessionFactory", lambda: (lambda: Session(engine)))
     monkeypatch.setattr(accountLifecycle, "getJobsSessionFactory", lambda: (lambda: Session(engine)))
-    for part in ("accountLifecycle", "pendingAccounts", "personnelRetention", "auditRetention"):
-        monkeypatch.setattr(getattr(accountLifecycle, part), {"accountLifecycle": "sweep", "pendingAccounts": "purgeDead",
-                                                              "personnelRetention": "minimizeExpired", "auditRetention": "run"}[part],
-                            lambda *args, **kwargs: 0)
+    for module, function in ((accountLifecycle.accountLifecycle, "sweep"), (accountLifecycle.pendingAccounts, "purgeDead"),
+                             (accountLifecycle.personnelRetention, "minimizeExpired"), (accountLifecycle.auditRetention, "run")):
+        monkeypatch.setattr(module, function, lambda *args, **kwargs: 0)
 
-    result = accountLifecycle.run()
+    assert "avisosEliminados" not in accountLifecycle.run()  # lifecycle (que elimina cuentas) no depura avisos
+    assert len(rows(db)) == 2
 
-    assert result["avisosEliminados"] == 1
+    assert reminders.onePass(purge=True)["avisosEliminados"] == 1
     assert [r.claveEvento for r in rows(db)] == ["sin-leer"]
+    assert "avisosEliminados" not in reminders.onePass(purge=False)  # fuera de la hora, la pasada solo trata recordatorios
 
 
 def test_los_plazos_en_cero_desactivan_la_depuracion(db, monkeypatch):

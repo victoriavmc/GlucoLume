@@ -1,0 +1,22 @@
+PASA   login habitual (mismo equipo) no genera aviso nuevo  [INICIO_SESION=1 base=1]
+PASA   equipo nuevo (Firefox/Linux) genera UN aviso y repetirlo no duplica  [INICIO_SESION=2 base=1]
+PASA   el aviso describe el equipo y no incluye la IP  [Se inició sesión en tu cuenta desde Firefox en Linux (Computadora). Si no fuiste vos, camb]
+PASA   cada inicio de sesión sigue auditado en SQL Server (LOGIN_PWD)  [nuevos eventos de auditoría=5 (5 logins)]
+PASA   AccesoConocido guarda un registro por equipo distinto (sin IP)  [filas=2]
+PASA   cambio de contraseña responde 2xx  [200]
+PASA   avisa CAMBIO_CONTRASENA en la página (obligatorio)
+PASA   y sale el correo existente PASSWORD_CAMBIADA  [['Cambiaste tu contraseña con éxito', 'Nuevo inicio de sesión en GlucoLume']]
+PASA   segundo cambio de contraseña crea un segundo aviso (otro hecho)  [2]
+PASA   activar MFA avisa CAMBIO_MFA  [1]
+PASA   desactivar MFA avisa CAMBIO_MFA (2 avisos en total)  [2]
+PASA   la cuenta queda bloqueada tras los intentos fallidos  [429]
+PASA   el bloqueo genera UN aviso ACTIVIDAD_SOSPECHOSA (aunque se siga intentando)  [filas=1]
+PASA   apagar una alerta obligatoria se rechaza (409)  [409 {'codigo': 'AVISO_OBLIGATORIO', 'detail': 'Es una alerta de seguridad: se entrega siempre y no se puede desactivar.'}]
+PASA   la preferencia queda guardada en SQL Server (no solo en el estado de React)  [[(True, False)]]
+PASA   GET devuelve 9 preferencias con categoría y obligatoria  [9]
+PASA   beto no puede marcar un aviso de ana (404 NOTIFICACION_NO_ENCONTRADA)  [404]
+PASA   beto no ve avisos de ana
+PASA   marcar uno baja el contador en 1  [7 -> 6]
+PASA   marcar todas deja 0 en ana y no toca a beto  [ana=0 beto=1]
+
+RESUMEN: 20/20 comprobaciones

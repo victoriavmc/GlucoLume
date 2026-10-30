@@ -29,6 +29,12 @@ services:
       API_ENV: production
     restart: always
 
+  notifications:
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:?Definir GLUCOLUME_VERSION (p. ej. 1.0.0)}
+    environment:
+      API_ENV: production
+    restart: always
+
   frontend:
     image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/frontend:${GLUCOLUME_VERSION:?Definir GLUCOLUME_VERSION (p. ej. 1.0.0)}
     restart: always

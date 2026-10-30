@@ -124,6 +124,51 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  # Recordatorios y avisos de «Notificaciones» (backend/app/jobs/reminders.py): genera el recordatorio de medición a su hora aunque nadie tenga la
+  # aplicación abierta, reintenta con espera creciente los correos que fallaron y, una vez por hora, depura los avisos vencidos de la bandeja.
+  # Es OTRO servicio que «lifecycle» a propósito: aquel elimina cuentas y suele tenerse apagado (ACCOUNT_LIFECYCLE_INTERVAL_SECONDS=0); este solo
+  # genera y depura avisos (no toca la auditoría) y debe quedar siempre encendido. Misma imagen, sin puertos. Seguro con varias instancias: cada
+  # recordatorio se reserva con un UPDATE condicional y cada aviso tiene clave única. Intervalo: NOTIFICATIONS_INTERVAL_SECONDS (60 por defecto).
+  notifications:
+    build:
+      context: ./backend
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:-dev}
+    command: ["python", "-m", "app.jobs.reminders", "--loop"]
+    <<: *hardening
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST}}
+      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-1433}}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./docker/certs:/run/certs:ro
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.jobs.reminders", "--health"]
+      interval: 1m
+      timeout: 20s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
   frontend:
     build:
       context: ./frontend

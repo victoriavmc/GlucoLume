@@ -1,0 +1,45 @@
+== 1. columnas, índice y tabla nuevos
+claveEvento
+estadoCorreo
+intentosCorreo
+visible
+UX_NotificacionUsuario_clave
+AccesoConocido
+== 2. datos heredados: clave LEGADO y fecha corregida -3 h (sembrada 19:00/19:30/20:00 UTC)
+evento fechaArgentina clave
+------ -------------- -----
+INICIO_SESION 2026-10-29T16:00:00 LEGADO:
+RECORDATORIO_MEDICION 2026-10-29T16:30:00 LEGADO:
+INICIO_SESION 2026-10-29T17:00:00 LEGADO:
+== 3. la preferencia de NUEVA_ACCION_GRUPO se copió a MEDICION_GRUPO
+evento enPagina porCorreo
+------ -------- ---------
+MEDICION_GRUPO 1 0
+NUEVA_ACCION_GRUPO 1 0
+== 4. segunda ejecución de v2 (idempotencia): sin errores y las fechas no vuelven a restarse
+exit=0
+fechaArgentina
+--------------
+2026-10-29T16:00:00
+2026-10-29T16:30:00
+2026-10-29T17:00:00
+== 5. sin CONFIRMAR exacto no hace nada
+Msg 50000, Level 16, State 1, Server 73fea1b8b6ab, Line 32
+Falta -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2" o la base no tiene dbo.NotificacionUsuario (aplicar antes GlucoLume_notificaciones_usuario.sql): no se hizo nada.
+== 6. cuenta de la API: INSERT/SELECT/UPDATE sí, DELETE no, clave duplicada rechazada
+insert/select/update ok
+Msg 229, Level 14, State 5, Server 73fea1b8b6ab, Line 1
+The DELETE permission was denied on the object 'NotificacionUsuario', database 'GlucoLume', schema 'dbo'.
+Msg 2601, Level 14, State 1, Server 73fea1b8b6ab, Line 1
+Cannot insert duplicate key row in object 'dbo.NotificacionUsuario' with unique index 'UX_NotificacionUsuario_clave'. The duplicate key value is (11111111-1111-4111-8111-111111111111, verif:1).
+== 7. cuenta de procesos: DELETE sobre NotificacionUsuario sí; sobre otra tabla no
+
+(1 rows affected)
+jobs delete ok
+Msg 229, Level 14, State 5, Server 73fea1b8b6ab, Line 1
+The DELETE permission was denied on the object 'Institucion', database 'GlucoLume', schema 'dbo'.
+== 8. valor no permitido en evento / estadoCorreo rechazado por el CHECK
+Msg 547, Level 16, State 1, Server 73fea1b8b6ab, Line 1
+The INSERT statement conflicted with the CHECK constraint "CK_NotificacionUsuario_evento". The conflict occurred in database "GlucoLume", table "dbo.NotificacionUsuario", column 'evento'.
+Msg 547, Level 16, State 1, Server 73fea1b8b6ab, Line 1
+The INSERT statement conflicted with the CHECK constraint "CK_NotificacionUsuario_estadoCorreo". The conflict occurred in database "GlucoLume", table "dbo.NotificacionUsuario", column 'estadoCorreo'.

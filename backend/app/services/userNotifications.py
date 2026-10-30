@@ -83,7 +83,10 @@ ENVIO_PENDIENTE = "PENDIENTE"
 ENVIO_ENVIADO = "ENVIADO"
 ENVIO_FALLIDO = "FALLIDO"
 # Intentos totales de un correo (el primero más los reintentos). Más allá queda FALLIDO: el aviso de la página no depende de él.
-MAX_INTENTOS_CORREO = 3
+# El servicio de notificaciones reintenta con espera creciente, contada desde la creación del aviso: el intento n+1 no se hace antes de
+# REINTENTO_ESPERAS[n-1]. Así una caída del SMTP de unos minutos u horas no agota los intentos en la primera pasada.
+MAX_INTENTOS_CORREO = 5
+REINTENTO_ESPERAS = (timedelta(minutes=1), timedelta(minutes=5), timedelta(minutes=15), timedelta(hours=1))
 REINTENTO_VENTANA = timedelta(hours=6)
 ESQUEMA_PENDIENTE = "NOTIFICACIONES_NO_DISPONIBLES"
 ESQUEMA_PENDIENTE_MESSAGE = "Las notificaciones todavía no están disponibles en esta instalación. Avisá al administrador."
@@ -285,6 +288,8 @@ def retryFailedReminderEmails(db: Session, now: datetime | None = None) -> int:
     ).execution_options(populate_existing=True)).all()
     retried = 0
     for row in rows:
+        if now - row.fechaCreacion < REINTENTO_ESPERAS[min(row.intentosCorreo, len(REINTENTO_ESPERAS)) - 1]:
+            continue  # todavía no toca: espera creciente entre intentos
         user = db.get(User, row.idUsuario)
         if user is None or user.estado != ESTADO_ACTIVO or not user.correoElectronico:
             continue

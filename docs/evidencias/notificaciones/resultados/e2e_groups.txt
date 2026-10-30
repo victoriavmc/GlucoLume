@@ -1,0 +1,16 @@
+PASA   invitación recibida: beto la ve en la página (GRUPO) y le llega el correo  [['Te invitaron a un grupo de GlucoLume']]
+PASA   invitación recibida: carla igual, y a nadie más
+PASA   invitación rechazada: ana (quien invitó) recibe UN aviso  [['Carla Prueba rechazó la invitación al grupo «Familia Prueba».', 'Conectá']]
+PASA   invitación aceptada: beto recibe AGREGADO_GRUPO  [['Te sumaron al grupo «Familia Prueba».']]
+PASA   invitación aceptada: ana recibe la novedad 'se sumó' en la página y el correo al administrador  [['Se agregó un integrante al grupo']]
+PASA   beto no recibe novedad de su propia incorporación
+PASA   nuevo integrante: beto recibe la novedad en la página y por correo  [['Hubo novedades en tu grupo']]
+PASA   medición compartida SIN permiso individual: no avisa a nadie
+PASA   medición compartida CON permiso: avisa a ana y carla (no a beto) una sola vez aunque se procese dos veces (el correo solo a carla: la preferencia migrada de ana tiene el correo apagado)  [primera=1 segunda=0]
+PASA   el aviso de medición no incluye valores de salud  [['Beto Prueba se midió.']]
+PASA   desvinculación voluntaria: ana y beto reciben 'abandonó el grupo'
+PASA   desvinculación por el administrador: beto recibe el aviso en la página y el correo  [['Hubo novedades en tu grupo', 'Ya no pertenecés al grupo']]
+PASA   ninguna cuenta tiene dos avisos con la misma clave de evento
+avisos por cuenta y evento: [('ana', 'MEDICION_GRUPO', 1), ('ana', 'NUEVA_ACCION_GRUPO', 4), ('beto', 'AGREGADO_GRUPO', 1), ('beto', 'INVITACION_GRUPO', 1), ('beto', 'NUEVA_ACCION_GRUPO', 3), ('carla', 'AGREGADO_GRUPO', 1), ('carla', 'INVITACION_GRUPO', 2), ('carla', 'MEDICION_GRUPO', 1)]
+
+RESUMEN: 13/13 comprobaciones

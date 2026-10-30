@@ -460,6 +460,13 @@ def respondInvitation(db: Session, user: User, idGrupoUsuario: uuid.UUID, accept
         _end(relation, now)
         registerEvent(db, "PERMISO", "RECHAZAR_INVITACION_GRUPO", True, user.idUsuario, "GrupoUsuario", idGrupoUsuario)
         db.commit()
+        # Quien invitó (el administrador) se entera en la página; no hay correo de rechazo de invitación a grupo.
+        admin = _admin(db, group.idGrupo)
+        if admin is not None:
+            userNotifications.notify(
+                db, admin, userNotifications.NUEVA_ACCION_GRUPO, "Invitación rechazada",
+                f"{_fullName(user) or 'Una persona'} rechazó la invitación al grupo «{group.nombre}».",
+                url=userNotifications.URL_GRUPO, clave=f"{userNotifications.NUEVA_ACCION_GRUPO}:{idGrupoUsuario}:RECHAZA")
         return None
 
     if activeRelation(db, user) is not None:
@@ -517,6 +524,13 @@ def removeMember(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuario: u
     registerEvent(db, "PERMISO", "DESVINCULAR_INTEGRANTE_GRUPO", True, actor.idUsuario, "GrupoUsuario", idGrupoUsuario)
     db.commit()
     _notify(EmailEventType.ELIMINADO_GRUPO, relation.usuario, nombreGrupo=membership.group.nombre, fechaEvento=now)
+    # En la página: quien fue desvinculado (su correo ya salió arriba) y los demás integrantes.
+    userNotifications.notify(
+        db, relation.usuario, userNotifications.NUEVA_ACCION_GRUPO, "Te desvincularon de un grupo",
+        f"Ya no formás parte del grupo «{membership.group.nombre}».", url=userNotifications.URL_GRUPO,
+        clave=f"{userNotifications.NUEVA_ACCION_GRUPO}:{idGrupoUsuario}:QUITA")
+    _notifyNews(db, membership.group, actor, f"{_fullName(relation.usuario) or 'Un integrante'} fue desvinculado del grupo «{membership.group.nombre}».",
+                now, f"{idGrupoUsuario}:QUITA")
 
 
 def leaveGroup(db: Session, actor: User, idGrupo: uuid.UUID) -> None:
