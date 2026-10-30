@@ -913,6 +913,45 @@ def test_la_depuracion_elimina_solo_avisos_vencidos_y_nunca_toca_la_auditoria(db
     assert db.scalar(select(func.count(Audit.idAuditoria))) == audits_before
 
 
+def test_la_depuracion_trabaja_por_tandas_hasta_vaciar_lo_vencido(db, monkeypatch):
+    user = makeUser(db)
+    now = nowForDb()
+    monkeypatch.setattr(notificationRetention, "BATCH", 3)
+    for n in range(10):
+        db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo="t", mensaje="m", claveEvento=f"v{n}",
+                                fechaCreacion=now - timedelta(days=100), fechaLectura=now - timedelta(days=99)))
+    db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo="t", mensaje="m", claveEvento="reciente",
+                            fechaCreacion=now, fechaLectura=now))
+    db.commit()
+    _retention(monkeypatch, read=30, unread=365)
+
+    assert notificationRetention.purge(db, now) == 10
+    assert [r.claveEvento for r in rows(db)] == ["reciente"]
+
+
+def test_el_ciclo_automatico_de_lifecycle_depura_los_avisos_vencidos(db, engine, monkeypatch):
+    from app.jobs import accountLifecycle
+
+    user = makeUser(db)
+    now = nowForDb()
+    db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo="t", mensaje="m", claveEvento="viejo",
+                            fechaCreacion=now - timedelta(days=60), fechaLectura=now - timedelta(days=59)))
+    db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo="t", mensaje="m", claveEvento="sin-leer",
+                            fechaCreacion=now - timedelta(days=60)))
+    db.commit()
+    _retention(monkeypatch, read=30, unread=365)
+    monkeypatch.setattr(accountLifecycle, "getJobsSessionFactory", lambda: (lambda: Session(engine)))
+    for part in ("accountLifecycle", "pendingAccounts", "personnelRetention", "auditRetention"):
+        monkeypatch.setattr(getattr(accountLifecycle, part), {"accountLifecycle": "sweep", "pendingAccounts": "purgeDead",
+                                                              "personnelRetention": "minimizeExpired", "auditRetention": "run"}[part],
+                            lambda *args, **kwargs: 0)
+
+    result = accountLifecycle.run()
+
+    assert result["avisosEliminados"] == 1
+    assert [r.claveEvento for r in rows(db)] == ["sin-leer"]
+
+
 def test_los_plazos_en_cero_desactivan_la_depuracion(db, monkeypatch):
     user = makeUser(db)
     db.add(UserNotification(idUsuario=user.idUsuario, evento="CAMBIO_MFA", titulo="t", mensaje="m", claveEvento="k",

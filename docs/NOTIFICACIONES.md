@@ -46,7 +46,7 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | **RN-NOT-02** Recordatorios | Cada ocurrencia se **reserva** antes de enviar con `UPDATE RecordatorioMedicion SET ultimoAviso = :ocurrencia WHERE idUsuario = :id AND (ultimoAviso IS NULL OR ultimoAviso < :ocurrencia)`; solo quien cambia la fila (`rowcount = 1`) envía. Además la ocurrencia es parte de la clave del aviso. Los reintentos son solo del correo (§5). |
 | **RN-NOT-03** Seguridad | El inicio de sesión se sigue auditando entero (`LOGIN_*`). Solo se avisa en pantalla desde un equipo nuevo (§6). La auditoría no se convierte en avisos en bloque ni se debilita. |
 | **RN-NOT-04** Lectura | Estado por aviso (`fechaLectura`). Marcar es idempotente y no cambia la fecha de lectura ya guardada. «Marcar todas» solo actualiza filas con `idUsuario` = el de la sesión. |
-| **RN-NOT-05** Retención | Parametrizable (`NOTIFICATION_READ_RETENTION_DAYS` = 180 y `NOTIFICATION_UNREAD_RETENTION_DAYS` = 365; 0 desactiva). Solo elimina filas de `NotificacionUsuario`; no toca `Auditoria` ni `AuditoriaContexto`. Antes no había política: la tabla crecía sin límite. |
+| **RN-NOT-05** Retención | Parametrizable (`NOTIFICATION_READ_RETENTION_DAYS` = 30 y `NOTIFICATION_UNREAD_RETENTION_DAYS` = 365; 0 desactiva). **Automática:** corre en cada pasada del servicio `lifecycle` (cada hora, por tandas de 1 000 con tope de 100 tandas por pasada) y elimina los avisos leídos de más de 30 días (y los ocultos por preferencia) y los nunca leídos de más de 365. Solo elimina filas de `NotificacionUsuario`; no toca `Auditoria` ni `AuditoriaContexto`. Antes no había política: la tabla crecía sin límite. |
 | **RN-NOT-06** Autorización | La identidad sale siempre de la sesión. Todas las consultas filtran por `idUsuario`. Un aviso ajeno o inexistente responde igual: `404 NOTIFICACION_NO_ENCONTRADA`. |
 | **RN-NOT-07** Canales | Ver §2. El aviso de la página se confirma **antes** de intentar el correo; una falla SMTP queda en `estadoCorreo = FALLIDO` y no lo quita. |
 
@@ -98,7 +98,7 @@ Sigue igual: cada inicio de sesión (con o sin aviso) queda en `Auditoria` (`LOG
 | `PUT /preferencias/{evento}` | **Modificado** | Admite los 9 avisos. Obligatorios: `409 AVISO_OBLIGATORIO`. |
 | `PUT /recordatorio` | Sin cambio | `NINGUNO` elimina la programación. |
 
-Comandos: `python -m app.jobs.reminders ejecutar | depurar | previsualizar`.
+Comandos: `python -m app.jobs.reminders ejecutar | depurar | previsualizar` (`depurar` es el mismo borrado que hace solo `lifecycle`, a demanda).
 
 ## 8. Cambios de esquema
 
@@ -113,7 +113,7 @@ sqlcmd -S <servidor> -d <base> -I -i GlucoLume_notificaciones_v2.sql -v CONFIRMA
 - Tabla nueva `AccesoConocido` (clave única `(idUsuario, huella)`).
 - **Datos existentes:** cada aviso anterior recibe la clave `LEGADO:<id>` y su `fechaCreacion` se corrige en −3 h. Causa: la columna se completaba con `sysutcdatetime()` (UTC) pero la API la interpreta como hora de Argentina, así que se veía **3 horas adelantada**. Solo toca filas sin clave: volver a correr el script no resta otra vez. Desde ahora el backend escribe la fecha explícitamente en hora de Argentina.
 - Se copia la elección de canales de `NUEVA_ACCION_GRUPO` a `MEDICION_GRUPO` donde falte.
-- **Permisos:** `GlucoLume_permisos.sql` concede `DELETE` sobre `NotificacionUsuario` **solo** al rol de conservación (`rol_glucolume_retencion`), para `depurar`. La API sigue sin `DELETE`.
+- **Permisos:** `GlucoLume_permisos.sql` concede `DELETE` sobre `NotificacionUsuario` **solo** al rol de conservación (`rol_glucolume_retencion`), para la depuración automática (`lifecycle`) y `depurar`. La API sigue sin `DELETE`.
 - **Compatibilidad:** mientras el script no esté aplicado, el backend deja «Notificaciones» como no disponible (`schemaCompat`: comprueba tablas y la columna `claveEvento`) y no falla. Los equipos nuevos no se avisan hasta que exista `AccesoConocido`.
 - No se borra ni se reconstruye nada. Reversión documentada en el encabezado del script (se pierden los datos nuevos).
 
@@ -169,7 +169,7 @@ Además: equipo nuevo (`test_un_equipo_nuevo_avisa_una_sola_vez_…`, `test_todo
 
 ## 11. Limitaciones y pendientes reales
 
-- **No verificado en SQL Server real:** la migración `GlucoLume_notificaciones_v2.sql` (solo se revisó su texto y se probó el mismo esquema en SQLite), el índice único filtrado bajo concurrencia real y el `GRANT DELETE`. Aplicarla primero en una copia restaurada y probar `reminders ejecutar` / `depurar` con la cuenta de procesos.
+- **No verificado en SQL Server real:** la migración `GlucoLume_notificaciones_v2.sql` (solo se revisó su texto y se probó el mismo esquema en SQLite), el índice único filtrado bajo concurrencia real y el `GRANT DELETE`. Aplicarla primero en una copia restaurada y probar `reminders ejecutar` y una pasada de `lifecycle` (o `depurar`) con la cuenta de procesos.
 - Las pruebas de concurrencia usan hilos y SQLite: demuestran la reserva y el índice, no reemplazan una prueba con SQL Server.
 - El job de recordatorios **no está agendado** en Compose ni en el servidor; sin él, los recordatorios por correo dependen de que la aplicación esté abierta.
 - Los avisos de las cuentas de la plataforma (`platform.py`: cambios de contraseña) y de las instituciones no se incorporaron a la bandeja; solo siguen enviando su correo.

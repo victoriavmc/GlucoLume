@@ -13,6 +13,7 @@ Descripción, reglas, endpoints, esquema y pruebas: [NOTIFICACIONES.md](NOTIFICA
 - **Nuevo:** bandeja y preferencias en pantallas separadas; filtros, agrupación por día, «cargar más»; tarjetas interactivas sin enlace «Ver»; 9 avisos en 3 categorías con alertas críticas de seguridad obligatorias; canales independientes
   (aplicación y correo) con estado y reintento del correo; aviso de inicio de sesión solo desde un equipo nuevo (`AccesoConocido`); depuración parametrizable de avisos que no toca la auditoría.
 - **Migración:** `database/reference/GlucoLume_notificaciones_v2.sql` (idempotente, sin borrar filas). **No se aplicó a ninguna base real ni se probó en SQL Server.**
+- **Depuración automática de avisos:** el servicio `lifecycle` elimina cada hora los avisos leídos de más de 30 días y los nunca leídos de más de 365 (`NOTIFICATION_*_RETENTION_DAYS`), por tandas; no toca la auditoría.
 - **Pruebas:** ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §10.
 
 ## 23/10/2026 — Revisión y optimización del rendimiento (rama `perf/rendimiento-2026-10-23`)

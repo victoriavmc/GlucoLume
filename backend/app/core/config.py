@@ -173,10 +173,10 @@ class Settings(BaseSettings):
     AUDIT_CONTEXT_RETENTION_DAYS: int = 90
     AUDIT_ANONYMOUS_RETENTION_MONTHS: int = 12
     AUDIT_RETENTION_MONTHS: int = 0
-    # Avisos de la bandeja de «Notificaciones» (services/notificationRetention.py; los corre `python -m app.jobs.reminders depurar`). NO son
+    # Avisos de la bandeja de «Notificaciones» (services/notificationRetention.py; los depura solos el servicio «lifecycle», cada hora, o `python -m app.jobs.reminders depurar`). NO son
     # auditoría: la auditoría de autenticación no se toca. Días tras los cuales se eliminan los avisos ya leídos / los que nunca se leyeron.
     # 0 desactiva esa parte. El correo y la auditoría de los hechos que los originaron siguen su propio plazo.
-    NOTIFICATION_READ_RETENTION_DAYS: int = 180
+    NOTIFICATION_READ_RETENTION_DAYS: int = 30
     NOTIFICATION_UNREAD_RETENTION_DAYS: int = 365
     # Aprobación de los plazos que ELIMINAN o suprimen datos por política (H-04): AUDIT_RETENTION_MONTHS y PERSONNEL_RETENTION_MONTHS solo
     # tienen efecto si esta referencia (p. ej. el número de dictamen u acta de la aprobación legal) está definida. Sin ella esas depuraciones

@@ -5,6 +5,8 @@
 #   3. Minimiza los datos personales históricos de las relaciones cuyo plazo de conservación venció (services/personnelRetention.py).
 #   4. Aplica la política de conservación de la auditoría: IP y cliente de eventos viejos, intentos sin cuenta y, si se configuró, todo evento
 #      vencido (services/auditRetention.py).
+#   5. Elimina los avisos de la bandeja de «Notificaciones» ya leídos o viejos, según NOTIFICATION_*_RETENTION_DAYS
+#      (services/notificationRetention.py; no toca la auditoría).
 #
 # Corre en el servicio «lifecycle» de Docker Compose (UN solo proceso programador, aparte de la API: las réplicas de FastAPI no lo
 # ejecutan, así que no se duplica). Aun así es seguro ante ejecuciones simultáneas: cada cuenta se revalida con su fila bloqueada.
@@ -27,7 +29,7 @@ from pathlib import Path
 
 from app.core.config import getSettings
 from app.db.session import getJobsSessionFactory
-from app.services import accountLifecycle, auditRetention, pendingAccounts, personnelRetention
+from app.services import accountLifecycle, auditRetention, notificationRetention, pendingAccounts, personnelRetention
 
 logger = logging.getLogger("glucolume.lifecycle")
 HEARTBEAT = Path(tempfile.gettempdir()) / "glucolume-lifecycle.heartbeat"
@@ -62,6 +64,12 @@ def run() -> dict:
     except Exception:  # noqa: BLE001
         logger.exception("Falló la aplicación de la política de conservación de la auditoría")
         result["auditoria"] = None
+    try:
+        with getJobsSessionFactory()() as db:
+            result["avisosEliminados"] = notificationRetention.purge(db)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló la depuración de avisos de la bandeja")
+        result["avisosEliminados"] = None
     logger.info("Ciclo de vida de cuentas: %s", result)
     return result
 

@@ -4,8 +4,9 @@
 # (Auditoria, AuditoriaContexto), ni los hechos que originaron el aviso, ni nada de otras tablas. Los plazos son parámetros:
 #   NOTIFICATION_READ_RETENTION_DAYS    avisos ya leídos (y los que la cuenta no quiso ver en la página, que solo son rastro de correo)
 #   NOTIFICATION_UNREAD_RETENTION_DAYS  avisos que nunca se leyeron
-# 0 desactiva cada parte. Se ejecuta con `python -m app.jobs.reminders depurar` (cuenta de procesos de conservación, la única con DELETE
-# sobre esta tabla; ver database/reference/GlucoLume_permisos.sql). Nada la programa sola: la agenda quien administra el servidor.
+# 0 desactiva cada parte. Corre SOLA en cada pasada del servicio «lifecycle» (app/jobs/accountLifecycle.py, cada hora) y también a mano con
+# `python -m app.jobs.reminders depurar`. Usa la cuenta de procesos de conservación, la única con DELETE sobre esta tabla (ver
+# database/reference/GlucoLume_permisos.sql). Borra por tandas para no bloquear la tabla de avisos.
 
 from datetime import datetime, timedelta
 
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import getSettings
 from app.models.userNotification import UserNotification
+from app.services import userNotifications
 from app.utils.timeZone import nowForDb
 
 
@@ -40,11 +42,23 @@ def plan(db: Session, now: datetime | None = None) -> dict:
             "diasNoLeidos": settings.NOTIFICATION_UNREAD_RETENTION_DAYS}
 
 
+BATCH = 1000
+MAX_BATCHES = 100  # tope por pasada (100 000 avisos): lo que quede se elimina en la siguiente
+
+
 def purge(db: Session, now: datetime | None = None) -> int:
-    """Elimina los avisos vencidos y devuelve cuántos. Sin plazos configurados no hace nada."""
+    """Elimina los avisos vencidos por tandas y devuelve cuántos. Sin plazos configurados, o sin el esquema nuevo, no hace nada."""
+    if not userNotifications.ready(db):
+        return 0
     condition = _conditions(now or nowForDb())
     if condition is None:
         return 0
-    deleted = db.execute(delete(UserNotification).where(condition)).rowcount
-    db.commit()
-    return deleted
+    total = 0
+    for _ in range(MAX_BATCHES):
+        batch = select(UserNotification.idNotificacion).where(condition).limit(BATCH)
+        deleted = db.execute(delete(UserNotification).where(UserNotification.idNotificacion.in_(batch))).rowcount
+        db.commit()
+        total += deleted
+        if deleted < BATCH:
+            break
+    return total

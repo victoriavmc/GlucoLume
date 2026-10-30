@@ -29,7 +29,7 @@ servicios con `docker compose stop` (o `docker update --restart=no`) antes de ce
 
 **Recordatorios de medición y avisos (`python -m app.jobs.reminders`):** no tienen servicio propio en Compose. Para que los recordatorios lleguen también por correo, agendar
 `python -m app.jobs.reminders ejecutar` cada ~5 minutos (Tareas programadas de Windows o `docker compose exec -T backend …`). Es idempotente y seguro con varios procesos a la vez. `depurar` elimina avisos vencidos de la
-bandeja (`NOTIFICATION_READ_RETENTION_DAYS`, `NOTIFICATION_UNREAD_RETENTION_DAYS`) y necesita la cuenta de procesos (`DB_JOBS_USER`); `previsualizar` solo cuenta. Ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §5.
+bandeja (esa depuración ya corre sola en cada pasada del servicio `lifecycle`; ver NOTIFICACIONES.md §3) (`NOTIFICATION_READ_RETENTION_DAYS`, `NOTIFICATION_UNREAD_RETENTION_DAYS`) y necesita la cuenta de procesos (`DB_JOBS_USER`); `previsualizar` solo cuenta. Ver [NOTIFICACIONES.md](NOTIFICACIONES.md) §5.
 
 **`lifecycle` modifica datos reales** (elimina y anonimiza cuentas con plazo vencido, depura auditoría vencida): no levantarlo contra una
 base de prueba ajena ni contra una base real sin decidirlo. El backend también corre un mantenimiento de mediciones cada
