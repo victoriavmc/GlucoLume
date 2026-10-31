@@ -9,6 +9,8 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 from app.utils.normalizers import normalizeDateTime, normalizeUpper
 
 Medio = Literal["USB", "BLUETOOTH"]
+# AUTO: el puente busca el GlucoLume por USB y Bluetooth y todavía no lo encontró (o no tiene puerto fijo).
+MedioPuente = Literal["USB", "BLUETOOTH", "AUTO"]
 
 
 class PortRead(BaseModel):
@@ -79,7 +81,8 @@ class ProbeRead(BaseModel):
 # El puente (acquisition/bridge) envía las líneas tal como las escribe el Arduino; el backend las interpreta. Ningún
 # valor clínico lo calcula el cliente ni el puente.
 
-EstadoEnlace = Literal["CONECTADO", "DESCONECTADO", "REINTENTANDO", "PAUSADO"]
+EstadoEnlace = Literal["CONECTADO", "DESCONECTADO", "REINTENTANDO", "PAUSADO", "DISPOSITIVO_DESCONECTADO"]
+# DISPOSITIVO_DESCONECTADO: modo AUTO sin ningún GlucoLume a la vista. No es un fallo del puente ni del puerto.
 
 # Causa técnica del último fallo del puerto, para explicarla con precisión (no es texto libre del equipo local):
 #   PUERTO_OCUPADO        otra aplicación tiene abierto el COM (Monitor Serie, PuTTY, otro puente...)
@@ -118,7 +121,7 @@ class BridgeCommand(BaseModel):
     id: str
     accion: AccionPuente
     puerto: str | None = None
-    medio: Medio | None = None
+    medio: MedioPuente | None = None
 
 
 class BridgeCommandRequest(BaseModel):
@@ -128,7 +131,7 @@ class BridgeCommandRequest(BaseModel):
 
     accion: AccionPuente
     puerto: Annotated[str, Field(min_length=3, max_length=20)] | None = None
-    medio: Medio | None = None
+    medio: MedioPuente | None = None
 
     @field_validator("medio", mode="before")
     @classmethod
@@ -150,7 +153,7 @@ class BridgeIngest(BaseModel):
     idPuente: uuid.UUID  # identifica la ejecución del puente (cambia al reiniciarlo)
     codigoDispositivo: Annotated[str, Field(min_length=1, max_length=100)]  # código del inventario al que está atado el puerto
     puerto: Annotated[str, Field(max_length=100)] | None = None
-    medio: Medio
+    medio: MedioPuente
     baudios: Annotated[int, Field(ge=1200, le=921600)] | None = None
     estadoEnlace: EstadoEnlace
     intento: Annotated[int, Field(ge=0, le=1_000_000)] = 0

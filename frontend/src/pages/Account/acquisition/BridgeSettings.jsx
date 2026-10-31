@@ -13,6 +13,7 @@ import { Alert, RadioField } from '../../../components/FormControls.jsx';
 import { copyText } from '../../../utils/clipboard.js';
 import { LOCAL_COMMANDS, MEDIA, bridgeRunning, portsOf } from './connectModel.js';
 
+const AUTO_MEDIUM = 'AUTO'; // modo automático: el puente busca el GlucoLume por USB y Bluetooth (sin puerto)
 const ACTION_LABELS = { CONFIGURAR: 'Aplicar la configuración', PAUSAR: 'Pausar', REANUDAR: 'Reanudar', DETENER: 'Detener', REINICIAR: 'Reiniciar' };
 
 function Command({ text }) {
@@ -147,19 +148,20 @@ export function BridgeSettings({ status, medium, onMediumChange, onChanged, auth
           {Object.entries(MEDIA).map(([key, info]) => (
             <RadioField key={key} name="medio-puente" label={`${info.label} (${info.baud} baudios)`} checked={medium === key} onChange={() => onMediumChange(key)} />
           ))}
+          <RadioField name="medio-puente" label="Automático (USB o Bluetooth, sin elegir puerto)" checked={medium === AUTO_MEDIUM} onChange={() => onMediumChange(AUTO_MEDIUM)} />
         </fieldset>
-        <div className="field">
+        {medium !== AUTO_MEDIUM && <div className="field">
           <label className="field-label" htmlFor="puerto-puente">Puerto COM</label>
           <select id="puerto-puente" className="field-input field-select" value={port} onChange={(event) => setPort(event.target.value)}>
             <option value="">{candidates.length ? 'Elegí un puerto de la lista' : 'El puente no ve ningún puerto'}</option>
             {candidates.map((item) => <option key={item.puerto} value={item.puerto}>{describePort(item)}</option>)}
           </select>
           <span className="field-hint">Solo figuran los puertos que Windows muestra en esta computadora. Velocidad: {MEDIA[medium].baud} baudios (automática).</span>
-        </div>
+        </div>}
         <div className="form-actions">
-          <button type="button" className="btn btn-primary" disabled={!port || Boolean(busy) || Boolean(disabledReason)}
-            onClick={() => send('CONFIGURAR', { puerto: port, medio: medium })}>
-            {busy === 'CONFIGURAR' ? <span className="spinner" aria-hidden="true" /> : null} Aplicar puerto y medio
+          <button type="button" className="btn btn-primary" disabled={(medium !== AUTO_MEDIUM && !port) || Boolean(busy) || Boolean(disabledReason)}
+            onClick={() => send('CONFIGURAR', medium === AUTO_MEDIUM ? { medio: AUTO_MEDIUM } : { puerto: port, medio: medium })}>
+            {busy === 'CONFIGURAR' ? <span className="spinner" aria-hidden="true" /> : null} {medium === AUTO_MEDIUM ? 'Aplicar modo automático' : 'Aplicar puerto y medio'}
           </button>
         </div>
       </div>

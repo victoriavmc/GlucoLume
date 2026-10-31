@@ -21,8 +21,10 @@ el USB del Arduino). Es el ÚNICO proceso que abre ese puerto. Lee las líneas q
   * Registro en %LOCALAPPDATA%\\GlucoLume\\bridge\\bridge.log (rotativo) y estado en status.json. El token y la clave nunca se registran.
 
 Configuración por variables de entorno o archivo (bridge.env junto a este script se carga solo; --env-file lo cambia):
-  SERIAL_PORT          puerto COM, p. ej. COM4 (NO está en el código)           [obligatoria]
-  SERIAL_MEDIUM        BLUETOOTH (9600 baudios) | USB (115200)                  [BLUETOOTH]
+  SERIAL_PORT          puerto COM, p. ej. COM4 (NO está en el código)           [obligatoria salvo en AUTO]
+  SERIAL_MEDIUM        BLUETOOTH (9600 baudios) | USB (115200) | AUTO           [BLUETOOTH]
+                       AUTO: sin puerto fijo; busca el GlucoLume entre los puertos USB y Bluetooth del equipo, lo identifica
+                       por su línea GLUCOLUME,ID=<uuid> (solo lectura: no escribe en el Arduino) y se reconecta solo.
   SERIAL_BAUDRATE      anula la velocidad por defecto del medio
   BRIDGE_API_URL       URL del backend                                          [http://localhost:8000]
   BRIDGE_TOKEN         token compartido con el backend (>= 32 caracteres)       [obligatoria]
@@ -59,7 +61,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))  # linkauth.py vive junto a este script
 import linkauth  # noqa: E402
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 BAUD = {"USB": 115200, "BLUETOOTH": 9600}  # los del firmware: USB 115200, Bluetooth HC-05/HC-06 9600
 ENV_KEYS = ("SERIAL_PORT", "SERIAL_MEDIUM", "SERIAL_BAUDRATE", "BRIDGE_API_URL", "BRIDGE_TOKEN", "BRIDGE_DEVICE_CODE", "BRIDGE_DEVICE_KEY",
             "BRIDGE_LOCK_PORT", "BRIDGE_ALLOW_INSECURE", "GLUCOLUME_BRIDGE_HOME")
@@ -73,6 +75,13 @@ PORTS_EVERY = 10.0  # cada cuánto se reenvía la lista de puertos si no cambió
 LOOPBACK = ("localhost", "127.0.0.1", "::1")
 EXIT_CONFIG, EXIT_REJECTED, EXIT_DUPLICATE, EXIT_RESTART = 2, 3, 4, 10
 COMMAND_ACTIONS = ("CONFIGURAR", "PAUSAR", "REANUDAR", "DETENER", "REINICIAR")
+AUTO = "AUTO"  # medio automático: el puente busca y sigue al GlucoLume, sin puerto fijo
+NO_DEVICE = "DISPOSITIVO_DESCONECTADO"  # modo AUTO: ningún GlucoLume identificado en este equipo (no es un error)
+NO_DEVICE_MESSAGE = "No hay ningún dispositivo GlucoLume conectado por USB ni Bluetooth. Se sigue buscando."
+PROBE_SECONDS = 12.0  # el firmware informa su identificación al arrancar y cada 10 s: hace falta escuchar más que eso
+DISCOVERY_EVERY = 5.0  # modo AUTO sin dispositivo: cada cuánto se vuelve a buscar
+REPROBE_SECONDS = 60.0  # un puerto que abrió pero no informó GlucoLume no se vuelve a sondear antes de este plazo
+ID_LINE = re.compile(r"^GLUCOLUME,ID=([0-9A-Fa-f-]{8,36}),")  # protocolo de identificación del firmware
 
 log = logging.getLogger("glucolume.bridge")
 
@@ -220,10 +229,10 @@ def readConfig(env: dict[str, str] | None = None) -> Config:
         return value
 
     medium = (env.get("SERIAL_MEDIUM") or "BLUETOOTH").strip().upper()
-    if medium not in BAUD:
-        raise ConfigError("SERIAL_MEDIUM debe ser BLUETOOTH o USB.")
+    if medium not in (*BAUD, AUTO):
+        raise ConfigError("SERIAL_MEDIUM debe ser BLUETOOTH, USB o AUTO.")
     try:
-        baud = int(env.get("SERIAL_BAUDRATE") or BAUD[medium])
+        baud = 0 if medium == AUTO else int(env.get("SERIAL_BAUDRATE") or BAUD[medium])  # en AUTO la velocidad es la del medio hallado
         lockPort = int(env.get("BRIDGE_LOCK_PORT") or 47831)
     except ValueError:
         raise ConfigError("SERIAL_BAUDRATE y BRIDGE_LOCK_PORT deben ser números.") from None
@@ -243,7 +252,8 @@ def readConfig(env: dict[str, str] | None = None) -> Config:
             deviceKey = linkauth.parseKey(env["BRIDGE_DEVICE_KEY"])
         except linkauth.KeyError_ as error:
             raise ConfigError(str(error)) from None
-    return Config(need("SERIAL_PORT"), medium, baud, apiUrl, token, need("BRIDGE_DEVICE_CODE"), lockPort, deviceKey)
+    port = "" if medium == AUTO else need("SERIAL_PORT")
+    return Config(port, medium, baud, apiUrl, token, need("BRIDGE_DEVICE_CODE"), lockPort, deviceKey)
 
 
 class SingleInstance:
@@ -469,11 +479,12 @@ class SerialReader(threading.Thread):
     """Único dueño del puerto. Abre, lee líneas y, si algo falla, cierra y reintenta con espera progresiva.
 
     Estados que informa al backend: CONECTADO | REINTENTANDO (intentando abrir) | DESCONECTADO (se perdió el enlace) | PAUSADO
-    (el usuario liberó el puerto)."""
+    (el usuario liberó el puerto). En modo AUTO: DISPOSITIVO_DESCONECTADO (ningún GlucoLume identificado todavía)."""
 
     def __init__(self, cfg: Config, buffer: LineBuffer, opener=None, clock=time.monotonic, stop: threading.Event | None = None,
                  silenceSeconds: float = SILENCE_REOPEN_SECONDS, backoff: Backoff | None = None,
-                 authenticator: "linkauth.LineAuthenticator | None" = None) -> None:
+                 authenticator: "linkauth.LineAuthenticator | None" = None, scanner: "PortScanner | None" = None,
+                 probeSeconds: float = PROBE_SECONDS, discoveryEvery: float = DISCOVERY_EVERY) -> None:
         super().__init__(name="glucolume-serial", daemon=True)
         self.cfg, self.buffer, self.clock = cfg, buffer, clock
         self.authenticator = authenticator  # con clave de dispositivo: solo pasan las líneas con firma válida y contador nuevo (H-05)
@@ -486,6 +497,12 @@ class SerialReader(threading.Thread):
         self.stateLock = threading.Lock()
         self.paused = threading.Event()
         self.reopen = threading.Event()
+        # Modo AUTO: puertos que ve el equipo, cuánto escuchar cada uno y qué GlucoLume quedó enlazado.
+        self.auto = cfg.medium == AUTO
+        self.scanner, self.probeSeconds, self.discoveryEvery = scanner, probeSeconds, discoveryEvery
+        self.rejected: dict[str, float] = {}  # puerto -> instante en que abrió pero no informó un GlucoLume
+        self.lastPort: str | None = None  # el último que funcionó: se prueba primero al reconectar
+        self.deviceId: str | None = None  # UUID que informó el firmware del dispositivo enlazado
 
     def _openSerial(self, port: str, baud: int):
         import serial  # pyserial
@@ -514,7 +531,12 @@ class SerialReader(threading.Thread):
     # -- órdenes del usuario (siempre a través del backend autenticado) --------------------------------------------------
 
     def reconfigure(self, port: str, medium: str, baud: int) -> None:
-        self.cfg = replace(self.cfg, port=port, medium=medium, baud=baud)
+        if medium == AUTO:
+            self.auto = True
+            self.cfg = replace(self.cfg, port="", medium=AUTO, baud=0)
+        else:
+            self.auto = False
+            self.cfg = replace(self.cfg, port=port, medium=medium, baud=baud)
         self.paused.clear()
         self.reopen.set()
         self.backoff.reset()
@@ -541,6 +563,90 @@ class SerialReader(threading.Thread):
     def describe(error: BaseException) -> str:
         return classifyError(error)[1]
 
+    # -- modo AUTO: buscar y reconocer al GlucoLume ----------------------------------------------------------------------------
+
+    def candidates(self) -> list[tuple[str, str]]:
+        """(puerto, medio) que el propio equipo informa como Arduino USB o Bluetooth. Nunca se asume que un COM sirve: el
+        último que funcionó va primero y después los USB; los que abrieron mudos se saltean un rato (REPROBE_SECONDS)."""
+        if self.scanner is None:
+            return []
+        now = self.clock()
+        ports = self.scanner.snapshot()
+        present = {port["puerto"] for port in ports}
+        for name in [name for name in self.rejected if name not in present]:
+            del self.rejected[name]  # un puerto que desapareció se olvida: si vuelve, se sondea de nuevo
+        found = []
+        for port in ports:
+            medium = "USB" if port["esArduino"] else "BLUETOOTH" if port["esBluetooth"] else None
+            rejectedAt = self.rejected.get(port["puerto"])
+            if medium is None or (rejectedAt is not None and now - rejectedAt < REPROBE_SECONDS):
+                continue
+            found.append((port["puerto"], medium))
+        found.sort(key=lambda item: (item[0] != self.lastPort, item[1] != "USB"))
+        return found
+
+    def identify(self, handle) -> str | None:
+        """Escucha el puerto (solo lectura) hasta ver GLUCOLUME,ID=<uuid>. Devuelve el uuid o None si no llega a tiempo.
+        Con clave de dispositivo solo cuenta una línea firmada válida."""
+        deadline = self.clock() + self.probeSeconds
+        while not self.stop.is_set() and not self.reopen.is_set() and self.clock() < deadline:
+            try:
+                raw = handle.readline()
+            except Exception:  # noqa: BLE001 - el puerto no responde: no es un GlucoLume (se informa al final)
+                return None
+            if not raw:
+                continue
+            text = (raw.decode("ascii", errors="replace") if isinstance(raw, bytes) else str(raw)).strip()[:512]
+            if self.authenticator is not None:
+                text = self.authenticator.verify(text).payload or ""
+            match = ID_LINE.match(text)
+            if match:
+                return match.group(1).lower()
+        return None
+
+    def discover(self):
+        """Modo AUTO: abre los candidatos UNO A LA VEZ, los sondea y se queda con el primero que se identifica como GlucoLume.
+        Devuelve el puerto abierto ya identificado, o None (entonces el estado es DISPOSITIVO_DESCONECTADO). Nunca hay dos abiertos."""
+        candidates = self.candidates()
+        if not candidates:
+            self._set(NO_DEVICE, 0, NO_DEVICE_MESSAGE, None)
+            return None
+        cause = None
+        for port, medium in candidates:
+            if self.stop.is_set() or self.reopen.is_set() or self.paused.is_set():
+                return None
+            self._set(NO_DEVICE, 0, f"Buscando un GlucoLume en {port}…", None)
+            try:
+                handle = self.opener(port, BAUD[medium])
+            except Exception as error:  # noqa: BLE001 - puerto ocupado, inexistente, Bluetooth apagado...
+                cause = classifyError(error)
+                log.debug("No se pudo sondear %s: %s", port, cause[1])
+                continue
+            identity = None
+            try:
+                identity = self.identify(handle)
+            finally:
+                if identity is None:
+                    try:
+                        handle.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+            if identity is not None:
+                self.deviceId, self.lastPort = identity, port
+                self.rejected.pop(port, None)
+                self.cfg = replace(self.cfg, port=port, medium=medium, baud=BAUD[medium])
+                log.info("GlucoLume identificado en %s (%s), dispositivo %s.", port, medium.lower(), identity)
+                return handle
+            if self.stop.is_set() or self.reopen.is_set():
+                return None
+            self.rejected[port] = self.clock()  # abrió pero no informó GlucoLume: no es el dispositivo
+            log.debug("%s abrió pero no informó un GlucoLume.", port)
+        if cause is not None:
+            self._set(NO_DEVICE, 0, f"{NO_DEVICE_MESSAGE} Último intento: {cause[1]}", cause[0])
+        else:
+            self._set(NO_DEVICE, 0, NO_DEVICE_MESSAGE, None)
+        return None
+
     def run(self) -> None:
         attempt = 0
         while not self.stop.is_set():
@@ -550,22 +656,28 @@ class SerialReader(threading.Thread):
                 self.stop.wait(0.2)
                 continue
             self.reopen.clear()
-            cfg = self.cfg
-            try:
-                handle = self.opener(cfg.port, cfg.baud)
-            except Exception as error:  # noqa: BLE001 - SerialException, PermissionError, OSError...
-                attempt += 1
-                code, message = classifyError(error)
-                self._set("REINTENTANDO", attempt, message, code)
-                wait = self.backoff.next()
-                log.warning("No se pudo abrir %s (intento %d): %s Reintento en %.0f s.", cfg.port, attempt, message, wait)
-                self._sleep(wait)
-                continue
+            if self.auto:
+                handle = self.discover()
+                if handle is None:
+                    self._sleep(self.discoveryEvery)  # sin dispositivo es un estado normal: se vuelve a buscar sin registrar error
+                    continue
+            else:
+                cfg = self.cfg
+                try:
+                    handle = self.opener(cfg.port, cfg.baud)
+                except Exception as error:  # noqa: BLE001 - SerialException, PermissionError, OSError...
+                    attempt += 1
+                    code, message = classifyError(error)
+                    self._set("REINTENTANDO", attempt, message, code)
+                    wait = self.backoff.next()
+                    log.warning("No se pudo abrir %s (intento %d): %s Reintento en %.0f s.", cfg.port, attempt, message, wait)
+                    self._sleep(wait)
+                    continue
             self.opens += 1
             attempt = 0
             self.backoff.reset()
             self._set("CONECTADO", 0, None, None)
-            log.info("Puerto %s abierto a %d baudios.", cfg.port, cfg.baud)
+            log.info("Puerto %s abierto a %d baudios.", self.cfg.port, self.cfg.baud)
             try:
                 self._pump(handle)
             finally:
@@ -655,8 +767,13 @@ class CommandHandler:
             return False, "Acción no permitida."
         if action == "CONFIGURAR":
             port, medium = str(command.get("puerto") or ""), str(command.get("medio") or "").upper()
+            if medium == AUTO:
+                self.reader.reconfigure("", AUTO, 0)
+                if self.envFile:
+                    persistConfig(self.envFile, {"SERIAL_PORT": None, "SERIAL_MEDIUM": AUTO, "SERIAL_BAUDRATE": None})
+                return True, "Modo automático: el puente busca el GlucoLume por USB y Bluetooth y se conecta solo."
             if medium not in BAUD:
-                return False, "El medio debe ser USB o BLUETOOTH."
+                return False, "El medio debe ser USB, BLUETOOTH o AUTO."
             if self.scanner is None or not self.scanner.has(port):
                 return False, f"El puerto {port or '(vacío)'} no existe en este equipo."
             self.reader.reconfigure(port, medium, BAUD[medium])
@@ -698,8 +815,8 @@ class Uplink:
         cfg = self.reader.cfg
         now = self.clock()
         body = {
-            "idPuente": self.bridgeId, "codigoDispositivo": cfg.deviceCode, "puerto": cfg.port,
-            "medio": cfg.medium, "baudios": cfg.baud, "estadoEnlace": state, "intento": attempt,
+            "idPuente": self.bridgeId, "codigoDispositivo": cfg.deviceCode, "puerto": cfg.port or None,
+            "medio": cfg.medium, "baudios": cfg.baud or None, "estadoEnlace": state, "intento": attempt,
             "error": (error or None) and error[:200], "detenido": stopping, "versionPuente": VERSION,
             "lineas": [{"seq": l.seq, "edadMs": max(0, int((now - l.at) * 1000)), "texto": l.text} for l in lines],
         }
@@ -785,7 +902,8 @@ def publishStatus(status: StatusFile | None, cfg: Config, reader: SerialReader, 
     current = reader.cfg
     status.write({
         "estado": "EJECUTANDO", "estadoEnlace": state, "intento": attempt, "error": error, "codigoError": code,
-        "puerto": current.port, "medio": current.medium, "baudios": current.baud, "dispositivo": cfg.deviceCode,
+        "puerto": current.port or None, "medio": current.medium, "baudios": current.baud or None, "dispositivo": cfg.deviceCode,
+        "modo": "AUTO" if reader.auto else "FIJO", "dispositivoFisico": reader.deviceId,
         "backend": cfg.apiUrl, "backendOk": not uplink.serverDown, "errorBackend": uplink.lastBackendError,
         "lineasEnviadas": uplink.sent, "lineasEnCola": len(buffer), "ultimaLinea": buffer.lastLineAt,
         "pausado": reader.paused.is_set(), "puertosVistos": len(scanner.snapshot()) if scanner is not None else None,
@@ -804,10 +922,11 @@ def run(cfg: Config, stop: threading.Event, opener=None, post=None, envFile: str
     authenticator = linkauth.LineAuthenticator(cfg.deviceKey, dataDir() / "linkauth.json") if cfg.deviceKey is not None else None
     if authenticator is None:
         log.warning("Sin BRIDGE_DEVICE_KEY: el enlace con el dispositivo NO está autenticado (las líneas pueden ser falsificadas o repetidas).")
-    reader = SerialReader(cfg, buffer, opener=opener, stop=stop, authenticator=authenticator)
+    reader = SerialReader(cfg, buffer, opener=opener, stop=stop, authenticator=authenticator, scanner=scanner)
     commands = CommandHandler(reader, scanner, stop, envFile)
     uplink = Uplink(cfg, reader, buffer, post=post, scanner=scanner, commands=commands)
-    log.info("Puente %s v%s: %s (%s) -> %s, dispositivo %s", uplink.bridgeId[:8], VERSION, cfg.port, cfg.medium, cfg.ingestUrl, cfg.deviceCode)
+    log.info("Puente %s v%s: %s (%s) -> %s, dispositivo %s", uplink.bridgeId[:8], VERSION, cfg.port or "búsqueda automática", cfg.medium,
+             cfg.ingestUrl, cfg.deviceCode)
     if scanner is not None:
         scanner.start()
     reader.start()

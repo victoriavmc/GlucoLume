@@ -106,6 +106,9 @@ control al iniciarla. Constantes: `RESERVATION_SECONDS`, `PREVIEW_MAX_SECONDS`, 
 |---|---|---|
 | USB | COM del Arduino o adaptador (CH340/ATmega16U2) | 115200 |
 | Bluetooth HC-05/HC-06 | COM **saliente** del módulo emparejado (PIN 1234/0000) | 9600 |
+| AUTO | Ninguno fijo: el puente sondea los COM USB y Bluetooth y se queda con el que informa `GLUCOLUME,ID=<uuid>` | Según el medio hallado |
+
+**Modo AUTO.** Solo lee: escucha cada candidato uno por vez (nunca dos abiertos), espera hasta 12 s por la identificación que el firmware informa al arrancar y cada 10 s, y cierra los que no la dan (un puerto mudo no se vuelve a sondear durante 60 s). Sin Arduino queda en `DISPOSITIVO_DESCONECTADO`, sin error ni puerto obligatorio, y vuelve a buscar cada 5 s. Al desconectarse el dispositivo se reconecta sin repetir lecturas (la numeración de líneas sigue). La conexión HTTPS con el servidor es independiente del medio. Desde la web se elige «Automático» en Configuración del puente (acción `CONFIGURAR` con `medio: AUTO`); el puente lo guarda en `bridge.env`.
 
 **Variables de `bridge.env`** (no se versiona; plantilla `bridge.env.example`): `SERIAL_PORT`, `SERIAL_MEDIUM`, `SERIAL_BAUDRATE`,
 `BRIDGE_API_URL`, `BRIDGE_TOKEN` (igual al del backend), `BRIDGE_DEVICE_CODE` (respaldo para firmware sin ID; no prueba identidad),

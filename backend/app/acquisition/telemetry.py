@@ -329,7 +329,7 @@ class BridgeInfo:
     port: str | None
     medium: str
     baud: int | None
-    linkState: str = "DESCONECTADO"  # CONECTADO | DESCONECTADO | REINTENTANDO
+    linkState: str = "DESCONECTADO"  # CONECTADO | DESCONECTADO | REINTENTANDO | PAUSADO | DISPOSITIVO_DESCONECTADO (AUTO)
     attempt: int = 0
     error: str | None = None
     lastBeat: float = 0.0
@@ -359,7 +359,7 @@ class CommandRejected(Exception):
 # Órdenes que un usuario autenticado puede pedirle al puente. No existe ninguna que escriba en el Arduino, ejecute
 # programas o abra puertos que el propio puente no haya informado.
 COMMAND_ACTIONS = ("CONFIGURAR", "PAUSAR", "REANUDAR", "DETENER", "REINICIAR")
-COMMAND_MEDIA = ("USB", "BLUETOOTH")
+COMMAND_MEDIA = ("USB", "BLUETOOTH", "AUTO")
 
 
 @dataclass
@@ -444,7 +444,7 @@ class TelemetryHub:
             bridge, now = self.bridge, self.clock()
             if bridge is None or now - bridge.lastBeat > BRIDGE_STALE_SECONDS:
                 return "SIN_PUENTE"
-            if bridge.linkState != "CONECTADO":
+            if bridge.linkState != "CONECTADO":  # también en AUTO sin dispositivo: no hay enlace que usar
                 return "PUERTO_DESCONECTADO"
             if self.latest is None or now - self.latest.at > DATA_STALE_SECONDS:
                 return "SIN_DATOS"
@@ -625,17 +625,21 @@ class TelemetryHub:
             chosen = None
             if action == "CONFIGURAR":
                 known = {(p["puerto"] or "").lower(): p for p in (bridge.ports or [])}
-                chosen = known.get((port or "").strip().lower())
-                if chosen is None:
-                    raise CommandRejected("PUERTO_NO_DISPONIBLE", "Ese puerto no figura entre los que ve el puente en su equipo.")
                 if medium not in COMMAND_MEDIA:
-                    raise CommandRejected("MEDIO_INVALIDO", "El medio debe ser USB o BLUETOOTH.")
+                    raise CommandRejected("MEDIO_INVALIDO", "El medio debe ser USB, BLUETOOTH o AUTO.")
+                if medium == "AUTO":  # el puente elige el puerto solo: no se admite uno fijo
+                    if port is not None:
+                        raise CommandRejected("COMANDO_INVALIDO", "El modo automático no admite un puerto fijo.")
+                else:
+                    chosen = known.get((port or "").strip().lower())
+                    if chosen is None:
+                        raise CommandRejected("PUERTO_NO_DISPONIBLE", "Ese puerto no figura entre los que ve el puente en su equipo.")
             elif port is not None or medium is not None:
                 raise CommandRejected("COMANDO_INVALIDO", "Esta acción no admite puerto ni medio.")
             if bridge.pending is not None:
                 raise CommandRejected("COMANDO_PENDIENTE", "Hay otra orden esperando al puente: aguardá unos segundos.")
             bridge.pending = {"id": uuid.uuid4().hex[:12], "accion": action,
-                              "puerto": chosen["puerto"] if chosen else None, "medio": medium if chosen else None}
+                              "puerto": chosen["puerto"] if chosen else None, "medio": medium if action == "CONFIGURAR" else None}
             if self.session.idMedicion is None:  # una orden es una acción explícita de quien controla: renueva su control sin medición
                 self.session.startedAt = self.session.lastSeen = self.clock()
             bridge.lastResult = None

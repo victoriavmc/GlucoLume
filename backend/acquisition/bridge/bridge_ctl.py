@@ -225,6 +225,9 @@ def interpretStatus(configured: bool, status: dict | None, age: float | None) ->
     link = status.get("estadoEnlace")
     if status.get("pausado") or link == "PAUSADO":
         return {"estado": "PAUSADO", "titulo": "Pausado", "detalle": "La lectura está pausada: el puerto está libre."}
+    if link == bridge.NO_DEVICE:
+        return {"estado": "SIN_DISPOSITIVO", "titulo": "Sin dispositivo GlucoLume conectado",
+                "detalle": "Modo automático: el puente busca el Arduino por USB y Bluetooth y se conectará cuando aparezca."}
     if link != "CONECTADO":
         cause = status.get("error") or "Sin conexión con el puerto."
         return {"estado": "RECONECTANDO", "titulo": "Intentando reconectar", "detalle": cause}
@@ -473,14 +476,19 @@ def cmdSetup(args) -> int:
     previous = readEnv(ENV_PATH)
     out("Configuración del puente GlucoLume (Arduino → Windows → backend)\n")
     medium = (args.medium or "").upper()
-    if medium not in bridge.BAUD:
+    if medium not in (*bridge.BAUD, bridge.AUTO):
         default = previous.get("SERIAL_MEDIUM", "BLUETOOTH")
-        out("¿Cómo está conectado el Arduino?\n  1. Bluetooth (HC-05/HC-06, 9600 baudios)\n  2. USB (cable al Arduino UNO, 115200 baudios)")
-        choice = ask("Opción", "2" if default == "USB" else "1")
-        medium = "USB" if choice.strip() in ("2", "usb", "USB") else "BLUETOOTH"
-    baud = bridge.BAUD[medium]
-    out(f"Medio: {medium.title()} · velocidad automática: {baud} baudios (la del firmware).")
-    port = choosePort(medium, args.port, previous.get("SERIAL_PORT") if not previous.get("SERIAL_PORT", "").startswith("<") else None)
+        out("¿Cómo está conectado el Arduino?\n  1. Bluetooth (HC-05/HC-06, 9600 baudios)\n  2. USB (cable al Arduino UNO, 115200 baudios)\n"
+            "  3. Automático: el puente busca el GlucoLume por USB y Bluetooth y se conecta solo (no hace falta elegir COM)")
+        choice = ask("Opción", {"USB": "2", "AUTO": "3"}.get(default, "1"))
+        medium = {"2": "USB", "usb": "USB", "USB": "USB", "3": bridge.AUTO, "auto": bridge.AUTO, "AUTO": bridge.AUTO}.get(choice.strip(), "BLUETOOTH")
+    if medium == bridge.AUTO:
+        out("Medio: automático (USB y Bluetooth). El puerto se detecta solo al identificar el GlucoLume.")
+        port = ""
+    else:
+        baud = bridge.BAUD[medium]
+        out(f"Medio: {medium.title()} · velocidad automática: {baud} baudios (la del firmware).")
+        port = choosePort(medium, args.port, previous.get("SERIAL_PORT") if not previous.get("SERIAL_PORT", "").startswith("<") else None)
     apiUrl = args.api_url or ask("URL de GlucoLume (el backend en Docker)", previous.get("BRIDGE_API_URL", DEFAULT_API))
     token = ""
     if args.token_file:
@@ -498,7 +506,7 @@ def cmdSetup(args) -> int:
     code = args.device_code or ask("Código del dispositivo en el inventario de GlucoLume", previous.get("BRIDGE_DEVICE_CODE", DEFAULT_CODE))
     try:
         bridge.readConfig({"SERIAL_PORT": port, "SERIAL_MEDIUM": medium, "BRIDGE_API_URL": apiUrl, "BRIDGE_TOKEN": token,
-                           "BRIDGE_DEVICE_CODE": code})
+                           "BRIDGE_DEVICE_CODE": code})  # en AUTO el puerto va vacío y no es obligatorio
     except bridge.ConfigError as error:
         out(f"Configuración inválida: {error}")
         return 2
@@ -623,7 +631,8 @@ def cmdDoctor(_args) -> int:
     env = readEnv(ENV_PATH)
     try:
         cfg = bridge.readConfig(env)
-        report("ok", f"Configuración válida: {cfg.medium.title()} · {cfg.port} · {cfg.baud} baudios · dispositivo {cfg.deviceCode}")
+        described = "búsqueda automática (USB y Bluetooth)" if cfg.medium == bridge.AUTO else f"{cfg.medium.title()} · {cfg.port} · {cfg.baud} baudios"
+        report("ok", f"Configuración válida: {described} · dispositivo {cfg.deviceCode}")
     except bridge.ConfigError as error:
         report("error", str(error))
         return 1
@@ -636,7 +645,10 @@ def cmdDoctor(_args) -> int:
                        "lecturas. `bridge_ctl.py genkey` genera la clave; requiere el firmware optimizado con firma.")
     ports = discoverPorts()
     match = next((p for p in ports if p["puerto"].upper() == cfg.port.upper()), None)
-    if match is None:
+    if cfg.medium == bridge.AUTO:
+        report("ok", f"Puertos candidatos (USB/Bluetooth): {', '.join(p['puerto'] for p in ports if p['esArduino'] or p['esBluetooth']) or 'ninguno todavía'}. "
+                     "Se identifica el GlucoLume por su línea GLUCOLUME,ID=; ninguno se asume válido.")
+    elif match is None:
         report("error", f"Windows no muestra el puerto {cfg.port}. Mostrados: {', '.join(p['puerto'] for p in ports) or 'ninguno'}. "
                "Si es Bluetooth, comprobá el emparejamiento; si es USB, el cable y el controlador (CH340).")
     elif match.get("estadoWindows") not in (None, "OK"):
@@ -709,7 +721,7 @@ def buildParser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
     for name in ("install", "setup"):
         item = sub.add_parser(name, help="instalación (install) o asistente de configuración (setup)")
-        item.add_argument("--medium", choices=["BLUETOOTH", "USB", "bluetooth", "usb"])
+        item.add_argument("--medium", choices=["BLUETOOTH", "USB", "AUTO", "bluetooth", "usb", "auto"])
         item.add_argument("--port")
         item.add_argument("--api-url")
         item.add_argument("--token-file", help="archivo (p. ej. el .env del proyecto) del que leer BRIDGE_TOKEN")

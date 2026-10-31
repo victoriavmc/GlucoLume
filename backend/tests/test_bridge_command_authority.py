@@ -80,3 +80,20 @@ def test_el_dispositivo_sin_institucion_conserva_la_regla_general(db, mails, bri
     assert api(person).post(CONTROL).status_code == 200
     response = api(person).post(COMMAND, json={"accion": "DETENER"})
     assert response.status_code == 200 and response.json()["puente"]["comandoPendiente"] == "DETENER"
+
+
+def test_el_modo_automatico_se_ordena_sin_puerto_y_el_puente_lo_informa_sin_dispositivo(db, mails, team, bridge, api):
+    device(db, institucion=team.id, codigo=CODE)
+    bridge.seconds(2)
+    assert api(team.operator).post(CONTROL).status_code == 200
+    rejected = api(team.operator).post(COMMAND, json={"accion": "CONFIGURAR", "medio": "AUTO", "puerto": "COM3"})
+    assert rejected.status_code != 200  # con AUTO no se admite un puerto fijo
+    response = api(team.operator).post(COMMAND, json={"accion": "CONFIGURAR", "medio": "AUTO"})
+    assert response.status_code == 200
+    pending = response.json()["puente"]["comandoPendiente"]
+    assert pending == "CONFIGURAR"
+    # El puente, sin dispositivo a la vista, informa DISPOSITIVO_DESCONECTADO con medio AUTO y sin puerto: se acepta sin error.
+    result = telemetryService.ingest(db, BridgeIngest(
+        idPuente=bridge.id, codigoDispositivo=CODE, puerto=None, medio="AUTO", baudios=None,
+        estadoEnlace="DISPOSITIVO_DESCONECTADO", puertos=[], versionPuente="1.4.0"))
+    assert result.comando.accion == "CONFIGURAR" and result.comando.medio == "AUTO"

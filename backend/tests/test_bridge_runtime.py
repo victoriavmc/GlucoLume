@@ -140,7 +140,7 @@ def test_configurar_cambia_de_puerto_y_medio_y_lo_conserva(tmp_path):
 
 @pytest.mark.parametrize("extra,message", [
     ({"puerto": "COM99", "medio": "USB"}, "no existe en este equipo"),
-    ({"puerto": "COM3", "medio": "WIFI"}, "USB o BLUETOOTH"),
+    ({"puerto": "COM3", "medio": "WIFI"}, "USB, BLUETOOTH o AUTO"),
     ({"puerto": "", "medio": "USB"}, "no existe en este equipo"),
 ])
 def test_configurar_rechaza_puertos_no_enumerados_y_medios_invalidos(tmp_path, extra, message):

@@ -58,7 +58,7 @@ DEMO_NOTE = "Datos de prueba (DEMO): la glucosa es un valor sintético del firmw
 
 _NOT_CONNECTED = {
     "SIN_PUENTE": "El puente serie no está en ejecución en el equipo del dispositivo. Iniciá el puente y volvé a intentar.",
-    "PUERTO_DESCONECTADO": "El Bluetooth del dispositivo no está conectado. Encendé el Arduino y revisá el emparejamiento.",
+    "PUERTO_DESCONECTADO": "El dispositivo no está conectado al equipo del puente. Encendé el Arduino y revisá el cable USB o el emparejamiento Bluetooth.",
     "SIN_DATOS": "El dispositivo está conectado pero no envía datos todavía. Esperá unos segundos.",
 }
 
