@@ -11,7 +11,7 @@
 # Imágenes fijadas por digest (GL-13, 19/10/2026): el mismo build siempre parte de la misma base. Para actualizar: docker buildx imagetools
 # inspect <imagen:etiqueta> --format '{{.Manifest.Digest}}', escanear (docker scout cves) y reemplazar el digest.
 # Rama 3.14; los parches de Debian posteriores al digest llegan con el apt-get upgrade del runtime; el lock de pip fija las librerías.
-ARG PYTHON_IMAGE=python:3.14-slim-trixie@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+ARG PYTHON_IMAGE=python:3.14-slim-trixie@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8
 
 FROM ${PYTHON_IMAGE} AS builder
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1

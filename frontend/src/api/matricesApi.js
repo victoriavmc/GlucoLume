@@ -4,9 +4,12 @@
 
 import { fileFrom, request } from './client.js';
 
-/** POST /matrices/{id}/export -> { blob, filename }: la matriz con sus reglas en CSV. La API decide quién puede verla y audita la exportación. */
-export async function exportMatrix(idMatriz) {
-  return fileFrom(await request(`/matrices/${idMatriz}/export`, { method: 'POST', auth: true, file: true }), 'matriz.csv');
+/**
+ * POST /matrices/{id}/export?formato=csv|xlsx|pdf -> { blob, filename }: la matriz con sus reglas. La API decide quién puede verla y
+ * audita la exportación.
+ */
+export async function exportMatrix(idMatriz, formato = 'csv') {
+  return fileFrom(await request(`/matrices/${idMatriz}/export?formato=${formato}`, { method: 'POST', auth: true, file: true }), `matriz.${formato}`);
 }
 
 /** Todas las versiones globales (cuentas de plataforma). */

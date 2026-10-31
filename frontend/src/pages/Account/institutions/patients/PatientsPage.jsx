@@ -12,6 +12,7 @@ import { EmptyState } from '../../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../../components/FormControls.jsx';
 import { SkeletonList } from '../../../../components/Skeleton.jsx';
 import { saveBlob } from '../../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../../utils/exportFormats.js';
 import { useLatestRequest } from '../../../../utils/useLatestRequest.js';
 import { can, formatDateTime } from '../institutionFormat.js';
 import '../exportControls.css';
@@ -55,6 +56,7 @@ export function PatientsPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const [exportNotice, setExportNotice] = useState('');
+  const [exportFormat, setExportFormat] = useState('csv');
 
   const beginRequest = useLatestRequest(); // una respuesta lenta de un filtro anterior no pisa a la del filtro actual
 
@@ -117,7 +119,7 @@ export function PatientsPage() {
     setExportError('');
     setExportNotice('');
     try {
-      const { blob, filename } = await institutionsApi.exportPatients(institution.idInstitucion, body);
+      const { blob, filename } = await institutionsApi.exportPatients(institution.idInstitucion, body, exportFormat);
       saveBlob(blob, filename);
       setExportNotice(`Exportación lista: ${filename}.`);
     } catch (failure) {
@@ -215,6 +217,7 @@ export function PatientsPage() {
       ) : (
         <>
           <div className="export-toolbar">
+            <SelectField label="Formato" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)} options={EXPORT_FORMATS} />
             <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting}
               onClick={() => handleExport({ alcance: 'SELECCION', idsPerfilMedicion: [...selected] })}>
               <Download size={18} aria-hidden="true" /> Exportar seleccionados{selected.size > 0 ? ` (${selected.size})` : ''}

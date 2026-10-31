@@ -865,16 +865,72 @@ def test_sin_la_tabla_de_contexto_la_auditoria_sigue_funcionando(db, mails, monk
 
 
 def test_toda_exportacion_futura_pasa_por_audited_export():
-    # Prueba de arquitectura (pendiente G): hoy no hay exportaciones. Un módulo de app/ que arme un archivo descargable (CSV, PDF, planilla o
-    # Content-Disposition) tiene que usar exportAudit.auditedExport, que registra quién exportó qué y desde dónde.
+    # Prueba de arquitectura (pendiente G): un módulo de app/ que arme un archivo descargable (CSV, PDF, planilla o Content-Disposition)
+    # tiene que llegar a exportAudit.auditedExport por la cadena de imports. Son válidos:
+    #   - un servicio que abre auditedExport;
+    #   - un formateador (convierte filas a bytes) que solo importan módulos válidos;
+    #   - una ruta de app/api que importa un servicio que abre auditedExport.
+    import ast
+    from pathlib import Path
+
+    markers = ("Content-Disposition", "FileResponse", "text/csv", "application/pdf", "csv.writer", "openpyxl", "spreadsheetml")
+    root = Path(__file__).resolve().parents[1]
+    texts = {}
+    for path in (root / "app").rglob("*.py"):
+        parts = path.relative_to(root).with_suffix("").parts
+        if parts[-1] == "__init__":
+            parts = parts[:-1]
+        texts[".".join(parts)] = path.read_text(encoding="utf-8")
+    texts.pop("app.services.exportAudit")  # define auditedExport: no es una exportación
+
+    imports = {}
+    for name, text in texts.items():
+        found = set()
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app"):
+                found.add(node.module)
+                found.update(f"{node.module}.{alias.name}" for alias in node.names)
+        imports[name] = {target for target in found if target in texts}
+
+    def audited(name):
+        return "auditedExport" in texts[name]
+
+    def importers(name):
+        return [other for other, targets in imports.items() if name in targets]
+
+    def valid(name, trail=()):
+        if audited(name):
+            return True
+        if name.startswith("app.api."):
+            return any(audited(target) for target in imports[name])
+        if name in trail:
+            return False
+        users = importers(name)
+        return bool(users) and all(valid(user, (*trail, name)) for user in users)
+
+    offenders = [name for name, text in texts.items() if any(marker in text for marker in markers) and not valid(name)]
+    assert offenders == []
+
+
+def test_rutas_de_descarga_delegan_en_un_servicio_auditado():
+    # Las rutas de app/api no abren la auditoría: arman la respuesta con los bytes que devuelve un servicio. Ese servicio tiene que ser uno
+    # que abra auditedExport, si no una descarga podría salir sin evento.
+    import re
     from pathlib import Path
 
     markers = ("Content-Disposition", "FileResponse", "text/csv", "application/pdf", "csv.writer", "openpyxl", "spreadsheetml")
     app = Path(__file__).resolve().parents[1] / "app"
-    offenders = [str(path.relative_to(app)) for path in app.rglob("*.py") if path.name != "exportAudit.py"
-                 and any(marker in path.read_text(encoding="utf-8") for marker in markers)
-                 and "auditedExport" not in path.read_text(encoding="utf-8")]
-    assert offenders == []
+    sinAuditoria = []
+    for path in (app / "api").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if not any(marker in text for marker in markers):
+            continue
+        servicios = re.findall(r"from app\.services import (\w+)", text) + re.findall(r"from app\.services\.(\w+) import", text)
+        auditados = [name for name in servicios if (app / "services" / f"{name}.py").exists()
+                     and "auditedExport" in (app / "services" / f"{name}.py").read_text(encoding="utf-8")]
+        if not auditados:
+            sinAuditoria.append(str(path.relative_to(app)))
+    assert sinAuditoria == []
 
 
 def test_una_rafaga_avisa_al_administrador_una_vez_por_hora_sin_la_ip(db, mails, liveMonitor, monkeypatch):

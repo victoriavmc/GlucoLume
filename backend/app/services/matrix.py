@@ -67,7 +67,8 @@ from app.schemas.matrix import (
 )
 from app.services import institution as institutions
 from app.services.audit import registerEvent
-from app.services.csvExport import csvBytes, csvDate, csvText
+from app.services.csvExport import csvDate, csvText
+from app.services.tableExport import tableFile
 from app.services.exportAudit import auditedExport, rejectExport
 from app.utils.timeZone import nowForDb
 
@@ -774,22 +775,23 @@ def _matrixRows(matrix: Matrix, institutionName: str | None, rules: list[MatrixR
     ] for r in rules]
 
 
-def exportMatrix(db: Session, actor: User, idMatriz: uuid.UUID) -> tuple[bytes, str]:
-    """CSV de la matriz y sus reglas, si la cuenta puede verla. Devuelve (contenido, nombre del archivo)."""
+def exportMatrix(db: Session, actor: User, idMatriz: uuid.UUID, formato: str = "csv") -> tuple[bytes, str]:
+    """Archivo de la matriz y sus reglas (CSV, Excel o PDF), si la cuenta puede verla. Devuelve (contenido, nombre del archivo)."""
     matrix = db.get(Matrix, idMatriz)
     try:
         access = _access(db, actor, idMatriz)
     except AuthError as error:
         if matrix is not None:  # existe, pero no le corresponde: el intento queda en la auditoría de exportaciones
-            rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato="CSV",
+            rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato=formato.upper(),
                          motivo=error.code)
             db.commit()
         raise
     matrix = access.matrix
     institution = db.get(Institution, matrix.idInstitucion) if matrix.idInstitucion else None
     rules = db.scalars(select(MatrixRule).where(MatrixRule.idMatriz == matrix.idMatriz).order_by(MatrixRule.codigoRegla)).all()
-    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato="CSV") as export:
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato=formato.upper()) as export:
         export.registros = len(rules)
-        content = csvBytes(MATRIX_EXPORT_COLUMNS, _matrixRows(matrix, institution.nombre if institution else None, rules))
-        filename = f"matriz-{_safeName(matrix.nombre)}-{_safeName(matrix.version)}-{nowForDb():%Y%m%d-%H%M}.csv"
-        return content, filename
+        now = nowForDb()
+        return tableFile(formato, f"matriz-{_safeName(matrix.nombre)}-{_safeName(matrix.version)}-{now:%Y%m%d-%H%M}",
+                         f"Matriz {matrix.nombre} ({matrix.version})", MATRIX_EXPORT_COLUMNS,
+                         _matrixRows(matrix, institution.nombre if institution else None, rules), now)

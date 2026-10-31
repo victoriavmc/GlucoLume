@@ -54,7 +54,8 @@ from app.services import email as emailService
 from app.services import institution as institutions
 from app.services import institutionNotifications, measurementRetention, patientAccess, reassignments, resultEmailStore
 from app.services.audit import registerEvent
-from app.services.csvExport import csvBytes, csvDate, csvText
+from app.services.csvExport import csvDate, csvText
+from app.services.tableExport import tableFile
 from app.services.exportAudit import auditedExport, rejectExport
 from app.services.measurementProfile import EDAD_MAXIMA, buildInstitutionalProfile, calculateAge
 from app.services.measurementVisibility import ACTIVE_STATES, VISIBLE_MINUTES
@@ -647,20 +648,20 @@ def _csvPatient(patient: PatientRead) -> list[str]:
 
 def exportPatients(db: Session, actor: User, idInstitucion: uuid.UUID, *, alcance: str, ids: list[uuid.UUID] | None = None,
                    busqueda: str | None = None, idResponsable: uuid.UUID | None = None, estado: str = PACIENTE_ACTIVO,
-                   venceEnDias: int | None = None) -> tuple[bytes, str]:
-    """CSV de pacientes (`SELECCION` o `TODOS`), con lo que muestra el listado. Devuelve (contenido, nombre del archivo)."""
+                   venceEnDias: int | None = None, formato: str = "csv") -> tuple[bytes, str]:
+    """Archivo de pacientes (`SELECCION` o `TODOS`) en CSV, Excel o PDF, con lo que muestra el listado. Devuelve (contenido, nombre del archivo)."""
     try:
         membership = institutions.requireMembership(db, actor, idInstitucion, institutions.P_PACIENTES)
     except AuthError as error:
-        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV", motivo=error.code)
+        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato=formato.upper(), motivo=error.code)
         db.commit()
         raise
-    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV") as export:
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato=formato.upper()) as export:
         now = nowForDb()
         rows = _exportRows(db, membership, idInstitucion, alcance=alcance, ids=ids or [], busqueda=busqueda, idResponsable=idResponsable,
                            estado=estado, venceEnDias=venceEnDias, now=now)
         registrants = _registrants(db, [row[0].idPerfilMedicion for row in rows])
         patients = [_read(membership, *row, now, registrants.get(row[0].idPerfilMedicion)) for row in rows]
         export.registros = len(patients)
-        content = csvBytes(PATIENT_EXPORT_COLUMNS, [_csvPatient(patient) for patient in patients])
-        return content, f"pacientes-institucion-{now:%Y%m%d-%H%M}.csv"
+        return tableFile(formato, f"pacientes-institucion-{now:%Y%m%d-%H%M}", "Pacientes de la institución", PATIENT_EXPORT_COLUMNS,
+                         [_csvPatient(patient) for patient in patients], now)

@@ -44,8 +44,9 @@ from app.schemas.personnel import (
 from app.services import institution as institutions
 from app.services.audit import personName, registerEvent
 from app.services.auditQuery import ROLE_VALUES, STATE_VALUES, Resolver, _json
-from app.services.csvExport import csvBytes, csvDate, csvText
+from app.services.csvExport import csvDate, csvText
 from app.services.exportAudit import auditedExport, rejectExport
+from app.services.tableExport import tableFile
 from app.utils.timeZone import nowForDb
 
 MAX_PAGE_SIZE = 100
@@ -405,19 +406,21 @@ def _exportItems(db: Session, idInstitucion: uuid.UUID, alcance: str, ids: list[
 
 
 def exportPersonnel(db: Session, actor: User, idInstitucion: uuid.UUID, *, alcance: str, idsInstitucionUsuario: list[uuid.UUID] | None = None,
-                    rol: str | None = None, estado: str | None = None, busqueda: str | None = None) -> tuple[bytes, str]:
-    """CSV del personal (`SELECCION` o `TODOS`). Devuelve (contenido, nombre del archivo)."""
+                    rol: str | None = None, estado: str | None = None, busqueda: str | None = None,
+                    formato: str = "csv") -> tuple[bytes, str]:
+    """Archivo del personal (`SELECCION` o `TODOS`) en CSV, Excel o PDF. Devuelve (contenido, nombre del archivo)."""
     try:
         institutions.requireMembership(db, actor, idInstitucion, institutions.P_EQUIPO)
     except AuthError as error:
-        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV", motivo=error.code)
+        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato=formato.upper(), motivo=error.code)
         db.commit()
         raise
-    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV") as export:
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato=formato.upper()) as export:
         items = _exportItems(db, idInstitucion, alcance, idsInstitucionUsuario or [], rol, estado, busqueda)
         export.registros = len(items)
-        content = csvBytes(EXPORT_COLUMNS, [_csvRow(item) for item in items])
-        return content, f"personal-institucion-{nowForDb():%Y%m%d-%H%M}.csv"
+        now = nowForDb()
+        return tableFile(formato, f"personal-institucion-{now:%Y%m%d-%H%M}", "Personal de la institución", EXPORT_COLUMNS,
+                         [_csvRow(item) for item in items], now)
 
 
 # --- Invitaciones enviadas por la institución -----------------------------------------------------------------------------

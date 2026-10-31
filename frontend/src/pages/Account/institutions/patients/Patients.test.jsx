@@ -570,6 +570,23 @@ describe('Exportar pacientes', () => {
     fechaNacimiento: null, responsable: { idInstitucionUsuario: 'op-9', nombre: 'Bruno', apellido: 'Ríos', activo: true },
     puedeModificar: false, esMio: false, medicionesAutorizadas: false });
 
+  it('el formato elegido viaja a la API y el archivo sale con su extensión', async () => {
+    const pdfResponse = () => ({
+      ok: true, status: 200, headers: new Headers({ 'Content-Disposition': 'attachment; filename="pacientes-institucion-prueba.pdf"' }),
+      blob: async () => new Blob(['pdf'], { type: 'application/pdf' }),
+    });
+    const { calls } = routes('PROPIETARIO', {
+      [`GET ${PATIENTS_URL}`]: () => jsonResponse(200, page([patient()], 1)),
+      [`POST ${PATIENTS_URL}/export`]: pdfResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    await user.selectOptions(await screen.findByLabelText('Formato'), 'pdf');
+    await user.click(screen.getByRole('button', { name: 'Exportar todos (1)' }));
+    expect(await screen.findByText('Exportación lista: pacientes-institucion-prueba.pdf.')).toBeInTheDocument();
+    expect(calls.filter((call) => call.key === `POST ${PATIENTS_URL}/export`).at(-1).url).toMatch(/\?formato=pdf$/);
+  });
+
   it('el propietario exporta los pacientes marcados y, con «todos», el listado completo con sus filtros', async () => {
     const { calls } = routes('PROPIETARIO', {
       [`GET ${PATIENTS_URL}`]: () => jsonResponse(200, page([patient(), foreign()], 2)),

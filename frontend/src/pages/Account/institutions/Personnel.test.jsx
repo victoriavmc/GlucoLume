@@ -587,6 +587,23 @@ describe("Personal: exportar", () => {
     expect(calls.find((call) => call.key === `POST ${BASE}/personnel/export`).body).toEqual({ alcance: "TODOS", rol: "OPERADOR" });
   });
 
+  it("el formato elegido se pide a la API y el archivo se descarga con su extensión", async () => {
+    const excelResponse = () => ({
+      ok: true, status: 200, headers: new Headers({ "Content-Disposition": 'attachment; filename="personal-institucion-prueba.xlsx"' }),
+      blob: async () => new Blob(["xlsx"]),
+    });
+    const { calls } = routes("PROPIETARIO", {
+      [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE),
+      [`POST ${BASE}/personnel/export`]: excelResponse,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/personal`);
+    await user.selectOptions(await screen.findByLabelText("Formato"), "xlsx");
+    await user.click(screen.getByRole("button", { name: "Exportar todos (5)" }));
+    expect(await screen.findByText("Exportación lista: personal-institucion-prueba.xlsx.")).toBeInTheDocument();
+    expect(calls.find((call) => call.key === `POST ${BASE}/personnel/export`).url).toMatch(/\?formato=xlsx$/);
+  });
+
   it("el operador no llega al listado, así que no tiene ninguna opción de exportar", async () => {
     const { calls } = routes("OPERADOR", { [`GET ${BASE}/personnel`]: personnelByQuery(EVERYONE) });
     renderAt(`/app/instituciones/${ID}/personal`);

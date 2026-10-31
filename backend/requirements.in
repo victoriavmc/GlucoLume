@@ -10,12 +10,19 @@ email-validator==2.3.0
 pwdlib[argon2]==0.3.1
 PyJWT[crypto]==2.15.1
 Authlib==1.9.1
+# joserfc lo trae Authlib; fijado a la versión que corrige CVE-2026-119284 (media, con parche en 1.7.6)
+joserfc==1.7.6
 # httpx2: sucesor de httpx (deprecado por Authlib y Starlette)
 httpx2==2.13.1
 itsdangerous==2.2.0
 pyotp==2.10.0
 # Base de zonas horarias IANA para zoneinfo (Windows no la incluye): hora de Argentina
 tzdata==2026.5
+# Exportaciones de datos en Excel (.xlsx) y PDF
+openpyxl==3.1.5
+reportlab==4.4.10
+# Pillow lo trae reportlab; fijado a una versión sin las CVE de la 12.0.0 (críticas y altas en la imagen).
+pillow==13.0.0
 # Plantillas de correo (HTML con autoescape)
 Jinja2==3.1.6
 # Puerto serie del Arduino (USB / HC-06): adquisición física

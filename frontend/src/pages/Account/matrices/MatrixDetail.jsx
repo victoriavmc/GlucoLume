@@ -10,8 +10,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 import * as matricesApi from '../../../api/matricesApi.js';
 import { Badge, toneFromClass } from '../../../components/Badge.jsx';
-import { Alert, SubmitButton, TextField } from '../../../components/FormControls.jsx';
+import { Alert, SelectField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
 import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
+import '../institutions/exportControls.css';
 import { RuleEditor } from './RuleEditor.jsx';
 import { RulesTable } from './MatrixRules.jsx';
 import {
@@ -93,6 +95,7 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
   const [confirming, setConfirming] = useState(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState('csv');
   const [editingRule, setEditingRule] = useState(null); // null: cerrado · 'new' · regla
   const [validation, setValidation] = useState(null);
   const [audit, setAudit] = useState(null);
@@ -150,7 +153,7 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
     setError('');
     setNotice('');
     try {
-      const { blob, filename } = await matricesApi.exportMatrix(idMatriz);
+      const { blob, filename } = await matricesApi.exportMatrix(idMatriz, exportFormat);
       saveBlob(blob, filename);
       setNotice(`Exportación lista: ${filename}.`);
     } catch (exportFailure) {
@@ -278,9 +281,12 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
                   <Archive size={16} aria-hidden="true" /> Archivar
                 </button>
               )}
-              <button type="button" className="btn btn-outline" disabled={exporting} onClick={exportRules}>
-                <Download size={16} aria-hidden="true" /> Exportar matriz y reglas
-              </button>
+              <div className="export-toolbar">
+                <SelectField label="Formato" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)} options={EXPORT_FORMATS} />
+                <button type="button" className="btn btn-outline" disabled={exporting} onClick={exportRules}>
+                  <Download size={16} aria-hidden="true" /> Exportar matriz y reglas
+                </button>
+              </div>
               {permisos.puedeVerAuditoria && (
                 <button type="button" className="btn btn-ghost" onClick={toggleAudit}>
                   <History size={16} aria-hidden="true" /> {audit ? 'Ocultar auditoría' : 'Ver auditoría'}

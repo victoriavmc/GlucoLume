@@ -21,6 +21,7 @@ from app.schemas.matrix import (
     MatrixValidation,
 )
 from app.services import matrix as matrixService
+from app.services.tableExport import FormatoExportacion, mediaTypeOf
 
 router = APIRouter(prefix="/matrices", tags=["matrices"], dependencies=[PlatformMfaGate])
 
@@ -88,13 +89,13 @@ def archive(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return matrixService.archive(db, auth.user, idMatriz)
 
 
-@router.post("/{idMatriz}/export", response_class=Response, summary="Exportar la matriz con sus reglas (CSV)",
+@router.post("/{idMatriz}/export", response_class=Response, summary="Exportar la matriz con sus reglas (CSV, Excel o PDF)",
              description="Quien puede ver la matriz: la plataforma (globales); el propietario y el moderador de la institución (las suyas y "
              "la global activa). Un operador u otra institución recibe 404 y el intento queda en la auditoría de exportaciones. Una fila "
-             "por regla. Cada exportación queda registrada.")
-def exportMatrix(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
-    content, filename = matrixService.exportMatrix(db, auth.user, idMatriz)
-    return Response(content=content, media_type="text/csv; charset=utf-8",
+             "por regla. `formato` = csv (por defecto), xlsx o pdf. Cada exportación queda registrada.")
+def exportMatrix(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession, formato: FormatoExportacion = "csv"):
+    content, filename = matrixService.exportMatrix(db, auth.user, idMatriz, formato=formato)
+    return Response(content=content, media_type=mediaTypeOf(formato),
                     headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 

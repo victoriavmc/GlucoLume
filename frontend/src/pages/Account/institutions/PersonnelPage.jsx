@@ -19,6 +19,7 @@ import { QuotaLine } from './QuotaSection.jsx';
 import { ROLE_LABELS, can, personName } from './institutionFormat.js';
 import { RELATION_STATES, stateInfo, when } from './personnelFormat.js';
 import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
 import './exportControls.css';
 import './Personnel.css';
 
@@ -50,6 +51,7 @@ export function PersonnelPage({ rol }) {
   const [selected, setSelected] = useState(() => new Set()); // personas marcadas para exportar (solo de la página visible)
   const [exporting, setExporting] = useState(null); // clave de la exportación en curso: evita pedidos repetidos
   const [exportError, setExportError] = useState('');
+  const [exportFormat, setExportFormat] = useState('csv');
   const effectiveRole = rol ?? role; // en las pestañas Moderadores y Operadores el rol lo fija la pestaña
 
   const filtersActive = Boolean(state || query || (!rol && role));
@@ -108,7 +110,7 @@ export function PersonnelPage({ rol }) {
     setExportError('');
     setNotice('');
     try {
-      const { blob, filename } = await institutionsApi.exportPersonnel(institution.idInstitucion, body);
+      const { blob, filename } = await institutionsApi.exportPersonnel(institution.idInstitucion, body, exportFormat);
       saveBlob(blob, filename);
       setNotice(`Exportación lista: ${filename}.`);
     } catch (failure) {
@@ -193,6 +195,7 @@ export function PersonnelPage({ rol }) {
           {page && page.total > 0 && <span className="audit-count">{page.total.toLocaleString('es-AR')} {page.total === 1 ? 'persona' : 'personas'}</span>}
           {canExport && page && page.total > 0 && (
             <div className="export-toolbar export-toolbar--end">
+              <SelectField label="Formato" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)} options={EXPORT_FORMATS} />
               <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting !== null}
                 onClick={() => handleExport('SELECCION', { alcance: 'SELECCION', idsInstitucionUsuario: selectedIds })}>
                 <Download size={18} aria-hidden="true" /> Exportar seleccionados{selected.size > 0 ? ` (${selected.size})` : ''}

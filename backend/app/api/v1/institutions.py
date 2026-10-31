@@ -76,6 +76,7 @@ from app.services import patientResultEmail as resultEmailService
 from app.services import institutionReassignments as reassignmentService
 from app.services import dashboard as dashboardService
 from app.services import measurement as measurementService
+from app.services.tableExport import FormatoExportacion, mediaTypeOf
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
 
@@ -293,18 +294,19 @@ def listPersonnel(
 @router.post(
     "/{idInstitucion}/personnel/export",
     response_class=Response,
-    summary="Exportar el personal (CSV)",
+    summary="Exportar el personal (CSV, Excel o PDF)",
     description="PROPIETARIO o MODERADOR (CONSULTAR_EQUIPO), validado en el servidor. `alcance` = SELECCION (las personas de "
     "`idsInstitucionUsuario`) o TODOS (todas las que coinciden con los filtros `rol`, `estado` y `busqueda`, como el listado). "
-    "Devuelve un CSV separado por punto y coma, en UTF-8. 403 si no tiene el permiso. Cada intento queda en la auditoría: "
-    "EXPORTACION_SOLICITADA, y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA.",
+    "`formato` = csv (por defecto: separado por punto y coma, en UTF-8), xlsx o pdf. 403 si no tiene el permiso. Cada intento queda "
+    "en la auditoría: EXPORTACION_SOLICITADA, y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA.",
 )
-def exportPersonnel(idInstitucion: uuid.UUID, body: PersonnelExportRequest, auth: CurrentAuth, db: DbSession):
+def exportPersonnel(idInstitucion: uuid.UUID, body: PersonnelExportRequest, auth: CurrentAuth, db: DbSession,
+                    formato: FormatoExportacion = "csv"):
     content, filename = personnelService.exportPersonnel(
         db, auth.user, idInstitucion, alcance=body.alcance, idsInstitucionUsuario=body.idsInstitucionUsuario,
-        rol=body.rol, estado=body.estado, busqueda=body.busqueda,
+        rol=body.rol, estado=body.estado, busqueda=body.busqueda, formato=formato,
     )
-    return Response(content=content, media_type="text/csv; charset=utf-8",
+    return Response(content=content, media_type=mediaTypeOf(formato),
                     headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
@@ -598,18 +600,19 @@ def createPatient(idInstitucion: uuid.UUID, data: PatientCreateRequest, auth: Cu
 @router.post(
     "/{idInstitucion}/patients/export",
     response_class=Response,
-    summary="Exportar pacientes (CSV)",
+    summary="Exportar pacientes (CSV, Excel o PDF)",
     description="Propietario, moderador u operador (CONSULTAR_PACIENTES), validado en el servidor. `alcance` = SELECCION (los pacientes de "
     "`idsPerfilMedicion`) o TODOS (los que coinciden con `busqueda`, `idResponsable` y `estado`). El operador exporta solo los pacientes "
-    "a su cargo: un paciente ajeno se rechaza (409 `DATOS_INVALIDOS`). Sin mediciones ni información de salud. Cada intento queda en la "
-    "auditoría: EXPORTACION_SOLICITADA, y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA.",
+    "a su cargo: un paciente ajeno se rechaza (409 `DATOS_INVALIDOS`). Sin mediciones ni información de salud. `formato` = csv (por "
+    "defecto), xlsx o pdf. Cada intento queda en la auditoría: EXPORTACION_SOLICITADA, y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA.",
 )
-def exportPatients(idInstitucion: uuid.UUID, body: PatientExportRequest, auth: CurrentAuth, db: DbSession):
+def exportPatients(idInstitucion: uuid.UUID, body: PatientExportRequest, auth: CurrentAuth, db: DbSession,
+                   formato: FormatoExportacion = "csv"):
     content, filename = patientService.exportPatients(
         db, auth.user, idInstitucion, alcance=body.alcance, ids=body.idsPerfilMedicion, busqueda=body.busqueda,
-        idResponsable=body.idResponsable, estado=body.estado, venceEnDias=body.venceEnDias,
+        idResponsable=body.idResponsable, estado=body.estado, venceEnDias=body.venceEnDias, formato=formato,
     )
-    return Response(content=content, media_type="text/csv; charset=utf-8",
+    return Response(content=content, media_type=mediaTypeOf(formato),
                     headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 

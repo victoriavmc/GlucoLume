@@ -787,6 +787,23 @@ describe('Exportar una matriz con sus reglas', () => {
     URL.revokeObjectURL = vi.fn();
   });
 
+  it('el formato elegido se pide a la API: Excel en vez de CSV', async () => {
+    const excelMatrix = () => ({
+      ok: true, status: 200, headers: new Headers({ 'Content-Disposition': 'attachment; filename="matriz-prueba.xlsx"' }),
+      blob: async () => new Blob(['xlsx']),
+    });
+    const { calls } = open({
+      [`GET /matrices/${MID}`]: jsonResponse(200, detail()),
+      [`POST /matrices/${MID}/export`]: excelMatrix,
+    }, PLATFORM);
+    renderAt(`/app/matrices/${MID}`);
+    const user = userEvent.setup();
+    await user.selectOptions(await screen.findByLabelText('Formato'), 'xlsx');
+    await user.click(screen.getByRole('button', { name: 'Exportar matriz y reglas' }));
+    expect(await screen.findByText('Exportación lista: matriz-prueba.xlsx.')).toBeInTheDocument();
+    expect(calls.find((call) => call.key === `POST /matrices/${MID}/export`).url).toMatch(/\?formato=xlsx$/);
+  });
+
   it('la plataforma exporta la matriz global con sus reglas', async () => {
     const { calls } = open({
       [`GET /matrices/${MID}`]: jsonResponse(200, detail()),
