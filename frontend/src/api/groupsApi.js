@@ -66,6 +66,10 @@ export function invite(idGrupo, correoElectronico) {
   return request(`/groups/${idGrupo}/invitations`, { method: 'POST', body: { correoElectronico }, auth: true });
 }
 
+export function resendInvitation(idGrupo, idGrupoUsuario) {
+  return request(`/groups/${idGrupo}/invitations/${idGrupoUsuario}/resend`, { method: 'POST', auth: true });
+}
+
 export function cancelInvitation(idGrupo, idGrupoUsuario) {
   return request(`/groups/${idGrupo}/invitations/${idGrupoUsuario}`, { method: 'DELETE', auth: true });
 }

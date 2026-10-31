@@ -8,7 +8,7 @@ import {
   Ban, CalendarDays, ChartColumn, Database, Droplet, FileText, FlaskConical, HeartPulse, BookOpen, Info, Mail, Settings, Signal, Smartphone, Sparkles,
   Trash2, User, Utensils, Wind,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import * as measurementsApi from '../../../api/measurementsApi.js';
 import { ExperimentalNotice } from '../../../components/ExperimentalNotice.jsx';
@@ -24,6 +24,7 @@ import {
 import { useDeviceStatus } from './useDeviceStatus.js';
 
 const POLL_MS = 3000;
+const SEND_WAIT_MS = 2 * 60 * 1000;
 
 function Row({ label, children }) {
   return (
@@ -109,13 +110,28 @@ function CapillaryReference({ measurement, onSaved, handleOperationError }) {
   );
 }
 
-function SendResult({ measurement, handleOperationError }) {
+function SendResult({ measurement, handleOperationError, onSent }) {
   const forPatient = measurement.envioResultado === 'PACIENTE';
+  const pending = measurement.envioResultadoEstado === 'PENDIENTE';
   const [email, setEmail] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+
+  // El envío sale en segundo plano: cuando la medición deja de estar PENDIENTE se avisa aquí, aunque la página ya haya cargado.
+  const sendState = measurement.envioResultadoEstado;
+  const previousSendState = useRef(sendState);
+  useEffect(() => {
+    const before = previousSendState.current;
+    previousSendState.current = sendState;
+    if (before !== 'PENDIENTE' || !sendState || sendState === 'PENDIENTE') return;
+    if (sendState === 'ENVIADO') {
+      setDone('Enviamos el resultado por correo electrónico.');
+    } else {
+      setError('No pudimos enviar el resultado por correo. Probá de nuevo en unos minutos.');
+    }
+  }, [sendState]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -131,9 +147,11 @@ function SendResult({ measurement, handleOperationError }) {
       const answer = await measurementsApi.sendResult(
         measurement.idMedicion, forPatient ? { correoDestino: email.trim(), pacienteAutoriza: true } : {},
       );
-      setDone(`${answer.mensaje} (${answer.correoEnmascarado})`);
+      // Un envío en cola se muestra como «enviando» (lo informa la medición); el resto trae su mensaje final.
+      if (answer.estadoEnvio !== 'PENDIENTE') setDone(`${answer.mensaje} (${answer.correoEnmascarado})`);
       setEmail('');
       setAuthorized(false);
+      await onSent?.();
     } catch (sendError) {
       setError(handleOperationError(sendError));
     } finally {
@@ -149,6 +167,7 @@ function SendResult({ measurement, handleOperationError }) {
           : 'Podés recibir el resultado de esta medición en el correo de tu cuenta.'}
       </p>
       {error && <Alert>{error}</Alert>}
+      {pending && <Alert kind="info">Enviando el resultado por correo electrónico. Podés seguir usando GlucoLume: te avisamos acá cuando salga.</Alert>}
       {done && <Alert kind="info">{done}</Alert>}
       {forPatient && (
         <>
@@ -202,6 +221,15 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
     const timer = setInterval(() => { load().then((loaded) => loaded && onChanged?.(loaded)); }, POLL_MS);
     return () => clearInterval(timer);
   }, [active, load, onChanged]);
+
+  // Mientras el resultado sale por correo se consulta el estado; se deja de consultar tras SEND_WAIT_MS (si el envío quedó colgado, se ve al recargar).
+  const sendingResult = measurement?.envioResultadoEstado === 'PENDIENTE';
+  useEffect(() => {
+    if (!sendingResult) return undefined;
+    const timer = setInterval(() => { load(); }, POLL_MS);
+    const stop = setTimeout(() => clearInterval(timer), SEND_WAIT_MS);
+    return () => { clearInterval(timer); clearTimeout(stop); };
+  }, [sendingResult, load]);
 
   async function cancel() {
     setBusy(true);
@@ -363,7 +391,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
             <span className="md-details-title"><Mail size={22} aria-hidden="true" /> Enviar resultado por correo</span>
           </summary>
           <div className="md-details-body">
-            <SendResult measurement={measurement} handleOperationError={handleOperationError} />
+            <SendResult measurement={measurement} handleOperationError={handleOperationError} onSent={load} />
           </div>
         </details>
       )}

@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 
 import { destinoSeguro } from '../pages/Account/notifications/notificationsCopy.js';
 import { playNotificationSound } from './notificationSound.js';
+import { useUnreadNotifications } from './UnreadNotificationsContext.js';
 import { useIncomingNotifications } from './useIncomingNotifications.js';
 import './NotificationToasts.css';
 
@@ -14,6 +15,7 @@ const MAX_VISIBLE = 3;
 
 export function NotificationToasts() {
   const [toasts, setToasts] = useState([]);
+  const { setUnread } = useUnreadNotifications();
 
   const dismiss = useCallback((id) => setToasts((current) => current.filter((toast) => toast.idNotificacion !== id)), []);
 
@@ -23,7 +25,7 @@ export function NotificationToasts() {
     playNotificationSound();
   }, [dismiss]);
 
-  useIncomingNotifications(arrive);
+  useIncomingNotifications(arrive, setUnread);
 
   return (
     <div className="notif-toasts" aria-live="polite">

@@ -108,7 +108,7 @@ TABLES = ("Usuario", "TokenCuenta", "Auditoria", "CredencialLocal", "IdentidadEx
           "PerfilMedicion", "Medicion", "Dispositivo", "TransferenciaPerfil", "MuestraSensor",
           "MedicionReferenciaCapilar", "Matriz", "ReglaMatriz", "TransferenciaAdministracion", "EnvioResultado",
           "ConsentimientoUsuario", "AuditoriaTecnicaMedicion", "ReasignacionPaciente", "AuditoriaContexto", "PuenteCredencial",
-          "PreferenciaNotificacion", "RecordatorioMedicion", "NotificacionUsuario", "AccesoConocido")
+          "PreferenciaNotificacion", "RecordatorioMedicion", "NotificacionUsuario", "AccesoConocido", "AuditoriaRevision")
 
 
 def _withDependencies(names) -> set:
@@ -594,6 +594,22 @@ def test_credenciales_y_sesiones_revocadas(db, mails):
     claims = {"sub": str(user.idUsuario), "sid": str(sessions[0].idSesion)}
     with pytest.raises(AuthError):
         authService.resolveAccessSession(db, claims)
+
+
+def test_refrescar_con_la_sesion_que_revoco_la_baja_no_alerta_reutilizacion(db, mails):
+    user = makeUser(db)
+    refreshToken = uuid.uuid4().hex
+    db.add(UserSession(idUsuario=user.idUsuario, refreshTokenHash=security.hashOpaqueToken(refreshToken),
+                       fechaExpiracion=nowForDb() + timedelta(days=7)))
+    db.commit()
+    token = requestAndGetToken(db, user, mails)
+    confirm(db, token)
+
+    # El navegador todavía tiene la cookie de la sesión revocada por la baja: se rechaza, sin sesión y sin alerta.
+    with pytest.raises(AuthError) as refresh:
+        authService.refreshSession(db, refreshToken)
+    assert refresh.value.code == "TOKEN_INVALIDO"
+    assert audits(db, "REFRESH_REUTILIZADO") == []
 
 
 def test_consumidor_miembro_normal_sale_del_grupo(db, mails):

@@ -33,6 +33,7 @@ from app.core.exceptions import AuthError
 from app.emails.formatting import maskEmail
 from app.models.audit import Audit
 from app.models.auditContext import AuditContext
+from app.models.auditReview import AuditReview
 from app.models.device import Device
 from app.models.group import Group
 from app.models.institution import Institution
@@ -45,6 +46,7 @@ from app.models.measurementProfile import MeasurementProfile
 from app.models.profileTransfer import ProfileTransfer
 from app.models.user import User
 from app.schemas.auditLog import (
+    AuditRevision,
     AuditAccountHeader,
     AuditAccountMembership,
     AuditAccountOption,
@@ -261,6 +263,7 @@ FIELD_LABELS = {
 # Nombre funcional de las acciones que el nombre técnico no deja claras: distingue la asignación inicial, la solicitud, la
 # aceptación con cambio efectivo, el rechazo y la cancelación de una transferencia.
 ACTION_LABELS = {
+    "MARCAR_EVENTO_REVISADO": "Revisión de un evento de auditoría",
     # Cuenta y acceso
     "LOGIN_LOCAL": "Inicio de sesión", "LOGIN_GOOGLE": "Inicio de sesión con Google", "REGISTRO_LOCAL": "Registro de cuenta",
     "REGISTRO_GOOGLE": "Registro de cuenta con Google", "VINCULACION_GOOGLE": "Vinculación de cuenta de Google",
@@ -801,7 +804,7 @@ def _fullName(user: User | None) -> str | None:
 
 
 def _item(audit: Audit, resolver: Resolver, institution: Institution | None, *, showInstitution: bool,
-          context: AuditContext | None = None, network: bool = False) -> dict:
+          context: AuditContext | None = None, network: bool = False, reviews: dict | None = None) -> dict:
     """`network`: solo la administración de la plataforma recibe IP, cliente, correlación y referencia del identificador."""
     snapshot = _json(audit.detalle)
     motivo = context.motivo if context is not None else None
@@ -824,6 +827,7 @@ def _item(audit: Audit, resolver: Resolver, institution: Institution | None, *, 
         agenteUsuario=context.agenteUsuario if (network and context) else None,
         idCorrelacion=context.idCorrelacion if (network and context) else None,
         referenciaIdentificador=context.identificadorHash[:8] if (network and context and context.identificadorHash) else None,
+        revision=reviews.get(audit.idAuditoria, NOT_REVIEWED) if reviews is not None else None,
     )
 
 
@@ -832,6 +836,22 @@ def _contexts(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, AuditContext
     if not ids or not schemaCompat.auditContextReady(db):
         return {}
     return {c.idAuditoria: c for c in db.scalars(select(AuditContext).where(AuditContext.idAuditoria.in_(ids)))}
+
+
+NOT_REVIEWED = {"revisado": False, "fechaRevision": None, "revisor": None}
+
+
+def _reviews(db: Session, ids: list[uuid.UUID], *, network: bool) -> dict | None:
+    """Marca «analizado» de los eventos de la página. None si no corresponde (auditoría institucional) o si la base aún no tiene la
+    tabla; el dict solo trae los eventos marcados (el resto es NOT_REVIEWED)."""
+    if not network or not ids or not schemaCompat.auditReviewReady(db):
+        return None
+    rows = db.execute(
+        select(AuditReview, User).outerjoin(User, User.idUsuario == AuditReview.idUsuarioRevisor)
+        .where(AuditReview.idAuditoria.in_(ids))
+    ).all()
+    return {review.idAuditoria: {"revisado": True, "fechaRevision": review.fechaRevision, "revisor": _fullName(user) or "Administración"}
+            for review, user in rows}
 
 
 def _rows(query: Select):
@@ -905,8 +925,9 @@ def _list(db: Session, scope: uuid.UUID | None, *, showInstitution: bool, filter
     resolver = Resolver(db, scope, identify=scope is not None, maskMeasurements=True)
     resolver.prepare([audit for audit, _ in rows])  # una sola resolución agrupada para toda la página
     contexts = _contexts(db, [audit.idAuditoria for audit, _ in rows])
+    reviews = _reviews(db, [audit.idAuditoria for audit, _ in rows], network=scope is None)
     return AuditPage(items=[AuditEventItem(**_item(a, resolver, i, showInstitution=showInstitution, context=contexts.get(a.idAuditoria),
-                                                   network=scope is None)) for a, i in rows],
+                                                   network=scope is None, reviews=reviews)) for a, i in rows],
                      total=total, pagina=pagina, tamanioPagina=tamanioPagina)
 
 
@@ -984,7 +1005,7 @@ def _detail(db: Session, idAuditoria: uuid.UUID, scope: uuid.UUID | None, *, sho
     entity = resolver.entity(audit, snapshot)
     return AuditEventDetail(
         **_item(audit, resolver, institution, showInstitution=showInstitution, context=_contexts(db, [audit.idAuditoria]).get(audit.idAuditoria),
-                network=scope is None), tipoEvento=audit.tipoEvento,
+                network=scope is None, reviews=_reviews(db, [audit.idAuditoria], network=scope is None)), tipoEvento=audit.tipoEvento,
         tablaRelacionada=audit.tablaRelacionada, idRelacionado=audit.idRelacionado,
         valoresPrevios=parse(audit.datosPrevios), valoresNuevos=parse(audit.datosNuevos),
         cambios=_changes(sanitize(previous), sanitize(new), resolver, snapshot, scope,
@@ -1011,6 +1032,28 @@ def summaryGlobal(db: Session, actor: User, **filters) -> AuditSummary:
 def detailGlobal(db: Session, actor: User, idAuditoria: uuid.UUID) -> AuditEventDetail:
     requireAdministrator(db, actor)
     return _detail(db, idAuditoria, None, showInstitution=True)
+
+
+ACCION_REVISION = "MARCAR_EVENTO_REVISADO"
+
+
+def setGlobalReview(db: Session, actor: User, idAuditoria: uuid.UUID, revisado: bool) -> AuditRevision:
+    """Marca («analizado») o desmarca un evento. Solo ADMINISTRADOR_PLATAFORMA. No cambia el evento: guarda la marca aparte. Marcar un evento
+    ya marcado conserva quién y cuándo lo marcó primero; cada cambio real queda en la auditoría (MARCAR_EVENTO_REVISADO)."""
+    requireAdministrator(db, actor)
+    if db.get(Audit, idAuditoria) is None:
+        raise _error("EVENTO_NO_ENCONTRADO", NOT_FOUND)
+    if not schemaCompat.auditReviewReady(db):
+        raise _error("ESQUEMA_DESACTUALIZADO", "Todavía no se puede marcar el análisis de los eventos: falta aplicar la migración de revisión de auditoría.")
+    review = db.get(AuditReview, idAuditoria)
+    if revisado and review is None:
+        db.add(AuditReview(idAuditoria=idAuditoria, idUsuarioRevisor=actor.idUsuario))
+        registerEvent(db, "CRUD", ACCION_REVISION, True, actor.idUsuario, "Auditoria", idAuditoria, datosNuevos={"revisado": True})
+    elif not revisado and review is not None:
+        db.delete(review)
+        registerEvent(db, "CRUD", ACCION_REVISION, True, actor.idUsuario, "Auditoria", idAuditoria, datosNuevos={"revisado": False})
+    db.commit()
+    return AuditRevision(**_reviews(db, [idAuditoria], network=True).get(idAuditoria, NOT_REVIEWED))
 
 
 # --- Auditoría de una institución (propietario) ------------------------------------------------------------

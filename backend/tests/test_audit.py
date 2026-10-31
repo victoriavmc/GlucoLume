@@ -231,9 +231,12 @@ def test_un_propietario_no_se_convierte_en_administrador_cambiando_parametros(db
     assert owner.get(f"/api/v1/institutions/{team.id}/audit?modulo=INVENTADO").status_code == 422
 
 
-def test_la_auditoria_es_de_solo_lectura_por_la_api(admin, api):
+def test_la_auditoria_es_de_solo_lectura_salvo_la_marca_de_revision(admin, api):
     for route in app.routes:
         path = getattr(route, "path", "")
+        if path.endswith("/review"):
+            assert set(route.methods) == {"PUT"}, path  # la marca «analizado»: no cambia el evento (tests/test_audit_review.py)
+            continue
         if "/audit" in path and path.startswith("/api/v1/audit") or "/audit" in path and "/institutions/" in path and path.endswith(("/audit", "/summary", "/events/{idAuditoria}")):
             assert set(route.methods) <= {"GET", "HEAD", "OPTIONS"}, path
     client = api(admin)

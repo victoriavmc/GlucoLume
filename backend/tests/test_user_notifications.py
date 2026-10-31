@@ -743,9 +743,26 @@ def test_el_bloqueo_real_de_la_cuenta_por_intentos_fallidos_avisa_una_sola_vez(d
     with pytest.raises(AuthError):  # ya bloqueada: sigue rechazando sin generar otra alerta
         authService.loginLocal(db, EMAIL, "OtraClave#2026")
 
-    [aviso] = service.inbox(db, user).notificaciones
-    assert (aviso.evento, aviso.categoria) == ("ACTIVIDAD_SOSPECHOSA", "SEGURIDAD")
+    avisos = service.inbox(db, user).notificaciones
+    [actividad] = [aviso for aviso in avisos if aviso.evento == "ACTIVIDAD_SOSPECHOSA"]
+    assert actividad.categoria == "SEGURIDAD"
+    # Cada intento rechazado deja su aviso, también el que llegó con la cuenta ya bloqueada.
+    assert sum(aviso.evento == "INTENTO_INGRESO" for aviso in avisos) == limit + 1
     assert len(mails) == 1  # el correo de actividad de seguridad existente sigue saliendo, una vez
+
+
+def test_cada_contrasena_incorrecta_deja_un_aviso_de_intento_sin_correo(db, mails):
+    from tests.test_account_deletion import EMAIL
+
+    user = makeUser(db)
+    for _ in range(2):
+        with pytest.raises(AuthError):
+            authService.loginLocal(db, EMAIL, "OtraClave#2026")
+
+    intentos = [aviso for aviso in service.inbox(db, user).notificaciones if aviso.evento == "INTENTO_INGRESO"]
+    assert len(intentos) == 2  # dos intentos, dos avisos (cada uno tiene su instante)
+    assert all(aviso.categoria == "SEGURIDAD" for aviso in intentos)
+    assert mails == []  # sin bloqueo no sale ningún correo: el aviso de intento solo va a la página
 
 
 # --- Inicio de sesión: auditoría completa, aviso solo de equipos nuevos (RN-NOT-03) -----------------------
@@ -1075,7 +1092,7 @@ def test_los_contratos_conocen_exactamente_los_avisos_del_catalogo():
 
     assert set(get_args(EventoAviso)) == set(notificationEvents.EVENTOS) == set(service.EVENTOS)
     assert {spec.categoria for spec in notificationEvents.CATALOGO.values()} == set(notificationEvents.CATEGORIAS)
-    assert {e for e, spec in notificationEvents.CATALOGO.items() if spec.obligatorio} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA"}
+    assert {e for e, spec in notificationEvents.CATALOGO.items() if spec.obligatorio} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"}
 
 
 ORIGINALES = (
@@ -1084,13 +1101,13 @@ ORIGINALES = (
 )
 
 
-def test_la_migracion_v4_admite_todos_los_avisos_del_catalogo_y_es_idempotente():
+def test_la_migracion_v5_admite_todos_los_avisos_del_catalogo_y_es_idempotente():
     import re
 
-    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_notificaciones_v4.sql").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_notificaciones_v5.sql").read_text(encoding="utf-8")
     code = re.sub(r"--[^\n]*", "", script)
 
-    assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V4'" in script
+    assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V5'" in script
     assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script  # exige v3
     assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
@@ -1145,7 +1162,7 @@ def test_las_rutas_leen_y_guardan_las_preferencias_de_la_sesion(db, http):
 
     settings = client.get("/api/v1/notificaciones/preferencias").json()
     assert [p["evento"] for p in settings["preferencias"]] == list(service.EVENTOS)
-    assert {p["evento"] for p in settings["preferencias"] if p["obligatoria"]} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA"}
+    assert {p["evento"] for p in settings["preferencias"] if p["obligatoria"]} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"}
 
     response = client.put("/api/v1/notificaciones/preferencias/INICIO_SESION", json={"porCorreo": False})
     assert response.status_code == 200

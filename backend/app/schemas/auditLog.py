@@ -17,6 +17,17 @@ Clasificacion = Literal["INFORMATIVO", "OPERATIVO", "SOSPECHOSO", "CONFIRMADO"]
 OrigenActor = Literal["PLATAFORMA", "USUARIO", "SISTEMA"]
 
 
+class AuditRevision(BaseModel):
+    """Marca «analizado» de un evento (solo la administración de la plataforma la ve; ver models/auditReview.py)."""
+    revisado: bool
+    fechaRevision: datetime | None = None
+    revisor: str | None = None
+
+    @field_serializer("fechaRevision")
+    def _withZone(self, value: datetime | None) -> str | None:
+        return withArgentinaZone(value).isoformat() if value else None
+
+
 class AuditEventItem(BaseModel):
     idAuditoria: uuid.UUID
     fechaHora: datetime  # UTC
@@ -55,6 +66,8 @@ class AuditEventItem(BaseModel):
     agenteUsuario: str | None = None
     idCorrelacion: str | None = None
     referenciaIdentificador: str | None = None
+    # Solo la auditoría general (None en la institucional o si la base aún no tiene la marca de revisión): «analizado» o no.
+    revision: AuditRevision | None = None
 
     @field_serializer("fechaHora")
     def _withZone(self, value: datetime) -> str:

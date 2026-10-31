@@ -19,6 +19,7 @@ from app.schemas.auditLog import (
     AuditCount,
     AuditEventDetail,
     AuditPage,
+    AuditRevision,
     AuditSummary,
     SecuritySignals,
     TechnicalPage,
@@ -152,6 +153,17 @@ def summaryTechnical(auth: CurrentAuth, db: DbSession, desde: date | None = None
 @router.get("/events/{idAuditoria}", response_model=AuditEventDetail, summary="Detalle de un evento")
 def detailGlobal(idAuditoria: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return auditQuery.detailGlobal(db, auth.user, idAuditoria)
+
+
+class ReviewBody(BaseModel):
+    revisado: bool
+
+
+@router.put("/events/{idAuditoria}/review", response_model=AuditRevision, summary="Marcar un evento como analizado o no",
+            description="Solo ADMINISTRADOR_PLATAFORMA. Guarda una marca aparte: el evento y su registro original no cambian. Desmarcar la quita; "
+            "cada cambio queda en la auditoría (MARCAR_EVENTO_REVISADO).")
+def setReviewGlobal(idAuditoria: uuid.UUID, body: ReviewBody, auth: CurrentAuth, db: DbSession):
+    return auditQuery.setGlobalReview(db, auth.user, idAuditoria, body.revisado)
 
 
 @institutionRouter.get("", response_model=AuditPage, summary="Auditoría de la institución",

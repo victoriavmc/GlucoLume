@@ -1,7 +1,7 @@
 // Invitaciones del grupo (solo administrador): buscar una cuenta individual por correo, invitar, ver pendientes y
 // cancelarlas. La persona se incorpora solo si acepta desde su cuenta.
 
-import { Copy, Mail, Search, UserPlus, X } from 'lucide-react';
+import { Copy, Mail, Search, Send, UserPlus, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useOutletContext } from 'react-router-dom';
 
@@ -70,6 +70,20 @@ export function GroupInvitations() {
       await load();
     } catch (inviteError) {
       setError({ message: handleOperationError(inviteError), codigo: inviteError.codigo });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resend(invitation) {
+    setBusy(true);
+    setError(null);
+    try {
+      await groupsApi.resendInvitation(group.idGrupo, invitation.idGrupoUsuario);
+      setNotice(`Reenviaste la invitación a ${personName(invitation)}. Vence de nuevo en 7 días.`);
+      await load();
+    } catch (resendError) {
+      setError({ message: handleOperationError(resendError) });
     } finally {
       setBusy(false);
     }
@@ -160,10 +174,16 @@ export function GroupInvitations() {
                   {invitation.vencida ? 'Vencida' : `Pendiente · vence el ${formatDateTime(invitation.fechaVencimiento)}`}
                 </Badge>
               </span>
-              <button type="button" className="btn btn-outline" disabled={busy} onClick={() => cancel(invitation)}
-                aria-label={`Cancelar invitación de ${personName(invitation)}`}>
-                <X size={16} aria-hidden="true" /> Cancelar invitación
-              </button>
+              <div className="form-actions">
+                <button type="button" className="btn btn-outline" disabled={busy} onClick={() => resend(invitation)}
+                  aria-label={`Reenviar invitación de ${personName(invitation)}`}>
+                  <Send size={16} aria-hidden="true" /> Reenviar
+                </button>
+                <button type="button" className="btn btn-outline" disabled={busy} onClick={() => cancel(invitation)}
+                  aria-label={`Cancelar invitación de ${personName(invitation)}`}>
+                  <X size={16} aria-hidden="true" /> Cancelar invitación
+                </button>
+              </div>
             </li>
           ))}
         </ul>

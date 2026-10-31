@@ -161,6 +161,13 @@ def cancelInvitation(idGrupo: uuid.UUID, idGrupoUsuario: uuid.UUID, auth: Curren
     return _empty()
 
 
+@router.post("/{idGrupo}/invitations/{idGrupoUsuario}/resend", response_model=GroupInvitationRead,
+             summary="Reenviar invitación (administrador)",
+             description="Renueva el plazo de 7 días y vuelve a avisar. No crea otra invitación.")
+def resendInvitation(idGrupo: uuid.UUID, idGrupoUsuario: uuid.UUID, auth: CurrentAuth, db: DbSession):
+    return groupService.resendInvitation(db, auth.user, idGrupo, idGrupoUsuario)
+
+
 # --- Mis permisos y datos compartidos -------------------------------------------------------------
 
 

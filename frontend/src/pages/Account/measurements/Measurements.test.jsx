@@ -604,6 +604,25 @@ describe('Detalle y estados de una medición', () => {
     expect(calls.find((call) => call.key.endsWith('/send-result')).body).toEqual({ correoDestino: 'rosa@example.com', pacienteAutoriza: true });
   });
 
+  it('el envío del resultado sale en segundo plano: la página sigue disponible y avisa cuando termina', async () => {
+    const completed = detail({ estadoMedicion: 'COMPLETADA', spo2: '97.50', puedeOperar: false, envioResultado: 'CUENTA_PROPIA' });
+    let estado = null;
+    routes({
+      [`GET /measurements/${MEASUREMENT_ID}`]: () => jsonResponse(200, { ...completed, envioResultadoEstado: estado }),
+      [`POST /measurements/${MEASUREMENT_ID}/send-result`]: () => {
+        estado = 'PENDIENTE';
+        setTimeout(() => { estado = 'ENVIADO'; }, 2000); // el correo sale después: la respuesta ya volvió
+        return jsonResponse(200, { estadoEnvio: 'PENDIENTE', correoEnmascarado: 'v***@example.com', mensaje: 'Enviando el resultado.' });
+      },
+    });
+    renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
+    await userEvent.click(await screen.findByRole('button', { name: /Enviarme el resultado por correo/ }));
+    expect(await screen.findByText(/Enviando el resultado por correo electrónico/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Enviarme el resultado por correo/ })).toBeEnabled(); // no bloquea la pantalla
+    expect(await screen.findByText(/Enviamos el resultado por correo electrónico/, {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(screen.queryByText(/Enviando el resultado por correo electrónico/)).not.toBeInTheDocument();
+  }, 15000);
+
   it('sin permiso de envío no se ofrece el botón', async () => {
     open(detail({ estadoMedicion: 'COMPLETADA', spo2: '97.50', puedeOperar: false, envioResultado: null }));
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);

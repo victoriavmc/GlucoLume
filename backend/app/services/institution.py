@@ -434,7 +434,7 @@ def createInstitution(db: Session, user: User, data: InstitutionCreateRequest) -
             raise (_existingLegalIdError(db, user, existing) if existing else _legalIdTaken()) from error
         raise
     # Después del commit: un fallo de SMTP queda auditado y no revierte la institución.
-    notifications.notifyInstitutionCreated(db, user, institution, fecha=now)
+    notifications.queueInstitutionCreated(db, user, institution, fecha=now)
     return institution
 
 
@@ -940,6 +940,9 @@ def invite(
         raise AuthError("ERROR_SERVIDOR", "No pudimos completar la incorporación. Intentá de nuevo más tarde.") from error
 
     _sendInvitation(institution, actor, target, relation, activationToken)
+    if kind == ACCOUNT_KIND_EXISTING:
+        # Solo una cuenta activa tiene sesión para ver el aviso; a una cuenta nueva o pendiente le llega su correo de activación.
+        institutionNotifications.invitation(db, institution, target, relation.idInstitucionUsuario)
     return _memberRead(relation, target, now)
 
 
@@ -971,6 +974,9 @@ def resendInvitation(
                   idInstitucionUsuario)
     db.commit()
     _sendInvitation(institution, actor, target, relation, activationToken)
+    if target.estado == "ACTIVO":
+        # Mismo hecho que la invitación original: la clave lo deja en un solo aviso.
+        institutionNotifications.invitation(db, institution, target, relation.idInstitucionUsuario)
     return _memberRead(relation, target, now)
 
 

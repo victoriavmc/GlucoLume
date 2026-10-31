@@ -104,6 +104,15 @@ def memberRemoved(db: Session, institution: Institution, member: User, rol: str,
                     exclude={member.idUsuario, *exclude})
 
 
+def invitation(db: Session, institution: Institution, target: User, idInstitucionUsuario: uuid.UUID) -> None:
+    """Invitación a una cuenta institucional existente, en la página (el correo ya lo envía institution.py). Un reenvío no duplica el aviso."""
+    userNotifications.notify(
+        db, target, userNotifications.INSTITUCION_INVITACION, "Te invitaron a una institución",
+        f"{institution.nombre} te invitó a formar parte de su equipo. Podés aceptar o rechazar la invitación.",
+        url=_institutionUrl(institution.idInstitucion), clave=f"{userNotifications.INSTITUCION_INVITACION}:{idInstitucionUsuario}",
+    )
+
+
 def patientCreated(db: Session, institution: Institution, profile: MeasurementProfile, exclude: set[uuid.UUID]) -> None:
     """Alta de un paciente. Avisa a propietarios y moderadores (menos quien lo registró)."""
     evento = INSTITUCION_PACIENTE_NUEVO

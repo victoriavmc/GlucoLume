@@ -4,7 +4,7 @@
 //   - …/:idMatriz                         detalle de una versión con su editor de reglas.
 // Todo sale de FastAPI: el ámbito, la versión activa y las acciones permitidas los decide el backend.
 
-import { ArrowLeft, Layers, Plus } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Layers, Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
@@ -34,6 +34,10 @@ function VersionList({ items, emptyText }) {
               {' '}· vigente desde {formatDate(item.fechaVigenciaDesde)}{item.fechaVigenciaHasta ? ` hasta ${formatDate(item.fechaVigenciaHasta)}` : ''}
               {item.medicionesRegistradas > 0 ? ` · usada en ${item.medicionesRegistradas} ${item.medicionesRegistradas === 1 ? 'medición' : 'mediciones'}` : ''}</small>
           </span>
+          <Link to={item.idMatriz} target="_blank" rel="noopener noreferrer" className="btn btn-ghost"
+            title="Abre las reglas de esta versión en otra pestaña">
+            <ExternalLink size={16} aria-hidden="true" /> Ver reglas
+          </Link>
           <Badge tone={toneFromClass(stateBadge(item.estado))}>{MATRIX_STATES[item.estado]}</Badge>
         </li>
       ))}
@@ -147,8 +151,14 @@ export function GlobalMatricesPage() {
         {items === null ? (
           <p className="field-hint" role="status">Cargando matrices…</p>
         ) : active ? (
-          <p><b>{active.nombre} · versión {active.version}</b> · {active.cantidadReglas} regla{active.cantidadReglas === 1 ? '' : 's'}
-            {' '}· referencia: <MatrixReference name={active.referenciaBase} url={active.urlReferencia} /></p>
+          <>
+            <p><b>{active.nombre} · versión {active.version}</b> · {active.cantidadReglas} regla{active.cantidadReglas === 1 ? '' : 's'}
+              {' '}· referencia: <MatrixReference name={active.referenciaBase} url={active.urlReferencia} /></p>
+            <Link to={active.idMatriz} target="_blank" rel="noopener noreferrer" className="btn btn-ghost"
+              title="Abre las reglas de la matriz activa en otra pestaña">
+              <ExternalLink size={16} aria-hidden="true" /> Ver reglas
+            </Link>
+          </>
         ) : (
           <Alert kind="info">No hay una matriz global activa: las mediciones de glucosa no se pueden iniciar hasta activar una.</Alert>
         )}

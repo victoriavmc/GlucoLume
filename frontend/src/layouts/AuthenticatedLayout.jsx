@@ -11,14 +11,17 @@ import { GracePeriodNotice } from '../components/GracePeriodNotice.jsx';
 import { Logo } from '../components/Logo.jsx';
 import { SkipLink } from '../components/SkipLink.jsx';
 import { NotificationToasts } from '../notifications/NotificationToasts.jsx';
+import { UnreadNotificationsContext } from '../notifications/UnreadNotificationsContext.js';
 import { InstitutionNavContext } from '../pages/Account/institutions/institutionMenu.js';
 import { Sidebar } from './Sidebar.jsx';
 import './AuthenticatedLayout.css';
 
-export function AuthenticatedLayout() {
+export function AuthenticatedLayout({ onPrefetch }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentInstitution, setCurrentInstitution] = useState(null);
   const institutionNav = useMemo(() => ({ current: currentInstitution, setCurrent: setCurrentInstitution }), [currentInstitution]);
+  const [unread, setUnread] = useState(0);
+  const unreadNotifications = useMemo(() => ({ unread, setUnread }), [unread]);
   const { pathname } = useLocation();
   const { flash, setFlash, account } = useAuth();
 
@@ -45,6 +48,7 @@ export function AuthenticatedLayout() {
 
   return (
     <InstitutionNavContext.Provider value={institutionNav}>
+    <UnreadNotificationsContext.Provider value={unreadNotifications}>
     <div className={`app-shell${drawerOpen ? ' drawer-open' : ''}`}>
       <SkipLink />
       <header className="app-topbar">
@@ -61,7 +65,7 @@ export function AuthenticatedLayout() {
         <Logo to="/app/inicio" />
       </header>
 
-      <Sidebar id="app-sidebar" onClose={() => setDrawerOpen(false)} />
+      <Sidebar id="app-sidebar" onClose={() => setDrawerOpen(false)} onPrefetch={onPrefetch} />
       {drawerOpen && <div className="app-backdrop" aria-hidden="true" onClick={() => setDrawerOpen(false)} />}
 
       <main className="app-content" id="contenido" tabIndex={-1}>
@@ -70,6 +74,7 @@ export function AuthenticatedLayout() {
       </main>
       <NotificationToasts />
     </div>
+    </UnreadNotificationsContext.Provider>
     </InstitutionNavContext.Provider>
   );
 }

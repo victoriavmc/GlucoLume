@@ -33,7 +33,7 @@ def test_la_cuenta_individual_se_envia_el_resultado_a_su_propio_correo(db, mails
     user, profileId = consumer
     done = completeOximetry(db, user, profileId, device(db), spo2="97", hr=72)
     answer = measurements.sendResultByEmail(db, user, done.idMedicion, ResultSendRequest())
-    assert answer.estadoEnvio == "ENVIADO" and PATIENT_MAIL not in answer.correoEnmascarado
+    assert answer.estadoEnvio == "PENDIENTE" and PATIENT_MAIL not in answer.correoEnmascarado
     assert mails[-1]["to"] == user.correoElectronico and "SpO₂" in mails[-1]["html"]
     assert f"/app/mediciones/{done.idMedicion}" in mails[-1]["html"]
     [row] = deliveries(db, done.idMedicion)
@@ -111,8 +111,36 @@ def test_limite_de_envios_por_hora_y_fallo_de_smtp(db, mails, consumer, monkeypa
         raise OSError("smtp caído")
 
     monkeypatch.setattr(emailService.sender, "sendHtmlEmail", broken)
-    expectError("ENVIO_CORREO_FALLIDO", measurements.sendResultByEmail, db, user, other.idMedicion, ResultSendRequest())
+    answer = measurements.sendResultByEmail(db, user, other.idMedicion, ResultSendRequest())
+    assert answer.estadoEnvio == "PENDIENTE"  # el fallo llega después, por el estado del envío
     [row] = deliveries(db, other.idMedicion)
     assert row.estadoEnvio == "FALLIDO" and row.correoDestino is None
+    assert measurements.getMeasurement(db, user, other.idMedicion).envioResultadoEstado == "FALLIDO"
     failed = [a for a in db.scalars(select(Audit).where(Audit.accion == "ENVIAR_RESULTADO_MEDICION")) if a.resultado != "EXITO"]
     assert failed
+
+
+def test_el_envio_sale_en_segundo_plano_y_la_medicion_avisa_cuando_termina(db, mails, consumer, monkeypatch):
+    user, profileId = consumer
+    done = completeOximetry(db, user, profileId, device(db))
+    mails.clear()
+    waiting = []
+
+    class Deferred:
+        def submit(self, fn, *args, **kwargs):
+            waiting.append((fn, args))
+
+    monkeypatch.setattr(emailService, "_executor", Deferred())
+    answer = measurements.sendResultByEmail(db, user, done.idMedicion, ResultSendRequest())
+    assert answer.estadoEnvio == "PENDIENTE" and not mails  # la solicitud vuelve sin esperar al correo
+    assert measurements.getMeasurement(db, user, done.idMedicion).envioResultadoEstado == "PENDIENTE"
+    [row] = deliveries(db, done.idMedicion)
+    assert row.correoDestino == user.correoElectronico  # el correo queda solo mientras sale
+    [(task, args)] = waiting
+    task(*args)  # lo que hace el hilo auxiliar
+    assert [m["to"] for m in mails] == [user.correoElectronico]
+    assert measurements.getMeasurement(db, user, done.idMedicion).envioResultadoEstado == "ENVIADO"
+    [row] = deliveries(db, done.idMedicion)
+    assert row.estadoEnvio == "ENVIADO" and row.correoDestino is None
+    entry = audits(db, "ENVIAR_RESULTADO_MEDICION")[0]
+    assert entry.resultado == "EXITO" and user.correoElectronico not in f"{entry.datosNuevos}{entry.observacion}"

@@ -199,6 +199,45 @@ def test_mensajes_de_invitacion(db, mails):
     expectError("INVITACION_PENDIENTE", groups.invite, db, ana, group.idGrupo, "beto@example.com")
 
 
+def test_reenviar_renueva_el_plazo_y_no_duplica_la_invitacion(db, mails):
+    ana, beto = person(db, "ana"), person(db, "beto")
+    group = create(db, ana)
+    invitation = groups.invite(db, ana, group.idGrupo, "beto@example.com")
+    reload(db, GroupUser, invitation.idGrupoUsuario).fechaInvitacion = nowForDb() - timedelta(days=6)  # casi vencida
+    db.commit()
+    before = len(mails)
+    resent = groups.resendInvitation(db, ana, group.idGrupo, invitation.idGrupoUsuario)
+    assert resent.idGrupoUsuario == invitation.idGrupoUsuario and not resent.vencida
+    assert resent.fechaVencimiento > invitation.fechaVencimiento
+    assert len(mails) == before + 1 and mails[-1]["to"] == "beto@example.com"
+    assert db.scalar(select(func.count()).select_from(GroupUser).where(GroupUser.idUsuario == beto.idUsuario)) == 1
+    assert audits(db, "REENVIAR_INVITACION_GRUPO")
+
+
+def test_reenviar_revive_una_invitacion_vencida(db, mails):
+    ana = person(db, "ana")
+    person(db, "beto")
+    group = create(db, ana)
+    invitation = groups.invite(db, ana, group.idGrupo, "beto@example.com")
+    reload(db, GroupUser, invitation.idGrupoUsuario).fechaInvitacion = nowForDb() - timedelta(days=groups.INVITATION_VALIDITY_DAYS + 1)
+    db.commit()
+    assert groups.listSentInvitations(db, ana, group.idGrupo)[0].vencida
+    assert not groups.resendInvitation(db, ana, group.idGrupo, invitation.idGrupoUsuario).vencida
+
+
+def test_reenviar_solo_invitaciones_pendientes_y_solo_administradores(db, mails):
+    ana, beto = person(db, "ana"), person(db, "beto")
+    group = create(db, ana)
+    invitation = groups.invite(db, ana, group.idGrupo, "beto@example.com")
+    groups.respondInvitation(db, beto, invitation.idGrupoUsuario, accept=True)
+    expectError("PERMISO_INSUFICIENTE", groups.resendInvitation, db, beto, group.idGrupo, invitation.idGrupoUsuario)
+    expectError("INVITACION_NO_ENCONTRADA", groups.resendInvitation, db, ana, group.idGrupo, uuid.uuid4())
+    person(db, "carla")
+    cancelled = groups.invite(db, ana, group.idGrupo, "carla@example.com")
+    groups.cancelInvitation(db, ana, group.idGrupo, cancelled.idGrupoUsuario)
+    expectError("INVITACION_NO_ENCONTRADA", groups.resendInvitation, db, ana, group.idGrupo, cancelled.idGrupoUsuario)
+
+
 def test_aceptar_invalida_las_demas_invitaciones(db, mails):
     ana, beto, carla = person(db, "ana"), person(db, "beto"), person(db, "carla")
     g1, g2 = create(db, ana), create(db, carla, "Familia Gómez")

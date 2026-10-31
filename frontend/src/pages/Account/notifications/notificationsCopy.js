@@ -40,6 +40,10 @@ export const EVENTOS = {
     categoria: 'SEGURIDAD', icono: ShieldAlert, tono: 'alert', titulo: 'Actividad sospechosa',
     descripcion: 'Intentos de acceso fallidos repetidos o bloqueos de tu cuenta.',
   },
+  INTENTO_INGRESO: {
+    categoria: 'SEGURIDAD', icono: ShieldAlert, tono: 'alert', titulo: 'Intentos de ingreso',
+    descripcion: 'Cada contraseña o código incorrecto que se ingresa para entrar a tu cuenta. Siempre llega a la aplicación.',
+  },
   INVITACION_GRUPO: {
     categoria: 'GRUPO', icono: MailPlus, tono: 'group', titulo: 'Invitaciones a un grupo',
     descripcion: 'Cuando te invitan a un grupo familiar.',
@@ -59,6 +63,10 @@ export const EVENTOS = {
   RECORDATORIO_MEDICION: {
     categoria: 'RECORDATORIO', icono: AlarmClock, tono: 'reminder', titulo: 'Recordatorio para medirme',
     descripcion: 'Te recordamos medirte en el horario que configures más abajo.',
+  },
+  INSTITUCION_INVITACION: {
+    categoria: 'INSTITUCION', icono: MailPlus, tono: 'institution', titulo: 'Invitaciones de instituciones',
+    descripcion: 'Cuando una institución te invita a formar parte de su equipo. Podés aceptar o rechazar la invitación desde Instituciones.',
   },
   INSTITUCION_OPERADOR_NUEVO: {
     categoria: 'INSTITUCION', icono: UserPlus, tono: 'institution', titulo: 'Nuevos operadores',

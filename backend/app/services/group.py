@@ -101,7 +101,8 @@ INSTITUTIONAL_ACCOUNT_MESSAGE = (
 IN_OTHER_GROUP_MESSAGE = "El usuario no puede incorporarse porque ya pertenece a otro grupo."
 OWN_OTHER_GROUP_MESSAGE = "No podés incorporarte porque ya pertenecés a otro grupo. Primero tenés que abandonarlo."
 ALREADY_MEMBER_MESSAGE = "Esta persona ya forma parte del grupo."
-PENDING_INVITATION_MESSAGE = "Ya hay una invitación pendiente para esta persona."
+PENDING_INVITATION_MESSAGE = ("Ya hay una invitación pendiente para esta persona. "
+                              "Podés reenviarla desde la lista de invitaciones pendientes.")
 
 _lookupLimiter = RateLimiter(20, 10 * 60, name="grupo:consulta")
 
@@ -259,7 +260,7 @@ def createGroup(db: Session, user: User, data: FamilyGroupCreateRequest) -> Fami
             raise AuthError("YA_PERTENECE_A_GRUPO", ALREADY_IN_GROUP_MESSAGE) from error
         raise
     # Después del commit: un fallo de SMTP queda auditado y no revierte el grupo.
-    notifications.notifyGroupCreated(db, user, group, fecha=now)
+    notifications.queueGroupCreated(db, user, group, fecha=now)
     return _detail(db, GroupMembership(group, relation))
 
 
@@ -392,18 +393,24 @@ def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str)
         if _violates(error, LINK_INDEX):
             raise AuthError("INVITACION_PENDIENTE", PENDING_INVITATION_MESSAGE) from error
         raise
-    url = emailService.frontendUrl("grupoFamiliar")
-    # Página y correo según las preferencias de INVITACION_GRUPO de quien recibe la invitación.
-    userNotifications.notify(
-        db, target, userNotifications.INVITACION_GRUPO, "Te invitaron a un grupo",
-        f"{_fullName(actor) or 'Un integrante'} te invitó al grupo «{membership.group.nombre}».", url=userNotifications.URL_GRUPO,
-        email=(EmailEventType.INVITACION_GRUPO, {
-            "nombreGrupo": membership.group.nombre, "nombreInvitante": _fullName(actor), "fechaEvento": now,
-            "fechaExpiracion": _expiry(relation), "urlAceptar": url, "urlRechazar": url}),
-        clave=f"{userNotifications.INVITACION_GRUPO}:{relation.idGrupoUsuario}",
-    )
+    _notifyInvitation(db, actor, membership.group, target, relation, now,
+                      f"{userNotifications.INVITACION_GRUPO}:{relation.idGrupoUsuario}")
     return GroupInvitationRead(idGrupoUsuario=relation.idGrupoUsuario, nombre=target.nombre, apellido=target.apellido,
                                fechaInvitacion=now, fechaVencimiento=_expiry(relation), vencida=False)
+
+
+def _notifyInvitation(db: Session, actor: User, group: Group, target: User, relation: GroupUser, now: datetime,
+                      clave: str) -> None:
+    """Página y correo según las preferencias de INVITACION_GRUPO de quien recibe la invitación."""
+    url = emailService.frontendUrl("grupoFamiliar")
+    userNotifications.notify(
+        db, target, userNotifications.INVITACION_GRUPO, "Te invitaron a un grupo",
+        f"{_fullName(actor) or 'Un integrante'} te invitó al grupo «{group.nombre}».", url=userNotifications.URL_GRUPO,
+        email=(EmailEventType.INVITACION_GRUPO, {
+            "nombreGrupo": group.nombre, "nombreInvitante": _fullName(actor), "fechaEvento": now,
+            "fechaExpiracion": _expiry(relation), "urlAceptar": url, "urlRechazar": url}),
+        clave=clave,
+    )
 
 
 def cancelInvitation(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuario: uuid.UUID) -> None:
@@ -414,6 +421,32 @@ def cancelInvitation(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuari
     _end(relation, nowForDb())
     registerEvent(db, "PERMISO", "CANCELAR_INVITACION_GRUPO", True, actor.idUsuario, "GrupoUsuario", idGrupoUsuario)
     db.commit()
+
+
+def resendInvitation(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuario: uuid.UUID) -> GroupInvitationRead:
+    """Reenvía una invitación PENDIENTE: renueva su vencimiento de 7 días y avisa otra vez. Misma fila, nunca un vínculo nuevo.
+
+    Sirve también para una invitación vencida (queda vigente de nuevo). La clave del aviso incluye el instante del reenvío,
+    así cada reenvío es un aviso y un correo propios.
+    """
+    membership = requireMembership(db, actor, idGrupo, admin=True)
+    _limit(actor)
+    relation = db.get(GroupUser, idGrupoUsuario)
+    if relation is None or relation.idGrupo != idGrupo or relation.estadoRelacion != PENDIENTE:
+        raise AuthError("INVITACION_NO_ENCONTRADA", "No encontramos esa invitación pendiente.")
+    target = db.get(User, relation.idUsuario)
+    if target is None or target.estado != "ACTIVO":
+        raise AuthError("INVITACION_NO_ENCONTRADA", "No encontramos esa invitación pendiente.")
+    if activeRelation(db, target) is not None:
+        raise AuthError("YA_PERTENECE_A_GRUPO", IN_OTHER_GROUP_MESSAGE)
+    now = nowForDb()
+    relation.fechaInvitacion = now
+    registerEvent(db, "PERMISO", "REENVIAR_INVITACION_GRUPO", True, actor.idUsuario, "GrupoUsuario", idGrupoUsuario)
+    db.commit()
+    _notifyInvitation(db, actor, membership.group, target, relation, now,
+                      f"{userNotifications.INVITACION_GRUPO}:{idGrupoUsuario}:{now:%Y%m%dT%H%M%S%f}")
+    return GroupInvitationRead(idGrupoUsuario=idGrupoUsuario, nombre=target.nombre, apellido=target.apellido,
+                               fechaInvitacion=now, fechaVencimiento=_expiry(relation), vencida=False)
 
 
 def listReceivedInvitations(db: Session, user: User) -> list[ReceivedGroupInvitation]:

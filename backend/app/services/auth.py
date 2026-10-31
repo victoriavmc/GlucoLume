@@ -65,6 +65,7 @@ ACCOUNT_LOCKED_MESSAGE = "Demasiados intentos fallidos. Intentá más tarde."
 
 ESTADO_ACTIVO = "ACTIVO"
 ESTADO_PENDIENTE = "PENDIENTE"
+ESTADO_ELIMINADO = "ELIMINADO"
 # Constantes de tipo y método (no son secretos; falsos positivos de bandit B105).
 TOKEN_VERIFICACION_EMAIL = TipoTokenCuenta.VERIFICACION_EMAIL
 # Código de un solo uso que entrega el callback de Google al frontend (006_intercambio_google.sql).
@@ -588,16 +589,20 @@ def _identifiedUser(db: Session, identificador: str) -> User | None:
 
 def _alertAdministratorAttempt(db: Session, user: User | None, administrativo: bool, tipoAutenticacion: str, motivo: str) -> None:
     """Un ingreso rechazado es un intento contra la administración si la cuenta es de administrador o si el acceso pedido fue PLATAFORMA.
-    Primero queda en la auditoría (SOSPECHOSO, siempre); después adminAccessAlerts decide si sale correo, con límite por ventana.
-    Las cuentas inexistentes no se alertan: el identificador escrito no se guarda ni se envía (ver _auditFailedLogin). Nunca lanza."""
+    Primero queda en la auditoría (SOSPECHOSO, salvo el acceso general de una cuenta de administración: ver abajo); después adminAccessAlerts
+    decide si sale correo, con límite por ventana. Las cuentas inexistentes no se alertan: el identificador escrito no se guarda ni se envía
+    (ver _auditFailedLogin). Nunca lanza."""
     try:
         if user is None or not (administrativo or user.tipoCuenta == "ADMINISTRADOR_PLATAFORMA"):
             return
-        registerEvent(
-            db, "LOGIN", auditClassification.ACCION_INTENTO_ACCESO_ADMIN, False, user.idUsuario, modulo="SEGURIDAD", motivo=motivo,
-            observacion=f"Intento de ingreso a la administración de GlucoLume rechazado ({tipoAutenticacion})",
-        )
-        db.commit()
+        if motivo != "ACCESO_PLATAFORMA_REQUERIDO":
+            # Una cuenta de administración que entra por el acceso general ya quedó auditada por requireAccesoLogin como un rechazo
+            # operativo (LOGIN_*). No se repite como intento sospechoso: el aviso por correo sale igual.
+            registerEvent(
+                db, "LOGIN", auditClassification.ACCION_INTENTO_ACCESO_ADMIN, False, user.idUsuario, modulo="SEGURIDAD", motivo=motivo,
+                observacion=f"Intento de ingreso a la administración de GlucoLume rechazado ({tipoAutenticacion})",
+            )
+            db.commit()
         context = requestContext.current()
         adminAccessAlerts.record(db, adminAccessAlerts.Attempt(
             correo=user.correoElectronico, tipoAutenticacion=tipoAutenticacion, motivo=motivo,
@@ -643,6 +648,7 @@ def _loginLocal(
     if _isLocked(credential, now):
         _auditFailedLogin(db, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA", "Cuenta bloqueada")
         db.commit()
+        userNotifications.notifyRejectedAccess(db, user, now)
         raise _lockedError(credential.bloqueadoHasta, now)
     # Bloqueo vencido: se restablece el contador antes de evaluar este intento (3 intentos completos).
     _unlockIfExpired(db, credential, now)
@@ -672,6 +678,7 @@ def _loginLocal(
                 datosNuevos={"intentos": credential.intentosFallidosConsecutivos, "minutos": getSettings().AUTH_LOCKOUT_MINUTES},
             )
         db.commit()
+        userNotifications.notifyRejectedAccess(db, user, now)
         if locked:
             _notify(
                 EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
@@ -1035,6 +1042,11 @@ def refreshSession(db: Session, refreshToken: str) -> TokenPair:
         .values(fechaRevocacion=now)
     )
     if revoked.rowcount != 1:
+        user = db.get(User, session.idUsuario)
+        if user is not None and user.estado == ESTADO_ELIMINADO:
+            # La baja revoca todas las sesiones de la cuenta: un refresh posterior (p. ej. el navegador que todavía tiene la cookie) no es una
+            # reutilización ni un indicio de robo. Se rechaza sin alertar.
+            raise AuthError("TOKEN_INVALIDO", "Sesión inválida.", motivo="SESION_INVALIDA")
         _revokeAllSessions(db, session.idUsuario, now)
         registerEvent(db, "LOGIN", "REFRESH_REUTILIZADO", False, session.idUsuario, "SesionUsuario", session.idSesion)
         db.commit()

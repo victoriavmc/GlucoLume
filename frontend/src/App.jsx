@@ -142,6 +142,8 @@ const TransfersPage = lazyNamed(() => import('./pages/Account/institutions/trans
 // recuperar la sesión (/auth/refresh y /auth/me): descarga y datos quedaban en serie (LCP de /app/inicio en red rápida: 198 ms con todo en un solo
 // archivo, 442 ms con carga diferida sin precarga; medido el 23/10/2026, docs/RENDIMIENTO.md §5). Se llama desde main.jsx con la ruta con la que se abrió la
 // página: descarga y sesión corren en paralelo. Los errores se ignoran (el Suspense volverá a pedir el módulo si hace falta).
+// Las mismas rutas se precargan al pasar el puntero o el foco sobre su enlace del menú (`onPrefetch` de AuthenticatedLayout): el clic dibuja la
+// pantalla sin esperar la descarga del JavaScript.
 const PRELOADS = [
   [/^\/app\/?$|^\/app\/inicio\/?$/, [HomePage]],
   [/^\/app\/mediciones\/historial\/?$/, [MeasurementHistoryPage]],
@@ -150,6 +152,15 @@ const PRELOADS = [
   [/^\/app\/instituciones\/[^/]+\/?$/, [InstitutionLayout, InstitutionOverview]],
   [/^\/app\/instituciones\/[^/]+\/pacientes\/?$/, [InstitutionLayout, PatientsTabs, PatientsPage]],
   [/^\/app\/instituciones\/[^/]+\/personal\/operadores\/[^/]+\/?$/, [InstitutionLayout, PersonnelLayout, OperatorDashboardPage]],
+  [/^\/app\/conectar-dispositivo\/?$/, [ConnectDevicePage]],
+  [/^\/app\/grupo\/?$/, [GroupsHome]],
+  [/^\/app\/consejos\/?$/, [DiabetesTipsPage]],
+  [/^\/app\/notificaciones\/?$/, [NotificationsPage]],
+  [/^\/app\/perfil\/?$/, [ProfilePage]],
+  [/^\/app\/seguridad\/?$/, [SecurityPage]],
+  [/^\/app\/dispositivos\/?$/, [GlobalDevicesPage]],
+  [/^\/app\/auditoria\/?$/, [GlobalAuditPage]],
+  [/^\/app\/matrices\/?$/, [GlobalMatricesPage]],
 ];
 
 export function preloadForPath(pathname) {
@@ -236,7 +247,7 @@ export function AppRoutes() {
           path="/app"
           element={
             <ProtectedRoute>
-              <AuthenticatedLayout />
+              <AuthenticatedLayout onPrefetch={preloadForPath} />
             </ProtectedRoute>
           }
         >

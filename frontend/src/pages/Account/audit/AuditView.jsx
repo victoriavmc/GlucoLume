@@ -18,6 +18,7 @@ import { PageHeader } from '../../../components/PageHeader.jsx';
 import { BarList, Kpi, KpiGrid } from '../../../components/dashboard.jsx';
 import { formatInstant } from '../../../utils/dateTime.js';
 import './Audit.css';
+import { AuditReviewToggle } from './AuditReviewToggle.jsx';
 import {
   ACTOR_ORIGINS, AUDIT_CATEGORIES, AUDIT_CLASSIFICATIONS, AUDIT_MODULES, CLASSIFICATION_HELP, actionLabel, eventName, resultInfo, severityInfo,
 } from './auditLabels.js';
@@ -171,6 +172,11 @@ export function AuditView({
   }, [withInstitution, summary, options.length]);
   const institutions = institutionOptions ?? options;
 
+  // La marca «analizado» cambia solo ese evento de la página ya cargada; no vuelve a pedir el listado.
+  function setItemRevision(idAuditoria, revision) {
+    setPage((current) => current && { ...current, items: current.items.map((item) => (item.idAuditoria === idAuditoria ? { ...item, revision } : item)) });
+  }
+
   function update(field) {
     return (event) => {
       setFilters((current) => ({ ...current, [field]: field === 'critica' ? event.target.checked : event.target.value }));
@@ -303,6 +309,11 @@ export function AuditView({
                           </span>
                         </td>
                         <td className="audit-actions">
+                          {item.revision && (
+                            <AuditReviewToggle idAuditoria={item.idAuditoria} revision={item.revision}
+                              name={`${eventName(item)}, ${formatInstant(item.fechaHora)}`}
+                              onChange={(revision) => setItemRevision(item.idAuditoria, revision)} />
+                          )}
                           <Link to={item.idAuditoria} state={{ search: location.search }} className="btn btn-ghost"
                             aria-label={`Ver detalle: ${eventName(item)}, ${formatInstant(item.fechaHora)}`}>Ver detalle</Link>
                         </td>

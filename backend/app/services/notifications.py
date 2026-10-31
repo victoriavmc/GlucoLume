@@ -1,6 +1,7 @@
 # Notifications - Confirmaciones por correo de la creación de grupos e instituciones
 #
-# Se envían después del commit de la creación (nunca antes: si la transacción falla, no hay correo) con el
+# Se envían después del commit de la creación (nunca antes: si la transacción falla, no hay correo) en segundo
+# plano, para que la creación no espere al servidor SMTP; el reenvío manual sí espera el resultado. Usa el
 # servicio central de correos (misma configuración SMTP y plantillas). El resultado queda en Auditoria
 # (NOTIFICAR_CREACION_GRUPO / NOTIFICAR_CREACION_INSTITUCION, EXITO o FALLO, idRegistro = la entidad):
 #   - un fallo de SMTP no revierte el grupo ni la institución: se registra y la creación responde normalmente;
@@ -74,8 +75,32 @@ def _send(db: Session, user: User, accion: str, tabla: str, idRegistro: uuid.UUI
     return sent
 
 
-def notifyGroupCreated(db: Session, user: User, group: Group, *, fecha=None) -> bool:
-    context = {
+def _sendAndAudit(bind, idUsuario: uuid.UUID, correo: str, accion: str, tabla: str, idRegistro: uuid.UUID,
+                  eventType: EmailEventType, context: dict) -> None:
+    """Envía el correo y anota el resultado con una sesión propia (el hilo no comparte la de la solicitud)."""
+    try:
+        sent = emailService.sendEmailEvent(eventType, correo, context)
+    except Exception as error:  # noqa: BLE001 - un error del correo nunca debe terminar el hilo
+        logger.error("Confirmación %s no generada (%s).", eventType, type(error).__name__)
+        sent = False
+    try:
+        with Session(bind) as session:
+            registerEvent(session, "CRUD", accion, sent, idUsuario, tabla, idRegistro,
+                          observacion=None if sent else "No se pudo enviar el correo; se puede reintentar.")
+            session.commit()
+    except Exception as error:  # noqa: BLE001 - el correo ya salió o falló; solo se pierde el rastro
+        logger.error("No se pudo registrar el resultado de %s (%s).", accion, type(error).__name__)
+
+
+def _queue(db: Session, user: User, accion: str, tabla: str, idRegistro: uuid.UUID, eventType: EmailEventType,
+           context: dict) -> None:
+    """Deja el envío en segundo plano: la creación no espera al servidor de correo."""
+    emailService.runInBackground(_sendAndAudit, db.get_bind(), user.idUsuario, user.correoElectronico, accion, tabla,
+                                 idRegistro, eventType, context)
+
+
+def _groupContext(user: User, group: Group, fecha) -> dict:
+    return {
         "nombre": user.nombre,
         "nombreGrupo": group.nombre,
         "nombreCreador": f"{user.nombre} {user.apellido}".strip(),
@@ -83,7 +108,16 @@ def notifyGroupCreated(db: Session, user: User, group: Group, *, fecha=None) -> 
         "fechaEvento": fecha or _createdAt(group),
         "urlGrupo": emailService.frontendUrl(f"/app/grupo/{group.idGrupo}"),
     }
-    return _send(db, user, ACCION_GRUPO, "Grupo", group.idGrupo, EmailEventType.GRUPO_CREADO, context)
+
+
+def notifyGroupCreated(db: Session, user: User, group: Group, *, fecha=None) -> bool:
+    """Reenvío manual (`resend`): espera el resultado porque el endpoint responde 503 si no sale."""
+    return _send(db, user, ACCION_GRUPO, "Grupo", group.idGrupo, EmailEventType.GRUPO_CREADO, _groupContext(user, group, fecha))
+
+
+def queueGroupCreated(db: Session, user: User, group: Group, *, fecha=None) -> None:
+    """Confirmación al crear el grupo: sale en segundo plano; el resultado queda en Auditoria."""
+    _queue(db, user, ACCION_GRUPO, "Grupo", group.idGrupo, EmailEventType.GRUPO_CREADO, _groupContext(user, group, fecha))
 
 
 def notifyGroupMeasurement(db: Session, user: User, when: datetime) -> int:
@@ -124,8 +158,8 @@ def notifyGroupMeasurement(db: Session, user: User, when: datetime) -> int:
         return 0
 
 
-def notifyInstitutionCreated(db: Session, user: User, institution: Institution, *, fecha=None) -> bool:
-    context = {
+def _institutionContext(user: User, institution: Institution, fecha) -> dict:
+    return {
         "nombre": user.nombre,
         "nombreInstitucion": institution.nombre,
         "tipoInstitucion": INSTITUTION_TYPE_LABELS.get(institution.tipoInstitucion, institution.tipoInstitucion),
@@ -134,8 +168,18 @@ def notifyInstitutionCreated(db: Session, user: User, institution: Institution, 
         "fechaEvento": fecha or _createdAt(institution),
         "urlPanel": emailService.frontendUrl(f"/app/instituciones/{institution.idInstitucion}"),
     }
+
+
+def notifyInstitutionCreated(db: Session, user: User, institution: Institution, *, fecha=None) -> bool:
+    """Reenvío manual (`resend`): espera el resultado porque el endpoint responde 503 si no sale."""
     return _send(db, user, ACCION_INSTITUCION, "Institucion", institution.idInstitucion,
-                 EmailEventType.INSTITUCION_CREADA, context)
+                 EmailEventType.INSTITUCION_CREADA, _institutionContext(user, institution, fecha))
+
+
+def queueInstitutionCreated(db: Session, user: User, institution: Institution, *, fecha=None) -> None:
+    """Confirmación al registrar la institución: sale en segundo plano; el resultado queda en Auditoria."""
+    _queue(db, user, ACCION_INSTITUCION, "Institucion", institution.idInstitucion, EmailEventType.INSTITUCION_CREADA,
+           _institutionContext(user, institution, fecha))
 
 
 def resend(db: Session, user: User, accion: str, idRegistro: uuid.UUID, notify, entity) -> bool:

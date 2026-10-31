@@ -385,6 +385,8 @@ class MeasurementDetail(BaseModel):
     # Quién recibe el resultado si se pide enviarlo por correo: CUENTA_PROPIA (individual), PACIENTE (el operador indica
     # el correo que el paciente informó) o None (no disponible: medición no completada o sin permiso de operar).
     envioResultado: Literal["CUENTA_PROPIA", "PACIENTE"] | None = None
+    # Estado del último envío del resultado por correo: PENDIENTE mientras sale en segundo plano (la página consulta hasta que termina).
+    envioResultadoEstado: Literal["PENDIENTE", "ENVIADO", "FALLIDO"] | None = None
     # Solo al guardar una medición de un paciente con correo cargado: resultado del envío automático (None si no correspondía: DEMO, sin correo).
     envioAutomatico: Literal["ENVIADO", "FALLIDO"] | None = None
     aviso: str = EXPERIMENTAL_NOTICE

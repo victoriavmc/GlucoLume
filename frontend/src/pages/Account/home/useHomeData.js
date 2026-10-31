@@ -2,10 +2,9 @@
 // (mediciones guardadas reales): nada se inventa ni se clasifica. El último valor es el más reciente EXPERIMENTAL; si solo hay pruebas, el de la
 // última prueba DEMO, identificada como tal (igual que en «Mi dashboard»).
 
-import { useEffect, useState } from 'react';
-
 import { friendlyError } from '../../../auth/errorMessages.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
+import { useCachedQuery } from '../../../utils/queryCache.js';
 
 const LATEST_DAYS = 90;
 const VARIABLE_KEYS = ['glucosa', 'frecuenciaCardiaca', 'spo2', 'indiceOptico'];
@@ -29,32 +28,27 @@ export function latestValues(points) {
   return result;
 }
 
-/** Últimos valores (una consulta de 90 días) y la serie del período elegido para el gráfico (otra consulta, solo cuando cambia). */
+/**
+ * Últimos valores (una consulta de 90 días) y la serie del período elegido para el gráfico (otra consulta). Ambas se recuerdan por clave: al
+ * volver a Inicio se dibujan al instante y se actualizan en segundo plano.
+ */
 export function useHomeData({ enabled, chartDays }) {
-  const [latest, setLatest] = useState(undefined); // undefined: cargando
-  const [chart, setChart] = useState(undefined);
-  const [error, setError] = useState('');
+  const latestQuery = useCachedQuery(
+    `home:latest:${LATEST_DAYS}`,
+    () => measurementsApi.getOwnEvolution({ dias: LATEST_DAYS, origen: 'TODOS' }),
+    enabled,
+  );
+  const chartQuery = useCachedQuery(
+    `home:chart:${chartDays}`,
+    () => measurementsApi.getOwnEvolution({ dias: chartDays, origen: 'TODOS' }),
+    enabled,
+  );
 
-  useEffect(() => {
-    if (!enabled) return undefined;
-    let active = true;
-    measurementsApi.getOwnEvolution({ dias: LATEST_DAYS, origen: 'TODOS' }).then(
-      (data) => { if (active) setLatest(latestValues(data.puntos ?? [])); },
-      (loadError) => { if (active) { setLatest(null); setError(friendlyError(loadError)); } },
-    );
-    return () => { active = false; };
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-    let active = true;
-    setChart(undefined);
-    measurementsApi.getOwnEvolution({ dias: chartDays, origen: 'TODOS' }).then(
-      (data) => { if (active) setChart(data); },
-      (loadError) => { if (active) { setChart(null); setError(friendlyError(loadError)); } },
-    );
-    return () => { active = false; };
-  }, [enabled, chartDays]);
-
-  return { latest, chart, error };
+  const failure = latestQuery.error ?? chartQuery.error;
+  return {
+    // undefined: cargando; null: falló y no hay nada guardado; objeto: los valores.
+    latest: latestQuery.data === undefined ? (latestQuery.error ? null : undefined) : latestValues(latestQuery.data.puntos ?? []),
+    chart: chartQuery.data === undefined ? (chartQuery.error ? null : undefined) : chartQuery.data,
+    error: failure ? friendlyError(failure) : '',
+  };
 }

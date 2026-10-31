@@ -220,8 +220,10 @@ def verifyFactor(db: Session, factor: MfaFactor, codigo: str | None, codigoRecup
                       motivo="MFA_BLOQUEADO", idInstitucion=institution, modulo="SEGURIDAD",
                       observacion="Bloqueo temporal del segundo factor por códigos incorrectos seguidos")
     db.commit()
+    user = db.get(User, factor.idUsuario)
+    if user is not None:
+        userNotifications.notifyRejectedAccess(db, user, now)
     if locked:
-        user = db.get(User, factor.idUsuario)
         if user is not None:
             _notify(
                 EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,

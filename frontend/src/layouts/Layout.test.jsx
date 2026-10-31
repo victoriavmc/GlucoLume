@@ -25,3 +25,26 @@ describe('Layout del espacio privado: accesibilidad base', () => {
     expect(screen.getByRole('main')).toHaveFocus();
   });
 });
+
+describe('Barra lateral: insignia de avisos sin leer', () => {
+  it('muestra en Notificaciones la cantidad sin leer y no muestra nada si no hay', async () => {
+    mockApi({
+      'GET /auth/me': jsonResponse(200, ACCOUNT),
+      'GET /measurements/evolution': jsonResponse(200, EVOLUTION),
+      'GET /notificaciones': jsonResponse(200, { noLeidas: 3, total: 3, hayMas: false, notificaciones: [] }),
+    });
+    renderAt('/app/inicio');
+    expect(await screen.findByRole('link', { name: 'Notificaciones 3' })).toBeInTheDocument();
+  });
+
+  it('sin avisos sin leer, Notificaciones no lleva insignia', async () => {
+    mockApi({
+      'GET /auth/me': jsonResponse(200, ACCOUNT),
+      'GET /measurements/evolution': jsonResponse(200, EVOLUTION),
+      'GET /notificaciones': jsonResponse(200, { noLeidas: 0, total: 0, hayMas: false, notificaciones: [] }),
+    });
+    renderAt('/app/inicio');
+    expect(await screen.findByRole('link', { name: 'Notificaciones' })).toBeInTheDocument();
+    expect(document.querySelector('.app-nav-badge')).toBeNull();
+  });
+});

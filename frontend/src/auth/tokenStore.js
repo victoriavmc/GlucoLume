@@ -8,6 +8,8 @@
 //     no gasta una llamada a /auth/refresh que sabemos que va a fallar. «Recordarme» => localStorage; si no => sessionStorage (por pestaña).
 //     Borrarla o falsificarla solo cambia si se intenta la renovación: el servidor decide si la cookie vale.
 
+import { clearQueryCache } from '../utils/queryCache.js';
+
 const HINT_KEY = 'glucolume.sessionHint';
 // Clave del esquema anterior (refresh token en Web Storage): se borra siempre para no dejar tokens viejos en navegadores ya usados.
 const LEGACY_REFRESH_KEY = 'glucolume.refreshToken';
@@ -58,6 +60,7 @@ export function saveTokens(tokens, remember = isRemembered()) {
 
 export function clearTokens() {
   accessToken = null;
+  clearQueryCache(); // al cerrar o vencer la sesión no quedan datos de la cuenta anterior en memoria
   safely(() => storages().forEach((storage) => {
     storage.removeItem(HINT_KEY);
     storage.removeItem(LEGACY_REFRESH_KEY);

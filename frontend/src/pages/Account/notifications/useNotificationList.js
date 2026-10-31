@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import * as notificationsApi from '../../../api/notificationsApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
+import { useUnreadNotifications } from '../../../notifications/UnreadNotificationsContext.js';
 import { POLL_INTERVAL_MS } from '../../../notifications/useIncomingNotifications.js';
 
 export const PAGE_SIZE = 20;
@@ -25,6 +26,12 @@ export function useNotificationList(params) {
   latest.current = state;
   const generation = useRef(0);
   const pending = useRef(new Set());
+  const { setUnread } = useUnreadNotifications();
+
+  // La insignia de la barra lateral sigue al conteo que devuelva cada respuesta de la bandeja.
+  useEffect(() => {
+    if (state.noLeidas !== null) setUnread(state.noLeidas);
+  }, [state.noLeidas, setUnread]);
 
   useEffect(() => {
     const mine = ++generation.current;

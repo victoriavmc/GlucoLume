@@ -4,6 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Logo } from '../components/Logo.jsx';
+import { useUnreadNotifications } from '../notifications/UnreadNotificationsContext.js';
 import { institutionSections, useInstitutionNav } from '../pages/Account/institutions/institutionMenu.js';
 
 // Solo secciones realmente funcionales. "Instituciones" solo para cuentas USUARIO_INSTITUCIONAL y
@@ -34,12 +35,13 @@ function initials(user) {
   return letters.join('').slice(0, 2).toUpperCase();
 }
 
-export function Sidebar({ id, onClose }) {
+export function Sidebar({ id, onClose, onPrefetch }) {
   const { account, logout } = useAuth();
   const navigate = useNavigate();
   const [leaving, setLeaving] = useState(false);
   const user = account?.usuario;
   const { current } = useInstitutionNav();
+  const { unread } = useUnreadNotifications();
 
   async function handleLogout() {
     setLeaving(true);
@@ -70,10 +72,15 @@ export function Sidebar({ id, onClose }) {
         <ul>
           {NAV_ITEMS.filter((item) => !item.accountType || [].concat(item.accountType).includes(user?.tipoCuenta)).map(({ to, label, icon: Icon }) => (
             <li key={to}>
+              {/* Al apuntar o enfocar el enlace se descarga su pantalla: el clic la dibuja sin esperar la red (no se repite si ya está). */}
               <NavLink to={to} end={to === '/app/instituciones' && Boolean(current)}
+                onMouseEnter={() => onPrefetch?.(to)} onFocus={() => onPrefetch?.(to)} onTouchStart={() => onPrefetch?.(to)}
                 className={({ isActive }) => `app-nav-link${isActive || (current && to === '/app/instituciones') ? ' is-active' : ''}`}>
                 <Icon size={20} aria-hidden="true" />
                 {label}
+                {to === '/app/notificaciones' && unread > 0 && (
+                  <span className="app-nav-badge">{unread > 99 ? '99+' : unread}</span>
+                )}
               </NavLink>
               {current && to === '/app/instituciones' && (
                 <nav aria-label="Secciones de la institución"><ul className="app-subnav">

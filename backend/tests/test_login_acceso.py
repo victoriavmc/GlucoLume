@@ -69,6 +69,16 @@ def test_una_cuenta_comun_que_intenta_la_administracion_avisa_con_su_correo(db, 
     assert len(audits(db, "INTENTO_ACCESO_ADMINISTRACION")) == 1
 
 
+def test_entrar_a_la_administracion_por_el_acceso_general_no_es_un_intento_sospechoso(db, mails, web, admin):
+    response = web.post("/api/v1/auth/login", json={"identificador": admin[0].usuario, "password": PASSWORD})
+    assert response.status_code == 403 and response.json()["codigo"] == "ACCESO_PLATAFORMA_REQUERIDO"
+
+    assert audits(db, "INTENTO_ACCESO_ADMINISTRACION") == []  # no es sospechoso: queda como rechazo operativo de login
+    assert any(event.resultado == "FALLO" and event.observacion == "Cuenta de administración de GlucoLume en el acceso general"
+               for event in audits(db, "LOGIN_LOCAL"))
+    assert [m["to"] for m in mails if m["subject"] == ALERTA_ASUNTO] == [admin[0].correoElectronico]  # el aviso por correo sigue
+
+
 def test_un_ingreso_correcto_a_la_administracion_no_avisa(db, mails, web, admin):
     login(web, admin[0], admin[1])
     assert [m for m in mails if m["subject"] == ALERTA_ASUNTO] == []

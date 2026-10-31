@@ -70,6 +70,7 @@ REVOKE DELETE ON SCHEMA::dbo FROM rol_glucolume_retencion;
 
 -- DELETE, una tabla por vez. API: tokens, credenciales y factores de cuenta, sesiones, datos de prueba (DEMO) y su material derivado, reglas en borrador,
 -- cuentas sin verificar vencidas (con sus consentimientos) y la auditoria tecnica anonima de mediciones. No incluye Auditoria ni AuditoriaContexto.
+GRANT DELETE ON OBJECT::dbo.AuditoriaRevision TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.AuditoriaTecnicaMedicion TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.CodigoRecuperacionMfa TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.ConsentimientoUsuario TO rol_glucolume_api;
@@ -85,6 +86,7 @@ GRANT DELETE ON OBJECT::dbo.SesionUsuario TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.TokenCuenta TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.Usuario TO rol_glucolume_api;
 -- Conservacion (servicio lifecycle y jobs): las mismas (elimina cuentas, mediciones vencidas) mas la auditoria que la politica de conservacion depura.
+GRANT DELETE ON OBJECT::dbo.AuditoriaRevision TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.AuditoriaTecnicaMedicion TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.CodigoRecuperacionMfa TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.ConsentimientoUsuario TO rol_glucolume_retencion;

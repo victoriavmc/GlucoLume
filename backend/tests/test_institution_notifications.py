@@ -158,3 +158,14 @@ def test_el_mismo_hecho_procesado_dos_veces_no_duplica_el_aviso(db, mails, team)
     institutionNotifications.patientCreated(db, team.institution, profile, {team.operator.idUsuario})  # reproceso del mismo alta
 
     assert len(avisos(db, team.owner, events.INSTITUCION_PACIENTE_NUEVO)) == 1
+
+
+def test_invitar_a_una_cuenta_activa_avisa_en_la_pagina_una_sola_vez(db, mails, team):
+    invitado = institutional(db, "invitada@example.com", "invitada")
+    invitation = institutions.invite(db, team.owner, team.id, "MODERADOR", invitado.correoElectronico)
+
+    # La invitación aparece en su bandeja; el correo lo envía institution.py como antes.
+    assert avisos(db, invitado, events.INSTITUCION_INVITACION)
+    assert len(avisos(db, invitado, events.INSTITUCION_INVITACION)) == 1
+    assert events.INSTITUCION_INVITACION not in eventosDe(db, team.owner)  # quien invita no se avisa a sí mismo
+    assert invitation.idInstitucionUsuario

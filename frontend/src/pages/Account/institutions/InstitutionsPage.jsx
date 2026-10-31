@@ -3,7 +3,7 @@
 // Una cuenta institucional sin instituciones no es un error: puede crear una o aceptar una invitación.
 
 import { ArrowRight, Building2, Plus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import * as institutionsApi from '../../../api/institutionsApi.js';
@@ -12,6 +12,7 @@ import { friendlyError } from '../../../auth/errorMessages.js';
 import { Badge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 import { PageHeader } from '../../../components/PageHeader.jsx';
+import { invalidateQuery, useCachedQuery } from '../../../utils/queryCache.js';
 import { CreateInstitutionForm } from './CreateInstitutionForm.jsx';
 import { ROLE_LABELS, typeLabel } from './institutionFormat.js';
 import { InvitationsSection } from './InvitationsSection.jsx';
@@ -22,26 +23,16 @@ export default function InstitutionsPage() {
   const { account } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [items, setItems] = useState(null);
-  const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [sent, setSent] = useState('');
   const notice = location.state?.notice ?? '';
   const institutional = account.usuario.tipoCuenta === 'USUARIO_INSTITUCIONAL';
 
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      setItems(await institutionsApi.getMyInstitutions({ includePaused: true })); // las pausadas se listan para explicar por qué no se pueden abrir
-    } catch (loadError) {
-      setError(friendlyError(loadError));
-      setItems([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (institutional) load();
-  }, [institutional, load]);
+  // Las pausadas se listan para explicar por qué no se pueden abrir. Al volver a la pantalla se muestra la última lista recibida y se actualiza.
+  const mine = useCachedQuery('institutions:mine', () => institutionsApi.getMyInstitutions({ includePaused: true }), institutional);
+  const items = mine.data ?? (mine.error ? [] : null);
+  const error = mine.error ? friendlyError(mine.error) : '';
+  const load = mine.reload;
 
   // Solo las cuentas institucionales trabajan con instituciones.
   if (!institutional) return <Navigate to="/app/inicio" replace />;
@@ -50,6 +41,7 @@ export default function InstitutionsPage() {
     const notice = result.operacion === 'REABIERTA'
       ? `Reabriste «${result.nombre}» (reapertura n.º ${result.cantidadReaperturas}). Designá moderadores para el nuevo período.`
       : `Creaste «${result.nombre}». Ya podés designar moderadores.`;
+    invalidateQuery('institutions:mine'); // al volver, la lista no debe mostrar la versión anterior (vacía o sin la institución nueva)
     navigate(`/app/instituciones/${result.idInstitucion}`, { state: { notice } });
   }
 

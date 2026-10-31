@@ -40,6 +40,8 @@ from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexpo
     CATEGORIAS,
     EVENTOS,
     INICIO_SESION,
+    INSTITUCION_INVITACION,
+    INTENTO_INGRESO,
     INVITACION_GRUPO,
     MEDICION_GRUPO,
     NUEVA_ACCION_GRUPO,
@@ -479,6 +481,19 @@ def notifySecurity(db: Session, user: User, evento: str, titulo: str, mensaje: s
     instante del cambio o el fin del bloqueo): repetir el mismo suceso no crea otro aviso.
     """
     return notify(db, user, evento, titulo, mensaje, url=URL_SEGURIDAD, clave=f"{evento}:{hecho}")
+
+
+def notifyRejectedAccess(db: Session, user: User, instante: datetime) -> bool:
+    """Un intento rechazado contra la cuenta (contraseña o código de verificación). Cada intento queda en la página, sin correo.
+
+    El instante (con microsegundos) identifica el intento: dos intentos distintos son dos avisos. El bloqueo, si ocurre, lo avisa
+    ACTIVIDAD_SOSPECHOSA aparte.
+    """
+    return notify(
+        db, user, INTENTO_INGRESO, "Intento de ingreso rechazado",
+        "Alguien intentó entrar a tu cuenta con datos incorrectos. Si no fuiste vos, revisá tu seguridad.",
+        url=URL_SEGURIDAD, clave=f"{INTENTO_INGRESO}:{instante:%Y-%m-%dT%H:%M:%S.%f}",
+    )
 
 
 def deleteNotification(db: Session, user: User, idNotificacion: uuid.UUID) -> int:

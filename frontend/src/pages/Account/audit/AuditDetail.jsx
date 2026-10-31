@@ -13,6 +13,7 @@ import { PatientIdentity } from '../../../components/PatientIdentity.jsx';
 import { copyText } from '../../../utils/clipboard.js';
 import { formatInstant } from '../../../utils/dateTime.js';
 import './Audit.css';
+import { AuditReviewToggle } from './AuditReviewToggle.jsx';
 import { ACTOR_ORIGINS, AUDIT_CLASSIFICATIONS, AUDIT_MODULES, CLASSIFICATION_HELP, eventName, resultInfo, severityInfo } from './auditLabels.js';
 
 const ROLE_TEXT = { PROPIETARIO: 'propietario/a', MODERADOR: 'moderador/a', OPERADOR: 'operador/a' };
@@ -135,6 +136,10 @@ export function AuditEventPage({ loadDetail, backTo, handleOperationError, title
           <Badge tone={severity.tone}>{result.label}</Badge>
         </div>
         {event.resumen && <p className="transfer-summary">{event.resumen}</p>}
+        {event.revision && (
+          <AuditReviewToggle idAuditoria={event.idAuditoria} revision={event.revision} name={eventName(event)}
+            onChange={(revision) => setEvent((current) => ({ ...current, revision }))} />
+        )}
         <dl className="data-list audit-summary-list">
           <Row label="Acción" value={eventName(event)} />
           <Row label="Realizado por" value={event.usuario ?? 'Sistema'}

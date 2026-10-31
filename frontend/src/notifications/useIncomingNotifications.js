@@ -1,4 +1,5 @@
 // Revisa cada tanto si llegaron avisos nuevos a la página y los entrega a `onArrive` (cartel + sonido). Pide solo los no leídos.
+// `onCount` recibe la cantidad total sin leer (`noLeidas`) para la insignia de la barra lateral.
 // La primera lectura solo fija el punto de partida: los avisos que ya estaban no se anuncian. Los errores (sin conexión, sección
 // todavía no disponible en la instalación) se ignoran: la bandeja de la sección es la que informa.
 
@@ -8,9 +9,11 @@ import { getNotifications } from '../api/notificationsApi.js';
 
 export const POLL_INTERVAL_MS = 30000;
 
-export function useIncomingNotifications(onArrive) {
+export function useIncomingNotifications(onArrive, onCount) {
   const callback = useRef(onArrive);
   callback.current = onArrive;
+  const countCallback = useRef(onCount);
+  countCallback.current = onCount;
 
   useEffect(() => {
     let active = true;
@@ -21,6 +24,7 @@ export function useIncomingNotifications(onArrive) {
       try {
         const inbox = await getNotifications({ soloNoLeidas: true, limite: 20 });
         if (!active) return;
+        if (typeof inbox?.noLeidas === 'number') countCallback.current?.(inbox.noLeidas);
         const unread = (inbox?.notificaciones ?? []).filter((item) => !item.leida);
         if (known === null) {
           known = new Set(unread.map((item) => item.idNotificacion));

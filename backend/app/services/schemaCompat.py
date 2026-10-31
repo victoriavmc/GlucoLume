@@ -59,6 +59,12 @@ def auditContextReady(db: Session) -> bool:
     return hasTable(db, "AuditoriaContexto")
 
 
+def auditReviewReady(db: Session) -> bool:
+    """¿Tiene la base instalada la tabla AuditoriaRevision (marca «analizado» de los eventos, GlucoLume_revision_auditoria.sql)? Sin ella la
+    auditoría sigue igual y no muestra la marca; no se puede marcar ningún evento."""
+    return hasTable(db, "AuditoriaRevision")
+
+
 def auditAccountTypeReady(db: Session) -> bool:
     """¿Tiene la base instalada Auditoria.tipoCuentaActor (esquema v5)? Sin ella el backend no la nombra y los accesos por tipo de cuenta se infieren del
     tipo vigente de la cuenta, como siempre."""

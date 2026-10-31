@@ -116,6 +116,21 @@
   font-weight: 600;
 }
 
+/* Cantidad de avisos sin leer, a la derecha de «Notificaciones». */
+.app-nav-badge {
+  margin-left: auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--red-600);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+
 .app-logout {
   display: flex;
   align-items: center;

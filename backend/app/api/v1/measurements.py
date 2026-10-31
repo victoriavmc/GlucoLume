@@ -149,6 +149,8 @@ def capillaryReference(idMedicion: uuid.UUID, data: CapillaryReferenceRequest, a
 
 @router.post("/{idMedicion}/send-result", response_model=ResultSendRead, summary="Enviar el resultado por correo",
              description="Medición COMPLETADA. Cuenta individual: va a su propio correo. Paciente institucional: el "
-             "operador a cargo indica el correo que el paciente informó y confirma su autorización (el correo no se guarda).")
+             "operador a cargo indica el correo que el paciente informó y confirma su autorización (el correo no se guarda). "
+             "El envío sale en segundo plano: responde `PENDIENTE` de inmediato y `envioResultadoEstado` de la medición pasa a "
+             "`ENVIADO` o `FALLIDO` cuando termina.")
 def sendResult(idMedicion: uuid.UUID, data: ResultSendRequest, auth: CurrentAuth, db: DbSession):
     return measurementService.sendResultByEmail(db, auth.user, idMedicion, data)

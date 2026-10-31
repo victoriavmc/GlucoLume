@@ -1,5 +1,5 @@
-// Consulta de la auditoría (backend/app/api/v1/audit.py). Solo lectura: no hay llamadas para crear, modificar ni
-// eliminar eventos. Quién puede consultar y de qué institución lo decide FastAPI en cada pedido (administrador del
+// Consulta de la auditoría (backend/app/api/v1/audit.py). Solo lectura, salvo la marca «analizado» de un evento
+// (setGlobalAuditReview), que se guarda aparte y no cambia el evento. Quién puede consultar y de qué institución lo decide FastAPI en cada pedido (administrador del
 // sistema: todo; propietario: solo su institución); ocultar la opción en el menú no reemplaza esa autorización.
 
 import { request } from './client.js';
@@ -20,6 +20,11 @@ export function getGlobalAuditSummary(filters = {}) {
 
 export function getGlobalAuditEvent(idAuditoria) {
   return request(`/audit/events/${idAuditoria}`, { auth: true });
+}
+
+/** Marca o desmarca un evento como analizado (solo ADMINISTRADOR_PLATAFORMA). Devuelve la marca resultante. */
+export function setGlobalAuditReview(idAuditoria, revisado) {
+  return request(`/audit/events/${idAuditoria}/review`, { method: 'PUT', body: { revisado }, auth: true });
 }
 
 /** Auditoría de una institución (su PROPIETARIO): el ámbito sale de la ruta, no hay filtro de institución. */

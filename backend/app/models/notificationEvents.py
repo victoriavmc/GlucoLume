@@ -10,11 +10,14 @@ INICIO_SESION = "INICIO_SESION"
 CAMBIO_CONTRASENA = "CAMBIO_CONTRASENA"  # nosec B105 - nombre de evento, no un secreto
 CAMBIO_MFA = "CAMBIO_MFA"
 ACTIVIDAD_SOSPECHOSA = "ACTIVIDAD_SOSPECHOSA"
+INTENTO_INGRESO = "INTENTO_INGRESO"  # cada contraseña, código o intento rechazado contra la cuenta (no un bloqueo)
 INVITACION_GRUPO = "INVITACION_GRUPO"
 AGREGADO_GRUPO = "AGREGADO_GRUPO"
 NUEVA_ACCION_GRUPO = "NUEVA_ACCION_GRUPO"
 MEDICION_GRUPO = "MEDICION_GRUPO"
 RECORDATORIO_MEDICION = "RECORDATORIO_MEDICION"
+# Invitación de una institución a una cuenta institucional existente. El correo ya lo envía su flujo (institution.py).
+INSTITUCION_INVITACION = "INSTITUCION_INVITACION"
 # Gestión de la institución: según el rol de quien recibe (propietario, moderador u operador). El correo de cada hecho ya lo envía su
 # flujo (institution.py, institutionPatients.py, profileTransfers.py): estos avisos solo agregan la bandeja.
 INSTITUCION_OPERADOR_NUEVO = "INSTITUCION_OPERADOR_NUEVO"
@@ -48,11 +51,13 @@ CATALOGO: dict[str, EventSpec] = {
     CAMBIO_CONTRASENA: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True),
     CAMBIO_MFA: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True),
     ACTIVIDAD_SOSPECHOSA: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True),
+    INTENTO_INGRESO: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True, correo=False),
     INVITACION_GRUPO: EventSpec(CATEGORIA_GRUPO),
     AGREGADO_GRUPO: EventSpec(CATEGORIA_GRUPO),
     NUEVA_ACCION_GRUPO: EventSpec(CATEGORIA_GRUPO),
     MEDICION_GRUPO: EventSpec(CATEGORIA_GRUPO),
     RECORDATORIO_MEDICION: EventSpec(CATEGORIA_RECORDATORIO, porCorreo=False),
+    INSTITUCION_INVITACION: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
     INSTITUCION_OPERADOR_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
     INSTITUCION_OPERADOR_BAJA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
     INSTITUCION_MODERADOR_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),

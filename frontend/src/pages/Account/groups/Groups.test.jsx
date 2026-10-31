@@ -201,6 +201,24 @@ describe('Invitaciones (administrador)', () => {
     expect(calls.find((call) => call.key === `POST ${BASE}/invitations`).body).toEqual({ correoElectronico: 'carla@example.com' });
   });
 
+  it('reenvía una invitación pendiente sin crear otra y renueva el plazo', async () => {
+    const pending = { idGrupoUsuario: 'gu-carla', nombre: 'Carla', apellido: 'Gómez', fechaInvitacion: '2026-10-08T10:00:00',
+      fechaVencimiento: '2026-10-15T10:00:00', vencida: false };
+    const resent = { ...pending, fechaInvitacion: '2026-10-20T10:00:00', fechaVencimiento: '2026-10-27T10:00:00' };
+    const { calls } = routes({
+      [`GET ${BASE}`]: jsonResponse(200, group()),
+      [`GET ${BASE}/members`]: jsonResponse(200, []),
+      [`GET ${BASE}/invitations`]: [jsonResponse(200, [pending]), jsonResponse(200, [resent])],
+      [`POST ${BASE}/invitations/gu-carla/resend`]: jsonResponse(200, resent),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/grupo/${ID}/integrantes`);
+    await user.click(await screen.findByRole('button', { name: 'Reenviar invitación de Carla Gómez' }));
+    expect(await screen.findByText(/Reenviaste la invitación a Carla Gómez/)).toBeInTheDocument();
+    expect(await screen.findByText(/Pendiente · vence el 27\/10\/2026/)).toBeInTheDocument();
+    expect(calls.some((call) => call.key === `POST ${BASE}/invitations`)).toBe(false);
+  });
+
   it('un miembro no ve ni puede abrir la gestión de invitaciones', async () => {
     const { calls } = routes({
       [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
