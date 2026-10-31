@@ -24,7 +24,7 @@ import { ConnectionGuide } from './ConnectionGuide.jsx';
 import { ConnectionStatusPanel } from './ConnectionStatusPanel.jsx';
 import { DeviceIdentification } from './DeviceIdentification.jsx';
 import { MeasurementGuide } from './MeasurementGuide.jsx';
-import { nextAction } from './connectModel.js';
+import { MEDIA, nextAction } from './connectModel.js';
 import { useDeviceReadiness } from './useDeviceReadiness.js';
 import './ConnectDevice.css';
 
@@ -47,9 +47,11 @@ export function ConnectDeviceView({ institution }) {
     });
   }, [individual]);
 
-  // El medio que muestra la guía parte del que el puente ya usa; antes de saberlo, Bluetooth.
-  const effectiveMedium = medium ?? status?.puente?.medio ?? 'BLUETOOTH';
-  const action = nextAction(status, readiness, effectiveMedium);
+  // El medio elegido parte del que el puente ya usa; puede ser AUTO (solo el selector lo entiende). La guía necesita un medio físico:
+  // mientras el puente busca el GlucoLume en modo AUTO, muestra Bluetooth como antes de saber cuál usa.
+  const chosenMedium = medium ?? status?.puente?.medio ?? 'BLUETOOTH';
+  const guideMedium = MEDIA[chosenMedium] ? chosenMedium : 'BLUETOOTH';
+  const action = nextAction(status, readiness, guideMedium);
   const error = statusError || readinessError || profileError;
   const refreshAll = () => { refresh(); refreshReadiness(); };
 
@@ -69,11 +71,11 @@ export function ConnectDeviceView({ institution }) {
         </Alert>
       )}
 
-      <ConnectionStatusPanel status={status} readiness={readiness} medium={effectiveMedium} onRetry={refreshAll} institutional={!individual} />
+      <ConnectionStatusPanel status={status} readiness={readiness} medium={guideMedium} onRetry={refreshAll} institutional={!individual} />
       {institution && <DeviceIdentification identification={readiness?.identificacion} onChanged={refreshAll} />}
       <div className="connect-cols">
-        <BridgeSettings status={status} medium={effectiveMedium} onMediumChange={setMedium} onChanged={refreshAll} authority={readiness?.ordenesPuente} />
-        <ConnectionGuide medium={effectiveMedium} onMediumChange={setMedium} status={status} readiness={readiness} institutional={!individual} />
+        <BridgeSettings status={status} medium={chosenMedium} onMediumChange={setMedium} onChanged={refreshAll} authority={readiness?.ordenesPuente} />
+        <ConnectionGuide medium={guideMedium} onMediumChange={setMedium} status={status} readiness={readiness} institutional={!individual} />
       </div>
       <MeasurementGuide ready={Boolean(readiness?.listo)} individual={individual} blockedBy={readiness?.listo ? null : `${action.title}.`}
         measureTo={institution ? `/app/instituciones/${idInstitucion}/pacientes` : undefined} />

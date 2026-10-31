@@ -115,6 +115,24 @@ describe('Conectar dispositivo: estado real', () => {
     }
   });
 
+  it('en modo automático sin dispositivo muestra la pantalla sin fallar y deja marcado el selector Automático', async () => {
+    const searching = { ...BRIDGE, medio: 'AUTO', puerto: null, baudios: null, estadoEnlace: 'DISPOSITIVO_DESCONECTADO', puertosDisponibles: [USB_PORT] };
+    open(status({ estado: 'PUERTO_DESCONECTADO', lectura: null, puente: searching }), readiness({}));
+    expect(await screen.findByRole('radio', { name: /Automático/ })).toBeChecked();
+    expect(screen.queryByText('Algo salió mal')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Guía: Bluetooth/ })).toBeInTheDocument();
+  });
+
+  it('elegir Automático desde el selector no rompe la guía y el botón aplica el modo sin puerto', async () => {
+    const user = userEvent.setup();
+    open(status(), READY);
+    await user.click(await screen.findByRole('radio', { name: /Automático/ }));
+    expect(screen.queryByText('Algo salió mal')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Guía: Bluetooth/ })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Puerto COM' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Aplicar modo automático/ })).toBeEnabled();
+  });
+
   it('un puerto abierto sin telemetría NO es dispositivo listo', async () => {
     open(status({ estado: 'SIN_DATOS', lectura: null }), readiness({
       TELEMETRIA: step('TELEMETRIA', 'Telemetría reciente', 'PENDIENTE', 'El puerto abrió pero todavía no llegan lecturas.', 'Verificá que el Arduino tenga cargado el firmware.'),
