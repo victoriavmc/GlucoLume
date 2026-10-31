@@ -490,11 +490,15 @@ def createMatrix(db: Session, actor: User, data: MatrixCreateRequest) -> MatrixD
     issues = _checkRules(data.reglas) if data.reglas else []
     if issues:  # una configuración inválida o ambigua no se guarda: ni la matriz ni ninguna regla
         raise _error(issues[0].codigo if len(issues) == 1 else "MATRIZ_INVALIDA", " ".join(issue.mensaje for issue in issues))
+    # Si no se indica desde, rige desde hoy: el hasta se compara contra esa fecha efectiva (la que guarda la base).
+    desde = data.fechaVigenciaDesde or nowForDb().date()
+    if data.fechaVigenciaHasta is not None and data.fechaVigenciaHasta < desde:
+        raise _error("PERIODO_INVALIDO", "La vigencia no puede terminar antes de empezar.")
     matrix = Matrix(
         idInstitucion=data.idInstitucion, nombre=data.nombre, version=_nextVersion(db, data.ambito, data.idInstitucion, data.nombre),
         ambito=data.ambito, descripcion=data.descripcion, referenciaBase=data.referenciaBase, urlReferencia=data.urlReferencia,
         estado=BORRADOR,
-        fechaVigenciaDesde=data.fechaVigenciaDesde or nowForDb().date(), fechaVigenciaHasta=data.fechaVigenciaHasta,
+        fechaVigenciaDesde=desde, fechaVigenciaHasta=data.fechaVigenciaHasta,
     )
     try:
         db.add(matrix)

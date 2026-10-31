@@ -8,13 +8,16 @@
 // matriz con la que se registró). GlucoLume es un prototipo experimental: las matrices son configuraciones de referencia para
 // interpretar estimaciones experimentales, no una herramienta de diagnóstico ni una recomendación clínica.
 
-import { ChevronDown, ChevronRight, Globe2, Layers, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Globe2, Layers, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 
 import * as matricesApi from '../../../api/matricesApi.js';
 import { Badge } from '../../../components/Badge.jsx';
-import { Alert } from '../../../components/FormControls.jsx';
+import { Alert, SelectField } from '../../../components/FormControls.jsx';
+import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
+import '../institutions/exportControls.css';
 import { CreateInstitutionMatrixForm } from './CreateInstitutionMatrixForm.jsx';
 import { RulesTable } from './MatrixRules.jsx';
 import { MATRIX_SCOPES, MATRIX_STATES, formatDate, formatDateTime } from './matrixFormat.js';
@@ -119,7 +122,41 @@ function ActiveMatrixCard({ summary, detail, institution, handleOperationError }
       </dl>
       <RulesDisclosure idMatriz={summary.idMatriz} detail={detail} handleOperationError={handleOperationError}
         readOnlyNote={global ? 'La matriz global es de solo lectura: ninguna institución puede modificar sus reglas.' : undefined} />
+      <MatrixDownload item={summary} handleOperationError={handleOperationError} />
     </section>
+  );
+}
+
+/** Descarga la matriz con sus reglas. La API decide quién puede verla y audita cada exportación; acá solo se descarga lo que devuelve. */
+function MatrixDownload({ item, handleOperationError }) {
+  const [format, setFormat] = useState('csv');
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function download() {
+    setExporting(true);
+    setError('');
+    try {
+      const { blob, filename } = await matricesApi.exportMatrix(item.idMatriz, format);
+      saveBlob(blob, filename);
+    } catch (exportFailure) {
+      setError(handleOperationError(exportFailure));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="matrix-download">
+      <div className="export-toolbar">
+        <SelectField label="Formato" value={format} onChange={(event) => setFormat(event.target.value)} options={EXPORT_FORMATS} />
+        <button type="button" className="btn btn-outline" disabled={exporting} onClick={download}
+          aria-label={`Descargar ${item.nombre} versión ${item.version}`}>
+          {exporting && <span className="spinner" aria-hidden="true" />} <Download size={16} aria-hidden="true" /> Descargar
+        </button>
+      </div>
+      {error && <Alert>{error}</Alert>}
+    </div>
   );
 }
 
@@ -163,6 +200,7 @@ function VersionCard({ item, busy, confirming, onConfirm, onCancelConfirm, onAct
                 <Play size={16} aria-hidden="true" /> Activar
               </button>
             )}
+            <MatrixDownload item={item} handleOperationError={handleOperationError} />
           </>
         )}
       </div>

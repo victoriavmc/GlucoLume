@@ -482,6 +482,13 @@ def test_no_se_activa_una_matriz_invalida_o_fuera_de_vigencia(db, mails, team):
     assert db.scalar(select(func.count()).select_from(Matrix).where(Matrix.estado == "ACTIVA")) == 0
 
 
+def test_crear_con_hasta_anterior_a_hoy_sin_desde_informa_periodo_invalido(db, mails, team):
+    # Sin desde, rige desde hoy: un hasta anterior a hoy es un período inválido, no una versión duplicada.
+    expectError("PERIODO_INVALIDO", matrices.createMatrix, db, team.owner, MatrixCreateRequest(referenciaBase="Fuente de prueba",
+        ambito="INSTITUCION", idInstitucion=team.id, nombre="Vencida", fechaVigenciaHasta="2002-02-02"))
+    assert db.scalar(select(func.count()).select_from(Matrix).where(Matrix.nombre == "Vencida")) == 0
+
+
 # --- Institución cerrada ----------------------------------------------------------------------------------
 
 

@@ -162,6 +162,23 @@ describe('Matrices institucionales', () => {
     expect(screen.getByText(/prototipo tecnológico experimental/)).toBeInTheDocument();
   });
 
+  it('la matriz en uso se descarga con sus reglas en el formato elegido', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:matriz');
+    URL.revokeObjectURL = vi.fn();
+    const { calls } = routes(INSTITUTIONAL, {
+      [`GET ${BASE}`]: jsonResponse(200, institution('PROPIETARIO')),
+      [`GET ${BASE}/matrices`]: jsonResponse(200, overviewGlobal()),
+      'GET /matrices/g': jsonResponse(200, globalDetail()),
+      'POST /matrices/g/export': csvMatrix,
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/matrices`);
+    const card = within((await screen.findByText('Matriz de estimación actualmente utilizada')).closest('section'));
+    await user.click(await card.findByRole('button', { name: 'Descargar ADA 2026 versión 3' }));
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(calls.find((call) => call.key === 'POST /matrices/g/export').url).toMatch(/\?formato=csv$/);
+  });
+
   it('la referencia de la matriz en uso muestra su nombre y un icono que abre el enlace en otra pestaña', async () => {
     const GLOBAL_CON_REFERENCIA = { ...GLOBAL, referenciaBase: 'Guía de la ADA 2026', urlReferencia: 'https://ejemplo.org/ada-2026' };
     routes(INSTITUTIONAL, {
