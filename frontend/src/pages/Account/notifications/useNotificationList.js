@@ -2,11 +2,14 @@
 //
 // Marcar como leído es optimista: el aviso cambia al instante y, si el backend lo rechaza, vuelve a como estaba y se informa el error.
 // Cada cambio de filtro descarta las respuestas de la anterior (no se mezclan avisos de filtros distintos).
+// La bandeja se actualiza sola: cada tanto, y al volver a la pestaña, pide la primera página sin mostrar «Cargando» (así aparecen los avisos
+// nuevos y los cambios hechos desde otro equipo sin apretar F5). No pisa una acción en curso.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import * as notificationsApi from '../../../api/notificationsApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
+import { POLL_INTERVAL_MS } from '../../../notifications/useIncomingNotifications.js';
 
 export const PAGE_SIZE = 20;
 
@@ -42,6 +45,36 @@ export function useNotificationList(params) {
       generation.current += 1;
     };
   }, [paramsKey, reloadKey]);
+
+  // Actualización silenciosa: la primera página se vuelve a pedir sin pasar por «Cargando». Lo que el usuario ya cargó más abajo se conserva.
+  // Si hay una acción pendiente (marcar o quitar), no se refresca: la respuesta podría devolver un aviso que ya se quitó en pantalla.
+  const refreshSilently = useCallback(async () => {
+    if (document.visibilityState === 'hidden' || pending.current.size > 0) return;
+    const mine = generation.current;
+    try {
+      const inbox = await notificationsApi.getNotifications({ ...JSON.parse(paramsKey), limite: PAGE_SIZE });
+      if (generation.current !== mine || pending.current.size > 0) return;
+      setState((current) => {
+        if (current.status !== 'ready') return current;
+        const firstPage = new Set(inbox.notificaciones.map((item) => item.idNotificacion));
+        const older = current.items.filter((item) => !firstPage.has(item.idNotificacion));
+        return {
+          ...current, items: [...inbox.notificaciones, ...older], noLeidas: inbox.noLeidas, hayMas: inbox.hayMas, total: inbox.total,
+        };
+      });
+    } catch {
+      // Sin conexión o similar: se reintenta en la próxima vuelta; la lista queda como estaba.
+    }
+  }, [paramsKey]);
+
+  useEffect(() => {
+    const timer = window.setInterval(refreshSilently, POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', refreshSilently);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshSilently);
+    };
+  }, [refreshSilently]);
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
 

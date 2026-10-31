@@ -1,8 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearTokens, saveTokens } from '../../../auth/tokenStore.js';
+import { POLL_INTERVAL_MS } from '../../../notifications/useIncomingNotifications.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../../test/helpers.js';
 import { renderAt } from '../../../test/renderApp.jsx';
 
@@ -98,6 +99,32 @@ describe('Bandeja de notificaciones', () => {
 
     expect(await screen.findByRole('button', { name: /^Aviso a/ })).toBeInTheDocument();
     expect(attempt).toBe(2);
+  });
+
+  it('se actualiza sola: un aviso nuevo aparece en la bandeja sin recargar la página', async () => {
+    let primeraPagina = true;
+    withInbox({
+      'GET /notificaciones': (options, url) => {
+        if (new URL(url).searchParams.get('soloNoLeidas')) return bandeja([]);
+        const respuesta = primeraPagina ? bandeja([aviso('a')]) : bandeja([aviso('b'), aviso('a')]);
+        primeraPagina = false;
+        return respuesta;
+      },
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderAt('/app/notificaciones');
+      await screen.findByRole('button', { name: /^Aviso a/ });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+      });
+
+      expect(await screen.findByRole('button', { name: /^Aviso b/ })).toBeInTheDocument();
+      expect(screen.getByText('Tenés 2 sin leer.')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('los filtros piden al backend la categoría o los no leídos', async () => {
