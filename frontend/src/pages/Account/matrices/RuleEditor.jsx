@@ -36,9 +36,10 @@ function validate(form) {
       && Number(form.minutosComidaMax) < Number(form.minutosComidaMin)) {
     errors.minutosComidaMax = 'El tiempo mínimo no puede superar el máximo.';
   }
-  if (!(number(form.glucosaMinReferencia) >= 0)) errors.glucosaMinReferencia = 'Ingresá un valor de glucosa (mg/dL).';
+  // El mínimo es opcional (objetivo solo con tope); el máximo es obligatorio.
+  if (form.glucosaMinReferencia !== '' && !(number(form.glucosaMinReferencia) >= 0)) errors.glucosaMinReferencia = 'Ingresá un valor de glucosa (mg/dL) o dejalo vacío.';
   if (!(number(form.glucosaMaxReferencia) >= 0)) errors.glucosaMaxReferencia = 'Ingresá un valor de glucosa (mg/dL).';
-  else if (!errors.glucosaMinReferencia && number(form.glucosaMaxReferencia) < number(form.glucosaMinReferencia)) {
+  else if (!errors.glucosaMinReferencia && form.glucosaMinReferencia !== '' && number(form.glucosaMaxReferencia) < number(form.glucosaMinReferencia)) {
     errors.glucosaMaxReferencia = 'El límite mínimo no puede superar el máximo.';
   }
   return errors;
@@ -49,7 +50,7 @@ export function rulePayload(form) {
   return {
     sexoModelo: form.sexoModelo, edadDesde: optional(form.edadDesde), edadHasta: optional(form.edadHasta),
     condicionComida: form.condicionComida, minutosComidaMin: optional(form.minutosComidaMin),
-    minutosComidaMax: optional(form.minutosComidaMax), glucosaMinReferencia: form.glucosaMinReferencia,
+    minutosComidaMax: optional(form.minutosComidaMax), glucosaMinReferencia: form.glucosaMinReferencia === '' ? null : form.glucosaMinReferencia,
     glucosaMaxReferencia: form.glucosaMaxReferencia,
   };
 }
@@ -111,7 +112,7 @@ export function RuleEditor({ rule, onSave, onCancel, handleOperationError }) {
           onChange={update('minutosComidaMin')} error={errors.minutosComidaMin} />
         <TextField label="Minutos desde la última ingesta, máximo (opcional)" type="number" min="0" value={form.minutosComidaMax}
           onChange={update('minutosComidaMax')} error={errors.minutosComidaMax} />
-        <TextField label="Glucosa de referencia mínima (mg/dL)" type="number" min="0" step="0.01" value={form.glucosaMinReferencia}
+        <TextField label="Glucosa de referencia mínima (mg/dL, opcional)" type="number" min="0" step="0.01" value={form.glucosaMinReferencia}
           onChange={update('glucosaMinReferencia')} error={errors.glucosaMinReferencia} />
         <TextField label="Glucosa de referencia máxima (mg/dL)" type="number" min="0" step="0.01" value={form.glucosaMaxReferencia}
           onChange={update('glucosaMaxReferencia')} error={errors.glucosaMaxReferencia} />

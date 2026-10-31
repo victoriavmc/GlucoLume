@@ -69,13 +69,20 @@ def test_las_cuatro_combinaciones_conviven_en_una_matriz_sin_duplicarse_ni_solap
 
 def test_no_informado_elegido_no_equivale_a_un_dato_obligatorio_sin_completar():
     for bad in ({"sexoModelo": None}, {"sexoModelo": ""}, {"condicionComida": None}, {"condicionComida": ""},
-                {"edadDesde": 18, "edadHasta": None}, {"edadDesde": None, "edadHasta": 60}, {"glucosaMinReferencia": None},
+                {"edadDesde": 18, "edadHasta": None}, {"edadDesde": None, "edadHasta": 60},
                 {"glucosaMaxReferencia": ""}):
         with pytest.raises(ValidationError):
             rule(**bad)
     for value in ("no_informado", "NO_INFORMADO", " No_Informado "):
         assert rule(sexoModelo=value.strip()).sexoModelo == "NO_INFORMADO"
     assert rule(sexoModelo="NO_INFORMADO", condicionComida="NO_INFORMADA").condicionComida == "NO_INFORMADA"
+
+
+def test_el_minimo_de_glucosa_puede_quedar_vacio_pero_el_maximo_es_obligatorio():
+    # Un objetivo solo con tope (posprandial «menor de 180 mg/dL», ADA) no inventa un límite inferior.
+    assert rule(glucosaMinReferencia=None, glucosaMaxReferencia="179.99").glucosaMinReferencia is None
+    with pytest.raises(ValidationError):
+        rule(glucosaMinReferencia="80", glucosaMaxReferencia="70")
 
 
 def test_una_regla_para_edad_no_especificada_se_crea_y_edita_como_las_de_la_matriz_global(db, mails, platform):

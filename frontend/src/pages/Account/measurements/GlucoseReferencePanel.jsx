@@ -26,7 +26,7 @@ const STATE_TEXT = {
   SIN_MATRIZ: 'Referencia no disponible: no había una matriz vigente asociada a esta medición.',
 };
 
-const SEX_LABELS = { FEMENINO: 'Femenino', MASCULINO: 'Masculino', NO_INFORMADO: 'Sexo no informado' };
+const SEX_LABELS = { FEMENINO: 'Femenino', MASCULINO: 'Masculino', NO_INFORMADO: 'Sexo no informado', CUALQUIER_SEXO: 'Cualquier sexo' };
 
 /** Rango de edad de una regla: un límite vacío es «sin límite» (una regla sin rango vale para cualquier edad). */
 export function ageText(rule) {
@@ -40,28 +40,37 @@ const number = (value) => Number(value).toLocaleString('es-AR', { maximumFractio
 
 /** Escala horizontal: límites inferior y superior de la regla y un marcador con el valor. */
 export function RangeScale({ min, max, value, label }) {
-  const span = max - min || 1;
-  const lo = Math.min(min, value ?? min) - span * 0.35;
+  // Sin mínimo (solo tope): la banda arranca en el borde izquierdo de la escala y no se rotula un límite inferior.
+  const hasMin = min !== null && min !== undefined;
+  const span = max - (hasMin ? min : max) || 1;
+  const lo = Math.min(hasMin ? min : max, value ?? (hasMin ? min : max)) - span * 0.35;
   const hi = Math.max(max, value ?? max) + span * 0.35;
   const at = (point) => `${(((point - lo) / (hi - lo)) * 100).toFixed(1)}%`;
+  const bandStart = hasMin ? min : lo;
   return (
     <div className="range-scale" role="img" aria-label={label}>
       <div className="range-track">
-        <span className="range-band" style={{ left: at(min), width: `${(((max - min) / (hi - lo)) * 100).toFixed(1)}%` }} />
+        <span className="range-band" style={{ left: at(bandStart), width: `${(((max - bandStart) / (hi - lo)) * 100).toFixed(1)}%` }} />
         {value !== null && value !== undefined && <span className="range-marker" style={{ left: at(value) }}><b>{number(value)}</b></span>}
       </div>
       <div className="range-limits">
-        <span style={{ left: at(min) }}>{number(min)}</span>
+        {hasMin && <span style={{ left: at(min) }}>{number(min)}</span>}
         <span style={{ left: at(max) }}>{number(max)}</span>
       </div>
     </div>
   );
 }
 
+/** «80–130 mg/dL» o, sin mínimo, «hasta 179,99 mg/dL». */
+function rangeText(rule) {
+  if (rule.glucosaMinReferencia === null || rule.glucosaMinReferencia === undefined) return `hasta ${number(rule.glucosaMaxReferencia)} mg/dL`;
+  return `${number(rule.glucosaMinReferencia)}–${number(rule.glucosaMaxReferencia)} mg/dL`;
+}
+
 function ruleText(rule) {
   const minutes = rule.minutosComidaMin !== null || rule.minutosComidaMax !== null
     ? ` (${rule.minutosComidaMin ?? 0}–${rule.minutosComidaMax ?? '∞'} min desde la comida)` : '';
-  return `${ageText(rule)} · ${MEALS[rule.condicionComida] ?? rule.condicionComida}${minutes} · ${number(rule.glucosaMinReferencia)}–${number(rule.glucosaMaxReferencia)} mg/dL`;
+  return `${ageText(rule)} · ${MEALS[rule.condicionComida] ?? rule.condicionComida}${minutes} · ${rangeText(rule)}`;
 }
 
 function Group({ group, value, demo }) {
@@ -75,10 +84,10 @@ function Group({ group, value, demo }) {
             <div><dt>Regla disponible para {SEX_LABELS[rule.sexoModelo] ?? rule.sexoModelo}</dt><dd>{rule.codigo}</dd></div>
             <div><dt>Rango de edad</dt><dd>{ageText(rule)}</dd></div>
             <div><dt>Condición de alimentación</dt><dd>{MEALS[rule.condicionComida] ?? rule.condicionComida}</dd></div>
-            <div><dt>Intervalo configurado</dt><dd>{number(rule.glucosaMinReferencia)}–{number(rule.glucosaMaxReferencia)} mg/dL</dd></div>
+            <div><dt>Intervalo configurado</dt><dd>{rangeText(rule)}</dd></div>
           </dl>
           <RangeScale min={rule.glucosaMinReferencia} max={rule.glucosaMaxReferencia} value={value}
-            label={`${group.titulo}: intervalo ${number(rule.glucosaMinReferencia)} a ${number(rule.glucosaMaxReferencia)} mg/dL`} />
+            label={`${group.titulo}: intervalo ${rule.glucosaMinReferencia === null ? `hasta ${number(rule.glucosaMaxReferencia)}` : `${number(rule.glucosaMinReferencia)} a ${number(rule.glucosaMaxReferencia)}`} mg/dL`} />
           {group.posicion ? (
             <p className={`reference-position is-${group.posicion.toLowerCase()}`} role="status">
               <b>{POSITIONS[group.posicion]}</b>

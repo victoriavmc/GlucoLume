@@ -6,7 +6,9 @@ export { MEALS, formatDate, formatDateTime };
 
 export const MATRIX_STATES = { BORRADOR: 'Borrador', ACTIVA: 'Activa', INACTIVA: 'Inactiva', ARCHIVADA: 'Archivada' };
 export const MATRIX_SCOPES = { GLOBAL: 'Global de GlucoLume', INSTITUCION: 'Institucional' };
-export const RULE_SEX = { FEMENINO: 'Femenino', MASCULINO: 'Masculino', NO_INFORMADO: 'Sexo no informado' };
+export const RULE_SEX = {
+  FEMENINO: 'Femenino', MASCULINO: 'Masculino', NO_INFORMADO: 'Sexo no informado', CUALQUIER_SEXO: 'Cualquier sexo',
+};
 
 export const AUDIT_ACTIONS = {
   CREAR_MATRIZ: 'Creó la matriz', CREAR_VERSION_MATRIZ: 'Creó una versión nueva', MODIFICAR_MATRIZ: 'Modificó el borrador',
@@ -26,8 +28,10 @@ export function minutesLabel(rule) {
   return min !== null ? `Desde ${min} min` : `Hasta ${max} min`;
 }
 
+/** «80 – 130 mg/dL»; sin mínimo (solo tope, p. ej. posprandial menor de 180) es «Hasta 179,99 mg/dL». */
 export function glucoseRange(rule) {
   const format = (value) => Number(value).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  if (rule.glucosaMinReferencia === null || rule.glucosaMinReferencia === undefined) return `Hasta ${format(rule.glucosaMaxReferencia)} mg/dL`;
   return `${format(rule.glucosaMinReferencia)} – ${format(rule.glucosaMaxReferencia)} mg/dL`;
 }
 
@@ -52,7 +56,7 @@ export function ruleCriteria(rule) {
 export const isGeneralRule = (rule) => rule.sexoModelo === 'NO_INFORMADO' && (rule.edadDesde === null || rule.edadDesde === undefined)
   && rule.condicionComida === 'NO_INFORMADA';
 
-const SEX_ORDER = { FEMENINO: 0, MASCULINO: 1, NO_INFORMADO: 2 };
+const SEX_ORDER = { FEMENINO: 0, MASCULINO: 1, NO_INFORMADO: 2, CUALQUIER_SEXO: 3 };
 const MEAL_ORDER = { AYUNO: 0, POSTPRANDIAL: 1, NO_INFORMADA: 2 };
 
 /** Orden de lectura: sexo, alimentación y edad (las reglas sin edad al final de cada grupo). */
@@ -71,7 +75,9 @@ const span = (min, max) => [min ?? 0, max ?? Infinity];
  */
 export function ruleProblem(candidate, others) {
   for (const other of others) {
-    if (other.sexoModelo !== candidate.sexoModelo || other.condicionComida !== candidate.condicionComida) continue;
+    const sameSex = other.sexoModelo === candidate.sexoModelo || other.sexoModelo === 'CUALQUIER_SEXO'
+      || candidate.sexoModelo === 'CUALQUIER_SEXO';
+    if (!sameSex || other.condicionComida !== candidate.condicionComida) continue;
     if (hasAge(candidate) !== hasAge(other)) continue;
     const sameMinutes = (other.minutosComidaMin ?? null) === (candidate.minutosComidaMin ?? null)
       && (other.minutosComidaMax ?? null) === (candidate.minutosComidaMax ?? null);

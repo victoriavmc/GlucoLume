@@ -288,7 +288,7 @@ async def googleCallback(request: Request, db: DbSession):
         return _frontendGoogleRedirect("error=TOKEN_INVALIDO")
     try:
         user = await run_in_threadpool(authService.identifyGoogleUser, db, identity, tipoCuentaNueva, aceptaPolitica)
-        await run_in_threadpool(authService.requireAccesoLogin, db, user, acceso, "LOGIN_GOOGLE")
+        await run_in_threadpool(authService.requireAccesoGoogle, db, user, acceso)
         code = await run_in_threadpool(authService.createGoogleExchangeCode, db, user)
     except AuthError as error:
         # Los códigos de error son estables y no contienen datos personales.

@@ -1,20 +1,19 @@
 /*
- GlucoLume | Matriz global y sus 27 reglas - TODO EN UNO, sobre el esquema consolidado GlucoLume_DB_v5.sql (DEC-02).
- Corrige el problema de ejecutar el cuerpo del procedimiento sin variables declaradas.
- SQL Server / SSMS: abrir el archivo completo y ejecutar F5, SIN SELECCIONAR TEXTO.
- Ensayado sobre v5 en una base descartable el 19/10/2026. No borra mediciones ni matrices institucionales.
+ GlucoLume | Matriz global de referencia de glucosa, versión 1 de «ADA Diabetes Tests - objetivos adultos no gestantes» (v3).
+ Reemplaza en el catálogo global a «ADA 2026 - Seguimiento adulto no gestante» (v2, DEMO, sin fuente clínica), que queda INACTIVA
+ e intacta para la trazabilidad de las mediciones que la usaron. No se modifica ninguna fila de matrices activadas ni mediciones.
 
- 3 sexos: FEMENINO, MASCULINO, NO_INFORMADO.
- 3 edades: 18-64, 65-130, NULL (edad desconocida).
- 3 comidas: AYUNO, POSTPRANDIAL (60-120 min), NO_INFORMADA.
- TOTAL: 27 REGLAS.
+ Fuente única: ADA, Diabetes Tests (https://diabetes.org/living-with-diabetes/treatment-care/checking-your-blood-sugar).
+   · Objetivo preprandial: 80–130 mg/dL («Before a meal»), regla AYUNO.
+   · Objetivo posprandial: menor de 180 mg/dL, medido 1–2 horas desde el inicio de la comida, regla POSTPRANDIAL (60–120 min).
+   · Comida no informada (NO_INFORMADA): no hay regla ni objetivo. La consulta muestra los dos objetivos sin elegir ninguno.
+ Sin distinción por sexo (regla CUALQUIER_SEXO) ni por edad: el alcance es el de adultos 18–130 años.
+ No es diagnóstico ni clasificación clínica. Los umbrales 54 y 70 mg/dL son de hipoglucemia y se marcan como pendientes de verificar
+ con la Sección 6 de ADA (no accesible en la revisión).
 
- ADVERTENCIA: esta matriz es orientativa para adultos con diabetes no gestantes.
- No es diagnostica. DEMO es ficticio y nunca una glucemia real.
- CAMBIO DE ESQUEMA: edadDesde/edadHasta pasan a admitir NULL; se amplia
- CK_ReglaMatriz_sexo. Actualizar SQLAlchemy, Pydantic y resolucion de reglas
- antes de usar la matriz V2 desde el frontend/backend en produccion.
- Hacer respaldo antes de ejecutar. Verificar en una base de desarrollo.
+ Cambios de esquema: CK_ReglaMatriz_sexo admite CUALQUIER_SEXO; ReglaMatriz.glucosaMinReferencia admite NULL (solo tope).
+ Prerrequisito: GlucoLume_matriz_referencia.sql (columnas referenciaBase y urlReferencia).
+ SQL Server / SSMS: abrir el archivo completo y ejecutar F5, SIN SELECCIONAR TEXTO. Hacer respaldo antes de ejecutar.
 */
 
 IF DB_ID(N'GlucoLume') IS NULL
@@ -31,14 +30,19 @@ BEGIN TRY
 
     IF OBJECT_ID(N'dbo.Matriz', N'U') IS NULL OR OBJECT_ID(N'dbo.ReglaMatriz', N'U') IS NULL
         THROW 51001, 'Faltan las tablas dbo.Matriz o dbo.ReglaMatriz.', 1;
+    IF COL_LENGTH(N'dbo.Matriz', N'urlReferencia') IS NULL OR COL_LENGTH(N'dbo.Matriz', N'referenciaBase') IS NULL
+        THROW 51006, 'Falta ejecutar antes GlucoLume_matriz_referencia.sql (columnas referenciaBase y urlReferencia).', 1;
 
-    /* 1. Cambios compatibles con edades desconocidas (no aplica a perfiles). */
+    /* 1. Cambios de esquema (idempotentes). */
     IF EXISTS (SELECT 1 FROM sys.check_constraints
                WHERE parent_object_id=OBJECT_ID(N'dbo.ReglaMatriz') AND name=N'CK_ReglaMatriz_sexo')
         ALTER TABLE dbo.ReglaMatriz DROP CONSTRAINT CK_ReglaMatriz_sexo;
     IF EXISTS (SELECT 1 FROM sys.check_constraints
                WHERE parent_object_id=OBJECT_ID(N'dbo.ReglaMatriz') AND name=N'CK_ReglaMatriz_edad')
         ALTER TABLE dbo.ReglaMatriz DROP CONSTRAINT CK_ReglaMatriz_edad;
+    IF EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE parent_object_id=OBJECT_ID(N'dbo.ReglaMatriz') AND name=N'CK_ReglaMatriz_glucosaReferencia')
+        ALTER TABLE dbo.ReglaMatriz DROP CONSTRAINT CK_ReglaMatriz_glucosaReferencia;
 
     IF EXISTS (SELECT 1 FROM sys.columns
                WHERE object_id=OBJECT_ID(N'dbo.ReglaMatriz') AND name=N'edadDesde' AND is_nullable=0)
@@ -46,17 +50,23 @@ BEGIN TRY
     IF EXISTS (SELECT 1 FROM sys.columns
                WHERE object_id=OBJECT_ID(N'dbo.ReglaMatriz') AND name=N'edadHasta' AND is_nullable=0)
         ALTER TABLE dbo.ReglaMatriz ALTER COLUMN edadHasta SMALLINT NULL;
+    IF EXISTS (SELECT 1 FROM sys.columns
+               WHERE object_id=OBJECT_ID(N'dbo.ReglaMatriz') AND name=N'glucosaMinReferencia' AND is_nullable=0)
+        ALTER TABLE dbo.ReglaMatriz ALTER COLUMN glucosaMinReferencia DECIMAL(8,2) NULL;
 
     ALTER TABLE dbo.ReglaMatriz WITH CHECK ADD CONSTRAINT CK_ReglaMatriz_sexo
-        CHECK (sexoModelo IN (N'FEMENINO', N'MASCULINO', N'NO_INFORMADO'));
+        CHECK (sexoModelo IN (N'FEMENINO', N'MASCULINO', N'NO_INFORMADO', N'CUALQUIER_SEXO'));
     ALTER TABLE dbo.ReglaMatriz WITH CHECK ADD CONSTRAINT CK_ReglaMatriz_edad
         CHECK ((edadDesde IS NULL AND edadHasta IS NULL)
             OR (edadDesde IS NOT NULL AND edadHasta IS NOT NULL
                 AND edadDesde BETWEEN 0 AND 130 AND edadHasta BETWEEN edadDesde AND 130));
+    ALTER TABLE dbo.ReglaMatriz WITH CHECK ADD CONSTRAINT CK_ReglaMatriz_glucosaReferencia
+        CHECK ((glucosaMinReferencia IS NULL OR glucosaMinReferencia>=0) AND glucosaMaxReferencia>=0
+            AND (glucosaMinReferencia IS NULL OR glucosaMaxReferencia>=glucosaMinReferencia));
 
-    /* 2. Crear la matriz si no existe. No requiere version 1 previa. */
-    DECLARE @nombre NVARCHAR(100) = N'ADA 2026 - Seguimiento adulto no gestante';
-    DECLARE @version NVARCHAR(50) = N'2';
+    /* 2. Crear la versión 1 de la matriz ADA si no existe. */
+    DECLARE @nombre NVARCHAR(100) = N'ADA Diabetes Tests - objetivos adultos no gestantes';
+    DECLARE @version NVARCHAR(50) = N'1';
     DECLARE @idMatriz UNIQUEIDENTIFIER = NULL;
     DECLARE @estado NVARCHAR(30) = NULL;
     DECLARE @cantidad INT = 0;
@@ -71,19 +81,23 @@ BEGIN TRY
         SET @idMatriz=NEWID();
         INSERT INTO dbo.Matriz
             (idMatriz, idInstitucion, nombre, version, ambito, fechaVigenciaDesde,
-             fechaVigenciaHasta, descripcion, referenciaBase, estado)
+             fechaVigenciaHasta, descripcion, referenciaBase, urlReferencia, estado)
         VALUES
             (@idMatriz, NULL, @nombre, @version, N'GLOBAL', CONVERT(DATE, SYSDATETIME()),
-             NULL, N'Matriz orientativa para adultos con diabetes no gestantes. '
-                 + N'27 reglas, incluye datos no informados. DEMO no representa una glucemia real.',
-             N'GlucoLume: matriz de prueba DEMO (ficticia, sin fuente clínica)', N'BORRADOR');
+             NULL,
+             N'Objetivos de glucosa capilar de la guía ADA para adultos no gestantes con diabetes: preprandial 80–130 mg/dL y '
+                 + N'posprandial menor de 180 mg/dL, medido 1–2 h desde el inicio de la comida. Sin distinción por sexo ni edad. '
+                 + N'No es diagnóstico ni clasificación clínica.',
+             N'ADA, Diabetes Tests: objetivos preprandial y posprandial para adultos no gestantes con diabetes',
+             N'https://diabetes.org/living-with-diabetes/treatment-care/checking-your-blood-sugar',
+             N'BORRADOR');
         SET @estado=N'BORRADOR';
     END;
 
     IF @estado NOT IN (N'BORRADOR', N'INACTIVA', N'ACTIVA')
-        THROW 51002, 'La matriz V2 existe pero esta archivada o en estado invalido.', 1;
+        THROW 51002, 'La versión 1 de la matriz ADA existe pero está archivada o en estado inválido.', 1;
 
-    /* 3. Generar las 27 combinaciones de manera determinista. */
+    /* 3. Las dos reglas (una por objetivo). Sin regla para «comida no informada»: no hay objetivo ADA para ese caso. */
     DECLARE @reglas TABLE (
         codigo NVARCHAR(50) NOT NULL PRIMARY KEY,
         sexo NVARCHAR(30) NOT NULL,
@@ -92,38 +106,18 @@ BEGIN TRY
         comida NVARCHAR(30) NOT NULL,
         minutosMin INT NULL,
         minutosMax INT NULL,
-        glucosaMin DECIMAL(8,2) NOT NULL,
+        glucosaMin DECIMAL(8,2) NULL,
         glucosaMax DECIMAL(8,2) NOT NULL
     );
 
-    INSERT INTO @reglas
-      (codigo, sexo, edadMin, edadMax, comida, minutosMin, minutosMax, glucosaMin, glucosaMax)
-    SELECT CONCAT(s.prefijo, N'_', c.codigo, CASE WHEN e.codigo=N'U' THEN N'_U' ELSE e.codigo END),
-           s.sexo, e.edadMin, e.edadMax, c.comida, c.minutosMin, c.minutosMax,
-           CASE WHEN e.edadMin IS NULL THEN CAST(70 AS DECIMAL(8,2))
-                WHEN c.comida=N'AYUNO' THEN CAST(80 AS DECIMAL(8,2))
-                ELSE CAST(70 AS DECIMAL(8,2)) END,
-           CASE WHEN e.edadMin IS NULL THEN CAST(180 AS DECIMAL(8,2))
-                WHEN c.comida=N'AYUNO' THEN CAST(130 AS DECIMAL(8,2))
-                WHEN c.comida=N'POSTPRANDIAL' THEN CAST(179.99 AS DECIMAL(8,2))
-                ELSE CAST(180 AS DECIMAL(8,2)) END
-    FROM (VALUES (N'F',N'FEMENINO'), (N'M',N'MASCULINO'),
-                 (N'NI',N'NO_INFORMADO')) AS s(prefijo, sexo)
-    CROSS JOIN (VALUES
-        (N'18',CAST(18 AS SMALLINT),CAST(64 AS SMALLINT)),
-        (N'65',CAST(65 AS SMALLINT),CAST(130 AS SMALLINT)),
-        (N'U',CAST(NULL AS SMALLINT),CAST(NULL AS SMALLINT))
-    ) AS e(codigo, edadMin, edadMax)
-    CROSS JOIN (VALUES
-        (N'A',N'AYUNO',CAST(NULL AS INT),CAST(NULL AS INT)),
-        (N'P',N'POSTPRANDIAL',CAST(60 AS INT),CAST(120 AS INT)),
-        (N'N',N'NO_INFORMADA',CAST(NULL AS INT),CAST(NULL AS INT))
-    ) AS c(codigo, comida, minutosMin, minutosMax);
+    INSERT INTO @reglas (codigo, sexo, edadMin, edadMax, comida, minutosMin, minutosMax, glucosaMin, glucosaMax)
+    VALUES (N'R-001', N'CUALQUIER_SEXO', 18, 130, N'AYUNO', NULL, NULL, CAST(80.00 AS DECIMAL(8,2)), CAST(130.00 AS DECIMAL(8,2))),
+           (N'R-002', N'CUALQUIER_SEXO', 18, 130, N'POSTPRANDIAL', 60, 120, NULL, CAST(179.99 AS DECIMAL(8,2)));
 
-    IF (SELECT COUNT(*) FROM @reglas)<>27
-        THROW 51003, 'Error interno: no se generaron 27 reglas.', 1;
+    IF (SELECT COUNT(*) FROM @reglas)<>2
+        THROW 51003, 'Error interno: no se generaron 2 reglas.', 1;
 
-    /* Respetar inmutabilidad de una matriz previamente activada. */
+    /* Respetar inmutabilidad: solo se completan reglas de un BORRADOR. */
     IF @estado=N'BORRADOR'
     BEGIN
         INSERT INTO dbo.ReglaMatriz
@@ -138,8 +132,8 @@ BEGIN TRY
     END;
 
     SELECT @cantidad=COUNT(*) FROM dbo.ReglaMatriz WHERE idMatriz=@idMatriz;
-    IF @cantidad<>27
-        THROW 51004, 'La matriz V2 no tiene exactamente 27 reglas; cambios revertidos.', 1;
+    IF @cantidad<>2
+        THROW 51004, 'La matriz no tiene exactamente 2 reglas; cambios revertidos.', 1;
 
     IF EXISTS (
         SELECT 1 FROM @reglas AS r
@@ -150,11 +144,11 @@ BEGIN TRY
            OR x.condicionComida<>r.comida
            OR NOT (x.minutosComidaMin=r.minutosMin OR (x.minutosComidaMin IS NULL AND r.minutosMin IS NULL))
            OR NOT (x.minutosComidaMax=r.minutosMax OR (x.minutosComidaMax IS NULL AND r.minutosMax IS NULL))
-           OR x.glucosaMinReferencia<>r.glucosaMin OR x.glucosaMaxReferencia<>r.glucosaMax
-    ) THROW 51005, 'Las 27 reglas no coinciden con la version esperada; cambios revertidos.', 1;
+           OR NOT (x.glucosaMinReferencia=r.glucosaMin OR (x.glucosaMinReferencia IS NULL AND r.glucosaMin IS NULL))
+           OR x.glucosaMaxReferencia<>r.glucosaMax
+    ) THROW 51005, 'Las 2 reglas no coinciden con la versión esperada; cambios revertidos.', 1;
 
-    /* 4. Instalar procedimiento en un lote INTERNO mediante sp_executesql.
-          Evita un GO intermedio y mantiene las variables declaradas dentro de la SP. */
+    /* 4. Procedimiento de comparación: mismo criterio que matrix.py (resolveRule) y glucoseReference.py (position). */
     DECLARE @sqlProcedimiento NVARCHAR(MAX) = CAST(N'CREATE OR ALTER PROCEDURE dbo.usp_GlucoLume_CompararGlucosa
     @Glucosa DECIMAL(8,2),
     @Edad SMALLINT = NULL,
@@ -172,9 +166,9 @@ BEGIN
             @min DECIMAL(8,2) = NULL,
             @max DECIMAL(8,2) = NULL,
             @condicionAplicada NVARCHAR(30) = NULL,
+            @sexoAplicado NVARCHAR(30) = NULL,
             @comparacion NVARCHAR(60) = N''SIN_COMPARACION'',
             @resultado NVARCHAR(60) = N''SIN_COMPARACION'',
-            @origenReferencia NVARCHAR(70) = N''SIN_REGLA'',
             @sexoInformado BIT = 0,
             @edadInformada BIT = 0,
             @clasificacionHabilitada BIT = 0,
@@ -195,7 +189,7 @@ BEGIN
     IF @CondicionComida NOT IN (N''AYUNO'', N''POSTPRANDIAL'', N''NO_INFORMADA'')
         SET @CondicionComida = N''NO_INFORMADA'';
 
-    -- Prioridad institucional; en ausencia de matriz institucional, la global.
+    -- Prioridad institucional; en ausencia de matriz institucional, la global (igual que resolveMatrix en matrix.py).
     IF @IdInstitucion IS NOT NULL
         SELECT TOP (1) @idMatriz = m.idMatriz
         FROM dbo.Matriz AS m
@@ -210,8 +204,7 @@ BEGIN
           AND m.estado = N''ACTIVA'' AND m.fechaVigenciaDesde <= @hoy
           AND (m.fechaVigenciaHasta IS NULL OR m.fechaVigenciaHasta >= @hoy);
 
-    IF @Glucosa IS NULL OR @Gluco' AS NVARCHAR(MAX))
-        + N'sa <= 0
+    IF @Glucosa IS NULL OR @Glucosa <= 0
         SET @comparacion = N''VALOR_INVALIDO'';
     ELSE IF @idMatriz IS NULL
         SET @comparacion = N''SIN_MATRIZ'';
@@ -219,46 +212,39 @@ BEGIN
         SET @comparacion = N''EDAD_FUERA_DE_ALCANCE'';
     ELSE
     BEGIN
+        -- Sin edad no hay regla. Sin comida informada (NO_INFORMADA) tampoco: no se elige un objetivo (ver matrix.py, resolveRule).
+        -- Una regla CUALQUIER_SEXO vale para cualquier sexo; una por sexo, solo para ese sexo.
+        -- Posprandial: @MinutosComida = minutos desde el INICIO de la comida hasta el INICIO de la medición (igual que _minutes en glucoseReference.py).
         SELECT TOP (1)
-               @idRegla = r.idReglaMatriz,
+' AS NVARCHAR(MAX))
+        + N'               @idRegla = r.idReglaMatriz,
                @min = r.glucosaMinReferencia,
                @max = r.glucosaMaxReferencia,
                @condicionAplicada = r.condicionComida,
-               @origenReferencia = CASE
-                    WHEN @Edad IS NULL THEN N''REGLA_EDAD_NO_INFORMADA_SOLO_ORIENTATIVA''
-                    WHEN @Sexo = N''NO_INFORMADO'' THEN N''REGLA_SEXO_NO_INFORMADO''
-                    WHEN r.condicionComida = N''NO_INFORMADA'' THEN N''REGLA_COMIDA_NO_INFORMADA''
-                    ELSE N''REGLA_DEL_PERFIL''
-               END
+               @sexoAplicado = r.sexoModelo
         FROM dbo.ReglaMatriz AS r
         WHERE r.idMatriz = @idMatriz
-          AND r.sexoModelo = @Sexo
-          AND ((@Edad IS NULL AND r.edadDesde IS NULL AND r.edadHasta IS NULL)
-               OR (@Edad IS NOT NULL AND r.edadDesde IS NOT NULL
-                   AND @Edad BETWEEN r.edadDesde AND r.edadHasta))
-          AND (r.condicionComida = @CondicionComida
-               OR r.condicionComida = N''NO_INFORMADA'')
+          AND (r.sexoModelo = @Sexo OR r.sexoModelo = N''CUALQUIER_SEXO'')
+          AND @Edad IS NOT NULL AND r.edadDesde IS NOT NULL AND @Edad BETWEEN r.edadDesde AND r.edadHasta
+          AND r.condicionComida = @CondicionComida
           AND (r.condicionComida <> N''POSTPRANDIAL''
                OR (@MinutosComida IS NOT NULL AND @MinutosComida >= 0
                    AND @MinutosComida BETWEEN COALESCE(r.minutosComidaMin, 0)
                                           AND COALESCE(r.minutosComidaMax, 2147483647)))
-        ORDER BY CASE WHEN r.condicionComida = @CondicionComida THEN 0 ELSE 1 END,
-                 r.codigoRegla;
+        ORDER BY CASE WHEN r.sexoModelo = @Sexo THEN 0 ELSE 1 END, r.codigoRegla;
 
         IF @idRegla IS NULL SET @comparacion = N''SIN_REGLA'';
     END;
 
-    IF @Glucosa > 0 AND @min IS NOT NULL AND @max IS NOT NULL
+    -- Comparación con el objetivo: DENTRO / POR_DEBAJO / POR_ENCIMA, igual que position() en glucoseReference.py.
+    -- Los umbrales 54 y 70 mg/dL son de hipoglucemia (no son objetivos); pendientes de verificar con la Sección 6 de ADA.
+    IF @Glucosa > 0 AND @max IS NOT NULL AND @idRegla IS NOT NULL
     BEGIN
         IF @Glucosa < 54 SET @comparacion = N''MUY_BAJO'';
         ELSE IF @Glucosa < 70 SET @comparacion = N''BAJO'';
-        ELSE IF @Glucosa < @min SET @comparacion = N''BAJO_OBJETIVO'';
-        ELSE IF @Glucosa <= @max
-            SET @comparacion = CASE WHEN @Edad IS NULL OR @condicionAplicada = N''NO_INFORMADA''
-                                   THEN N''EN_RANGO_ORIENTATIVO'' ELSE N''EN_RANGO_REFERENCIA'' END;
-        ELSE SET @comparacion = CASE WHEN @Edad IS NULL OR @condicionAplicada '
-        + N'= N''NO_INFORMADA''
-                                   THEN N''SOBRE_REFERENCIA_ORIENTATIVA'' ELSE N''ALTO_OBJETIVO'' END;
+        ELSE IF @min IS NOT NULL AND @Glucosa < @min SET @comparacion = N''BAJO_OBJETIVO'';
+        ELSE IF @Glucosa <= @max SET @comparacion = N''EN_OBJETIVO'';
+        ELSE SET @comparacion = N''ALTO_OBJETIVO'';
     END;
 
     SET @clasificacionHabilitada = CASE
@@ -271,8 +257,6 @@ BEGIN
             THEN @comparacion
         WHEN @TipoDato = N''DEMO'' THEN N''SIMULADO''
         WHEN @TipoDato = N''EXPERIMENTAL'' THEN N''NO_VALIDADO''
-        WHEN @Edad IS NULL THEN N''REFERENCIA_ORIENTATIVA_SIN_EDAD''
-        WHEN @condicionAplicada = N''NO_INFORMADA'' THEN N''REFERENCIA_ORIENTATIVA''
         ELSE @comparacion END;
 
     SELECT @Glucosa AS glucosaMgDl,
@@ -282,18 +266,18 @@ BEGIN
            @min AS referenciaMinMgDl,
            @max AS referenciaMaxMgDl,
            @condicionAplicada AS condicionAplicada,
+           @sexoAplicado AS sexoAplicado,
            @idMatriz AS idMatriz,
            @idRegla AS idReglaMatriz,
-           @origenReferencia AS origenReferencia,
            @sexoInformado AS sexoInformado,
            @edadInformada AS edadInformada,
            @clasificacionHabilitada AS clasificacionHabilitada,
-           N''Referencia orientativa para adultos con diabetes no gestantes, no diagnostica. ''
-            + N''Sin edad no hay interpretacion clinica. DEMO es sintetico y EXPERIMENTAL no validado.'' AS advertencia;
+           N''Objetivo de la guía ADA para adultos no gestantes con diabetes (preprandial y posprandial, no diagnóstico). ''
+            + N''Sin edad o sin comida informada no hay clasificación. DEMO es simulado; EXPERIMENTAL no está validado.'' AS advertencia;
 END;';
     EXEC sys.sp_executesql @sqlProcedimiento;
 
-    /* 5. Activar matriz principal SOLO tras validar reglas y procedimiento. */
+    /* 5. Activar la versión SOLO tras validar reglas y procedimiento. La activa anterior pasa a INACTIVA (queda para trazabilidad). */
     UPDATE dbo.Matriz SET estado=N'INACTIVA'
     WHERE ambito=N'GLOBAL' AND idInstitucion IS NULL
       AND estado=N'ACTIVA' AND idMatriz<>@idMatriz;
@@ -304,7 +288,7 @@ END;';
 
     COMMIT TRANSACTION;
     SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
-    PRINT N'OK - Matriz global V2 activa, 27 reglas y procedimiento de comparacion actualizado.';
+    PRINT N'OK - Matriz ADA v1 (objetivos adultos no gestantes) activa, 2 reglas y procedimiento de comparación actualizado.';
 END TRY
 BEGIN CATCH
     IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
@@ -312,17 +296,18 @@ BEGIN CATCH
     THROW;
 END CATCH;
 
-/* VERIFICACION - Ejecutar el archivo COMPLETO (sin seleccionar texto). */
+/* VERIFICACIÓN - Ejecutar el archivo COMPLETO (sin seleccionar texto). */
 SELECT m.idMatriz, m.idInstitucion, m.nombre, m.version, m.ambito, m.estado,
        COUNT(r.idReglaMatriz) AS cantidadReglas,
-       SUM(CASE WHEN r.sexoModelo=N'NO_INFORMADO' THEN 1 ELSE 0 END) AS reglasSexoNoInformado,
-       SUM(CASE WHEN r.edadDesde IS NULL AND r.edadHasta IS NULL THEN 1 ELSE 0 END) AS reglasEdadNoInformada
+       SUM(CASE WHEN r.sexoModelo=N'CUALQUIER_SEXO' THEN 1 ELSE 0 END) AS reglasCualquierSexo,
+       SUM(CASE WHEN r.glucosaMinReferencia IS NULL THEN 1 ELSE 0 END) AS reglasSinLimiteInferior
 FROM dbo.Matriz AS m
 LEFT JOIN dbo.ReglaMatriz AS r ON r.idMatriz=m.idMatriz
-WHERE m.nombre=N'ADA 2026 - Seguimiento adulto no gestante'
-  AND m.ambito=N'GLOBAL' AND m.version=N'2'
+WHERE m.nombre=N'ADA Diabetes Tests - objetivos adultos no gestantes'
+  AND m.ambito=N'GLOBAL' AND m.version=N'1'
 GROUP BY m.idMatriz,m.idInstitucion,m.nombre,m.version,m.ambito,m.estado;
 
-EXEC dbo.usp_GlucoLume_CompararGlucosa
-    @Glucosa=117, @Edad=NULL, @Sexo=NULL,
-    @CondicionComida=N'NO_INFORMADA', @TipoDato=N'DEMO';
+-- Ejemplos: preprandial 117 (en objetivo), posprandial 200 a 90 minutos (sobre el objetivo), sin comida (sin objetivo).
+EXEC dbo.usp_GlucoLume_CompararGlucosa @Glucosa=117, @Edad=40, @Sexo=NULL, @CondicionComida=N'AYUNO', @TipoDato=N'DEMO';
+EXEC dbo.usp_GlucoLume_CompararGlucosa @Glucosa=200, @Edad=40, @Sexo=N'FEMENINO', @CondicionComida=N'POSTPRANDIAL', @MinutosComida=90, @TipoDato=N'DEMO';
+EXEC dbo.usp_GlucoLume_CompararGlucosa @Glucosa=117, @Edad=40, @Sexo=NULL, @CondicionComida=N'NO_INFORMADA', @TipoDato=N'DEMO';

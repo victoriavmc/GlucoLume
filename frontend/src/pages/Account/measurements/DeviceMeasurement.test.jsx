@@ -333,7 +333,7 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     renderAt('/app/mediciones/nueva');
     const section = await card();
     await user.selectOptions(await within(section).findByLabelText('Modo de medición'), 'GLUCOSA_EXPERIMENTAL');
-    expect(within(section).getByLabelText('Última comida (opcional)')).toBeInTheDocument();
+    expect(within(section).getByLabelText('Inicio de la última comida (opcional)')).toBeInTheDocument();
     await user.selectOptions(within(section).getByLabelText('Alimentación'), 'POSTPRANDIAL');
     await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === 'POST /acquisition/telemetry/session')).toBe(true));

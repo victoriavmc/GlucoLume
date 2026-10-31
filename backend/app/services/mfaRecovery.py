@@ -313,7 +313,11 @@ def verifyRecovery(
     """Desde el login: valida el código, desvincula el MFA perdido y abre una sesión nueva."""
     idUsuario, method = _decode(security.decodeMfaRecoveryToken, recoveryToken)
     user, factor = _userWithMfa(db, idUsuario)
-    _verifyCodeAndUnlink(db, user, factor, codigo)
+    try:
+        _verifyCodeAndUnlink(db, user, factor, codigo)
+    except AuthError as error:
+        authService.reportSecondFactorRejection(db, user, error.code)
+        raise
     label = "Recuperación de acceso (correo + " + ("contraseña" if method == METHOD_PASSWORD else "Google") + ")"
     # Este camino SÍ abre una sesión (MFA_RECUPERACION_COMPLETADA, en cambio, también la deja la recuperación hecha desde Seguridad, que no abre ninguna):
     # el ingreso queda como su propio evento, el mismo criterio que LOGIN_<método>_MFA, y lo cuenta el tablero de accesos (services/authAccess.py).

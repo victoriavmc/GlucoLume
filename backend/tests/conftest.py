@@ -117,7 +117,13 @@ def isolateSecurityMonitor(monkeypatch):
     monkeypatch.setattr(securityMonitor, "persistRateLimit", lambda limit: None)
     monkeypatch.setattr(securityMonitor, "alertAdministrator", lambda burst, now=None: False)
     securityMonitor.resetAlerts()
+    # Alertas de intentos de administración (services/adminAccessAlerts.py): sin temporizadores reales; las pruebas cierran la ventana a mano.
+    from app.services import adminAccessAlerts
+
+    monkeypatch.setattr(adminAccessAlerts, "_startTimer", lambda delay, task: None)
+    adminAccessAlerts.reset()
     yield
+    adminAccessAlerts.reset()
     securityMonitor.monitor.clear()
 
 

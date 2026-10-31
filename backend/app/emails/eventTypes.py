@@ -101,6 +101,7 @@ class EmailEventType(StrEnum):
     INVITACION_PLATAFORMA_ENVIADA = "INVITACION_PLATAFORMA_ENVIADA"
     ACCESO_PLATAFORMA_REVOCADO = "ACCESO_PLATAFORMA_REVOCADO"
     ALERTA_SEGURIDAD_PLATAFORMA = "ALERTA_SEGURIDAD_PLATAFORMA"
+    ALERTA_INTENTO_ACCESO_ADMIN = "ALERTA_INTENTO_ACCESO_ADMIN"
     TRANSFERENCIA_ADMIN_SOLICITADA = "TRANSFERENCIA_ADMIN_SOLICITADA"
     TRANSFERENCIA_ADMIN_RESPONDIDA = "TRANSFERENCIA_ADMIN_RESPONDIDA"
     ADMINISTRACION_ASIGNADA = "ADMINISTRACION_ASIGNADA"
@@ -439,6 +440,11 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     _E.ALERTA_SEGURIDAD_PLATAFORMA: EmailEventSpec(
         "plataforma/alertaSeguridad.html", "Actividad sospechosa en GlucoLume", CATEGORIA_PLATAFORMA,
         ("descripcion", "patron", "cantidad", "ventanaMinutos", "fechaEvento", "urlAuditoria"), ("urlAuditoria",),
+        securityNotice=True, highPriority=True,
+    ),
+    _E.ALERTA_INTENTO_ACCESO_ADMIN: EmailEventSpec(
+        "plataforma/alertaIntentoAdministrador.html", "Intento de ingreso a la administración de GlucoLume", CATEGORIA_PLATAFORMA,
+        ("alcance", "cuentas", "tipos", "motivos", "ips", "cantidad", "primerIntento", "fechaEvento", "urlAuditoria"), ("urlAuditoria",),
         securityNotice=True, highPriority=True,
     ),
     _E.TRANSFERENCIA_ADMIN_SOLICITADA: EmailEventSpec(

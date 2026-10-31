@@ -15,13 +15,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.matrix import Matrix
-from app.models.matrixRule import MatrixRule
+from app.models.matrixRule import SEXO_CUALQUIERA, MatrixRule
 from app.models.measurement import ORIGEN_DEMO, Measurement
 from app.schemas.measurement import GlucoseReference, MatrixSummary, ReferenceGroup, ReferenceRule
 from app.services import schemaCompat
 
 SEX_TITLES = {"FEMENINO": "Referencia femenina", "MASCULINO": "Referencia masculina",
-              "NO_INFORMADO": "Referencia para sexo no informado"}
+              "NO_INFORMADO": "Referencia para sexo no informado",
+              SEXO_CUALQUIERA: "Referencia válida para cualquier sexo"}
 SEX_NOT_INFORMED = ("El sexo no fue informado. Se muestran ambas referencias únicamente para consulta. Ninguna se asigna automáticamente a tu "
                     "perfil ni se utiliza como resultado personalizado.")
 
@@ -36,7 +37,8 @@ def _ruleRead(rule: MatrixRule) -> ReferenceRule:
     return ReferenceRule(
         idRegla=rule.idReglaMatriz, codigo=rule.codigoRegla, sexoModelo=rule.sexoModelo, edadDesde=rule.edadDesde, edadHasta=rule.edadHasta,
         condicionComida=rule.condicionComida, minutosComidaMin=rule.minutosComidaMin, minutosComidaMax=rule.minutosComidaMax,
-        glucosaMinReferencia=float(rule.glucosaMinReferencia), glucosaMaxReferencia=float(rule.glucosaMaxReferencia))
+        glucosaMinReferencia=None if rule.glucosaMinReferencia is None else float(rule.glucosaMinReferencia),
+        glucosaMaxReferencia=float(rule.glucosaMaxReferencia))
 
 
 def _inAge(rule: MatrixRule, age: int) -> bool:
@@ -62,7 +64,7 @@ def _foodMatches(rule: MatrixRule, condition: str, minutes: int | None) -> bool:
 def position(rule: ReferenceRule | None, value: float | None) -> str | None:
     if rule is None or value is None:
         return None
-    if value < rule.glucosaMinReferencia:
+    if rule.glucosaMinReferencia is not None and value < rule.glucosaMinReferencia:
         return "POR_DEBAJO"
     if value > rule.glucosaMaxReferencia:
         return "POR_ENCIMA"
@@ -88,10 +90,15 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
     age = measurement.edadAlMomento
     appliedRule = schemaCompat.ruleIdOf(db, measurement.idMedicion)
     condition = measurement.condicionComida
-    # Sexo informado: solo su referencia. Sin informar: ambas (solo para consulta) y, si la matriz las trae, las previstas para «sexo no informado».
-    sexes = [measurement.sexoModelo] if measurement.sexoModelo else ["FEMENINO", "MASCULINO"]
-    if measurement.sexoModelo is None and any(r.sexoModelo == "NO_INFORMADO" for r in rules):
-        sexes.append("NO_INFORMADO")
+    # Una matriz que no distingue sexo (CUALQUIER_SEXO) muestra una sola referencia, sea cual sea el sexo informado.
+    # Si distingue: sexo informado → solo su referencia; sin informar → ambas (solo para consulta) y las previstas para «sexo no informado».
+    anySex = any(r.sexoModelo == SEXO_CUALQUIERA for r in rules)
+    if anySex:
+        sexes = [SEXO_CUALQUIERA]
+    else:
+        sexes = [measurement.sexoModelo] if measurement.sexoModelo else ["FEMENINO", "MASCULINO"]
+        if measurement.sexoModelo is None and any(r.sexoModelo == "NO_INFORMADO" for r in rules):
+            sexes.append("NO_INFORMADO")
     groups: list[ReferenceGroup] = []
     for sex in sexes:
         ofSex = [r for r in rules if r.sexoModelo == sex and _foodMatches(r, condition, minutes)]
@@ -129,4 +136,4 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
     return GlucoseReference(
         estado="APLICADA" if estimated else "REFERENCIA",
         matriz=MatrixSummary(idMatriz=matrix.idMatriz, nombre=matrix.nombre, version=matrix.version, ambito=matrix.ambito),
-        grupos=groups, avisoSexo=SEX_NOT_INFORMED if measurement.sexoModelo is None else None, **common)
+        grupos=groups, avisoSexo=SEX_NOT_INFORMED if measurement.sexoModelo is None and not anySex else None, **common)

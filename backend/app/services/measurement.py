@@ -297,22 +297,24 @@ def startMeasurement(db: Session, actor: User, data: MeasurementStart, deviceSes
         # medición con el dispositivo no los necesitan, y acá se pueden informar solo para esta medición.
         incomplete = _error(
             "DATOS_PACIENTE_INCOMPLETOS",
-            "Estimación de glucosa no disponible: la estimación por matriz elige su regla de referencia según la edad y el sexo, y sin esos datos no "
-            "se puede estimar (no se inventan valores). Indicalos para esta medición, o usá oximetría o la medición con el "
+            "Estimación de glucosa no disponible: la regla de la matriz depende de la edad (y del sexo, si la matriz lo distingue), y sin esos datos "
+            "no se puede estimar (no se inventan valores). Indicalos para esta medición, o usá oximetría o la medición con el "
             "dispositivo, que no los necesitan.")
         if edad is None:
             raise incomplete
         # La última comida es OPCIONAL: sin ella la medición se inicia igual (se adquieren SpO₂ y frecuencia cardíaca) y, si la regla de la matriz
         # para «después de comer» necesita la hora, la estimación queda no disponible (se explica al finalizar); nunca se bloquea ni se inventa.
-        mealMissing = data.condicionComida == "POSTPRANDIAL" and minutes is None
+        # Sin dato de comida, o posprandial sin hora de la última comida: la matriz vigente queda como REFERENCIA y no se elige regla
+        # (la matriz ADA no fija objetivo sin saber si la medición es en ayunas/preprandial o posprandial). Nunca se inventa.
+        mealMissing = data.condicionComida == "NO_INFORMADA" or (data.condicionComida == "POSTPRANDIAL" and minutes is None)
         try:
             matrix, rule = _resolveGlucoseRule(db, access.idInstitucion, sexo, edad, data.condicionComida, minutes, now.date())
         except AuthError as error:
-            # Sexo no informado: solo sirve una regla prevista para «sexo no informado»; sin ella no se inventa otra.
-            if sexo is None and error.code == "SIN_REGLA_APLICABLE":
-                raise incomplete from error
             if mealMissing and error.code == "SIN_REGLA_APLICABLE" and matrixService.resolveMatrix(db, access.idInstitucion, now.date()) is not None:
                 matrix, rule = matrixService.resolveMatrix(db, access.idInstitucion, now.date()), None
+            # Sexo no informado: solo sirve una regla que no distinga sexo o la prevista para «sexo no informado»; sin ella no se inventa otra.
+            elif sexo is None and error.code == "SIN_REGLA_APLICABLE":
+                raise incomplete from error
             else:
                 raise
 
@@ -482,6 +484,9 @@ def _process(db: Session, measurement: Measurement, access: ProfileAccess, data:
         if measurement.condicionComida == "POSTPRANDIAL" and minutes is None:
             reason = ("Estimación de glucosa no disponible por falta de información: no se indicó la hora de la última comida, que la regla de la matriz "
                       "necesita para medir después de comer. Se guardaron SpO₂ y frecuencia cardíaca; no se generó ningún valor de glucosa.")
+        elif measurement.condicionComida == "NO_INFORMADA":
+            reason = ("Estimación de glucosa no disponible: sin dato de comida (ayuno o posprandial) la matriz no fija un objetivo. Se guardaron "
+                      "SpO₂ y frecuencia cardíaca; no se generó ningún valor de glucosa.")
         else:
             reason = "No hay una regla de matriz aplicable: no se estimó la glucosa."
         return Outcome(False, data.spo2, data.frecuenciaCardiaca, data.calidadSenal, reason=reason)

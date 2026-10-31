@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
-from app.core import security
+from app.core import requestContext, security
 from app.core.config import getSettings
 from app.core.exceptions import AuthError
 from app.emails.eventTypes import EmailEventType
@@ -50,7 +50,8 @@ from app.services import consent as consentService
 from app.services import invitedAccounts, knownAccess, mfa, unverifiedAccounts
 from app.services import user as userService
 from app.services import userNotifications
-from app.services import auditClassification
+from app.services import adminAccessAlerts, auditClassification
+from app.services.adminAccessAlerts import TIPO_CONTRASENA, TIPO_GOOGLE, TIPO_SEGUNDO_FACTOR
 from app.services.audit import hashIdentifier, registerEvent, singleInstitutionOf
 from app.utils.normalizers import normalizeEmail, normalizeProperName
 from app.utils.timeZone import nowForDb
@@ -552,8 +553,65 @@ def verifyCurrentPassword(db: Session, credential: LocalCredential, password: st
 def loginLocal(
     db: Session, identificador: str, password: str, clientInfo: ClientInfo | None = None, acceso: str = ACCESO_GENERAL
 ) -> LoginResponse:
-    """Casos 1 y 3: correo o username + contraseña, con bloqueo temporal por intentos fallidos. `acceso` separa el login general
-    del administrativo (requireAccesoLogin)."""
+    """Casos 1 y 3: correo o username + contraseña. Un ingreso rechazado que intenta entrar a la administración queda como alerta
+    (_alertAdministratorAttempt); el rechazo llega igual al cliente."""
+    try:
+        return _loginLocal(db, identificador, password, clientInfo, acceso)
+    except AuthError as error:
+        _alertAdministratorAttempt(db, _identifiedUser(db, identificador), acceso == ACCESO_PLATAFORMA, TIPO_CONTRASENA, error.code)
+        raise
+
+
+def reportSecondFactorRejection(db: Session, user: User, motivo: str) -> None:
+    """Un código de recuperación rechazado (services/mfaRecovery.py) cuenta como intento de segundo factor contra la cuenta."""
+    _alertAdministratorAttempt(db, user, False, TIPO_SEGUNDO_FACTOR, motivo)
+
+
+def requireAccesoGoogle(db: Session, user: User, acceso: str) -> None:
+    """requireAccesoLogin para el ingreso con Google. Un rechazo queda como intento de administración (si corresponde); una cancelación
+    del flujo en Google no llega acá, así que no cuenta como ataque."""
+    try:
+        requireAccesoLogin(db, user, acceso, "LOGIN_GOOGLE")
+    except AuthError as error:
+        _alertAdministratorAttempt(db, user, acceso == ACCESO_PLATAFORMA, TIPO_GOOGLE, error.code)
+        raise
+
+
+def _identifiedUser(db: Session, identificador: str) -> User | None:
+    """Usuario del identificador, o None si no existe o no se pudo consultar: la alerta nunca debe cambiar la respuesta del login."""
+    try:
+        return _findUserByIdentifier(db, identificador)
+    except SQLAlchemyError:
+        logger.exception("No se pudo identificar la cuenta de un intento rechazado")
+        return None
+
+
+def _alertAdministratorAttempt(db: Session, user: User | None, administrativo: bool, tipoAutenticacion: str, motivo: str) -> None:
+    """Un ingreso rechazado es un intento contra la administración si la cuenta es de administrador o si el acceso pedido fue PLATAFORMA.
+    Primero queda en la auditoría (SOSPECHOSO, siempre); después adminAccessAlerts decide si sale correo, con límite por ventana.
+    Las cuentas inexistentes no se alertan: el identificador escrito no se guarda ni se envía (ver _auditFailedLogin). Nunca lanza."""
+    try:
+        if user is None or not (administrativo or user.tipoCuenta == "ADMINISTRADOR_PLATAFORMA"):
+            return
+        registerEvent(
+            db, "LOGIN", auditClassification.ACCION_INTENTO_ACCESO_ADMIN, False, user.idUsuario, modulo="SEGURIDAD", motivo=motivo,
+            observacion=f"Intento de ingreso a la administración de GlucoLume rechazado ({tipoAutenticacion})",
+        )
+        db.commit()
+        context = requestContext.current()
+        adminAccessAlerts.record(db, adminAccessAlerts.Attempt(
+            correo=user.correoElectronico, tipoAutenticacion=tipoAutenticacion, motivo=motivo,
+            ip=context.ip if context else None, fecha=nowForDb(),
+        ))
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("No se pudo registrar el intento de ingreso a la administración")
+
+
+def _loginLocal(
+    db: Session, identificador: str, password: str, clientInfo: ClientInfo | None, acceso: str
+) -> LoginResponse:
+    """Cuerpo de loginLocal. `acceso` separa el login general del administrativo (requireAccesoLogin)."""
     now = nowForDb()
     user = _findUserByIdentifier(db, identificador)
 
@@ -928,7 +986,11 @@ def verifyMfaChallenge(
         raise AuthError("TOKEN_INVALIDO", "El desafío MFA es inválido o venció.")
     _requireActive(db, user, "LOGIN_" + claims.get("amr", [METHOD_PASSWORD])[0].upper() + "_MFA")
 
-    mfa.verifyFactor(db, factor, codigo, codigoRecuperacion)
+    try:
+        mfa.verifyFactor(db, factor, codigo, codigoRecuperacion)
+    except AuthError as error:
+        _alertAdministratorAttempt(db, user, False, TIPO_SEGUNDO_FACTOR, error.code)
+        raise
     method = claims.get("amr", [METHOD_PASSWORD])[0]
     registerEvent(db, "LOGIN", f"LOGIN_{method.upper()}_MFA", True, user.idUsuario)
     methodLabel = _METHOD_LABELS.get(method)

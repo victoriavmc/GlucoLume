@@ -313,7 +313,7 @@ class ReferenceRule(BaseModel):
     condicionComida: str
     minutosComidaMin: int | None
     minutosComidaMax: int | None
-    glucosaMinReferencia: float
+    glucosaMinReferencia: float | None  # NULL = sin límite inferior (solo tope)
     glucosaMaxReferencia: float
 
 

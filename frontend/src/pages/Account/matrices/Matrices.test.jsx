@@ -385,7 +385,7 @@ describe('Matrices institucionales', () => {
       await user.selectOptions(editor.getByLabelText('Sexo del modelo'), sex);
       await user.type(editor.getByLabelText('Edad mínima'), from);
       await user.type(editor.getByLabelText('Edad máxima'), to);
-      await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL)'), min);
+      await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), min);
       await user.type(editor.getByLabelText('Glucosa de referencia máxima (mg/dL)'), max);
       return editor;
     }
@@ -439,7 +439,7 @@ describe('Matrices institucionales', () => {
     const editor = within(screen.getByRole('form', { name: 'Agregar regla' }));
     await user.type(editor.getByLabelText('Edad mínima'), '18');
     await user.type(editor.getByLabelText('Edad máxima'), '60');
-    await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.type(editor.getByLabelText('Glucosa de referencia máxima (mg/dL)'), '110');
     await user.click(editor.getByRole('button', { name: /Agregar regla/ }));
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
@@ -463,7 +463,7 @@ describe('Matrices institucionales', () => {
     const editor = within(screen.getByRole('form', { name: 'Agregar regla' }));
     await user.type(editor.getByLabelText('Edad mínima'), '18');
     await user.type(editor.getByLabelText('Edad máxima'), '60');
-    await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.type(editor.getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.type(editor.getByLabelText('Glucosa de referencia máxima (mg/dL)'), '110');
     await user.click(editor.getByRole('button', { name: /Agregar regla/ }));
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
@@ -506,7 +506,7 @@ describe('Detalle de una matriz y editor de reglas', () => {
     await user.selectOptions(within(form).getByLabelText('Sexo del modelo'), 'MASCULINO');
     await user.type(within(form).getByLabelText('Edad mínima'), '18');
     await user.type(within(form).getByLabelText('Edad máxima'), '60');
-    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.type(within(form).getByLabelText('Glucosa de referencia máxima (mg/dL)'), '110');
     await user.click(within(form).getByRole('button', { name: /Agregar regla/ }));
     expect(await screen.findByText('Agregamos la regla.')).toBeInTheDocument();
@@ -530,7 +530,7 @@ describe('Detalle de una matriz y editor de reglas', () => {
     const form = screen.getByRole('form', { name: 'Agregar regla' });
     await user.selectOptions(within(form).getByLabelText('Sexo del modelo'), 'NO_INFORMADO');
     await user.selectOptions(within(form).getByLabelText('Condición respecto de la última comida'), 'NO_INFORMADA');
-    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.type(within(form).getByLabelText('Glucosa de referencia máxima (mg/dL)'), '180');
     await user.click(within(form).getByRole('button', { name: /Agregar regla/ }));
     expect(await screen.findByText('Agregamos la regla.')).toBeInTheDocument();
@@ -548,7 +548,7 @@ describe('Detalle de una matriz y editor de reglas', () => {
     await user.click(await screen.findByRole('button', { name: 'Agregar regla' }));
     const form = screen.getByRole('form', { name: 'Agregar regla' });
     await user.type(within(form).getByLabelText('Edad mínima'), '30');
-    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.type(within(form).getByLabelText('Glucosa de referencia máxima (mg/dL)'), '110');
     await user.click(within(form).getByRole('button', { name: /Agregar regla/ }));
     expect(within(form).getByText(/Ingresá una edad entre 0 y 130, o dejá ambas vacías/)).toBeInTheDocument();
@@ -566,7 +566,7 @@ describe('Detalle de una matriz y editor de reglas', () => {
     const form = screen.getByRole('form', { name: 'Agregar regla' });
     await user.type(within(form).getByLabelText('Edad mínima'), '50');
     await user.type(within(form).getByLabelText('Edad máxima'), '40');
-    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL)'), '150');
+    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '150');
     await user.type(within(form).getByLabelText('Glucosa de referencia máxima (mg/dL)'), '100');
     await user.click(within(form).getByRole('button', { name: /Agregar regla/ }));
     expect(within(form).getByText('La edad mínima no puede superar la máxima.')).toBeInTheDocument();
@@ -576,8 +576,8 @@ describe('Detalle de una matriz y editor de reglas', () => {
     await user.type(within(form).getByLabelText('Edad mínima'), '30');
     await user.clear(within(form).getByLabelText('Edad máxima'));
     await user.type(within(form).getByLabelText('Edad máxima'), '40');
-    await user.clear(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL)'));
-    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL)'), '70');
+    await user.clear(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'));
+    await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.click(within(form).getByRole('button', { name: /Agregar regla/ }));
     expect(await within(form).findByText(/La regla se solapa con R-001/)).toBeInTheDocument();
   });

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Intento de ingreso a la administración{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Se rechazaron intentos de ingreso a la administración de GlucoLume. {{ alcance }}</p>
+{{ m.datos([("Cuenta afectada", cuentas), ("Tipo de autenticación", tipos), ("Motivo", motivos), ("Dirección IP de origen", ips), ("Intentos", cantidad), ("Primer intento", primerIntento|fechaHora), ("Último intento", fechaEvento|fechaHora)]) }}
+{{ m.boton(urlAuditoria, "Ver la auditoría de seguridad") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Ningún correo incluye contraseñas, códigos ni datos clínicos. Cada intento queda en la auditoría aunque no se envíe un aviso. Si la cuenta no es tuya ni de un administrador, revisá la seguridad de la plataforma.</p>
+{% endblock %}

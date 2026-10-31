@@ -340,6 +340,7 @@ ACTION_LABELS = {
     classification.ACCION_LIMITE_SOLICITUDES: "Límite de solicitudes superado",
     classification.ACCION_RAFAGA_AUTORIZACION: "Ráfaga de solicitudes rechazadas (401/403)",
     classification.ACCION_RAFAGA_VALIDACION: "Ráfaga de entradas rechazadas por validación",
+    classification.ACCION_INTENTO_ACCESO_ADMIN: "Intento de ingreso a la administración",
     classification.ACCION_ERROR_INESPERADO: "Error inesperado del servidor",
     "CREAR_CREDENCIAL_PUENTE": "Credencial de puente creada", "ROTAR_CREDENCIAL_PUENTE": "Credencial de puente rotada",
     "REVOCAR_CREDENCIAL_PUENTE": "Credencial de puente revocada", "CREDENCIAL_PUENTE_RECHAZADA": "Credencial de puente rechazada",

@@ -132,7 +132,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
               <SelectField label="Alimentación" value={condicionComida} onChange={(event) => setCondicionComida(event.target.value)}
                 options={Object.entries(MEALS).map(([key, label]) => ({ value: key, label }))} />
               {glucoseMode && ( // solo la glucosa usa la hora de la última comida
-                <TextField label="Última comida (opcional)" type="datetime-local" value={lastMeal} error={mealError || undefined}
+                <TextField label="Inicio de la última comida (opcional)" type="datetime-local" value={lastMeal} error={mealError || undefined}
                   hint={condicionComida === 'POSTPRANDIAL' && !lastMeal
                     ? 'Sin la hora de la última comida no se puede comparar con la matriz «después de comer»; se miden igual SpO₂, frecuencia cardíaca y glucosa.'
                     : 'Si la dejás vacía se guarda como «Sin informar».'}

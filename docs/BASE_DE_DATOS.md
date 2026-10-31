@@ -14,7 +14,7 @@ ni migra bases: todo lo de este documento se hace a mano, con un usuario adminis
 | Qué | Dónde |
 |---|---|
 | Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026 y corregido el 23/10/2026; **38 tablas** —incluye `PuenteCredencial` (H-16) y las de «Notificaciones», con `AccesoConocido` desde el 29/10/2026—, 49 claves foráneas, 127 `CHECK` y los **31 índices** que el export original había perdido; **no crea usuarios, roles ni permisos**: los aplican los scripts de permisos) |
-| Matriz global de referencia | `database/reference/MATRIZ.SQL`: carga la matriz global (27 reglas: 3 sexos × 3 rangos de edad × 3 condiciones de comida) y el procedimiento `usp_GlucoLume_CompararGlucosa`; sus cambios de esquema sobre `ReglaMatriz` ya están en v5 (v5 no contiene filas de datos) |
+| Matriz global de referencia | `database/reference/MATRIZ.SQL`: carga la matriz global v1 «ADA Diabetes Tests - objetivos adultos no gestantes» (2 reglas: preprandial 80–130 mg/dL y posprandial menor de 180 mg/dL, 60–120 min desde el inicio de la comida; sin distinción por sexo ni edad) y el procedimiento `usp_GlucoLume_CompararGlucosa`. Criterios y limitaciones en [MATRIZ_REFERENCIA_GLUCOSA.md](MATRIZ_REFERENCIA_GLUCOSA.md); sus cambios de esquema sobre `ReglaMatriz` ya están en v5 (v5 no contiene filas de datos) |
 | Vaciado de datos (no es instalación) | `database/reference/BorrarRap.sql`: borra todas las filas; exige `-v BASE=<base> CONFIRMAR_BORRADO=<base>` iguales a la base conectada; nunca sobre una base con datos reales |
 | Permisos de mínimo privilegio (no es instalación) | `GlucoLume_permisos.sql` (roles de API y de conservación; `DELETE` solo en 14 tablas; `DENY UPDATE, DELETE` sobre la auditoría), `GlucoLume_permisos_quitar_roles_fijos.sql` (quita `db_datareader`/`db_datawriter`; reversible con `…_restaurar_roles_fijos.sql`), `GlucoLume_permisos_verificar.sql` (solo comprueba) y `GlucoLume_permisos_revertir.sql`. Validados en SQL Server 2022 descartable; **no aplicados a tu instancia** (§5) |
 | Actualización de una base ya instalada | `GlucoLume_actualizar_instalada.sql` (6 `CK_Medicion_*` y los 31 índices, idempotente) y `GlucoLume_agregar_puente_credencial.sql` (tabla `PuenteCredencial`, H-16, idempotente) y `GlucoLume_matriz_referencia.sql` (`Matriz.urlReferencia` opcional y `Matriz.referenciaBase` obligatoria; las filas anteriores quedan con «Sin registrar (matriz anterior)» hasta completarse). Ensayo sin pérdida de datos: §3.1 |
@@ -43,7 +43,7 @@ compara tablas, columnas, nombres de restricciones, cada `CHECK` (valores, colum
 filtro); falla ante cualquier diferencia nueva.
 
 Ensayo del 19/10/2026 en SQL Server 2022 Developer descartable (contenedor sin volúmenes): v5 se instala desde cero sin errores (33 tablas,
-49 FK, 125 `CHECK`, 25 índices además de las claves y `UNIQUE`), `MATRIZ.SQL` crea la matriz global y sus 27 reglas, y
+49 FK, 125 `CHECK`, 25 índices además de las claves y `UNIQUE`), `MATRIZ.SQL` crea la matriz global y sus 2 reglas, y
 `python -m app.cli.schemaCheck` no encuentra diferencias con los modelos. La comparación de catálogos del 16/10/2026 indicaba que la base real no tenía esas seis
 ([evidencias/PRUEBAS_CONCURRENCIA_SQLSERVER_2026-10-16.md](evidencias/PRUEBAS_CONCURRENCIA_SQLSERVER_2026-10-16.md)): agregarlas a una base con
 datos es parte de la actualización controlada (§3) y requiere autorización.
@@ -104,7 +104,7 @@ restaura una base sin una columna, el backend lo nota sin reiniciarse.
      docker compose --profile db exec db /opt/mssql-tools18/bin/sqlcmd -C -I -S localhost -U sa -d GlucoLume -b -i /tmp/v5.sql
      ```
      (la contraseña de `sa` la toma `SQLCMDPASSWORD` de `docker/db.env`). En Linux/macOS: `iconv -f UTF-16 -t UTF-8 …`.
-3. Si se quiere la matriz global de referencia precargada, ejecutar `MATRIZ.SQL` completo (27 reglas; también se puede crear desde el panel de la plataforma).
+3. Si se quiere la matriz global de referencia precargada, ejecutar `MATRIZ.SQL` completo (2 reglas; también se puede crear desde el panel de la plataforma). Sobre una base instalada con la matriz v2 (DEMO), `MATRIZ.SQL` agrega la v1 nueva, desactiva la v2 y no modifica sus reglas ni las mediciones.
 4. **Cuentas y permisos (H-02):** crear los inicios de sesión en la instancia —uno para la API y, aparte, uno para la conservación— con contraseñas propias (nunca `sa`), y
    aplicar los permisos con los scripts de `database/reference` (cada uno exige su `CONFIRMAR`; ver el encabezado de cada archivo):
    ```sql
@@ -124,7 +124,7 @@ restaura una base sin una columna, el backend lo nota sin reiniciarse.
 ### 2.1 Resultado verificado de esta instalación (23/10/2026)
 
 Contenedor `db` del Compose del proyecto (SQL Server 2022 CU16 Express, volumen persistente `mssql-data`, sin puertos publicados), con los pasos 1–4:
-**34 tablas**, 49 claves foráneas, 127 `CHECK`, 33 índices `IX_`/`UX_`, 1 procedimiento (`usp_GlucoLume_CompararGlucosa`), 27 reglas de matriz, tabla `PuenteCredencial` presente,
+**34 tablas**, 49 claves foráneas, 127 `CHECK`, 33 índices `IX_`/`UX_`, 1 procedimiento (`usp_GlucoLume_CompararGlucosa`), 2 reglas de matriz, tabla `PuenteCredencial` presente,
 `GlucoLume_permisos_verificar.sql` con todas las comprobaciones esperadas (auditoría sin UPDATE/DELETE: error 229; `DELETE` ajeno rechazado; la API solo anota `fechaUltimoUso`
 en `PuenteCredencial`) y la cuenta de la API solo en `rol_glucolume_api`. El backend en otro contenedor se conectó con `glucolume_app` y recorrió registro, MFA,
 instituciones, grupos y puentes sin un solo error de permisos ([evidencias/validacion_integral](evidencias/validacion_integral/README.md)). Los datos sobrevivieron a `docker compose down`

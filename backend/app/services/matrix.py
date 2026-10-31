@@ -46,7 +46,7 @@ from app.core.exceptions import AuthError
 from app.models.audit import Audit
 from app.models.institution import Institution
 from app.models.matrix import Matrix
-from app.models.matrixRule import MatrixRule
+from app.models.matrixRule import SEXO_CUALQUIERA, MatrixRule
 from app.models.measurement import Measurement
 from app.models.user import User
 from app.schemas.matrix import (
@@ -305,12 +305,13 @@ def resolveRule(db: Session, idMatriz: uuid.UUID, sexo: str | None, edad: int, c
                 minutos: int | None) -> MatrixRule | None:
     """Regla de la matriz para el contexto de la medición. Sin regla aplicable devuelve None: nunca se inventa una.
 
-    Un sexo no informado (None) solo puede resolverse con una regla prevista para «sexo no informado»: nunca se lo reemplaza por
-    femenino o masculino. Lo mismo vale para la comida: «sin informar» solo coincide con reglas para comida no informada."""
+    Una regla CUALQUIER_SEXO vale para cualquier sexo, informado o no. Las reglas por sexo solo coinciden con ese sexo: un sexo no
+    informado nunca se reemplaza por femenino o masculino. La comida «sin informar» no coincide con reglas de comida concreta."""
     sexo = sexo or "NO_INFORMADO"
     rules = db.scalars(
         select(MatrixRule).where(
-            MatrixRule.idMatriz == idMatriz, MatrixRule.sexoModelo == sexo, MatrixRule.condicionComida == condicion,
+            MatrixRule.idMatriz == idMatriz, MatrixRule.sexoModelo.in_((sexo, SEXO_CUALQUIERA)),
+            MatrixRule.condicionComida == condicion,
             MatrixRule.edadDesde <= edad, MatrixRule.edadHasta >= edad,
         ).order_by(MatrixRule.codigoRegla)
     ).all()
@@ -344,9 +345,13 @@ def _hasAge(rule) -> bool:
     return rule.edadDesde is not None and rule.edadHasta is not None
 
 
+def _sexesOverlap(a, b) -> bool:
+    return a == b or SEXO_CUALQUIERA in (a, b)
+
+
 def _overlap(a, b) -> bool:
     """Misma población (sexo y condición) con rangos de edad y de tiempo desde la comida que se pisan."""
-    if a.sexoModelo != b.sexoModelo or a.condicionComida != b.condicionComida:
+    if not _sexesOverlap(a.sexoModelo, b.sexoModelo) or a.condicionComida != b.condicionComida:
         return False
     if _hasAge(a) != _hasAge(b):
         return False  # «edad no especificada» es otra población, no un rango que se pise
@@ -375,7 +380,8 @@ def _validate(db: Session, matrix: Matrix) -> list[MatrixIssue]:
     if not rules:
         issues.append(MatrixIssue(codigo="SIN_REGLAS", mensaje="La matriz no tiene reglas: agregá al menos una."))
     for index, rule in enumerate(rules):
-        if (_hasAge(rule) and rule.edadHasta < rule.edadDesde) or rule.glucosaMaxReferencia < rule.glucosaMinReferencia or (
+        if (_hasAge(rule) and rule.edadHasta < rule.edadDesde) or (
+                rule.glucosaMinReferencia is not None and rule.glucosaMaxReferencia < rule.glucosaMinReferencia) or (
                 rule.minutosComidaMin is not None and rule.minutosComidaMax is not None
                 and rule.minutosComidaMax < rule.minutosComidaMin):
             issues.append(MatrixIssue(codigo="REGLA_INCOHERENTE", codigoRegla=rule.codigoRegla,
@@ -386,7 +392,8 @@ def _validate(db: Session, matrix: Matrix) -> list[MatrixIssue]:
     return issues
 
 
-SEX_NAMES = {"FEMENINO": "femenino", "MASCULINO": "masculino", "NO_INFORMADO": "sexo no informado"}
+SEX_NAMES = {"FEMENINO": "femenino", "MASCULINO": "masculino", "NO_INFORMADO": "sexo no informado",
+             SEXO_CUALQUIERA: "cualquier sexo"}
 MEAL_NAMES = {"AYUNO": "en ayunas", "POSTPRANDIAL": "posprandial", "NO_INFORMADA": "sin dato de comida"}
 MEASURABLE_SEXES = ("FEMENINO", "MASCULINO")  # una medición de glucosa exige edad y sexo (femenino o masculino)
 
@@ -410,7 +417,7 @@ def _coverageWarnings(rules) -> list[MatrixIssue]:
             reach = max(reach, after.edadHasta)
     present = {rule.sexoModelo for rule in rules}
     for sex in MEASURABLE_SEXES:
-        if rules and sex not in present:
+        if rules and sex not in present and SEXO_CUALQUIERA not in present:
             warnings.append(MatrixIssue(
                 codigo="SIN_COBERTURA", mensaje=f"No hay reglas para el sexo {SEX_NAMES[sex]}: esas mediciones no tendrían regla aplicable."))
     return warnings
@@ -743,8 +750,8 @@ def _limit(value) -> str:
     return "Sin límite" if value is None else str(value)
 
 
-def _glucose(value: Decimal) -> str:
-    return f"{value:.2f}".replace(".", ",")
+def _glucose(value: Decimal | None) -> str:
+    return "Sin límite" if value is None else f"{value:.2f}".replace(".", ",")
 
 
 def _safeName(text: str) -> str:

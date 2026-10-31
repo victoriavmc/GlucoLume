@@ -111,9 +111,9 @@ from pydantic import model_validator  # noqa: E402
 from app.schemas.measurement import CondicionComida  # noqa: E402
 
 
-# Una regla también puede ser para «sexo no informado» (la base lo admite, CK_ReglaMatriz_sexo); un perfil, en cambio, solo
-# es femenino o masculino, por eso no se reutiliza SexoModelo.
-SexoRegla = Literal["MASCULINO", "FEMENINO", "NO_INFORMADO"]
+# Una regla puede ser para «sexo no informado» (versiones anteriores) o para CUALQUIER_SEXO (el criterio no distingue sexo, p. ej. la
+# matriz ADA v3). Un perfil, en cambio, solo es femenino o masculino, por eso no se reutiliza SexoModelo.
+SexoRegla = Literal["MASCULINO", "FEMENINO", "NO_INFORMADO", "CUALQUIER_SEXO"]
 
 Edad = Annotated[int, Field(ge=0, le=130)]
 Minutos = Annotated[int, Field(ge=0)]
@@ -133,7 +133,8 @@ class MatrixRuleInput(BaseModel):
     condicionComida: CondicionComida
     minutosComidaMin: Minutos | None = None
     minutosComidaMax: Minutos | None = None
-    glucosaMinReferencia: Glucosa
+    # Mínimo vacío = sin límite inferior (solo tope). El máximo siempre es obligatorio.
+    glucosaMinReferencia: Glucosa | None = None
     glucosaMaxReferencia: Glucosa
 
     @field_validator("sexoModelo", "condicionComida", mode="before")
@@ -155,7 +156,7 @@ class MatrixRuleInput(BaseModel):
         if (self.minutosComidaMin is not None and self.minutosComidaMax is not None
                 and self.minutosComidaMax < self.minutosComidaMin):
             raise ValueError("El tiempo mínimo desde la última comida no puede superar el máximo.")
-        if self.glucosaMaxReferencia < self.glucosaMinReferencia:
+        if self.glucosaMinReferencia is not None and self.glucosaMaxReferencia < self.glucosaMinReferencia:
             raise ValueError("El límite mínimo de glucosa no puede superar el máximo.")
         return self
 
@@ -296,7 +297,7 @@ class MatrixRuleView(BaseModel):
     condicionComida: str
     minutosComidaMin: int | None
     minutosComidaMax: int | None
-    glucosaMinReferencia: Decimal
+    glucosaMinReferencia: Decimal | None  # NULL = sin límite inferior
     glucosaMaxReferencia: Decimal
 
 

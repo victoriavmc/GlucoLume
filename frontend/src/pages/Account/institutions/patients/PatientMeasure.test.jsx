@@ -142,18 +142,18 @@ describe('Medición institucional: datos del paciente y formulario único', () =
     expect(calls.some((call) => call.key.startsWith('PATCH') || call.key.startsWith('PUT'))).toBe(false);
   });
 
-  it('cambia entre oximetría y glucosa experimental: solo la glucosa muestra «Última comida (opcional)» y la matriz, y nunca es obligatoria', async () => {
+  it('cambia entre oximetría y glucosa experimental: solo la glucosa muestra «Inicio de la última comida (opcional)» y la matriz, y nunca es obligatoria', async () => {
     const { calls } = routes(patient(), status(), {
       'GET /measurements/matrix': jsonResponse(200, { idMatriz: 'g', nombre: 'Matriz San José', version: '2', ambito: 'INSTITUCION', estado: 'ACTIVA' }),
     });
     const user = userEvent.setup();
     open();
     const start = await form();
-    expect(within(start).queryByLabelText('Última comida (opcional)')).not.toBeInTheDocument();
+    expect(within(start).queryByLabelText('Inicio de la última comida (opcional)')).not.toBeInTheDocument();
     expect(calls.some((call) => call.key === 'GET /measurements/matrix')).toBe(false);
     await user.selectOptions(within(start).getByLabelText('Modo de medición'), 'GLUCOSA_EXPERIMENTAL');
     expect(await within(start).findByText(/Matriz San José, versión 2/)).toBeInTheDocument();
-    expect(within(start).getByLabelText('Última comida (opcional)')).toBeInTheDocument(); // sigue visible como opcional
+    expect(within(start).getByLabelText('Inicio de la última comida (opcional)')).toBeInTheDocument(); // sigue visible como opcional
     await user.selectOptions(within(start).getByLabelText('Alimentación'), 'POSTPRANDIAL');
     expect(within(start).getByText(/no se puede comparar con la matriz «después de comer»/)).toBeInTheDocument(); // se avisa, no se bloquea
     // Vacía: «Después de comer» + Glucosa experimental INICIA igual, sin enviar fecha (queda NULL).
@@ -174,7 +174,7 @@ describe('Medición institucional: datos del paciente y formulario único', () =
     const start = await form();
     await user.selectOptions(within(start).getByLabelText('Modo de medición'), 'GLUCOSA_EXPERIMENTAL');
     await user.selectOptions(within(start).getByLabelText('Alimentación'), 'POSTPRANDIAL');
-    await user.type(within(start).getByLabelText('Última comida (opcional)'), '2026-10-08T07:30');
+    await user.type(within(start).getByLabelText('Inicio de la última comida (opcional)'), '2026-10-08T07:30');
     await user.click(within(start).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(calls.some((call) => call.key === START)).toBe(true));
     expect(calls.find((call) => call.key === START).body).toMatchObject({
