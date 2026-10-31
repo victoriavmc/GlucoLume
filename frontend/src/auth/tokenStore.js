@@ -78,3 +78,19 @@ export function takePendingGoogleRemember() {
     return value === '1';
   }, false);
 }
+
+// Marca de un ingreso con Google iniciado desde /plataforma/login (al volver se entra al panel). Igual que «Recordarme»: cada inicio la fija
+// (1 o 0) y el callback la consume siempre, aunque el ingreso falle o se cancele. Así no sobrevive y no manda a otro ingreso al panel.
+const GOOGLE_PLATFORM_KEY = 'glucolume.platformLogin';
+
+export function setPendingGooglePlatform(platform) {
+  safely(() => window.sessionStorage.setItem(GOOGLE_PLATFORM_KEY, platform ? '1' : '0'));
+}
+
+export function takePendingGooglePlatform() {
+  return safely(() => {
+    const value = window.sessionStorage.getItem(GOOGLE_PLATFORM_KEY);
+    window.sessionStorage.removeItem(GOOGLE_PLATFORM_KEY);
+    return value === '1';
+  }, false);
+}

@@ -47,6 +47,7 @@ from app.schemas.profileTransfer import (
 )
 from app.services import email as emailService
 from app.services import institution as institutions
+from app.services import institutionNotifications
 from app.services import institutionPatients as patients
 from app.services import patientAccess
 from app.services.audit import personName, registerEvent, sanitize
@@ -423,6 +424,7 @@ def requestTransfer(
 
     _notify(EmailEventType.TRANSFERENCIA_SOLICITADA, db.get(User, target.idUsuarioInvitado),
             membership.institution.nombre, profile, _fullName(actor), idInstitucion, now)
+    institutionNotifications.transferRequested(db, membership.institution, profile, transfer.idTransferenciaPerfil, target, actor)
     return _item(_load(db, membership, idInstitucion, transfer.idTransferenciaPerfil), membership, now)
 
 
@@ -458,6 +460,7 @@ def proposeTransfer(db: Session, actor: User, membership: institutions.Membershi
         raise
     _notify(EmailEventType.TRANSFERENCIA_SOLICITADA, db.get(User, target.idUsuarioInvitado), membership.institution.nombre, profile,
             _fullName(actor), membership.institution.idInstitucion, now)
+    institutionNotifications.transferRequested(db, membership.institution, profile, transfer.idTransferenciaPerfil, target, actor)
     return transfer
 
 
@@ -530,6 +533,7 @@ def acceptTransfer(db: Session, actor: User, idInstitucion: uuid.UUID, idTransfe
     row = _load(db, membership, idInstitucion, idTransferencia)
     _notify(EmailEventType.TRANSFERENCIA_ACEPTADA, originUser, institutionName, row[1], _fullName(actor),
             idInstitucion, now)
+    institutionNotifications.transferAnswered(db, membership.institution, row[1], idTransferencia, originUser, actor, accepted=True)
     return _item(row, membership, now)
 
 
@@ -561,6 +565,7 @@ def rejectTransfer(db: Session, actor: User, idInstitucion: uuid.UUID, idTransfe
     row = _load(db, membership, idInstitucion, idTransferencia)
     _notify(EmailEventType.TRANSFERENCIA_RECHAZADA, originUser, institutionName, row[1], _fullName(actor),
             idInstitucion, now)
+    institutionNotifications.transferAnswered(db, membership.institution, row[1], idTransferencia, originUser, actor, accepted=False)
     return _item(row, membership, now)
 
 

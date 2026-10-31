@@ -149,7 +149,7 @@ describe('Bandeja de notificaciones', () => {
     renderAt('/app/notificaciones');
     await screen.findByRole('button', { name: /^Aviso a/ });
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Todas', 'No leídas', 'Seguridad']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Todas', 'No leídas', 'Seguridad', 'Institución']);
   });
 
   it('carga más avisos con el desplazamiento y no repite los ya mostrados', async () => {

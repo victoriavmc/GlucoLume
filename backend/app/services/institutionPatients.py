@@ -52,7 +52,7 @@ from app.schemas.measurementProfile import (
 from app.emails.eventTypes import EmailEventType
 from app.services import email as emailService
 from app.services import institution as institutions
-from app.services import measurementRetention, patientAccess, reassignments, resultEmailStore
+from app.services import institutionNotifications, measurementRetention, patientAccess, reassignments, resultEmailStore
 from app.services.audit import registerEvent
 from app.services.csvExport import csvBytes, csvDate, csvText
 from app.services.exportAudit import auditedExport, rejectExport
@@ -63,14 +63,26 @@ from app.utils.timeZone import nowForDb
 TIPO_INSTITUCIONAL = "INSTITUCIONAL"
 PACIENTE_ACTIVO = "ACTIVO"
 PACIENTE_BAJA = "BAJA"
+# Filtros del listado (no son estados de un paciente): ANONIMIZADO = ya depurado (sin identidad ni acceso); TODOS = cualquiera.
+PACIENTE_ANONIMIZADO = "ANONIMIZADO"
+PACIENTE_TODOS = "TODOS"
 
 
 def patientState(profile: MeasurementProfile) -> str:
     return PACIENTE_ACTIVO if profile.fechaExpiracionDatosPersonales is None else PACIENTE_BAJA
 
 
+def _daysLeft(profile: MeasurementProfile, now: datetime) -> int | None:
+    """Días completos que le quedan a los datos de un paciente dado de baja con identidad. Negativo: venció y todavía no se depuró.
+    None para activos y anonimizados (ya no hay plazo personal que contar)."""
+    if patientState(profile) != PACIENTE_BAJA or profile.fechaDepuracionDatosPersonales is not None:
+        return None
+    return (profile.fechaExpiracionDatosPersonales - now).days
+
+
 _IS_ACTIVE = MeasurementProfile.fechaExpiracionDatosPersonales.is_(None)
 _IS_DISCHARGED = MeasurementProfile.fechaExpiracionDatosPersonales.is_not(None)
+_IS_ANONYMIZED = MeasurementProfile.fechaDepuracionDatosPersonales.is_not(None)
 TRANSFERENCIA_ACEPTADA = "ACEPTADA"
 TRANSFERENCIA_PENDIENTE = "PENDIENTE"
 TRANSFERENCIA_CANCELADA = "CANCELADA"
@@ -96,13 +108,14 @@ def _canModify(membership: institutions.Membership, profile: MeasurementProfile)
     return membership.role != institutions.ROL_OPERADOR or _ownsPatient(membership, profile)
 
 
-def _patientsOf(idInstitucion: uuid.UUID):
+def _patientsOf(idInstitucion: uuid.UUID, *, anonimizados: bool = False):
     """Pacientes del período operativo vigente de la institución, con su responsable.
 
-    Excluye los ya desidentificados por retención y los archivados de períodos anteriores a la última reapertura
-    (su responsable dejó de estar vinculado antes de reabrirse): la reapertura no devuelve el acceso a esos datos.
+    Excluye los ya desidentificados por retención (salvo `anonimizados`, solo para el listado de anonimizados) y los archivados de
+    períodos anteriores a la última reapertura (su responsable dejó de estar vinculado antes de reabrirse): la reapertura no devuelve
+    el acceso a esos datos.
     """
-    return (
+    query = (
         select(MeasurementProfile, InstitutionUser, User)
         .join(InstitutionUser, InstitutionUser.idInstitucionUsuario == MeasurementProfile.idInstitucionUsuarioResponsable)
         .join(Institution, Institution.idInstitucion == InstitutionUser.idInstitucion)
@@ -110,7 +123,6 @@ def _patientsOf(idInstitucion: uuid.UUID):
         .where(
             MeasurementProfile.tipoPerfil == TIPO_INSTITUCIONAL,
             InstitutionUser.idInstitucion == idInstitucion,
-            MeasurementProfile.fechaDepuracionDatosPersonales.is_(None),
             or_(
                 Institution.fechaUltimaReapertura.is_(None),
                 InstitutionUser.fechaBaja.is_(None),
@@ -118,6 +130,32 @@ def _patientsOf(idInstitucion: uuid.UUID):
             ),
         )
     )
+    if not anonimizados:
+        query = query.where(MeasurementProfile.fechaDepuracionDatosPersonales.is_(None))
+    return query
+
+
+def _patientsByState(idInstitucion: uuid.UUID, estado: str, now: datetime, venceEnDias: int | None = None):
+    """Pacientes del listado o de la exportación según el filtro de estado. `venceEnDias` solo aplica a los dados de baja: los que
+    vencen dentro de ese plazo (también los ya vencidos, que se depuran en la próxima pasada)."""
+    query = _patientsOf(idInstitucion, anonimizados=estado in (PACIENTE_ANONIMIZADO, PACIENTE_TODOS))
+    if estado == PACIENTE_ACTIVO:
+        return query.where(_IS_ACTIVE)
+    if estado == PACIENTE_BAJA:
+        query = query.where(_IS_DISCHARGED)
+        if venceEnDias is not None:
+            query = query.where(MeasurementProfile.fechaExpiracionDatosPersonales <= now + timedelta(days=venceEnDias))
+        return query
+    if estado == PACIENTE_ANONIMIZADO:
+        return query.where(_IS_ANONYMIZED)
+    return query  # TODOS
+
+
+def _patientOrder(estado: str):
+    """Dados de baja: los que antes pierden sus datos, primero. El resto, alfabético."""
+    if estado == PACIENTE_BAJA:
+        return (MeasurementProfile.fechaExpiracionDatosPersonales, MeasurementProfile.idPerfilMedicion)
+    return (MeasurementProfile.apellido, MeasurementProfile.nombre, MeasurementProfile.idPerfilMedicion)
 
 
 def _registrants(db: Session, profileIds: list[uuid.UUID]) -> dict[uuid.UUID, PatientRegistrant]:
@@ -155,12 +193,14 @@ def _read(membership, profile: MeasurementProfile, relation: InstitutionUser, op
         edad=None if foreign else (calculateAge(profile.fechaNacimiento, now.date()) if profile.fechaNacimiento else profile.edadDeclarada),
         sexoModelo=None if foreign else profile.sexoModelo,
         estado=patientState(profile),
+        anonimizado=profile.fechaDepuracionDatosPersonales is not None,
         fechaCreacion=profile.fechaCreacion,
         fechaUltimaMedicion=profile.fechaUltimaMedicion if authorized else None,
         esMio=_ownsPatient(membership, profile),
         medicionesAutorizadas=authorized,
         registradoPor=registrant,
         fechaExpiracionDatosPersonales=profile.fechaExpiracionDatosPersonales,
+        diasRestantesDatos=_daysLeft(profile, now),
         responsable=PatientResponsible(
             idInstitucionUsuario=relation.idInstitucionUsuario,
             # Nombre de la cuenta o, si se eliminó, la identidad profesional conservada.
@@ -270,23 +310,23 @@ def _applySearch(query, busqueda: str | None, membership: institutions.Membershi
 def listPatients(
     db: Session, actor: User, idInstitucion: uuid.UUID, *, busqueda: str | None = None,
     idResponsable: uuid.UUID | None = None, estado: str = PACIENTE_ACTIVO, soloMios: bool = False,
-    pagina: int = 1, tamanioPagina: int = 20,
+    venceEnDias: int | None = None, pagina: int = 1, tamanioPagina: int = 20,
 ) -> PatientPage:
     membership = institutions.requireMembership(db, actor, idInstitucion, institutions.P_PACIENTES)
     tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
     pagina = max(1, pagina)
-    query = _applySearch(_patientsOf(idInstitucion).where(_IS_ACTIVE if estado == PACIENTE_ACTIVO else _IS_DISCHARGED), busqueda, membership)
+    now = nowForDb()
+    query = _applySearch(_patientsByState(idInstitucion, estado, now, venceEnDias), busqueda, membership)
     if soloMios:
         query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
     elif idResponsable is not None:
         query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == idResponsable)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     rows = db.execute(
-        query.order_by(MeasurementProfile.apellido, MeasurementProfile.nombre, MeasurementProfile.idPerfilMedicion)
+        query.order_by(*_patientOrder(estado))
         .offset((pagina - 1) * tamanioPagina)
         .limit(tamanioPagina)
     ).all()
-    now = nowForDb()
     registrants = _registrants(db, [row[0].idPerfilMedicion for row in rows])
     return PatientPage(
         items=[_read(membership, *row, now, registrants.get(row[0].idPerfilMedicion)) for row in rows], total=total, pagina=pagina,
@@ -369,6 +409,8 @@ def createPatient(db: Session, actor: User, idInstitucion: uuid.UUID, data: Pati
     if responsable.idUsuarioInvitado != actor.idUsuario:
         _notifyPatient(EmailEventType.PACIENTE_ASIGNADO, responsibleUser, membership.institution, profile,
                        _fullName(actor), now)
+    institutionNotifications.patientCreated(db, membership.institution, profile, {actor.idUsuario})
+    institutionNotifications.patientAssigned(db, membership.institution, profile, responsable, now, {actor.idUsuario})
     return _read(membership, *_load(db, idInstitucion, profile.idPerfilMedicion), now,
                  _registrants(db, [profile.idPerfilMedicion]).get(profile.idPerfilMedicion))
 
@@ -450,6 +492,7 @@ def notifyAssignment(db: Session, actor: User, institution: Institution, profile
     if previousRelation is not None and previousRelation.estadoRelacion == institutions.RELACION_ACTIVO:
         _notifyPatient(EmailEventType.PACIENTE_REASIGNADO, previousUser, institution, profile, _fullName(newUser), now, toList=True)
     notifyOwners(db, actor, institution, profile, target, now, proposal=False)
+    institutionNotifications.patientAssigned(db, institution, profile, target, now, {actor.idUsuario})
 
 
 def notifyOwners(db: Session, actor: User, institution: Institution, profile: MeasurementProfile, target: InstitutionUser, now: datetime,
@@ -565,23 +608,28 @@ PATIENT_EXPORT_COLUMNS = (
 _ESTADO_LABELS = {PACIENTE_ACTIVO: "Activo", PACIENTE_BAJA: "Baja"}
 
 
-def _exportRows(db: Session, membership: institutions.Membership, idInstitucion: uuid.UUID, *, alcance: str, ids: list[uuid.UUID],
-                busqueda: str | None, idResponsable: uuid.UUID | None, estado: str):
-    query = _patientsOf(idInstitucion)
+def _ownScope(query, membership: institutions.Membership):
+    """Un operador exporta solo a sus pacientes; propietario y moderador, a todos."""
     if membership.role == institutions.ROL_OPERADOR:
-        query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
+        return query.where(MeasurementProfile.idInstitucionUsuarioResponsable == membership.relation.idInstitucionUsuario)
+    return query
+
+
+def _exportRows(db: Session, membership: institutions.Membership, idInstitucion: uuid.UUID, *, alcance: str, ids: list[uuid.UUID],
+                busqueda: str | None, idResponsable: uuid.UUID | None, estado: str, venceEnDias: int | None, now: datetime):
     if alcance == "SELECCION":
         if not ids:
             raise AuthError("DATOS_INVALIDOS", "Elegí al menos un paciente para exportar.")
         wanted = list(dict.fromkeys(ids))
-        rows = db.execute(query.where(MeasurementProfile.idPerfilMedicion.in_(wanted))).all()
+        rows = db.execute(_ownScope(_patientsOf(idInstitucion), membership).where(MeasurementProfile.idPerfilMedicion.in_(wanted))).all()
         if len(rows) != len(wanted):
             raise AuthError("DATOS_INVALIDOS", "Alguno de los pacientes seleccionados no está disponible para tu usuario. Actualizá el listado.")
         return rows
-    query = _applySearch(query.where(_IS_ACTIVE if estado == PACIENTE_ACTIVO else _IS_DISCHARGED), busqueda, membership)
+    query = _ownScope(_patientsByState(idInstitucion, estado, now, venceEnDias), membership)
+    query = _applySearch(query, busqueda, membership)
     if idResponsable is not None:
         query = query.where(MeasurementProfile.idInstitucionUsuarioResponsable == idResponsable)
-    return db.execute(query.order_by(MeasurementProfile.apellido, MeasurementProfile.nombre, MeasurementProfile.idPerfilMedicion)).all()
+    return db.execute(query.order_by(*_patientOrder(estado))).all()
 
 
 def _csvPatient(patient: PatientRead) -> list[str]:
@@ -591,13 +639,15 @@ def _csvPatient(patient: PatientRead) -> list[str]:
     return [
         csvText(patient.identificadorPseudonimo), csvText(patient.nombre), csvText(patient.apellido), csvText(patient.dni),
         csvDate(patient.fechaNacimiento), csvText(patient.edad), csvText(patient.sexoModelo),
-        csvText(_ESTADO_LABELS.get(patient.estado, patient.estado)), csvText(responsable), csvText(registrado),
+        csvText("Anonimizado" if patient.anonimizado else _ESTADO_LABELS.get(patient.estado, patient.estado)),
+        csvText(responsable), csvText(registrado),
         csvDate(patient.fechaCreacion), csvDate(patient.fechaExpiracionDatosPersonales),
     ]
 
 
 def exportPatients(db: Session, actor: User, idInstitucion: uuid.UUID, *, alcance: str, ids: list[uuid.UUID] | None = None,
-                   busqueda: str | None = None, idResponsable: uuid.UUID | None = None, estado: str = PACIENTE_ACTIVO) -> tuple[bytes, str]:
+                   busqueda: str | None = None, idResponsable: uuid.UUID | None = None, estado: str = PACIENTE_ACTIVO,
+                   venceEnDias: int | None = None) -> tuple[bytes, str]:
     """CSV de pacientes (`SELECCION` o `TODOS`), con lo que muestra el listado. Devuelve (contenido, nombre del archivo)."""
     try:
         membership = institutions.requireMembership(db, actor, idInstitucion, institutions.P_PACIENTES)
@@ -606,9 +656,9 @@ def exportPatients(db: Session, actor: User, idInstitucion: uuid.UUID, *, alcanc
         db.commit()
         raise
     with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="INSTITUCION", idInstitucion=idInstitucion, formato="CSV") as export:
-        rows = _exportRows(db, membership, idInstitucion, alcance=alcance, ids=ids or [], busqueda=busqueda, idResponsable=idResponsable,
-                           estado=estado)
         now = nowForDb()
+        rows = _exportRows(db, membership, idInstitucion, alcance=alcance, ids=ids or [], busqueda=busqueda, idResponsable=idResponsable,
+                           estado=estado, venceEnDias=venceEnDias, now=now)
         registrants = _registrants(db, [row[0].idPerfilMedicion for row in rows])
         patients = [_read(membership, *row, now, registrants.get(row[0].idPerfilMedicion)) for row in rows]
         export.registros = len(patients)

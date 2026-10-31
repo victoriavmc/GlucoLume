@@ -20,9 +20,9 @@ Estado de este documento: describe lo **implementado**. Lo **verificado** (con S
 - **Eliminar en bloque («Eliminar…» en el encabezado, separado de «Marcar todas como leídas»):** «Eliminar las leídas» (sin confirmación, no toca las sin leer) y «Vaciar la bandeja…», que **pide
   confirmación** («también las que todavía no leíste. No se puede deshacer.»). La lista y el contador se actualizan al instante y, si el backend falla, vuelven a como estaban.
 - **Bandeja vacía:** «No tenés notificaciones» (y con filtros, el mensaje de ese filtro).
-- **Destinos:** solo `/app/mediciones`, `/app/grupo`, `/app/seguridad` (y debajo de ellas), rutas que existen en `App.jsx`. El backend descarta otro destino al guardar (`safeUrl`) y la pantalla vuelve a validarlo (`destinoSeguro`): nunca se navega a un texto recibido sin comprobarlo.
+- **Destinos:** solo `/app/mediciones`, `/app/grupo`, `/app/seguridad`, `/app/instituciones` (y debajo de ellas), rutas que existen en `App.jsx`. El backend descarta otro destino al guardar (`safeUrl`) y la pantalla vuelve a validarlo (`destinoSeguro`): nunca se navega a un texto recibido sin comprobarlo.
 - **Accesibilidad:** filtros con el componente `Tabs` (roles `tablist`/`tab`/`tabpanel`, flechas, Inicio y Fin), tarjetas y interruptores con nombre accesible, foco visible, estados de lectura en texto (no solo color).
-- **Cuentas institucionales:** solo reciben avisos de Seguridad; no ven Grupo ni Recordatorios.
+- **Cuentas institucionales:** reciben avisos de Seguridad y de Institución (estos según su rol en la institución); no ven Grupo ni Recordatorios.
 - **Aviso emergente (cartel + sonido):** sigue igual; ahora consulta solo los no leídos (`soloNoLeidas=true&limite=20`).
 
 ## 2. Categorías, avisos y canales
@@ -40,6 +40,18 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | Grupo familiar | `NUEVA_ACCION_GRUPO` | Alguien se suma o abandona el grupo | No | Preferencia; el administrador ya recibe su propio correo |
 | Grupo familiar | `MEDICION_GRUPO` | Alguien se midió y activó «Aviso de medición» (quién y cuándo, nunca el valor) | No | Preferencia |
 | Recordatorios | `RECORDATORIO_MEDICION` | Vence un horario de medición | No | Preferencia (apagado por omisión) |
+| Institución | `INSTITUCION_OPERADOR_NUEVO` | Un operador acepta su invitación. Lo reciben propietarios y moderadores, menos quien lo invitó | No | No (el correo de ese hecho ya lo envía su flujo) |
+| Institución | `INSTITUCION_OPERADOR_BAJA` | Se da de baja a un operador. Propietarios y moderadores, menos quien lo hizo | No | No (idem) |
+| Institución | `INSTITUCION_MODERADOR_NUEVO` | Un moderador acepta su invitación. Propietarios y moderadores, menos quien lo invitó | No | No (idem) |
+| Institución | `INSTITUCION_MODERADOR_BAJA` | Se da de baja a un moderador. Propietarios y moderadores, menos quien lo hizo | No | No (idem) |
+| Institución | `INSTITUCION_PACIENTE_NUEVO` | Se registra un paciente. Propietarios y moderadores, menos quien lo registró | No | No (idem) |
+| Institución | `INSTITUCION_PACIENTE_A_CARGO` | Un paciente pasa a estar a cargo de un operador (alta, asignación, reasignación por desvinculación o transferencia aceptada). Solo ese operador, menos quien hizo el cambio | No | No (idem) |
+| Institución | `INSTITUCION_SOLICITUD_NUEVA` | Otro operador pide un paciente, o la gestión propone uno. Llega al operador destino | No | No (idem) |
+| Institución | `INSTITUCION_SOLICITUD_ACEPTADA` | El destino acepta la solicitud. Llega al operador de origen | No | No (idem) |
+| Institución | `INSTITUCION_SOLICITUD_RECHAZADA` | El destino rechaza la solicitud. Llega al operador de origen | No | No (idem) |
+
+- **Institución (`services/institutionNotifications.py`):** se disparan después del commit del hecho, igual que su correo; el correo sigue saliendo por su flujo existente. Los avisos nunca incluyen datos del paciente, solo su identificador seudónimo. Hoy **no hay un flujo de cambio de propietario** en el sistema, así que no genera aviso alguno.
+- **Sin canal de correo propio** (`correo = false` en el catálogo): la preferencia lo informa con `correoDisponible = false`, la pantalla no ofrece el interruptor «Por correo» y `PUT /preferencias/{evento}` con `porCorreo = true` responde `409 CANAL_NO_DISPONIBLE`.
 
 - **Canales independientes (RN-NOT-07):** `enPagina` y `porCorreo` se guardan y se respetan por separado. Con la página apagada la fila queda con `visible = 0` (no aparece ni se puede marcar) y solo sirve de registro del correo.
 - **Obligatorios:** las alertas críticas se muestran siempre en la página; `PUT /preferencias/{evento}` responde `409 AVISO_OBLIGATORIO` y, aunque exista una fila de preferencia apagada, el servicio las entrega. El correo de esas alertas lo envía el flujo de seguridad que las origina (no depende de preferencias, como antes).
@@ -65,6 +77,9 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | Aviso | Clave |
 |---|---|
 | Recordatorio | `RECORDATORIO_MEDICION:<fecha-hora de la ocurrencia>` |
+| Alta o baja de operador o moderador | `INSTITUCION_<OPERADOR\|MODERADOR>_<NUEVO\|BAJA>:<idInstitucionUsuario>` |
+| Paciente nuevo / a cargo | `INSTITUCION_PACIENTE_NUEVO:<idPerfilMedicion>` / `INSTITUCION_PACIENTE_A_CARGO:<idPerfilMedicion>:<instante>` |
+| Solicitud de paciente | `INSTITUCION_SOLICITUD_<NUEVA\|ACEPTADA\|RECHAZADA>:<idTransferenciaPerfil>` |
 | Equipo nuevo | `INICIO_SESION:<huella del equipo>` |
 | Contraseña / MFA | `CAMBIO_CONTRASENA:<instante del cambio>` / `CAMBIO_MFA:<instante>` |
 | Actividad sospechosa | `ACTIVIDAD_SOSPECHOSA:BLOQUEO:<fin del bloqueo>` (y `BLOQUEO_MFA:`) |
@@ -104,13 +119,15 @@ Sigue igual: cada inicio de sesión (con o sin aviso) queda en `Auditoria` (`LOG
 | `POST /leer-todas` | **Modificado** | Responde `{noLeidas, marcadas}`; solo avisos de la sesión. |
 | `DELETE /{id}` | **Nuevo** | Quita un aviso propio de la bandeja (eliminación lógica). Responde `{noLeidas, eliminadas}`. Ajeno, inexistente o ya eliminado: `404 NOTIFICACION_NO_ENCONTRADA`, sin distinguirlos. |
 | `DELETE /?alcance=leidas\|todas` | **Nuevo** | Quita de la bandeja los avisos leídos, o todos, de la cuenta autenticada, en una transacción. `alcance` es **obligatorio** (sin él `422`: no hay un valor que vacíe la bandeja por omisión). Responde `{noLeidas, eliminadas}` y deja el evento de auditoría. |
-| `GET /preferencias` | **Modificado** | Cada preferencia suma `categoria` y `obligatoria`; ahora son 9. |
-| `PUT /preferencias/{evento}` | **Modificado** | Admite los 9 avisos. Obligatorios: `409 AVISO_OBLIGATORIO`. |
+| `GET /preferencias` | **Modificado** | Cada preferencia suma `categoria`, `obligatoria` y `correoDisponible`; ahora son 18. |
+| `PUT /preferencias/{evento}` | **Modificado** | Admite los 18 avisos. Obligatorios: `409 AVISO_OBLIGATORIO`. Sin canal de correo: `409 CANAL_NO_DISPONIBLE`. |
 | `PUT /recordatorio` | Sin cambio | `NINGUNO` elimina la programación. |
 
 Comandos: `python -m app.jobs.reminders --loop | --health | ejecutar | depurar | previsualizar` (`depurar` es el mismo borrado que hace solo el servicio `notifications` cada hora, a demanda).
 
 ## 8. Cambios de esquema
+
+**v4 (avisos de institución):** [GlucoLume_notificaciones_v4.sql](../database/reference/GlucoLume_notificaciones_v4.sql) reemplaza los dos CHECK de `evento` (NotificacionUsuario y PreferenciaNotificacion) para admitir los 18 avisos. No modifica ni borra filas, es idempotente, exige `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V4"` y se aplica **después** de v3. Mientras no se aplique, la institución funciona igual, pero el aviso de bandeja de cada hecho nuevo no se guarda (el `CHECK` lo rechaza y queda registrado como error en el log).
 
 **v3 (eliminación de la bandeja):** [GlucoLume_notificaciones_v3.sql](../database/reference/GlucoLume_notificaciones_v3.sql) agrega `NotificacionUsuario.fechaEliminacion` (`datetime2(3) NULL`) y nada más: no modifica ni borra
 filas, es idempotente, exige `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` y se aplica **después** de v2. No hacen falta permisos nuevos (es un `UPDATE`). No se encontró ningún mecanismo de eliminación lógica previo
@@ -216,7 +233,8 @@ Además: equipo nuevo (`test_un_equipo_nuevo_avisa_una_sola_vez_…`, `test_todo
 - **La instalación en uso NO está migrada ni tiene el servicio `notifications`** (se comprobó solo en lectura: tiene las tablas v1, sin `claveEvento` ni `AccesoConocido`, y `lifecycle` está desactivado). Mientras no se aplique §12, el backend nuevo deja Notificaciones como «no disponible». Los pasos de §12 se ensayaron en una instancia descartable, no en la real.
 - **Entrega real por Gmail no verificada:** el envío se probó contra un SMTP de prueba con STARTTLS y certificado verificado (mismo código y mismo transporte), no contra el SMTP real configurado: no hay credenciales válidas para usar en la prueba. Lo que no se comprueba con el SMTP de prueba: la aceptación por parte del proveedor, SPF/DKIM y la bandeja de entrada del destinatario.
 - La medición completada que dispara `MEDICION_GRUPO` se probó llamando a `notifyGroupMeasurement` (la función que invocan `measurement.py` y `telemetry.py`) contra SQL Server real, no completando una medición real con el dispositivo.
-- Los avisos de las cuentas de la plataforma (`platform.py`: cambios de contraseña) y de las instituciones no se incorporaron a la bandeja; solo siguen enviando su correo.
+- Los avisos de las cuentas de la plataforma (`platform.py`: cambios de contraseña) no se incorporaron a la bandeja; solo siguen enviando su correo.
+- Institución (§2): no hay aviso de **cambio de propietario** porque el sistema no tiene ese flujo. La pantalla no conoce el rol de la cuenta: un operador también ve los interruptores de altas y bajas, que nunca le llegan. Una desvinculación con muchos pacientes genera un aviso «a cargo» por paciente reasignado.
 - No hay zona horaria por usuario: todo es hora de Argentina.
 - La línea base de equipos conocidos se arma en el primer inicio de sesión posterior a la migración; hasta entonces no hay aviso de equipo nuevo para esa cuenta.
 - «Cargar más» usa desplazamiento: si llegan avisos nuevos entre una carga y otra, la pantalla descarta los repetidos pero un aviso podría tardar en aparecer hasta recargar.
@@ -230,6 +248,7 @@ Hasta que se apliquen, el backend nuevo deja Notificaciones como «no disponible
 
 1. **Respaldo** restaurable de la base (`GlucoLume_respaldo.ps1` o `BACKUP ... WITH CHECKSUM`) y, de preferencia, ensayar los pasos 2 y 3 en una copia.
 2. **Esquema:** con `sqlcmd -I`, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"` y **después** `GlucoLume_notificaciones_v3.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` (eliminación de la bandeja; si la base no tenía las tablas, antes `GlucoLume_notificaciones_usuario.sql`). Cada uno es idempotente y no borra filas.
+2b. **Esquema de institución:** `GlucoLume_notificaciones_v4.sql` con `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V4"` (después de v3).
 3. **Permisos:** volver a aplicar `GlucoLume_permisos.sql` (agrega el `DELETE` de `NotificacionUsuario` para el rol de conservación) y comprobar con `GlucoLume_permisos_verificar.sql`.
 4. **Cuenta de procesos:** definir `DB_JOBS_USER` y `DB_JOBS_PASSWORD` en el `.env` (cuenta distinta de la de la API, miembro de `rol_glucolume_retencion`). Sin ella los recordatorios funcionan pero la bandeja no se depura.
 5. **Variables (opcionales):** `NOTIFICATIONS_INTERVAL_SECONDS` (60), `NOTIFICATION_READ_RETENTION_DAYS` (30) y `NOTIFICATION_UNREAD_RETENTION_DAYS` (365). No tocar `ACCOUNT_LIFECYCLE_INTERVAL_SECONDS`: son independientes.

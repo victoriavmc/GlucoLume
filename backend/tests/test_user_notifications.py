@@ -1078,6 +1078,30 @@ def test_los_contratos_conocen_exactamente_los_avisos_del_catalogo():
     assert {e for e, spec in notificationEvents.CATALOGO.items() if spec.obligatorio} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA"}
 
 
+ORIGINALES = (
+    "INICIO_SESION", "CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INVITACION_GRUPO", "AGREGADO_GRUPO",
+    "NUEVA_ACCION_GRUPO", "MEDICION_GRUPO", "RECORDATORIO_MEDICION",
+)
+
+
+def test_la_migracion_v4_admite_todos_los_avisos_del_catalogo_y_es_idempotente():
+    import re
+
+    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_notificaciones_v4.sql").read_text(encoding="utf-8")
+    code = re.sub(r"--[^\n]*", "", script)
+
+    assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V4'" in script
+    assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script  # exige v3
+    assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
+    for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
+        assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
+        assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
+    for evento in notificationEvents.EVENTOS:
+        assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
+    for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
+        assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
+
+
 def test_la_migracion_v2_cubre_los_avisos_las_columnas_y_es_idempotente():
     import re
 
@@ -1086,7 +1110,8 @@ def test_la_migracion_v2_cubre_los_avisos_las_columnas_y_es_idempotente():
 
     assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V2'" in script
     assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
-    for evento in notificationEvents.EVENTOS:
+    # v2 es histórica: admite los nueve avisos de entonces; los de institución llegan con v4.
+    for evento in ORIGINALES:
         assert f"[evento]=N'{evento}'" in script, evento
     for column in ("claveEvento", "visible", "estadoCorreo", "intentosCorreo"):
         assert f"COL_LENGTH(N'dbo.NotificacionUsuario', N'{column}') IS NULL" in script

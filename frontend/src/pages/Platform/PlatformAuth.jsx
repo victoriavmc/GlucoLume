@@ -20,8 +20,6 @@ import { PasswordRules } from '../Register/RegisterForm.jsx';
 import '../Login/Login.css';
 import './PlatformAuth.css';
 
-export const PLATFORM_LOGIN_KEY = 'glucolume.platformLogin';
-
 /** Marco propio del acceso administrativo: sin la navegación pública ni el texto comercial; solo la marca, el acceso y el aviso de uso restringido. */
 function PlatformShell({ children }) {
   return (
@@ -108,7 +106,6 @@ export function PlatformLogin() {
   }
 
   function handleGoogle() {
-    window.sessionStorage.setItem(PLATFORM_LOGIN_KEY, '1'); // al volver del callback se entra al panel
     startGoogleLogin(false, undefined, false, 'PLATAFORMA');
   }
 

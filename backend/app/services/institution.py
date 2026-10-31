@@ -71,7 +71,7 @@ from app.schemas.institution import (
 from app.services import accountGrace, reassignments
 from app.services import auth as authService
 from app.services import email as emailService
-from app.services import mfa
+from app.services import institutionNotifications, mfa
 from app.services import notifications
 from app.services import quota, schemaCompat
 from app.services.audit import registerEvent
@@ -1159,6 +1159,9 @@ def respondInvitation(db: Session, user: User, idInstitucionUsuario: uuid.UUID, 
     if relation.rolInstitucion == ROL_OPERADOR:
         _notifyOwners(db, institution.idInstitucion, EmailEventType.OPERADOR_AGREGADO, institution.nombre,
                       _fullName(user), now, {user.idUsuario, relation.idUsuarioInvitador})
+    # Propietarios y moderadores ven el alta en la bandeja (quien invitó ya lo sabe).
+    institutionNotifications.memberAdded(db, institution, user, relation.rolInstitucion, relation.idInstitucionUsuario,
+                                         {relation.idUsuarioInvitador})
     return _summary(Membership(institution, relation))
 
 
@@ -1286,6 +1289,8 @@ def revokeMember(db: Session, actor: User, idInstitucion: uuid.UUID, rol: str, i
             member.correoElectronico,
             {"nombre": member.nombre, "nombreInstitucion": membership.institution.nombre, "fechaEvento": now},
         )
+    if wasActive:
+        institutionNotifications.memberRemoved(db, membership.institution, member, rol, relation.idInstitucionUsuario, {actor.idUsuario})
     if graceUser is not None:  # después del aviso de la baja: la persona se entera primero de lo que pasó y luego del plazo
         accountGrace.notifyStarted(graceUser, now)
 

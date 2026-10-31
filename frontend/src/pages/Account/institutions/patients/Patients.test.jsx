@@ -115,6 +115,40 @@ describe('Listado de pacientes', () => {
     expect(screen.queryByText('Activo, Ana')).not.toBeInTheDocument();
   });
 
+  it('propietario y moderador ven cuántos días les quedan a los datos de cada baja, filtran por plazo y listan a los anonimizados', async () => {
+    const discharged = patient({ idPerfilMedicion: 'p-baja', apellido: 'Gómez', nombre: 'Beto', estado: 'BAJA', fechaExpiracionDatosPersonales: '2026-11-05T10:00:00', diasRestantesDatos: 5, esMio: false, medicionesAutorizadas: false, puedeModificar: false });
+    const anonymized = patient({ idPerfilMedicion: 'p-anon', identificadorPseudonimo: 'ANON-9F3A', nombre: null, apellido: null, dni: null, fechaNacimiento: null, edad: null, sexoModelo: null, estado: 'BAJA', anonimizado: true, fechaExpiracionDatosPersonales: '2027-10-08T10:00:00', diasRestantesDatos: null, esMio: false, medicionesAutorizadas: false, puedeModificar: false });
+    const { calls } = routes('MODERADOR', {
+      [`GET ${PATIENTS_URL}`]: (options, url) => (new URL(url).searchParams.get('estado') === 'ANONIMIZADO' ? jsonResponse(200, page([anonymized])) : jsonResponse(200, page(new URL(url).searchParams.get('estado') === 'BAJA' ? [discharged] : []))),
+    });
+    const lastParams = () => new URL(calls.filter((call) => call.key === `GET ${PATIENTS_URL}`).at(-1).url).searchParams;
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    await user.selectOptions(await screen.findByLabelText('Estado'), 'BAJA');
+    expect(await screen.findByText('De baja · le quedan 5 días de conservación (hasta 05/11/2026)')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Datos que vencen'), '30');
+    await waitFor(() => expect(Object.fromEntries(lastParams())).toMatchObject({ estado: 'BAJA', venceEnDias: '30' }));
+
+    await user.selectOptions(screen.getByLabelText('Estado'), 'ANONIMIZADO');
+    expect(await screen.findByText('Datos anonimizados · sin identidad')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Datos que vencen')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument(); // no tienen datos personales que exportar
+    expect(lastParams().has('venceEnDias')).toBe(false);
+  });
+
+  it('el operador ve solo la fecha de conservación, sin el filtro de plazo', async () => {
+    const discharged = patient({ idPerfilMedicion: 'p-baja', apellido: 'Gómez', nombre: 'Beto', estado: 'BAJA', fechaExpiracionDatosPersonales: '2026-11-05T10:00:00', diasRestantesDatos: 5, esMio: false, medicionesAutorizadas: false, puedeModificar: false });
+    routes('OPERADOR', {
+      [`GET ${PATIENTS_URL}`]: (options, url) => jsonResponse(200, page(new URL(url).searchParams.get('estado') === 'BAJA' ? [discharged] : [])),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/pacientes`);
+    await user.selectOptions(await screen.findByLabelText('Estado'), 'BAJA');
+    expect(await screen.findByText('De baja · datos conservados hasta 05/11/2026')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Datos que vencen')).not.toBeInTheDocument();
+  });
+
   it('el operador ve todos los pacientes de la institución, distingue los suyos y mide solo a los suyos', async () => {
     const mine = patient();
     const foreign = patient({ idPerfilMedicion: 'p-2', apellido: 'Gómez', nombre: 'Luis', dni: null, edad: null, sexoModelo: null, fechaNacimiento: null,

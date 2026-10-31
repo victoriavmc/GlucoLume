@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { agruparPorDia, destinoSeguro, EVENTOS, filtrosVisibles, grupoDeDia } from './notificationsCopy.js';
+import { agruparPorDia, categoriasVisibles, destinoSeguro, EVENTOS, filtrosVisibles, grupoDeDia } from './notificationsCopy.js';
 
 describe('destinoSeguro', () => {
   it.each(['/app/seguridad', '/app/grupo', '/app/grupo/abc', '/app/mediciones', '/app/notificaciones'])('acepta %s', (url) => {
@@ -38,11 +38,26 @@ describe('agrupación por día', () => {
 });
 
 describe('catálogo', () => {
-  it('conoce los nueve avisos del backend y las cuentas institucionales solo ven seguridad', () => {
+  it('conoce los avisos del backend, también los de la institución', () => {
     expect(Object.keys(EVENTOS).sort()).toEqual([
-      'ACTIVIDAD_SOSPECHOSA', 'AGREGADO_GRUPO', 'CAMBIO_CONTRASENA', 'CAMBIO_MFA', 'INICIO_SESION', 'INVITACION_GRUPO',
-      'MEDICION_GRUPO', 'NUEVA_ACCION_GRUPO', 'RECORDATORIO_MEDICION',
+      'ACTIVIDAD_SOSPECHOSA', 'AGREGADO_GRUPO', 'CAMBIO_CONTRASENA', 'CAMBIO_MFA', 'INICIO_SESION', 'INSTITUCION_MODERADOR_BAJA',
+      'INSTITUCION_MODERADOR_NUEVO', 'INSTITUCION_OPERADOR_BAJA', 'INSTITUCION_OPERADOR_NUEVO', 'INSTITUCION_PACIENTE_A_CARGO',
+      'INSTITUCION_PACIENTE_NUEVO', 'INSTITUCION_SOLICITUD_ACEPTADA', 'INSTITUCION_SOLICITUD_NUEVA', 'INSTITUCION_SOLICITUD_RECHAZADA',
+      'INVITACION_GRUPO', 'MEDICION_GRUPO', 'NUEVA_ACCION_GRUPO', 'RECORDATORIO_MEDICION',
     ]);
-    expect(filtrosVisibles('USUARIO_INSTITUCIONAL').map((filtro) => filtro.key)).toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD']);
+  });
+
+  it('cada tipo de cuenta ve sus categorías: las institucionales no ven grupo ni recordatorios, y las individuales no ven institución', () => {
+    expect(filtrosVisibles('USUARIO_INSTITUCIONAL').map((filtro) => filtro.key)).toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD', 'INSTITUCION']);
+    expect(filtrosVisibles('CONSUMIDOR_FINAL').map((filtro) => filtro.key))
+      .toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD', 'RECORDATORIO', 'GRUPO']);
+    expect(categoriasVisibles('USUARIO_INSTITUCIONAL')).toEqual(['SEGURIDAD', 'INSTITUCION']);
+    expect(categoriasVisibles('CONSUMIDOR_FINAL')).toEqual(['SEGURIDAD', 'GRUPO', 'RECORDATORIO']);
+  });
+
+  it('acepta los destinos de la institución y sigue rechazando rutas inventadas', () => {
+    expect(destinoSeguro('/app/instituciones/abc/pacientes/123')).toBe('/app/instituciones/abc/pacientes/123');
+    expect(destinoSeguro('/app/instituciones/abc/transferencias')).toBe('/app/instituciones/abc/transferencias');
+    expect(destinoSeguro('/app/instituciones-falsas')).toBeNull();
   });
 });

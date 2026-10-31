@@ -13,8 +13,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 EventoAviso = Literal[
     "INICIO_SESION", "CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA",
     "INVITACION_GRUPO", "AGREGADO_GRUPO", "NUEVA_ACCION_GRUPO", "MEDICION_GRUPO", "RECORDATORIO_MEDICION",
+    "INSTITUCION_OPERADOR_NUEVO", "INSTITUCION_OPERADOR_BAJA", "INSTITUCION_MODERADOR_NUEVO", "INSTITUCION_MODERADOR_BAJA",
+    "INSTITUCION_PACIENTE_NUEVO", "INSTITUCION_PACIENTE_A_CARGO",
+    "INSTITUCION_SOLICITUD_NUEVA", "INSTITUCION_SOLICITUD_ACEPTADA", "INSTITUCION_SOLICITUD_RECHAZADA",
 ]
-CategoriaAviso = Literal["SEGURIDAD", "GRUPO", "RECORDATORIO"]
+CategoriaAviso = Literal["SEGURIDAD", "GRUPO", "RECORDATORIO", "INSTITUCION"]
 ModoRecordatorio = Literal["NINGUNO", "INTERVALO", "HORARIOS"]
 AlcanceEliminacion = Literal["leidas", "todas"]
 
@@ -31,6 +34,8 @@ class NotificationPreferenceRead(BaseModel):
     porCorreo: bool
     # Alerta crítica de seguridad: se entrega siempre y la cuenta no puede apagarla.
     obligatoria: bool = False
+    # Falso cuando el aviso solo llega a la página: no ofrece el canal de correo.
+    correoDisponible: bool = True
 
 
 class ReminderScheduleRead(BaseModel):

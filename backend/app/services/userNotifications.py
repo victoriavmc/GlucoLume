@@ -76,7 +76,8 @@ URL_MEDICIONES = "/app/mediciones"
 URL_GRUPO = "/app/grupo"
 URL_SEGURIDAD = "/app/seguridad"
 # Destinos que un aviso puede abrir: rutas que existen en la aplicación (frontend/src/App.jsx). Cualquier otra se descarta al guardar.
-URLS_PERMITIDAS = (URL_MEDICIONES, URL_GRUPO, URL_SEGURIDAD)
+URL_INSTITUCIONES = "/app/instituciones"
+URLS_PERMITIDAS = (URL_MEDICIONES, URL_GRUPO, URL_SEGURIDAD, URL_INSTITUCIONES)
 INBOX_LIMIT = 20
 INBOX_MAX_LIMIT = 50
 ENVIO_PENDIENTE = "PENDIENTE"
@@ -124,6 +125,8 @@ def _channels(user: User, row: NotificationPreference | None, evento: str) -> tu
         enPagina, porCorreo = row.enPagina, row.porCorreo
     if evento == INICIO_SESION:
         porCorreo = user.notificarNuevoInicioSesion
+    if not spec.correo:
+        porCorreo = False  # el aviso solo llega a la página: no hay canal de correo que elegir
     return bool(enPagina), bool(porCorreo)
 
 
@@ -145,7 +148,7 @@ def settings(db: Session, user: User) -> NotificationSettingsRead:
         enPagina, porCorreo = _channels(user, rows.get(evento), evento)
         preferencias.append(NotificationPreferenceRead(
             evento=evento, categoria=CATALOGO[evento].categoria, enPagina=enPagina, porCorreo=porCorreo,
-            obligatoria=CATALOGO[evento].obligatorio))
+            obligatoria=CATALOGO[evento].obligatorio, correoDisponible=CATALOGO[evento].correo))
     return NotificationSettingsRead(preferencias=preferencias, recordatorio=_scheduleRead(schedule))
 
 
@@ -159,6 +162,8 @@ def updatePreference(db: Session, user: User, evento: str, *, enPagina: bool | N
         raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
     if CATALOGO[evento].obligatorio:
         raise AuthError("AVISO_OBLIGATORIO", "Es una alerta de seguridad: se entrega siempre y no se puede desactivar.")
+    if porCorreo and not CATALOGO[evento].correo:
+        raise AuthError("CANAL_NO_DISPONIBLE", "Este aviso solo se muestra en la aplicación.")
     requireReady(db)
     row = _preferenceRow(db, user, evento)
     previousPagina, previousCorreo = _channels(user, row, evento)

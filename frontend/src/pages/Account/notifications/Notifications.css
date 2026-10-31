@@ -87,6 +87,7 @@
 .notif-card.is-alert { --tone-bg: var(--danger-50); --tone-fg: var(--danger-700); --tone-accent: var(--red-600); }
 .notif-card.is-group { --tone-bg: var(--ok-50); --tone-fg: var(--ok-700); --tone-accent: var(--success); }
 .notif-card.is-reminder { --tone-bg: var(--info-50); --tone-fg: var(--info-700); --tone-accent: var(--blue-600); }
+.notif-card.is-institution { --tone-bg: #f1eefb; --tone-fg: #5b3fb0; --tone-accent: #7c5cd6; }
 
 .notif-card:hover {
   border-color: var(--tone-accent);

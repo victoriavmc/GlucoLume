@@ -501,20 +501,22 @@ def revokeOperator(idInstitucion: uuid.UUID, idInstitucionUsuario: uuid.UUID, au
     response_model=PatientPage,
     summary="Pacientes de la institución",
     description="Cualquier integrante activo. `busqueda` por nombre, apellido, documento o seudónimo; filtros por "
-    "responsable, estado (ACTIVO | BAJA) o `soloMios`. Paginado (máximo 50 por página).",
+    "responsable, estado (ACTIVO | BAJA | ANONIMIZADO | TODOS) o `soloMios`. Con BAJA, `venceEnDias` deja los que pierden sus datos "
+    "dentro de ese plazo (también los ya vencidos) y se ordena por vencimiento. Paginado (máximo 50 por página).",
 )
 def listPatients(
     idInstitucion: uuid.UUID, auth: CurrentAuth, db: DbSession,
     busqueda: Annotated[str | None, Query(max_length=100)] = None,
     idResponsable: uuid.UUID | None = None,
-    estado: Literal["ACTIVO", "BAJA"] = "ACTIVO",
+    estado: Literal["ACTIVO", "BAJA", "ANONIMIZADO", "TODOS"] = "ACTIVO",
     soloMios: bool = False,
+    venceEnDias: Annotated[int | None, Query(ge=1, le=3650)] = None,
     pagina: Annotated[int, Query(ge=1)] = 1,
     tamanioPagina: Annotated[int, Query(ge=1, le=patientService.MAX_PAGE_SIZE)] = 20,
 ):
     return patientService.listPatients(
         db, auth.user, idInstitucion, busqueda=busqueda, idResponsable=idResponsable, estado=estado,
-        soloMios=soloMios, pagina=pagina, tamanioPagina=tamanioPagina,
+        soloMios=soloMios, venceEnDias=venceEnDias, pagina=pagina, tamanioPagina=tamanioPagina,
     )
 
 
@@ -605,7 +607,7 @@ def createPatient(idInstitucion: uuid.UUID, data: PatientCreateRequest, auth: Cu
 def exportPatients(idInstitucion: uuid.UUID, body: PatientExportRequest, auth: CurrentAuth, db: DbSession):
     content, filename = patientService.exportPatients(
         db, auth.user, idInstitucion, alcance=body.alcance, ids=body.idsPerfilMedicion, busqueda=body.busqueda,
-        idResponsable=body.idResponsable, estado=body.estado,
+        idResponsable=body.idResponsable, estado=body.estado, venceEnDias=body.venceEnDias,
     )
     return Response(content=content, media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})

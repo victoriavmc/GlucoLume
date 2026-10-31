@@ -167,6 +167,8 @@ class InstitutionalProfileCreate(BaseModel):
 # `estado` se deriva de esas columnas existentes.
 
 EstadoPaciente = Literal["ACTIVO", "BAJA"]
+# Filtro de estado del listado: ACTIVO, BAJA (dados de baja con identidad), ANONIMIZADO (depurados) o TODOS.
+EstadoFiltro = Literal["ACTIVO", "BAJA", "ANONIMIZADO", "TODOS"]
 
 
 class PatientCreateRequest(InstitutionalProfileCreate):
@@ -184,7 +186,8 @@ class PatientExportRequest(BaseModel):
     idsPerfilMedicion: list[uuid.UUID] = Field(default_factory=list, max_length=500)
     busqueda: str | None = Field(default=None, max_length=100)
     idResponsable: uuid.UUID | None = None
-    estado: Literal["ACTIVO", "BAJA"] = "ACTIVO"
+    estado: EstadoFiltro = "ACTIVO"
+    venceEnDias: int | None = Field(default=None, ge=1, le=3650)  # solo con estado BAJA
 
 
 class PatientUpdateRequest(BaseModel):
@@ -267,6 +270,10 @@ class PatientRead(BaseModel):
     sexoModelo: SexoModelo | None
     estado: EstadoPaciente
     fechaCreacion: datetime
+    # Días completos que le quedan a la conservación de datos de un paciente dado de baja (negativo: vencido, pendiente de depuración).
+    diasRestantesDatos: int | None = None
+    # Depurado: sin identidad ni acceso (sus mediciones quedan sin persona). Sigue siendo un paciente dado de baja.
+    anonimizado: bool = False
     # Información de salud (fecha de la última medición): solo para quien está autorizado a consultar sus mediciones.
     fechaUltimaMedicion: datetime | None
     # Fin del período de conservación de los datos personales (informada solo si el perfil está de baja).

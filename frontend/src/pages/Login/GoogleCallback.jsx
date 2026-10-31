@@ -10,7 +10,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { friendlyError, googleCallbackError } from '../../auth/errorMessages.js';
-import { takePendingGoogleRemember } from '../../auth/tokenStore.js';
+import { takePendingGooglePlatform, takePendingGoogleRemember } from '../../auth/tokenStore.js';
 import { Alert } from '../../components/FormControls.jsx';
 import { AuthShell, MFA_RECOVERED_NOTICE } from './Login.jsx';
 import { MfaForm } from './MfaForm.jsx';
@@ -28,13 +28,12 @@ export default function GoogleCallback() {
   const navigate = useNavigate();
   const started = useRef(false);
   const remember = useRef(false);
+  const platform = useRef(false);
   const [state, setState] = useState({ phase: 'loading' });
 
   function finish() {
     // «Continuar con Google» desde el acceso administrativo: se entra al panel (el backend valida el rol).
-    const platform = window.sessionStorage.getItem('glucolume.platformLogin') === '1';
-    window.sessionStorage.removeItem('glucolume.platformLogin');
-    navigate(platform ? '/plataforma/dashboard' : '/app', { replace: true });
+    navigate(platform.current ? '/plataforma/dashboard' : '/app', { replace: true });
   }
 
   useEffect(() => {
@@ -45,6 +44,8 @@ export default function GoogleCallback() {
     const { code, error } = fragment;
     // «Recordarme» puede venir del backend (login iniciado en otro origen) o de este mismo origen.
     remember.current = takePendingGoogleRemember() || fragment.remember;
+    // Se consume al volver, también si el ingreso falla: una marca que queda vieja enviaría al próximo ingreso de la pestaña al panel.
+    platform.current = takePendingGooglePlatform();
     if (!code) {
       setState({ phase: 'error', message: googleCallbackError(error), code: error });
       return;

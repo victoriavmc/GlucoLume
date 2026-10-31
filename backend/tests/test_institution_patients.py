@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.core.exceptions import AuthError
 from app.models.audit import Audit
@@ -223,6 +223,45 @@ def test_listado_con_busqueda_filtros_y_paginacion(db, mails, team):
     assert patients.listPatients(db, team.owner, team.id, busqueda="%").total == 0  # comodines escapados
     assert patients.listPatients(db, team.operator, team.id, soloMios=True).total == 3
     assert patients.listPatients(db, team.owner, team.id, idResponsable=second.idInstitucionUsuario).total == 1
+
+
+def test_filtros_de_estado_vencimiento_y_anonimizados(db, mails, team):
+    """Dados de baja ordenados por vencimiento (los que antes pierden sus datos, primero), filtro por plazo, anonimizados y todos."""
+    def create(apellido, dni):
+        return patients.createPatient(db, team.operator, team.id, patientData(apellido=apellido, dni=dni))
+
+    def setExpiration(profile, when):  # un paciente dado de baja con su identidad todavía presente
+        db.execute(update(MeasurementProfile).where(MeasurementProfile.idPerfilMedicion == profile.idPerfilMedicion)
+                   .values(fechaExpiracionDatosPersonales=when))
+        db.commit()
+
+    now = nowForDb()
+    create("Activa", "41000001")
+    overdue = create("Vencida", "41000002")
+    soon = create("Pronto", "41000003")
+    later = create("Despues", "41000004")
+    gone = create("Borrado", "41000005")
+    setExpiration(overdue, now - timedelta(days=1, hours=12))
+    setExpiration(soon, now + timedelta(days=5, hours=12))
+    setExpiration(later, now + timedelta(days=200, hours=12))
+    patients.dischargePatient(db, team.moderator, team.id, gone.idPerfilMedicion)  # anonimizado en el acto
+
+    lastNames = lambda page: [p.apellido for p in page.items]  # noqa: E731
+    assert lastNames(patients.listPatients(db, team.owner, team.id)) == ["Activa"]
+    bajas = patients.listPatients(db, team.owner, team.id, estado="BAJA")
+    assert lastNames(bajas) == ["Vencida", "Pronto", "Despues"]  # menos días primero
+    assert [p.diasRestantesDatos for p in bajas.items] == [-2, 5, 200]
+    assert lastNames(patients.listPatients(db, team.owner, team.id, estado="BAJA", venceEnDias=30)) == ["Vencida", "Pronto"]
+    assert lastNames(patients.listPatients(db, team.owner, team.id, estado="BAJA", venceEnDias=3)) == ["Vencida"]
+
+    anonymized = patients.listPatients(db, team.owner, team.id, estado="ANONIMIZADO")
+    assert [(p.estado, p.anonimizado, p.apellido, p.diasRestantesDatos) for p in anonymized.items] == [("BAJA", True, None, None)]
+    everyone = patients.listPatients(db, team.owner, team.id, estado="TODOS")
+    assert everyone.total == 5 and sorted((p.estado, p.anonimizado) for p in everyone.items) == [
+        ("ACTIVO", False), ("BAJA", False), ("BAJA", False), ("BAJA", False), ("BAJA", True)]
+
+    content, _ = patients.exportPatients(db, team.owner, team.id, alcance="TODOS", estado="BAJA", venceEnDias=30)
+    assert b"Pronto" in content and b"Despues" not in content and b"Borrado" not in content
 
 
 # --- Baja de pacientes ----------------------------------------------------------------------

@@ -18,8 +18,22 @@ import '../exportControls.css';
 
 const PAGE_SIZE = 20;
 
+// Plazos del filtro «Datos que vencen»: los que pierden sus datos dentro de ese número de días (y los ya vencidos).
+const DUE_WITHIN_OPTIONS = [{ value: '7', label: 'Dentro de 7 días' }, { value: '30', label: 'Dentro de 30 días' }, { value: '90', label: 'Dentro de 90 días' }];
+
 export function patientName(patient) {
   return [patient.apellido, patient.nombre].filter(Boolean).join(', ') || patient.identificadorPseudonimo;
+}
+
+/** Insignia de un paciente dado de baja: cuántos días le quedan a sus datos (propietario y moderador) o solo la fecha, para el resto. */
+function dischargeBadge(patient, showDays) {
+  const date = formatDateTime(patient.fechaExpiracionDatosPersonales).split(' ')[0];
+  if (!showDays || patient.diasRestantesDatos === null) return <Badge tone="neutral">De baja · datos conservados hasta {date}</Badge>;
+  const dias = patient.diasRestantesDatos;
+  if (dias < 0) return <Badge tone="danger">De baja · venció el {date}, pendiente de depuración</Badge>;
+  if (dias === 0) return <Badge tone="danger">De baja · vence hoy ({date})</Badge>;
+  const tone = dias <= 7 ? 'danger' : dias <= 30 ? 'warning' : 'neutral';
+  return <Badge tone={tone}>De baja · le quedan {dias} {dias === 1 ? 'día' : 'días'} de conservación (hasta {date})</Badge>;
 }
 
 /** Al entrar a un paciente: quien puede ver su salud (operador responsable, paciente activo) abre su dashboard; el resto, la ficha administrativa. */
@@ -29,10 +43,11 @@ export function PatientsPage() {
   const { institution, handleOperationError } = useOutletContext();
   const isOperator = institution.rolInstitucion === 'OPERADOR';
   const canManage = can(institution, 'GESTIONAR_PACIENTES');
+  const canSeeRetention = can(institution, 'BAJA_PACIENTES'); // propietario y moderador: plazos de conservación
   const [searchParams] = useSearchParams();
   const choosingToMeasure = isOperator && searchParams.get('medir') === '1'; // viene de «Nueva medición»
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ busqueda: '', estado: 'ACTIVO', idResponsable: '', soloMios: searchParams.get('mios') === '1', pagina: 1 });
+  const [filters, setFilters] = useState({ busqueda: '', estado: 'ACTIVO', idResponsable: '', soloMios: searchParams.get('mios') === '1', venceEnDias: '', pagina: 1 });
   const [page, setPage] = useState(null);
   const [operators, setOperators] = useState([]);
   const [error, setError] = useState('');
@@ -85,7 +100,8 @@ export function PatientsPage() {
 
   // Exportar: propietario y moderador exportan a todos los pacientes; el operador, solo a los que tiene a su cargo. La API lo valida
   // en cada pedido: acá solo se ofrecen las opciones que corresponden.
-  const canExportPatient = (patient) => !isOperator || patient.esMio;
+  // Un paciente anonimizado ya no tiene datos personales que exportar (el backend lo rechaza en una selección).
+  const canExportPatient = (patient) => !patient.anonimizado && (!isOperator || patient.esMio);
 
   function toggle(id) {
     setSelected((current) => {
@@ -111,12 +127,13 @@ export function PatientsPage() {
     }
   }
 
-  // «Todos» exporta con los mismos filtros del listado (búsqueda, estado y operador responsable).
+  // «Todos» exporta con los mismos filtros del listado (búsqueda, estado, operador responsable y plazo).
   const exportAllBody = {
     alcance: 'TODOS',
     busqueda: filters.busqueda || null,
     estado: filters.estado,
     idResponsable: filters.idResponsable || null,
+    ...(filters.venceEnDias ? { venceEnDias: Number(filters.venceEnDias) } : {}),
   };
 
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
@@ -153,8 +170,20 @@ export function PatientsPage() {
       <form className="patient-filters" onSubmit={applySearch} role="search" noValidate>
         <TextField label="Buscar por nombre, apellido o documento" icon={Search} maxLength={100} value={search}
           onChange={(event) => setSearch(event.target.value)} />
-        <SelectField label="Estado" value={filters.estado} onChange={(event) => setFilter('estado', event.target.value)}
-          options={[{ value: 'ACTIVO', label: 'Activos' }, { value: 'BAJA', label: 'Dados de baja' }]} />
+        <SelectField label="Estado" value={filters.estado}
+          onChange={(event) => setFilters((current) => ({ ...current, estado: event.target.value, venceEnDias: '', pagina: 1 }))}
+          options={[
+            { value: 'ACTIVO', label: 'Activos' },
+            { value: 'BAJA', label: 'Dados de baja' },
+            { value: 'ANONIMIZADO', label: 'Anonimizados' },
+            { value: 'TODOS', label: 'Todos, sin importar su estado' },
+          ]} />
+        {canSeeRetention && filters.estado === 'BAJA' && (
+          <SelectField label="Datos que vencen" value={filters.venceEnDias} onChange={(event) => setFilter('venceEnDias', event.target.value)}>
+            <option value="">Cualquier plazo</option>
+            {DUE_WITHIN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </SelectField>
+        )}
         {isOperator && (
           <SelectField label="Ver" value={filters.soloMios ? 'mios' : 'todos'} onChange={(event) => setFilter('soloMios', event.target.value === 'mios')}
             options={[{ value: 'todos', label: 'Todos los pacientes' }, { value: 'mios', label: 'Mis pacientes' }]} />
@@ -178,10 +207,11 @@ export function PatientsPage() {
         <SkeletonList rows={6} label="Cargando pacientes…" />
       ) : page.items.length === 0 ? (
         <EmptyState icon={Users} headingLevel={0}
-          title={filters.busqueda || filters.idResponsable
+          title={filters.busqueda || filters.idResponsable || filters.venceEnDias
             ? 'No hay pacientes que coincidan con la búsqueda.'
             : filters.estado === 'BAJA' ? 'No hay pacientes dados de baja.'
-              : filters.soloMios ? 'Todavía no tenés pacientes asignados. Podés agregar uno nuevo con «Agregar paciente».' : 'Todavía no hay pacientes registrados.'} />
+              : filters.estado === 'ANONIMIZADO' ? 'No hay pacientes anonimizados.'
+                : filters.soloMios ? 'Todavía no tenés pacientes asignados. Podés agregar uno nuevo con «Agregar paciente».' : 'Todavía no hay pacientes registrados.'} />
       ) : (
         <>
           <div className="export-toolbar">
@@ -191,7 +221,7 @@ export function PatientsPage() {
             </button>
             <button type="button" className="btn btn-outline" disabled={exporting} onClick={() => handleExport(exportAllBody)}>
               <Download size={18} aria-hidden="true" />{' '}
-              {isOperator ? 'Exportar mis pacientes' : `Exportar todos${filters.busqueda || filters.idResponsable || filters.estado === 'BAJA' ? ' los filtrados' : ''} (${page.total})`}
+              {isOperator ? 'Exportar mis pacientes' : `Exportar todos${filters.busqueda || filters.idResponsable || filters.venceEnDias || filters.estado !== 'ACTIVO' ? ' los filtrados' : ''} (${page.total})`}
             </button>
             {exportNotice && <p className="field-hint" role="status">{exportNotice}</p>}
           </div>
@@ -219,11 +249,8 @@ export function PatientsPage() {
                   {patient.registradoPor && (
                     <small className="field-hint"> Registrado por {[patient.registradoPor.nombre, patient.registradoPor.apellido].filter(Boolean).join(' ') || 'un usuario'}</small>
                   )}
-                  {patient.estado === 'BAJA' && (
-                    <Badge tone="neutral">
-                      De baja · datos conservados hasta {formatDateTime(patient.fechaExpiracionDatosPersonales).split(' ')[0]}
-                    </Badge>
-                  )}
+                  {patient.anonimizado && <Badge tone="neutral">Datos anonimizados · sin identidad</Badge>}
+                  {!patient.anonimizado && patient.estado === 'BAJA' && dischargeBadge(patient, canSeeRetention)}
                 </span>
                 <span className="member-actions">
                   {patient.medicionesAutorizadas && patient.estado === 'ACTIVO' && (

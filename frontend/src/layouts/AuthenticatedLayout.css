@@ -611,11 +611,20 @@ a.summary-link {
   font-weight: 700;
 }
 
+/* Flex y no grid: según el rol y el estado hay de 3 a 5 filtros, y la cuenta cambia. */
 .patient-filters {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: end;
+}
+
+.patient-filters > * {
+  flex: 1 1 180px;
+}
+
+.patient-filters > .btn {
+  flex: 0 0 auto;
 }
 
 .patient-link {
@@ -800,9 +809,12 @@ a.summary-link {
 }
 
 @media (max-width: 600px) {
-  .member-search,
-  .patient-filters {
+  .member-search {
     grid-template-columns: 1fr;
+  }
+
+  .patient-filters > * {
+    flex-basis: 100%;
   }
 
   .data-list,

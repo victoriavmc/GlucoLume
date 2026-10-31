@@ -108,6 +108,23 @@ describe('Preferencias de notificaciones', () => {
     expect(screen.queryByRole('region', { name: 'Horario para medirme' })).not.toBeInTheDocument();
   });
 
+  it('un aviso de institución solo ofrece el canal de la aplicación, porque el correo lo envía su propio flujo', async () => {
+    const institucional = { ...PROFILE, usuario: { ...PROFILE.usuario, tipoCuenta: 'USUARIO_INSTITUCIONAL' } };
+    const conInstitucion = {
+      preferencias: [...SETTINGS.preferencias, {
+        evento: 'INSTITUCION_PACIENTE_NUEVO', categoria: 'INSTITUCION', enPagina: true, porCorreo: false, obligatoria: false,
+        correoDisponible: false,
+      }],
+      recordatorio: SETTINGS.recordatorio,
+    };
+    withPreferences({ 'GET /notificaciones/preferencias': jsonResponse(200, conInstitucion) }, institucional);
+    renderAt('/app/notificaciones/preferencias');
+
+    expect(await screen.findByRole('region', { name: 'Institución' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'En la aplicación: Pacientes nuevos' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByRole('switch', { name: 'Por correo: Pacientes nuevos' })).not.toBeInTheDocument();
+  });
+
   it('muestra el error de carga', async () => {
     withPreferences({ 'GET /notificaciones/preferencias': jsonResponse(500, { detail: 'boom' }) });
     renderAt('/app/notificaciones/preferencias');
