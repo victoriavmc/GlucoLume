@@ -133,7 +133,7 @@ describe('Bandeja de notificaciones', () => {
     renderAt('/app/notificaciones');
     await screen.findByRole('button', { name: /^Aviso a/ });
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Todas', 'No leídas', 'Seguridad', 'Recordatorios', 'Grupo']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Todas', 'No leídas', 'Seguridad', 'Recordatorios', 'Grupo', 'Mediciones']);
 
     await user.click(screen.getByRole('tab', { name: 'No leídas' }));
     await waitFor(() => expect(calls.some((call) => queryOf(call).soloNoLeidas === 'true')).toBe(true));
@@ -149,7 +149,7 @@ describe('Bandeja de notificaciones', () => {
     renderAt('/app/notificaciones');
     await screen.findByRole('button', { name: /^Aviso a/ });
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Todas', 'No leídas', 'Seguridad', 'Institución']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Todas', 'No leídas', 'Seguridad', 'Institución', 'Mediciones']);
   });
 
   it('carga más avisos con el desplazamiento y no repite los ya mostrados', async () => {

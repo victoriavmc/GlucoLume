@@ -25,6 +25,7 @@ import {
   Navbar,
   SECTIONS,
 } from "../../components/Navbar.jsx";
+import { usePageMeta } from "../../utils/usePageMeta.js";
 import { ContactSection } from "./ContactSection.jsx";
 import { Solutions } from "./Solutions.jsx";
 import "./Landing.css";
@@ -154,6 +155,10 @@ function DeviceMockup() {
 
 export default function Landing() {
   const active = useActiveSection();
+  usePageMeta(
+    "GlucoLume · Medición no invasiva de glucosa (experimental)",
+    "Plataforma experimental de adquisición y análisis de señales ópticas para la estimación no invasiva de glucosa, con oximetría, frecuencia cardíaca e historial. Prototipo académico: no es un dispositivo médico.",
+  );
 
   // Al llegar desde otra página con /#seccion, la sección existe recién después del primer render.
   // También se ejecuta si ya estás en la Landing y cambia el ancla (p. ej. al tocar el logo).

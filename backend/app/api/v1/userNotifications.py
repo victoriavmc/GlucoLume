@@ -60,7 +60,7 @@ def updateReminder(data: ReminderScheduleUpdate, auth: CurrentAuth, db: DbSessio
 @router.get(
     "", response_model=UserNotificationInbox, summary="Avisos de la página",
     description=(
-        "Una página de los avisos propios, del más nuevo al más viejo. `categoria` (SEGURIDAD, GRUPO o RECORDATORIO) y `soloNoLeidas` "
+        "Una página de los avisos propios, del más nuevo al más viejo. `categoria` (SEGURIDAD, GRUPO, RECORDATORIO, INSTITUCION o MEDICION) y `soloNoLeidas` "
         "filtran; `limite` (1 a 50, 20 por omisión) y `desplazamiento` paginan: `hayMas` indica que quedan más. `noLeidas` cuenta todos "
         "los propios sin leer, sin importar el filtro."
     ),

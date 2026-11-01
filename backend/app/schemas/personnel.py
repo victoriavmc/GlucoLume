@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from app.schemas.institutionUser import RolInstitucion
 from app.utils.timeZone import withArgentinaZone
@@ -65,6 +65,8 @@ class PersonnelPage(BaseModel):
 
 class PersonnelExportRequest(BaseModel):
     """`SELECCION`: las personas de `idsInstitucionUsuario`. `TODOS`: todas las que coinciden con los filtros del listado."""
+
+    model_config = ConfigDict(extra="forbid")
 
     alcance: Literal["SELECCION", "TODOS"]
     idsInstitucionUsuario: list[uuid.UUID] = Field(default_factory=list, max_length=500)

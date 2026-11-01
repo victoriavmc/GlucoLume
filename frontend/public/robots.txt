@@ -5,3 +5,5 @@ Disallow: /app/
 Disallow: /plataforma/
 Disallow: /administracion/
 Disallow: /api/
+
+Sitemap: https://glucolume-server.tailb27487.ts.net/sitemap.xml

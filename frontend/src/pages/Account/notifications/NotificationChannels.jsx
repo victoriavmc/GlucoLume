@@ -1,17 +1,18 @@
 // Qué avisos recibir y por qué canal, de una categoría: en la aplicación, por correo o en ambos. Cada interruptor guarda al instante.
 // Las alertas críticas de seguridad son obligatorias: se muestran activas y no se pueden apagar.
 
-import { Bell, Building2, Clock, ShieldCheck, Users } from 'lucide-react';
+import { Bell, Building2, Clock, Droplet, ShieldCheck, Users } from 'lucide-react';
 
 import { Badge } from '../../../components/Badge.jsx';
 import { CATEGORIAS, EVENTOS } from './notificationsCopy.js';
 
-const CATEGORY_ICONS = { SEGURIDAD: ShieldCheck, GRUPO: Users, RECORDATORIO: Clock, INSTITUCION: Building2 };
+const CATEGORY_ICONS = { SEGURIDAD: ShieldCheck, GRUPO: Users, RECORDATORIO: Clock, INSTITUCION: Building2, MEDICION: Droplet };
 const CATEGORY_TEXT = {
   SEGURIDAD: 'Las alertas críticas de seguridad se entregan siempre en la aplicación: no se pueden desactivar.',
   GRUPO: 'Los avisos de mediciones respetan lo que cada integrante decidió compartir.',
   RECORDATORIO: 'Elegí por dónde recibir el recordatorio y, más abajo, cuándo.',
   INSTITUCION: 'Avisos de la gestión de la institución. Llegan solo los que corresponden a tu rol.',
+  MEDICION: 'Avisos sobre el envío del resultado de tus mediciones. El correo ya se envía por su propio flujo.',
 };
 
 function ChannelSwitch({ canal, titulo, checked, disabled, onToggle }) {

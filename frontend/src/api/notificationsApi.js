@@ -19,7 +19,7 @@ export function updateReminderSchedule(schedule) {
 
 /**
  * GET /notificaciones -> { noLeidas, total, hayMas, notificaciones: [{ idNotificacion, evento, categoria, titulo, mensaje, url, fechaCreacion, leida }] }
- * Filtros: `categoria` (SEGURIDAD | GRUPO | RECORDATORIO), `soloNoLeidas`; paginación: `limite` y `desplazamiento`.
+ * Filtros: `categoria` (SEGURIDAD | GRUPO | RECORDATORIO | INSTITUCION | MEDICION), `soloNoLeidas`; paginación: `limite` y `desplazamiento`.
  */
 export function getNotifications({ categoria, soloNoLeidas, limite, desplazamiento } = {}) {
   const query = new URLSearchParams();

@@ -46,6 +46,7 @@ from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexpo
     MEDICION_GRUPO,
     NUEVA_ACCION_GRUPO,
     RECORDATORIO_MEDICION,
+    RESULTADO_ENVIADO,
     eventsOf,
 )
 from app.models.notificationPreference import NotificationPreference
@@ -494,6 +495,15 @@ def notifyRejectedAccess(db: Session, user: User, instante: datetime) -> bool:
         "Alguien intentó entrar a tu cuenta con datos incorrectos. Si no fuiste vos, revisá tu seguridad.",
         url=URL_SEGURIDAD, clave=f"{INTENTO_INGRESO}:{instante:%Y-%m-%dT%H:%M:%S.%f}",
     )
+
+
+def notifyResultSent(db: Session, user: User, idEnvio: uuid.UUID, sent: bool) -> bool:
+    """Avisa a quien pidió el envío del resultado cuando el correo salió (o no salió). El correo lo envió el flujo de la medición."""
+    if sent:
+        titulo, mensaje = "Resultado enviado", "Enviamos el resultado de la medición por correo electrónico."
+    else:
+        titulo, mensaje = "No pudimos enviar el resultado", "El correo con el resultado no salió. Probá de nuevo desde la medición."
+    return notify(db, user, RESULTADO_ENVIADO, titulo, mensaje, url=URL_MEDICIONES, clave=f"{RESULTADO_ENVIADO}:{idEnvio}")
 
 
 def deleteNotification(db: Session, user: User, idNotificacion: uuid.UUID) -> int:

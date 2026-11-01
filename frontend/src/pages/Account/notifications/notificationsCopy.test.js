@@ -44,16 +44,17 @@ describe('catálogo', () => {
       'INSTITUCION_MODERADOR_BAJA', 'INSTITUCION_MODERADOR_NUEVO', 'INSTITUCION_OPERADOR_BAJA', 'INSTITUCION_OPERADOR_NUEVO',
       'INSTITUCION_PACIENTE_A_CARGO', 'INSTITUCION_PACIENTE_NUEVO', 'INSTITUCION_SOLICITUD_ACEPTADA', 'INSTITUCION_SOLICITUD_NUEVA',
       'INSTITUCION_SOLICITUD_RECHAZADA', 'INTENTO_INGRESO', 'INVITACION_GRUPO', 'MEDICION_GRUPO', 'NUEVA_ACCION_GRUPO',
-      'RECORDATORIO_MEDICION',
+      'RECORDATORIO_MEDICION', 'RESULTADO_ENVIADO',
     ]);
   });
 
   it('cada tipo de cuenta ve sus categorías: las institucionales no ven grupo ni recordatorios, y las individuales no ven institución', () => {
-    expect(filtrosVisibles('USUARIO_INSTITUCIONAL').map((filtro) => filtro.key)).toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD', 'INSTITUCION']);
+    expect(filtrosVisibles('USUARIO_INSTITUCIONAL').map((filtro) => filtro.key))
+      .toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD', 'INSTITUCION', 'MEDICION']);
     expect(filtrosVisibles('CONSUMIDOR_FINAL').map((filtro) => filtro.key))
-      .toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD', 'RECORDATORIO', 'GRUPO']);
-    expect(categoriasVisibles('USUARIO_INSTITUCIONAL')).toEqual(['SEGURIDAD', 'INSTITUCION']);
-    expect(categoriasVisibles('CONSUMIDOR_FINAL')).toEqual(['SEGURIDAD', 'GRUPO', 'RECORDATORIO']);
+      .toEqual(['TODAS', 'NO_LEIDAS', 'SEGURIDAD', 'RECORDATORIO', 'GRUPO', 'MEDICION']);
+    expect(categoriasVisibles('USUARIO_INSTITUCIONAL')).toEqual(['SEGURIDAD', 'INSTITUCION', 'MEDICION']);
+    expect(categoriasVisibles('CONSUMIDOR_FINAL')).toEqual(['SEGURIDAD', 'GRUPO', 'RECORDATORIO', 'MEDICION']);
   });
 
   it('acepta los destinos de la institución y sigue rechazando rutas inventadas', () => {

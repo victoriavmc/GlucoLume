@@ -2,7 +2,7 @@
 // backend (app/models/notificationEvents.py): aquí solo se decide cómo se muestran.
 
 import {
-  Activity, AlarmClock, ArrowRightLeft, Check, ClipboardList, KeyRound, MailPlus, MonitorSmartphone, ShieldAlert, ShieldCheck,
+  Activity, AlarmClock, ArrowRightLeft, Check, ClipboardList, Droplet, KeyRound, MailCheck, MailPlus, MonitorSmartphone, ShieldAlert, ShieldCheck,
   Stethoscope, UserCheck, UserMinus, UserPlus, UserX, Users, X,
 } from 'lucide-react';
 
@@ -20,6 +20,7 @@ export const CATEGORIAS = {
   GRUPO: { titulo: 'Grupo familiar', individual: true },
   RECORDATORIO: { titulo: 'Recordatorios de medición', individual: true },
   INSTITUCION: { titulo: 'Institución', individual: false, institucional: true },
+  MEDICION: { titulo: 'Mediciones', individual: true, institucional: true },
 };
 
 /** Avisos: texto en Preferencias, ícono y tono (`alert` = advertencia; `security`, `group`, `reminder` = categoría). */
@@ -63,6 +64,10 @@ export const EVENTOS = {
   RECORDATORIO_MEDICION: {
     categoria: 'RECORDATORIO', icono: AlarmClock, tono: 'reminder', titulo: 'Recordatorio para medirme',
     descripcion: 'Te recordamos medirte en el horario que configures más abajo.',
+  },
+  RESULTADO_ENVIADO: {
+    categoria: 'MEDICION', icono: MailCheck, tono: 'measurement', titulo: 'Envío del resultado',
+    descripcion: 'Cuando sale por correo el resultado de una medición que pediste, o cuando no pudo salir.',
   },
   INSTITUCION_INVITACION: {
     categoria: 'INSTITUCION', icono: MailPlus, tono: 'institution', titulo: 'Invitaciones de instituciones',
@@ -114,14 +119,14 @@ export const FILTROS = [
   { key: 'RECORDATORIO', label: 'Recordatorios', params: { categoria: 'RECORDATORIO' }, categoria: 'RECORDATORIO' },
   { key: 'GRUPO', label: 'Grupo', params: { categoria: 'GRUPO' }, categoria: 'GRUPO' },
   { key: 'INSTITUCION', label: 'Institución', params: { categoria: 'INSTITUCION' }, categoria: 'INSTITUCION' },
+  { key: 'MEDICION', label: 'Mediciones', params: { categoria: 'MEDICION' }, categoria: 'MEDICION' },
 ];
 
 /** ¿Recibe esta cuenta avisos de la categoría? Las de seguridad son de todas las cuentas. */
 function recibeCategoria(categoria, tipoCuenta) {
   const { individual, institucional } = CATEGORIAS[categoria];
-  if (individual) return tipoCuenta === CUENTA_INDIVIDUAL;
-  if (institucional) return tipoCuenta === CUENTA_INSTITUCIONAL;
-  return true;
+  if (!individual && !institucional) return true;
+  return (individual && tipoCuenta === CUENTA_INDIVIDUAL) || (institucional && tipoCuenta === CUENTA_INSTITUCIONAL);
 }
 
 export function filtrosVisibles(tipoCuenta) {

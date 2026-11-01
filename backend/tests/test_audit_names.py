@@ -186,24 +186,31 @@ def test_registros_antiguos_de_una_cuenta_eliminada_sin_nombre_muestran_usuario_
 
 
 def test_la_lista_resuelve_nombres_sin_una_consulta_por_fila(db, mails, team):
+    # Las consultas dependen de los TIPOS de entidad presentes en la página (una por tipo), no de la cantidad de filas: agregar más eventos
+    # del mismo tipo no debe sumar consultas.
     responsibleChange(db, team)
     for _ in range(6):
         patients.createPatient(db, team.operator, team.id, patientData(dni=None))
-    statements = []
 
-    def count(conn, cursor, statement, *rest):
-        statements.append(statement)
+    def listedWith(size):
+        statements = []
 
-    event.listen(db.get_bind(), "before_cursor_execute", count)
-    try:
-        small = auditQuery.listInstitution(db, team.owner, team.id, tamanioPagina=3)
-        statements_small = len(statements)
-        statements.clear()
-        large = auditQuery.listInstitution(db, team.owner, team.id, tamanioPagina=100)
-    finally:
-        event.remove(db.get_bind(), "before_cursor_execute", count)
-    assert len(large.items) > len(small.items) + 5
-    assert len(statements) <= statements_small + 3  # no crece con la cantidad de filas
+        def count(conn, cursor, statement, *rest):
+            statements.append(statement)
+
+        event.listen(db.get_bind(), "before_cursor_execute", count)
+        try:
+            page = auditQuery.listInstitution(db, team.owner, team.id, tamanioPagina=size)
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", count)
+        return page, len(statements)
+
+    small, statementsSmall = listedWith(100)
+    for _ in range(20):
+        patients.createPatient(db, team.operator, team.id, patientData(dni=None))
+    large, statementsLarge = listedWith(100)
+    assert len(large.items) > len(small.items) + 10
+    assert statementsLarge <= statementsSmall  # más filas del mismo tipo, mismas consultas
 
 
 def test_la_auditoria_no_expone_documento_ni_matricula(db, mails, team):

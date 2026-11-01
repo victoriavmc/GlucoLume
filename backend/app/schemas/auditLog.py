@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 from app.utils.timeZone import withArgentinaZone
 
@@ -15,6 +15,13 @@ Resultado = Literal["EXITO", "FALLO"]
 Severidad = Literal["EXITO", "ADVERTENCIA", "CRITICO", "INFO"]
 Clasificacion = Literal["INFORMATIVO", "OPERATIVO", "SOSPECHOSO", "CONFIRMADO"]
 OrigenActor = Literal["PLATAFORMA", "USUARIO", "SISTEMA"]
+
+
+class ReviewBody(BaseModel):
+    """Cuerpo de PUT /audit/events/{id}/review: marcar (true) o desmarcar (false) el evento."""
+    model_config = ConfigDict(extra="forbid")
+
+    revisado: bool
 
 
 class AuditRevision(BaseModel):

@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.models.audit import Audit
 from app.models.resultDelivery import ResultDelivery
+from app.models.userNotification import UserNotification
 from app.schemas.resultDelivery import ResultSendRequest
 from app.services import email as emailService
 from app.services import institutionPatients as patients
@@ -22,6 +23,12 @@ from tests.test_patient_result_email import confirmationToken
 from app.services import resultEmailConfirmation as confirmation
 
 PATIENT_MAIL = "paciente.rosa@example.com"
+
+
+def avisos(db, user, evento):
+    db.expire_all()
+    return list(db.scalars(select(UserNotification).where(
+        UserNotification.idUsuario == user.idUsuario, UserNotification.evento == evento)))
 
 
 def deliveries(db, idMedicion):
@@ -116,6 +123,7 @@ def test_limite_de_envios_por_hora_y_fallo_de_smtp(db, mails, consumer, monkeypa
     [row] = deliveries(db, other.idMedicion)
     assert row.estadoEnvio == "FALLIDO" and row.correoDestino is None
     assert measurements.getMeasurement(db, user, other.idMedicion).envioResultadoEstado == "FALLIDO"
+    assert [a.titulo for a in avisos(db, user, "RESULTADO_ENVIADO")][-1] == "No pudimos enviar el resultado"
     failed = [a for a in db.scalars(select(Audit).where(Audit.accion == "ENVIAR_RESULTADO_MEDICION")) if a.resultado != "EXITO"]
     assert failed
 
@@ -142,5 +150,7 @@ def test_el_envio_sale_en_segundo_plano_y_la_medicion_avisa_cuando_termina(db, m
     assert measurements.getMeasurement(db, user, done.idMedicion).envioResultadoEstado == "ENVIADO"
     [row] = deliveries(db, done.idMedicion)
     assert row.estadoEnvio == "ENVIADO" and row.correoDestino is None
+    [aviso] = avisos(db, user, "RESULTADO_ENVIADO")  # la bandeja avisa cuando sale
+    assert aviso.titulo == "Resultado enviado"
     entry = audits(db, "ENVIAR_RESULTADO_MEDICION")[0]
     assert entry.resultado == "EXITO" and user.correoElectronico not in f"{entry.datosNuevos}{entry.observacion}"

@@ -21,6 +21,7 @@ from app.schemas.auditLog import (
     AuditPage,
     AuditRevision,
     AuditSummary,
+    ReviewBody,
     SecuritySignals,
     TechnicalPage,
     TechnicalSummary,
@@ -153,10 +154,6 @@ def summaryTechnical(auth: CurrentAuth, db: DbSession, desde: date | None = None
 @router.get("/events/{idAuditoria}", response_model=AuditEventDetail, summary="Detalle de un evento")
 def detailGlobal(idAuditoria: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return auditQuery.detailGlobal(db, auth.user, idAuditoria)
-
-
-class ReviewBody(BaseModel):
-    revisado: bool
 
 
 @router.put("/events/{idAuditoria}/review", response_model=AuditRevision, summary="Marcar un evento como analizado o no",

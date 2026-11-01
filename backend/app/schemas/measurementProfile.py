@@ -182,6 +182,8 @@ class PatientCreateRequest(InstitutionalProfileCreate):
 class PatientExportRequest(BaseModel):
     """`SELECCION`: los pacientes de `idsPerfilMedicion`. `TODOS`: los que coinciden con los filtros del listado (un operador, solo los suyos)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     alcance: Literal["SELECCION", "TODOS"]
     idsPerfilMedicion: list[uuid.UUID] = Field(default_factory=list, max_length=500)
     busqueda: str | None = Field(default=None, max_length=100)

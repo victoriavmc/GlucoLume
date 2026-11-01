@@ -58,6 +58,7 @@ from app.services import resultEmailStore
 from app.models.resultDelivery import ResultDelivery
 from app.schemas.resultDelivery import ResultSendRead, ResultSendRequest
 from app.services import email as emailService
+from app.services import userNotifications
 from app.schemas.capillaryReference import CapillaryReferenceMeasurementRead
 from app.schemas.group import DailyPoint, MetricSummary, SharedStatisticsRead
 from app.schemas.measurement import (
@@ -1110,6 +1111,9 @@ def _finishResultDelivery(bind, idEnvio: uuid.UUID, idUsuario: uuid.UUID, idMedi
                                        "destino": "PACIENTE" if institutional else "CUENTA_PROPIA", "modo": "MANUAL"},
                           tablaRelacionada="InstitucionUsuario" if idRelacion else None, idRelacionado=idRelacion)
             session.commit()
+            actor = session.get(User, idUsuario)
+            if actor is not None:
+                userNotifications.notifyResultSent(session, actor, idEnvio, sent)  # la bandeja: nunca propaga errores
     except Exception as error:  # noqa: BLE001 - el correo ya salió o falló; solo se pierde el rastro
         logger.error("No se pudo anotar el envío del resultado (%s).", type(error).__name__)
 

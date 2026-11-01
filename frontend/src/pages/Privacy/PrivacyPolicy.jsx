@@ -10,6 +10,7 @@ import { ExperimentalNotice } from '../../components/ExperimentalNotice.jsx';
 import { Navbar } from '../../components/Navbar.jsx';
 import { SiteFooter } from '../../components/SiteFooter.jsx';
 import { SkipLink } from '../../components/SkipLink.jsx';
+import { usePageMeta } from '../../utils/usePageMeta.js';
 import './PrivacyPolicy.css';
 
 export const POLICY_VERSION = '1.1';
@@ -29,6 +30,11 @@ const CONTENTS = [
 ];
 
 export default function PrivacyPolicy() {
+  usePageMeta(
+    'Política de privacidad · GlucoLume',
+    'Qué datos personales y experimentales recopila GlucoLume, para qué se usan, cuánto se conservan y cómo ejercer tus derechos.',
+  );
+
   return (
     <div className="landing">
       <SkipLink />
