@@ -4,7 +4,9 @@
 # (no uno por solicitud: un escáner que pide mil rutas no puede llenar la base). Detecta lo que no se puede ver desde un solo evento:
 #   - ráfagas de 401/403 (credenciales ausentes o mal formadas, permisos insuficientes), AUDIT_ALERT_AUTH_REJECTIONS;
 #   - ráfagas de entradas rechazadas por validación (400/422), AUDIT_ALERT_VALIDATION_REJECTIONS;
-#   - el límite de solicitudes por IP (429 de app/api/rateLimit.py), un evento por origen y ventana.
+#   - el límite de solicitudes por IP (429 de app/api/rateLimit.py), un evento por origen y ventana;
+#   - líneas del firmware que el puente envió y el servidor rechazó (corruptas, fuera de rango), por puente y ventana,
+#     AUDIT_ALERT_BRIDGE_LINE_REJECTIONS. El contenido de la línea nunca se guarda: solo cuántas y el puente que las envió.
 # No cuenta lo que ya queda registrado de a uno (inicio de sesión fallido, MFA, bloqueo) ni el uso normal: tokens vencidos o sesiones ya
 # cerradas. No bloquea a nadie ni clasifica ataques: es una señal para la administración (ver services/auditClassification.py).
 #
@@ -26,6 +28,7 @@ logger = logging.getLogger("glucolume.security")
 
 KIND_AUTH = "AUTORIZACION"
 KIND_VALIDATION = "VALIDACION"
+KIND_BRIDGE_LINES = "LINEAS_PUENTE"
 MAX_KEYS = 20_000
 
 # Rechazos que ya quedan registrados de a uno por el servicio que los produce, o que son parte del uso normal: no suman a la ráfaga.
@@ -72,7 +75,8 @@ class SecurityMonitor:
     def observe(self, kind: str, ip: str, code: str, now: float | None = None) -> Burst | None:
         """Registra un rechazo. Devuelve la ráfaga la PRIMERA vez que el origen supera el umbral en la ventana."""
         settings = getSettings()
-        threshold = (settings.AUDIT_ALERT_AUTH_REJECTIONS if kind == KIND_AUTH else settings.AUDIT_ALERT_VALIDATION_REJECTIONS)
+        threshold = {KIND_AUTH: settings.AUDIT_ALERT_AUTH_REJECTIONS, KIND_VALIDATION: settings.AUDIT_ALERT_VALIDATION_REJECTIONS,
+                     KIND_BRIDGE_LINES: settings.AUDIT_ALERT_BRIDGE_LINE_REJECTIONS}[kind]
         windowMinutes = max(1, settings.AUDIT_ALERT_WINDOW_MINUTES)
         window = windowMinutes * 60.0
         now = time.monotonic() if now is None else now
@@ -185,6 +189,28 @@ def persistRateLimit(limit: str) -> None:
             observacion=f"Un mismo origen superó el límite de solicitudes «{limit}»", datosNuevos={"limite": limit},
         )
         db.commit()
+
+
+def persistBridgeLines(burst: Burst) -> None:
+    """Un evento por ventana y puente. No lleva el contenido de las líneas ni el identificador del puente: solo cuántas se rechazaron."""
+    with sessionFactory() as db:
+        registerEvent(
+            db, "ACCESO", classification.ACCION_RAFAGA_LINEAS, False, modulo="SEGURIDAD", motivo="LINEAS_NO_VALIDAS",
+            observacion=f"{burst.count} líneas del puente rechazadas en {burst.windowMinutes} minutos (umbral {burst.threshold})",
+            datosNuevos={"cantidad": burst.count, "umbral": burst.threshold, "ventanaMinutos": burst.windowMinutes},
+        )
+        db.commit()
+
+
+def recordBridgeLines(bridgeId: str, rejected: int) -> None:
+    """Cuenta las líneas del firmware que el servidor rechazó para un puente. Nunca lanza: un fallo del monitor no afecta el lote recibido."""
+    try:
+        for _ in range(rejected):
+            burst = monitor.observe(KIND_BRIDGE_LINES, bridgeId, "LINEA_NO_VALIDA")
+            if burst is not None:
+                persistBridgeLines(burst)
+    except Exception:  # noqa: BLE001
+        logger.exception("No se pudo registrar el rechazo de líneas del puente")
 
 
 def record(status: int, rejection: tuple[str | None, str | None] | None, ip: str | None) -> None:

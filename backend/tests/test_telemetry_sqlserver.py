@@ -12,6 +12,7 @@
 # Sin esas variables se omite. Nunca apuntar a la base real: la prueba inserta usuarios y mediciones de prueba.
 
 import os
+import threading
 import uuid
 
 import pytest
@@ -102,6 +103,59 @@ def test_flujo_completo_en_sql_server(sql):
     assert page.total == 2 and {i.idMedicion for i in page.items} == {legacy.idMedicion, demo.idMedicion}
     assert next(i for i in page.items if i.idMedicion == demo.idMedicion).origenGlucosa == "DEMO"
     assert measurements.ownStatistics(db, user, 7).cantidadMediciones == 0
+
+
+@pytest.mark.parametrize("flagGuard", [True, False], ids=["con_bandera_saving", "solo_transicion_en_base"])
+def test_cien_solicitudes_simultaneas_en_sql_server_dejan_una_sola_medicion(sql, flagGuard):
+    """Las mismas 100 solicitudes que en test_telemetry.py, contra SQL Server real: una sola fila COMPLETADA y un único éxito."""
+    db, clock, engine = sql
+    tag = uuid.uuid4().hex[:8]
+    user = makeUser(db, email=f"concurrencia-{tag}@example.com", usuario=f"con{tag}")
+    profileId = measurements.getOwnProfile(db, user).idPerfilMedicion
+    code = f"ARD-{tag}"
+    dev = device(db, codigo=code)
+    bridge = FakeBridge(db, clock, code=code)
+    bridge.seconds(1)
+    telemetryService.startSession(db, user, TelemetrySessionStart(idPerfilMedicion=profileId, idDispositivo=dev.idDispositivo))
+    bridge.seconds(9)
+    session = hub.session
+    many = create_engine(URL, pool_size=50, max_overflow=50)  # una conexión por solicitud en vuelo
+    factory = sessionmaker(bind=many, autoflush=False, expire_on_commit=False)
+    outcomes, barrier, lock = [], threading.Barrier(100, timeout=120), threading.Lock()
+
+    def attempt():
+        conn = factory()
+        try:
+            barrier.wait()
+            actor = conn.merge(user)
+            if flagGuard:
+                telemetryService.saveSession(conn, actor)
+            else:
+                telemetryService._persist(conn, actor, session)
+            outcome = "GUARDADA"
+        except AuthError as error:
+            outcome = error.code
+        except Exception as error:  # noqa: BLE001 - una falla no esperada también es un resultado a contar
+            outcome = "EXCEPCION:" + type(error).__name__
+        finally:
+            conn.close()
+        with lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt) for _ in range(100)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    many.dispose()
+    assert len(outcomes) == 100 and outcomes.count("GUARDADA") == 1, outcomes
+    assert not [o for o in outcomes if o.startswith("EXCEPCION")], outcomes
+    expected = {"ADQUISICION_NO_ACTIVA", "GUARDADO_EN_CURSO"} if flagGuard else {"MEDICION_ESTADO_INVALIDO", "LECTURA_NO_ESTABLE"}
+    assert set(outcomes) - {"GUARDADA"} <= expected, outcomes
+    with engine.connect() as connection:
+        rows = connection.execute(text(
+            "SELECT estadoMedicion FROM dbo.Medicion WHERE idDispositivo = :dev"), {"dev": dev.idDispositivo}).all()
+    assert [r.estadoMedicion for r in rows] == ["COMPLETADA"]
 
     # Una medición sin calibrar (no DEMO) sí cuenta; el dispositivo sin glucosa guarda NULL, no cero.
     telemetryService.startSession(db, user, TelemetrySessionStart(idPerfilMedicion=profileId, idDispositivo=dev.idDispositivo))

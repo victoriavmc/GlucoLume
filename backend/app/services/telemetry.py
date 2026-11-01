@@ -48,6 +48,7 @@ from app.services import institution as institutions
 from app.services import measurement as measurements
 from app.services import schemaCompat
 from app.services import notifications
+from app.services import securityMonitor
 from app.services.acquisition import TIPO_INSTITUCIONAL, _requireMeasurer
 from app.services.audit import registerEvent
 
@@ -81,6 +82,8 @@ def ingest(db: Session, data: BridgeIngest) -> BridgeIngestRead:
                             commandResult=None if data.comando is None else data.comando.model_dump())
     except BridgeConflict as error:
         raise AuthError("PUENTE_DUPLICADO", str(error)) from error
+    if result.invalid:  # ruido o manipulación del enlace: se cuenta por puente y deja una sola alerta por ventana (sin el contenido)
+        securityMonitor.recordBridgeLines(str(data.idPuente), result.invalid)
     if hub.identity()["nivel"] == "DECLARADA" and hub.registrationAllowed():
         # Firmware sin ID propio (anterior): el código configurado en el puente se da de alta solo, sin institución, pero SOLO con telemetría
         # llegando y pasado el margen sin ID (nunca con un Arduino que no responde). Con ID propio NO: el alta la hace un operador desde su

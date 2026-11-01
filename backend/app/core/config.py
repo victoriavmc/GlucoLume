@@ -171,6 +171,9 @@ class Settings(BaseSettings):
     AUDIT_ALERT_ACCOUNTS_PER_ORIGIN: int = 5
     AUDIT_ALERT_AUTH_REJECTIONS: int = 20
     AUDIT_ALERT_VALIDATION_REJECTIONS: int = 30
+    #   AUDIT_ALERT_BRIDGE_LINE_REJECTIONS: líneas del firmware rechazadas (corruptas, fuera de rango, de otro formato) por un mismo puente
+    #   dentro de la ventana. Una alerta por ventana; no guarda el contenido de la línea. 0 lo desactiva.
+    AUDIT_ALERT_BRIDGE_LINE_REJECTIONS: int = 20
     # Alerta activa (GL-15): una ráfaga detectada también se avisa por correo al administrador de la plataforma, como máximo una vez por
     # patrón cada SECURITY_ALERT_EMAIL_MINUTES. 0 lo desactiva (la señal sigue en la consola).
     SECURITY_ALERT_EMAIL_MINUTES: int = 60

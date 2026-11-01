@@ -10,6 +10,7 @@
 # estado en vivo (hub.clock) es falso para probar plazos sin esperar. La base es la SQLite temporal del resto de las
 # pruebas (esquema generado desde los modelos): ver docs/DESPLIEGUE.md para la validación de la migración en SQL Server.
 
+import json
 import threading
 import time
 import uuid
@@ -24,7 +25,9 @@ from app.acquisition import telemetry
 from app.acquisition.telemetry import Notice, Reading, TelemetryError, hub, parseLine
 from app.core.config import Settings, getSettings
 from app.core.exceptions import AuthError
+from app.models.audit import Audit
 from app.models.measurement import Measurement
+from app.services import securityMonitor
 from app.schemas.acquisition import BridgeIngest, BridgeLine, ConnectRequest, DeviceConnectConfirm, TelemetrySessionStart
 from app.schemas.resultDelivery import ResultSendRequest
 from app.services import acquisition as acquisitionService
@@ -693,6 +696,80 @@ def test_guardados_simultaneos_producen_una_sola_medicion(db, mails, consumer, b
     successes = [r for r in results if not isinstance(r, str)]
     assert len(successes) == 1 and set(r for r in results if isinstance(r, str)) <= {"GUARDADO_EN_CURSO", "ADQUISICION_NO_ACTIVA"}
     assert len(list(db.scalars(select(Measurement)))) == 1
+
+
+@pytest.fixture
+def lineMonitor(engine, monkeypatch):
+    """Monitor de ráfagas con persistencia real, apuntada a la base de la prueba (como en test_audit_security)."""
+    sessions = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr(securityMonitor, "sessionFactory", lambda: sessions())
+    monkeypatch.setenv("AUDIT_ALERT_BRIDGE_LINE_REJECTIONS", "5")
+    getSettings.cache_clear()
+    securityMonitor.monitor.clear()
+    yield
+    securityMonitor.monitor.clear()
+    getSettings.cache_clear()
+
+
+def test_las_lineas_rechazadas_del_puente_dejan_una_sola_alerta_sin_su_contenido(db, mails, consumer, bridge, lineMonitor):
+    secret = "CONTENIDO-CRUDO-7731"
+    bridge.seconds(3)  # las lecturas válidas no cuentan
+    assert audits(db, "RAFAGA_LINEAS_PUENTE") == []
+    bridge.send(["@@" + secret + "@@", "BPM:1,2", line(bpm="999.00"), line(spo2="150.00"), "PPG,999,0,1"])
+    [burst] = audits(db, "RAFAGA_LINEAS_PUENTE")
+    assert (burst.modulo, burst.resultado) == ("SEGURIDAD", "FALLO")
+    assert json.loads(burst.datosNuevos)["cantidad"] == 5
+    bridge.send([line(bpm="999.00")] * 20)  # más rechazos en la misma ventana: no generan otra alerta
+    assert len(audits(db, "RAFAGA_LINEAS_PUENTE")) == 1 and hub.invalidLines == 25
+    everything = " ".join(str(getattr(row, column.name)) for row in audits(db) for column in Audit.__table__.columns)
+    assert secret not in everything and "999.00" not in everything and "@@" not in everything
+
+
+@pytest.mark.parametrize("flagGuard", [True, False], ids=["con_bandera_saving", "solo_transicion_en_base"])
+def test_cien_solicitudes_simultaneas_producen_una_sola_medicion(db, mails, consumer, bridge, engine, flagGuard):
+    """100 pedidos de guardado a la vez. Con la bandera `saving` del proceso (flagGuard) y sin ella: en ese caso
+    solo protege la transición condicionada al estado en la base, que es la garantía que tiene que sostener SQL Server."""
+    user, profileId, dev, started = measuring(db, consumer, bridge)
+    bridge.seconds(9)
+    session = hub.session
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    outcomes, barrier, lock = [], threading.Barrier(100, timeout=60), threading.Lock()
+
+    def attempt():
+        conn = factory()
+        try:
+            barrier.wait()  # todos arrancan a la vez; si alguno no llega, la barrera vence en vez de colgar la prueba
+            actor = conn.merge(user)
+            if flagGuard:
+                telemetryService.saveSession(conn, actor)
+            else:
+                telemetryService._persist(conn, actor, session)
+            outcome = "GUARDADA"
+        except AuthError as error:
+            outcome = error.code
+        except Exception as error:  # noqa: BLE001 - una falla no esperada también es un resultado a contar
+            outcome = "EXCEPCION:" + type(error).__name__
+        finally:
+            conn.close()
+        with lock:
+            outcomes.append(outcome)
+
+    threads = [threading.Thread(target=attempt) for _ in range(100)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(outcomes) == 100
+    assert outcomes.count("GUARDADA") == 1, outcomes
+    assert not [o for o in outcomes if o.startswith("EXCEPCION")], outcomes
+    # Los rechazos son los de la guarda que corresponde: con bandera, la del proceso; sin ella, la transición en la base (y, tras
+    # liberar la sesión, la falta de lectura estable).
+    expected = {"ADQUISICION_NO_ACTIVA", "GUARDADO_EN_CURSO"} if flagGuard else {"MEDICION_ESTADO_INVALIDO", "LECTURA_NO_ESTABLE"}
+    assert set(outcomes) - {"GUARDADA"} <= expected, outcomes
+    db.expire_all()
+    [measurement] = list(db.scalars(select(Measurement)))
+    assert measurement.estadoMedicion == "COMPLETADA"
+    assert len(audits(db, "GUARDAR_MEDICION_DISPOSITIVO")) == 1
 
 
 def test_cancelar_la_sesion_libera_el_dispositivo_sin_guardar(db, consumer, bridge):
