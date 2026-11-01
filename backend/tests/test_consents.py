@@ -4,18 +4,21 @@
 # Ejecutar desde backend/:
 #     python -m pytest tests/test_consents.py -v
 
+from datetime import timedelta
+
 import pytest
 from sqlalchemy import select
 
 from app.core.exceptions import AuthError
 from app.integrations.google.oauth import GoogleIdentity
-from app.models.consent import Consent
+from app.models.consent import Consent, TipoConsentimiento
 from app.schemas.auth import RegisterRequest
 from app.services import accountActivation
 from app.services import auth as authService
 from app.services import consent as consentService
 from app.services import measurement as measurements
 from app.services.consent import CURRENT_VERSIONS
+from app.utils.timeZone import nowForDb
 from tests.test_account_deletion import PASSWORD, db, engine, makeUser, mails  # noqa: F401 - fixtures
 from tests.test_measurements import completeOximetry, device, noEstimator, oximetry  # noqa: F401
 from tests.test_institution_staff import team  # noqa: F401
@@ -164,3 +167,25 @@ def test_endpoints_de_consentimiento(db, mails, web):
     revoked = web.put("/api/v1/auth/consents/datos-experimentales", headers=headers, json={"acepta": False})
     assert revoked.json()["DATOS_EXPERIMENTALES"]["estado"] == "REVOCADO"
     assert web.get("/api/v1/auth/consents").status_code == 401
+
+
+def test_aceptar_la_politica_vigente_no_bloquea_y_se_registra_una_vez(db, mails, web):
+    """Usuario con la política 1.1 aceptada: el acceso sigue igual (no hay bloqueo) y el aviso permite aceptar la 1.2 sin repetir filas."""
+    user = makeUser(db, email="antigua@example.com", usuario="antigua", consent=False)
+    db.add(Consent(idUsuario=user.idUsuario, tipo=TipoConsentimiento.POLITICA_PRIVACIDAD.value, version="1.1", estado="ACEPTADO",
+                   fechaHora=nowForDb() - timedelta(days=30)))
+    db.commit()
+    headers = login(web, user)
+    before = web.get("/api/v1/auth/consents", headers=headers)
+    assert before.status_code == 200  # la versión vieja no corta la sesión
+    assert before.json()["POLITICA_PRIVACIDAD"]["aceptado"] is False
+    assert before.json()["POLITICA_PRIVACIDAD"]["versionAceptada"] == "1.1"
+    accepted = web.post("/api/v1/auth/consents/politica/aceptar", headers=headers)
+    assert accepted.status_code == 200
+    assert accepted.json()["POLITICA_PRIVACIDAD"]["aceptado"] is True
+    assert accepted.json()["POLITICA_PRIVACIDAD"]["versionAceptada"] == CURRENT_VERSIONS[TipoConsentimiento.POLITICA_PRIVACIDAD]
+    again = web.post("/api/v1/auth/consents/politica/aceptar", headers=headers)
+    assert again.status_code == 200
+    versiones = [row.version for row in rows(db, user) if row.tipo == TipoConsentimiento.POLITICA_PRIVACIDAD.value]
+    assert versiones == ["1.1", CURRENT_VERSIONS[TipoConsentimiento.POLITICA_PRIVACIDAD]]  # una sola aceptación de la 1.2
+    assert web.post("/api/v1/auth/consents/politica/aceptar").status_code == 401

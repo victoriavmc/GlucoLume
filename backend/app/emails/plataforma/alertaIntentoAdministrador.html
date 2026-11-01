@@ -3,7 +3,8 @@
 {% block titulo %}Intento de ingreso a la administración{% endblock %}
 {% block contenido %}
 <p style="{{ m.P }}">Se rechazaron intentos de ingreso a la administración de GlucoLume. {{ alcance }}</p>
-{{ m.datos([("Cuenta afectada", cuentas), ("Tipo de autenticación", tipos), ("Motivo", motivos), ("Dirección IP de origen", ips), ("Intentos", cantidad), ("Primer intento", primerIntento|fechaHora), ("Último intento", fechaEvento|fechaHora)]) }}
+{{ m.datos([("Cuenta afectada", cuentas), ("Tipo de autenticación", tipos), ("Motivo", motivos), ("Orígenes distintos", origenes), ("Intentos", cantidad), ("Primer intento", primerIntento|fechaHora), ("Último intento", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P_SUAVE }}">Por privacidad, este correo no incluye direcciones IP. Si necesitás verlas, consultá la auditoría de seguridad de la consola administrativa, mientras el registro esté vigente.</p>
 {{ m.boton(urlAuditoria, "Ver la auditoría de seguridad") }}
 {% endblock %}
 {% block complemento %}

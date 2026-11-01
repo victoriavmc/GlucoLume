@@ -154,7 +154,7 @@ def sampleContexts() -> dict[E, dict]:
         E.ALERTA_INTENTO_ACCESO_ADMIN: {
             **base, "alcance": "Primer intento de un incidente. Los siguientes se resumen en un aviso por hora como máximo.",
             "cuentas": "persona@example.com (3)", "tipos": "Contraseña, Segundo factor", "motivos": "Credenciales rechazadas (2); Segundo factor incorrecto (1)",
-            "ips": "203.0.113.20", "cantidad": 3, "primerIntento": now, "fechaEvento": now,
+            "origenes": "1 distinto(s)", "cantidad": 3, "primerIntento": now, "fechaEvento": now,
             "urlAuditoria": frontendUrl("/plataforma/auditoria"),
         },
         E.TRANSFERENCIA_ADMIN_SOLICITADA: {

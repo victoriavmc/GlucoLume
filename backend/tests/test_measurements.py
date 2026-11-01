@@ -317,7 +317,7 @@ def test_cancelar_y_finalizar_a_la_vez_dejan_un_unico_resultado(engine, db, mail
     # un resultado legítimo que la aserción no admitía, y la prueba fallaba de forma intermitente (~12 % de las corridas).
     measurements.addSamples(db, user, started.idMedicion, signalSamples())
     makeSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    barrier = threading.Barrier(2)
+    barrier = threading.Barrier(2, timeout=30)  # si un hilo falla antes de la barrera, el otro falla en vez de quedar colgado
     results, failures = [], []
 
     def run(action, *args):

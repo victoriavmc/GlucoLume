@@ -7,7 +7,7 @@
 # Argentina. Todo el backend debe obtener la hora desde este módulo; no usar datetime.now(),
 # datetime.utcnow() ni datetime.now(timezone.utc) directamente.
 
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 ARGENTINA_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
@@ -23,6 +23,12 @@ def nowForDb() -> datetime:
     """Hora actual de Argentina sin zona (naive), lista para persistir en columnas DATETIME2 y para
     compararla con valores leídos de la base."""
     return nowArgentina().replace(tzinfo=None)
+
+
+def argentinaToUtc(value: datetime) -> datetime:
+    """Convierte una hora de Argentina naive (la de nowForDb) a UTC naive. Los eventos de auditoría se guardan en UTC porque su columna
+    fechaHora usa sysutcdatetime() como valor por defecto: al comparar con ellos hay que pasar a UTC primero."""
+    return value.replace(tzinfo=ARGENTINA_TZ).astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def withArgentinaZone(value: datetime) -> datetime:

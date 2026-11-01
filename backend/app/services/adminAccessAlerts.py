@@ -47,7 +47,6 @@ _MOTIVOS = {
 }
 
 MAX_PENDING = 200  # intentos guardados para el resumen; los que excedan solo se cuentan
-MAX_SHOWN_IPS = 5
 
 
 @dataclass(frozen=True)
@@ -148,17 +147,17 @@ def _send(db: Session, batch: list[Attempt], omitted: int, primer: bool) -> None
 def _context(batch: list[Attempt], omitted: int, primer: bool) -> dict:
     cuentas = Counter(attempt.correo for attempt in batch)
     motivos = Counter(_MOTIVOS.get(attempt.motivo, "Ingreso rechazado") for attempt in batch)
-    ips = sorted({attempt.ip for attempt in batch if attempt.ip})
-    ipText = ", ".join(ips[:MAX_SHOWN_IPS]) or "No disponible"
-    if len(ips) > MAX_SHOWN_IPS:
-        ipText += f" y {len(ips) - MAX_SHOWN_IPS} más"
+    # Sin direcciones IP en el correo: el correo queda fuera del mecanismo de conservación de la base. Solo se informa CUÁNTOS orígenes
+    # distintos hubo; las direcciones se consultan en la auditoría de seguridad de la consola administrativa, mientras estén vigentes.
+    origins = len({attempt.ip for attempt in batch if attempt.ip})
+    originText = f"{origins} distinto(s)" if origins else "No disponible"
     return {
         "alcance": ("Primer intento de un incidente. Los siguientes se resumen en un aviso por hora como máximo." if primer
                     else "Resumen de los intentos rechazados desde el aviso anterior."),
         "cuentas": "; ".join(f"{correo} ({count})" for correo, count in cuentas.most_common()),
         "tipos": ", ".join(sorted({attempt.tipoAutenticacion for attempt in batch})),
         "motivos": "; ".join(f"{motivo} ({count})" for motivo, count in motivos.most_common()),
-        "ips": ipText,
+        "origenes": originText,
         "cantidad": len(batch) + omitted,
         "primerIntento": min(attempt.fecha for attempt in batch),
         "fechaEvento": max(attempt.fecha for attempt in batch),

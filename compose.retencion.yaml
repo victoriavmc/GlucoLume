@@ -1,0 +1,66 @@
+# GlucoLume - retencion tecnica de IP (override opcional sobre compose.yaml).
+#
+# Uso (en el servidor, desde la carpeta del proyecto):
+#   docker compose -f compose.yaml -f compose.prod.yaml -f compose.retencion.yaml --profile retention up -d --no-deps technical-retention
+#
+# Agrega el servicio «technical-retention» (perfil opcional: no arranca con un `up` normal) y deja vacias las credenciales de mantenimiento
+# en la API. No cambia red, puertos ni volumenes de ningun otro servicio. Los valores estan escritos en linea porque un override no puede
+# heredar las anclas (*hardening, *default-logging) de compose.yaml.
+
+services:
+  backend:
+    environment:
+      # La cuenta que anula IP vencidas no llega a la API (solo al servicio technical-retention).
+      DB_RETENCION_USER: ""
+      DB_RETENCION_PASSWORD: ""
+
+  technical-retention:
+    profiles: ["retention"]
+    build:
+      context: ./backend
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:-dev}
+    command: ["python", "-m", "app.jobs.technicalRetention", "--loop"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST}}
+      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-1433}}
+      # Esta cuenta no recibe la de los jobs ni la de la API: solo la propia (DB_RETENCION_*).
+      DB_JOBS_USER: ""
+      DB_JOBS_PASSWORD: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./docker/certs:/run/certs:ro
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.jobs.technicalRetention", "--health"]
+      interval: 15m
+      timeout: 20s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M

@@ -1,0 +1,18 @@
+.policy-notice {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--color-border, #d0d7de);
+  border-radius: 8px;
+  background: var(--color-superficie, #f6f8fa);
+}
+
+.policy-notice-titulo {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.policy-notice-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

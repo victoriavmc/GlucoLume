@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # no las recibe (compose.yaml las vacía).
     DB_JOBS_USER: str | None = None
     DB_JOBS_PASSWORD: SecretStr | None = None
+    # Cuenta del mantenimiento técnico de IP (app/jobs/technicalRetention.py, servicio «technical-retention»). Es distinta de la API y de la de
+    # los jobs: solo puede anular IP y agente en AuditoriaContexto (database/reference/GlucoLume_retencion_ip_tecnica.sql). Sin ella, el servicio
+    # no corre: no hay fallback a una cuenta con más permisos.
+    DB_RETENCION_USER: str | None = None
+    DB_RETENCION_PASSWORD: SecretStr | None = None
 
     # JWT de acceso
     JWT_SECRET: SecretStr
@@ -192,6 +197,13 @@ class Settings(BaseSettings):
     # a mano confirmando la cantidad exacta.
     RETENTION_MAX_DELETE_FRACTION: float = 0.25
     RETENTION_GUARD_MIN_ROWS: int = 100
+    # IP y agente técnicos (services/auditRetention.py): AUDIT_CONTEXT_RETENTION_DAYS (arriba) es el plazo desde cada evento. Para los eventos de
+    # SEGURIDAD de una cuenta ELIMINADA se conserva además hasta N días desde la fecha de eliminación, cuando ese vencimiento es posterior.
+    # 0 desactiva esa extensión. Ninguna regla restaura una IP ya anulada.
+    AUDIT_DELETED_ACCOUNT_RETENTION_DAYS: int = 90
+    # Mantenimiento técnico independiente: cada cuánto anula las IP vencidas (solo esas columnas) y lote de cada UPDATE.
+    TECHNICAL_RETENTION_INTERVAL_SECONDS: int = 3600
+    TECHNICAL_RETENTION_BATCH: int = 500  # lote conservador por defecto: ver docs/PROCEDIMIENTO_ACTIVACION (métricas y riesgos de bloqueo)
 
     # URL pública del frontend: destino de los botones de los correos (ingresar, revisar seguridad...).
     FRONTEND_URL: str = "http://localhost:5173"
@@ -230,6 +242,27 @@ class Settings(BaseSettings):
     def validarUrlDeLimites(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and urlsplit(value.get_secret_value()).scheme not in ("redis", "rediss", "unix"):
             raise ValueError("RATE_LIMIT_REDIS_URL debe empezar con redis://, rediss:// o unix://.")
+        return value
+
+    @field_validator("AUDIT_CONTEXT_RETENTION_DAYS", "AUDIT_DELETED_ACCOUNT_RETENTION_DAYS")
+    @classmethod
+    def _validarDiasDeConservacionTecnica(cls, value: int, info) -> int:
+        if not 0 <= value <= 3650:
+            raise ValueError(f"{info.field_name} debe estar entre 0 y 3650 días (0 lo desactiva).")
+        return value
+
+    @field_validator("TECHNICAL_RETENTION_INTERVAL_SECONDS")
+    @classmethod
+    def _validarIntervaloTecnico(cls, value: int) -> int:
+        if not 60 <= value <= 86400:
+            raise ValueError("TECHNICAL_RETENTION_INTERVAL_SECONDS debe estar entre 60 y 86400 (no se puede desactivar: la IP vencida tiene que anularse).")
+        return value
+
+    @field_validator("TECHNICAL_RETENTION_BATCH")
+    @classmethod
+    def _validarLoteTecnico(cls, value: int) -> int:
+        if not 1 <= value <= 5000:
+            raise ValueError("TECHNICAL_RETENTION_BATCH debe estar entre 1 y 5000.")
         return value
 
     @field_validator("NOTIFICATIONS_INTERVAL_SECONDS")
@@ -429,6 +462,14 @@ class Settings(BaseSettings):
         if self.API_ENV == "production" and self.DB_TRUST_SERVER_CERTIFICATE:
             raise ValueError("DB_TRUST_SERVER_CERTIFICATE=true no se admite en producción: configurar un certificado confiable o "
                              "fijarlo con DB_SERVER_CERTIFICATE.")
+        return self
+
+    @model_validator(mode="after")
+    def validarCuentaDeMantenimientoTecnico(self) -> "Settings":
+        if (self.DB_RETENCION_USER is None) != (self.DB_RETENCION_PASSWORD is None):
+            raise ValueError("DB_RETENCION_USER y DB_RETENCION_PASSWORD se definen juntas (o ninguna).")
+        if self.DB_RETENCION_USER is not None and self.DB_RETENCION_USER == self.DB_USER:
+            raise ValueError("DB_RETENCION_USER debe ser una cuenta distinta de DB_USER: la de la API no puede anular IP.")
         return self
 
     @model_validator(mode="after")

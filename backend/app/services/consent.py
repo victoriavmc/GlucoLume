@@ -10,7 +10,10 @@
 # El estado vigente es la fila más reciente de cada tipo; revocar agrega una fila REVOCADO y NO borra lo ya medido:
 # frena nuevas recolecciones. La eliminación de la cuenta es el camino para borrar los datos personales.
 #
-# Si cambia el texto de un consentimiento se sube su versión: una aceptación de una versión anterior deja de ser vigente.
+# Si cambia el texto de un consentimiento se sube su versión. La versión aceptada queda registrada en el historial y se informa en el
+# estado (versionAceptada frente a versionVigente). Un cambio de versión de la POLÍTICA NO bloquea el inicio de sesión, el refresco de
+# sesión ni las mediciones: la política solo se exige al crear una cuenta (requirePolicyAccepted). Solo la autorización de datos
+# experimentales bloquea mediciones, y se exige su versión vigente (isActive). Ver docs/PRIVACIDAD_Y_RETENCION.md, sección de cambios.
 #
 # Alcance: las mediciones de pacientes de una institución las opera personal de esa institución; su consentimiento lo
 # gestiona la institución y NO lo cubre este módulo (ver docs/PRIVACIDAD.md).
@@ -26,7 +29,8 @@ from app.models.consent import Consent, EstadoConsentimiento, TipoConsentimiento
 from app.models.user import User
 from app.utils.timeZone import nowForDb
 
-POLICY_VERSION = "1.1"  # 1.1 (19/10/2026): la auditoría guarda IP y navegador 90 días (GL-23)
+POLICY_VERSION = "1.2"  # 1.2: IP y navegador anulados a 90 días desde el evento; extensión de hasta 90 días desde la eliminación (seguridad)
+# 1.1 (19/10/2026): la auditoría guarda IP y navegador 90 días (GL-23).
 EXPERIMENTAL_VERSION = "1.0"
 CURRENT_VERSIONS = {
     TipoConsentimiento.POLITICA_PRIVACIDAD: POLICY_VERSION,
@@ -101,6 +105,19 @@ def setExperimentalConsent(db: Session, user: User, accepted: bool) -> dict[str,
 
         registerEvent(db, "PERMISO", "CONSENTIMIENTO_DATOS_EXPERIMENTALES" if accepted else "REVOCAR_CONSENTIMIENTO_DATOS_EXPERIMENTALES",
                       True, user.idUsuario, "ConsentimientoUsuario", row.idConsentimiento,
+                      datosNuevos={"estado": row.estado, "version": row.version})
+        db.commit()
+    return status(db, user)
+
+
+def acceptCurrentPolicy(db: Session, user: User) -> dict[str, dict]:
+    """Acepta la versión vigente de la Política de Privacidad desde el aviso dentro de la aplicación. NO bloquea nada: sin esta aceptación
+    la extensión de 90 días desde la baja no aplica a la cuenta. Solo agrega una fila si la versión vigente todavía no está aceptada."""
+    if not isActive(db, user, TipoConsentimiento.POLITICA_PRIVACIDAD):
+        row = record(db, user, TipoConsentimiento.POLITICA_PRIVACIDAD, True)
+        from app.services.audit import registerEvent  # import diferido: audit no depende de este módulo
+
+        registerEvent(db, "PERMISO", "CONSENTIMIENTO_POLITICA_PRIVACIDAD", True, user.idUsuario, "ConsentimientoUsuario", row.idConsentimiento,
                       datosNuevos={"estado": row.estado, "version": row.version})
         db.commit()
     return status(db, user)

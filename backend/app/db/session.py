@@ -59,6 +59,19 @@ def getEngine() -> Engine:
 
 
 @lru_cache
+def getRetentionEngine() -> Engine:
+    """Motor del mantenimiento técnico de IP (DB_RETENCION_USER). Sin esa cuenta NO hay fallback: la API y los jobs de conservación no anulan IP."""
+    settings = getSettings()
+    if settings.DB_RETENCION_USER is None or settings.DB_RETENCION_PASSWORD is None:
+        raise RuntimeError("Falta DB_RETENCION_USER y DB_RETENCION_PASSWORD: el mantenimiento técnico de IP no se ejecuta sin su cuenta propia.")
+    return _createEngine(settings.DB_RETENCION_USER, settings.DB_RETENCION_PASSWORD.get_secret_value())
+
+
+def getRetentionSessionFactory() -> sessionmaker[Session]:
+    return sessionmaker(bind=getRetentionEngine(), autoflush=False, expire_on_commit=False)
+
+
+@lru_cache
 def getSessionFactory() -> sessionmaker[Session]:
     return sessionmaker(bind=getEngine(), autoflush=False, expire_on_commit=False)
 

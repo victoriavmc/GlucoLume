@@ -191,3 +191,8 @@ export function getConsents() {
 export function setExperimentalConsent(acepta) {
   return request('/auth/consents/datos-experimentales', { method: 'PUT', auth: true, body: { acepta } });
 }
+
+/** POST /auth/consents/politica/aceptar: acepta la versión vigente de la Política (aviso no bloqueante; no bloquea el acceso). */
+export function acceptPolicy() {
+  return request('/auth/consents/politica/aceptar', { method: 'POST', auth: true });
+}

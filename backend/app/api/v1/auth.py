@@ -722,3 +722,14 @@ def getConsents(auth: CurrentAuth, db: DbSession):
 )
 def setExperimentalConsent(data: ExperimentalConsentRequest, auth: CurrentAuth, db: DbSession):
     return consentService.setExperimentalConsent(db, auth.user, data.acepta)
+
+
+@router.post(
+    "/consents/politica/aceptar",
+    response_model=ConsentsResponse,
+    summary="Aceptar la versión vigente de la Política de Privacidad",
+    description="Con sesión. Aviso no bloqueante: sin aceptarlo el acceso sigue igual, y la extensión de 90 días desde la baja "
+    "de los eventos de seguridad no se aplica a la cuenta. Repetirlo no agrega filas.",
+)
+def acceptPolicy(auth: CurrentAuth, db: DbSession):
+    return consentService.acceptCurrentPolicy(db, auth.user)

@@ -8,6 +8,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSkeleton } from '../components/Skeleton.jsx';
 import { GracePeriodNotice } from '../components/GracePeriodNotice.jsx';
+import { PolicyUpdateNotice } from '../components/PolicyUpdateNotice.jsx';
 import { Logo } from '../components/Logo.jsx';
 import { SkipLink } from '../components/SkipLink.jsx';
 import { NotificationToasts } from '../notifications/NotificationToasts.jsx';
@@ -70,6 +71,7 @@ export function AuthenticatedLayout({ onPrefetch }) {
 
       <main className="app-content" id="contenido" tabIndex={-1}>
         <GracePeriodNotice grace={account?.periodoGracia} />
+        <PolicyUpdateNotice />
         <Suspense fallback={<PageSkeleton />}><Outlet /></Suspense>
       </main>
       <NotificationToasts />

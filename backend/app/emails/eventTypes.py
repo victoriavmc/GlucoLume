@@ -444,7 +444,7 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     ),
     _E.ALERTA_INTENTO_ACCESO_ADMIN: EmailEventSpec(
         "plataforma/alertaIntentoAdministrador.html", "Intento de ingreso a la administración de GlucoLume", CATEGORIA_PLATAFORMA,
-        ("alcance", "cuentas", "tipos", "motivos", "ips", "cantidad", "primerIntento", "fechaEvento", "urlAuditoria"), ("urlAuditoria",),
+        ("alcance", "cuentas", "tipos", "motivos", "origenes", "cantidad", "primerIntento", "fechaEvento", "urlAuditoria"), ("urlAuditoria",),
         securityNotice=True, highPriority=True,
     ),
     _E.TRANSFERENCIA_ADMIN_SOLICITADA: EmailEventSpec(

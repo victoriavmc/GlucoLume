@@ -17,16 +17,19 @@
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, not_, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import getSettings
 from app.models.audit import Audit
 from app.models.auditContext import AuditContext
+from app.models.consent import Consent, EstadoConsentimiento, TipoConsentimiento
+from app.models.user import User
 from app.services import auditClassification as classification
 from app.services import retentionGuard, schemaCompat
+from app.services.consent import POLICY_VERSION
 from app.services.audit import registerEvent
-from app.utils.timeZone import nowForDb
+from app.utils.timeZone import argentinaToUtc, nowForDb
 
 logger = logging.getLogger("glucolume.audit")
 
@@ -37,6 +40,12 @@ ACCION_OMITIDA = "DEPURAR_AUDITORIA_OMITIDA"
 # Acciones sin cuenta identificable que entran en el punto 2.
 ANONYMOUS_ACTIONS = ("LOGIN_LOCAL", "LOGIN_GOOGLE", classification.ACCION_LIMITE_SOLICITUDES, classification.ACCION_RAFAGA_AUTORIZACION,
                      classification.ACCION_RAFAGA_VALIDACION)
+
+
+def _cutoffUtc(now: datetime, months: int) -> datetime:
+    """Corte mensual para Auditoria.fechaHora, que se guarda en UTC: `now` llega en hora de Argentina y se pasa a UTC antes de restar meses.
+    Sin esto, la purga por antigüedad llegaba 3 horas tarde (hallazgo independiente, con parche propio)."""
+    return _monthsAgo(argentinaToUtc(now), months)
 
 
 def _monthsAgo(now: datetime, months: int) -> datetime:
@@ -59,24 +68,96 @@ def _deleteBatches(db: Session, *conditions, progress: dict | None = None, key: 
             progress[key] = deleted  # visible si una falla posterior interrumpe la pasada
 
 
-def minimizeContext(db: Session, now: datetime, days: int) -> int:
-    """Anula la IP y el cliente de los eventos más viejos que `days`. Devuelve cuántos contextos se modificaron."""
+# Eventos de SEGURIDAD: los que la clasificación marca como sospechosos o confirmados, los fallos de autenticación y todo fallo de inicio de
+# sesión. Solo estos extienden el plazo de su IP cuando la cuenta se elimina (regla de la sección «Vencimiento» de docs/PRIVACIDAD_Y_RETENCION.md).
+SECURITY_ACTIONS = frozenset(classification.SOSPECHOSOS | classification.CONFIRMADOS | classification.ACCESOS_FALLIDOS[0])
+
+
+def _isSecurityEvent():
+    return or_(Audit.accion.in_(tuple(SECURITY_ACTIONS)), and_(Audit.tipoEvento == "LOGIN", Audit.resultado == "FALLO"))
+
+
+def _policyAcceptedUsers():
+    """Usuarios cuya ÚLTIMA decisión sobre la política de privacidad es una aceptación de la versión vigente (POLICY_VERSION).
+    Solo ellos reciben la extensión de hasta 90 días desde la baja: una comunicación unilateral no alcanza para ampliar el tratamiento de
+    quien no lo aceptó (pendiente de revisión jurídica; ver docs/PRIVACIDAD_Y_RETENCION.md)."""
+    politica = TipoConsentimiento.POLITICA_PRIVACIDAD.value
+    latest = (select(Consent.idUsuario.label("idUsuario"), func.max(Consent.fechaHora).label("fechaHora"))
+              .where(Consent.tipo == politica)
+              .group_by(Consent.idUsuario)
+              .subquery())
+    return (select(Consent.idUsuario)
+            .join(latest, and_(Consent.idUsuario == latest.c.idUsuario, Consent.fechaHora == latest.c.fechaHora))
+            .where(Consent.tipo == politica, Consent.estado == EstadoConsentimiento.ACEPTADO.value, Consent.version == POLICY_VERSION))
+
+
+def _dueContextConditions(now: datetime, days: int, deletedDays: int) -> tuple:
+    """Condición de vencimiento de la IP de un evento. `now` es la hora de Argentina (nowForDb), como en el resto del backend.
+    Los eventos se guardan en UTC (Auditoria.fechaHora, default sysutcdatetime()): su cutoff se pasa a UTC. La fecha de eliminación de la
+    cuenta (Usuario.fechaEliminacion) se guarda en hora de Argentina, así que se compara con `now` tal cual. Un evento vence a los `days`
+    cumplidos desde su fecha. Si además es de seguridad y su cuenta fue eliminada, vence recién cuando también pasaron `deletedDays` desde la
+    eliminación (el vencimiento posterior prevalece). Los eventos sin cuenta, de cuentas activas o no relacionados con la seguridad siguen
+    solo la primera regla."""
+    cutoff = argentinaToUtc(now) - timedelta(days=days)  # UTC: vence a los `days` cumplidos desde el evento
+    if deletedDays <= 0:
+        return (Audit.fechaHora <= cutoff,)
+    deletedCutoff = now - timedelta(days=deletedDays)  # hora de Argentina, igual que Usuario.fechaEliminacion
+    protectedByDeletion = and_(_isSecurityEvent(), User.fechaEliminacion.is_not(None), User.fechaEliminacion > deletedCutoff,
+                               Audit.idUsuario.in_(_policyAcceptedUsers()))
+    return (Audit.fechaHora <= cutoff, not_(protectedByDeletion))
+
+
+def _contextQuery(now: datetime, days: int, deletedDays: int):
+    return (select(AuditContext.idAuditoria)
+            .join(Audit, Audit.idAuditoria == AuditContext.idAuditoria)
+            .outerjoin(User, User.idUsuario == Audit.idUsuario)
+            .where(or_(AuditContext.ipOrigen.is_not(None), AuditContext.agenteUsuario.is_not(None)),
+                   *_dueContextConditions(now, days, deletedDays)))
+
+
+def countDueContext(db: Session, now: datetime, days: int | None = None, deletedDays: int | None = None) -> int:
+    """Cuántos contextos vencidos quedarían anulados por una pasada (sin modificar nada)."""
+    settings = getSettings()
+    days = settings.AUDIT_CONTEXT_RETENTION_DAYS if days is None else days
+    deletedDays = settings.AUDIT_DELETED_ACCOUNT_RETENTION_DAYS if deletedDays is None else deletedDays
     if days <= 0 or not schemaCompat.auditContextReady(db):
         return 0
-    cutoff = now - timedelta(days=days)
-    result = db.execute(
-        update(AuditContext)
-        .where(AuditContext.idAuditoria.in_(select(Audit.idAuditoria).where(Audit.fechaHora < cutoff)),
-               or_(AuditContext.ipOrigen.is_not(None), AuditContext.agenteUsuario.is_not(None)))
-        .values(ipOrigen=None, agenteUsuario=None)
-        .execution_options(synchronize_session=False))
-    db.commit()
-    return result.rowcount or 0
+    return db.scalar(select(func.count()).select_from(_contextQuery(now, days, deletedDays).subquery())) or 0
+
+
+def anonymizeDueContext(db: Session, now: datetime, *, days: int | None = None, deletedDays: int | None = None,
+                        batch: int | None = None) -> int:
+    """Anula ipOrigen y agenteUsuario de los contextos vencidos, por lotes. Nunca borra el evento ni el contexto, nunca restaura nada y es
+    idempotente: solo toca filas que todavía tienen IP o agente. Devuelve cuántos contextos se modificaron."""
+    settings = getSettings()
+    days = settings.AUDIT_CONTEXT_RETENTION_DAYS if days is None else days
+    deletedDays = settings.AUDIT_DELETED_ACCOUNT_RETENTION_DAYS if deletedDays is None else deletedDays
+    batch = settings.TECHNICAL_RETENTION_BATCH if batch is None else batch
+    if days <= 0 or not schemaCompat.auditContextReady(db):
+        return 0
+    total = 0
+    while True:
+        # Cada vuelta vuelve a consultar: un lote que no modificó nada (otra pasada lo anuló) no corta la pasada, y las filas que siguen
+        # vencidas se toman en la vuelta siguiente. Termina cuando la consulta no devuelve más vencidos.
+        ids = db.scalars(_contextQuery(now, days, deletedDays).limit(batch)).all()
+        if not ids:
+            return total
+        try:
+            result = db.execute(
+                update(AuditContext)
+                .where(AuditContext.idAuditoria.in_(ids), or_(AuditContext.ipOrigen.is_not(None), AuditContext.agenteUsuario.is_not(None)))
+                .values(ipOrigen=None, agenteUsuario=None)
+                .execution_options(synchronize_session=False))
+            db.commit()
+        except Exception:
+            db.rollback()  # el lote en curso no queda a medias; los lotes ya confirmados se conservan
+            raise
+        total += result.rowcount or 0
 
 
 def _anonymousConditions(now: datetime, months: int) -> tuple:
     return (Audit.idUsuario.is_(None), Audit.idInstitucion.is_(None), Audit.resultado == "FALLO",
-            Audit.accion.in_(ANONYMOUS_ACTIONS), Audit.fechaHora < _monthsAgo(now, months))
+            Audit.accion.in_(ANONYMOUS_ACTIONS), Audit.fechaHora < _cutoffUtc(now, months))
 
 
 def purgeAnonymous(db: Session, now: datetime, months: int) -> int:
@@ -88,7 +169,7 @@ def purgeAnonymous(db: Session, now: datetime, months: int) -> int:
 def purgeAll(db: Session, now: datetime, months: int) -> int:
     if months <= 0:
         return 0
-    return _deleteBatches(db, Audit.fechaHora < _monthsAgo(now, months))
+    return _deleteBatches(db, Audit.fechaHora < _cutoffUtc(now, months))
 
 
 def plan(db: Session, now: datetime | None = None) -> dict:
@@ -102,7 +183,7 @@ def plan(db: Session, now: datetime | None = None) -> dict:
     if anonymousMonths > 0:
         conditions.append(and_(*_anonymousConditions(now, anonymousMonths)))
     if allMonths > 0:
-        conditions.append(Audit.fechaHora < _monthsAgo(now, allMonths))
+        conditions.append(Audit.fechaHora < _cutoffUtc(now, allMonths))
     total = db.scalar(select(func.count()).select_from(Audit)) or 0
     candidates = (db.scalar(select(func.count()).select_from(Audit).where(or_(*conditions))) or 0) if conditions else 0
     anonymous = (db.scalar(select(func.count()).select_from(Audit).where(*_anonymousConditions(now, anonymousMonths))) or 0) if anonymousMonths > 0 else 0
@@ -122,7 +203,7 @@ def run(db: Session, now: datetime | None = None, *, dryRun: bool = False, confi
     planned = plan(db, now)
     if dryRun:
         return {"simulacion": True, **planned}
-    result = {"contextosMinimizados": minimizeContext(db, now, settings.AUDIT_CONTEXT_RETENTION_DAYS),
+    result = {"contextosMinimizados": anonymizeDueContext(db, now),
               "intentosSinCuentaEliminados": 0, "eventosEliminados": 0}
     if planned["eventosAEliminar"] == 0:
         logger.info("Conservación de la auditoría: %s", result)

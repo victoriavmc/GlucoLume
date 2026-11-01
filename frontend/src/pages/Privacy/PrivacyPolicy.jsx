@@ -13,7 +13,7 @@ import { SkipLink } from '../../components/SkipLink.jsx';
 import { usePageMeta } from '../../utils/usePageMeta.js';
 import './PrivacyPolicy.css';
 
-export const POLICY_VERSION = '1.1';
+export const POLICY_VERSION = '1.2';
 export const POLICY_DATE = '19 de octubre de 2026';
 
 const CONTENTS = [
@@ -95,10 +95,10 @@ export default function PrivacyPolicy() {
               </li>
               <li>
                 <strong>Seguridad y sesiones:</strong> tus sesiones abiertas y un registro de auditoría de acciones relevantes
-                (qué se hizo, cuándo y quién). Para proteger las cuentas, cada evento de ese registro guarda también la dirección
-                IP y un resumen del navegador y del sistema operativo: solo los consulta la administración de GlucoLume y se
-                borran a los 90 días. Al iniciar sesión, esos datos se usan además para el aviso de «nuevo inicio de sesión» que
-                te enviamos por correo.
+                (qué se hizo, cuándo, con qué resultado y quién). Para proteger las cuentas, cada evento de ese registro guarda
+                además la dirección IP y un resumen del navegador y del sistema operativo. Solo la administración de GlucoLume
+                puede consultar esa información técnica; la auditoría de cada institución no la muestra. Al iniciar sesión, la IP
+                y el navegador también se usan para el aviso de «nuevo inicio de sesión» que te enviamos por correo.
               </li>
               <li>
                 <strong>Formulario de contacto:</strong> nombre, correo, asunto y mensaje. Se envían por correo al equipo del
@@ -254,21 +254,37 @@ export default function PrivacyPolicy() {
               </li>
               <li>
                 <strong>Registros de consentimiento y de auditoría:</strong> se conservan como constancia de las acciones
-                realizadas; no incluyen contraseñas ni resultados de mediciones. La dirección IP y el navegador asociados a
-                cada evento se borran a los 90 días.
+                realizadas (acción, fecha, resultado y clasificación); no incluyen contraseñas ni resultados de mediciones.
+                La dirección IP y el navegador asociados a cada evento se anulan de forma irreversible a los 90 días desde el
+                evento. Solo si aceptaste esta versión (1.2), los eventos de seguridad de una cuenta eliminada conservan la IP
+                y el navegador hasta 90 días después de la fecha de eliminación, cuando ese plazo vence después. Si no la
+                aceptaste, se aplica solo el plazo de 90 días desde cada evento. Al vencer, el registro del evento sigue
+                existiendo sin la IP ni el navegador.
               </li>
             </ul>
             <p>
               El plazo de 12 meses es una decisión de diseño de este proyecto académico; no es un plazo impuesto por la Ley
               25.326. Si pedís la eliminación de tu cuenta, se atiende sin esperar ese plazo.
             </p>
+            <p>
+              Los 90 días de la IP y el navegador, y la extensión de hasta 90 días desde la eliminación de la cuenta (solo para
+              eventos de seguridad y solo para quienes aceptaron la versión 1.2), son decisiones de diseño: sirven para detectar
+              y responder a accesos indebidos (por ejemplo,
+              un ingreso desde un equipo desconocido después de una baja). No son plazos impuestos por la Ley 25.326. Podés pedir
+              la supresión anticipada de esa información: la evaluamos caso por caso y no la rechazamos de forma automática. Solo
+              podríamos conservarla si una obligación legal o un reclamo en curso lo exigen; en ese caso te lo informamos.
+            </p>
           </section>
 
           <section aria-labelledby="p-cambios">
             <h2 id="p-cambios">10. Cambios y validación</h2>
             <p>
-              Si esta política cambia de manera sustancial, se actualiza su versión y se te vuelve a pedir la autorización que
-              corresponda. Este documento fue elaborado con fines académicos y no constituye asesoramiento legal.
+              Si esta política cambia de manera sustancial, actualizamos su versión y te lo avisamos dentro de la aplicación.
+              Ese aviso no bloquea el uso de la cuenta: podés aceptar la versión vigente o dejarlo para más tarde. Si un cambio
+              amplía plazos de conservación, lo indicamos en el aviso y ese plazo solo se aplica a quien lo acepta. Registramos
+              qué versión aceptaste y cuándo. Si la ley o un consentimiento específico exigieran una nueva aceptación, te la
+              pediríamos sin cortar el uso de la cuenta.
+              Este documento fue elaborado con fines académicos y no constituye asesoramiento legal.
             </p>
           </section>
           </article>

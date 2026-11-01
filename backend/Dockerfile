@@ -73,4 +73,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 # --proxy-headers: detrás de Nginx/Caddy toma el esquema y la IP reales de X-Forwarded-*.
 # FORWARDED_ALLOW_IPS se limita a la red interna de Docker desde Compose.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--no-server-header"]
+# --no-access-log: no se registra la IP de cada pedido en la salida de Docker (la auditoría de seguridad está en SQL Server, con su plazo).
+# Los errores y las excepciones siguen registrándose.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--no-server-header", "--no-access-log"]
