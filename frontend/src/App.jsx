@@ -123,6 +123,8 @@ const PlatformDashboardPage = lazyNamed(loadPlatformDashboard, 'PlatformDashboar
 const loadPlatformInstitutions = () => import('./pages/Platform/PlatformInstitutions.jsx');
 const PlatformInstitutionDetailPage = lazyNamed(loadPlatformInstitutions, 'PlatformInstitutionDetailPage');
 const PlatformInstitutionsPage = lazyNamed(loadPlatformInstitutions, 'PlatformInstitutionsPage');
+const loadPlatformNotifications = () => import('./pages/Platform/PlatformNotifications.jsx');
+const PlatformNotificationsPage = lazyNamed(loadPlatformNotifications, 'PlatformNotificationsPage');
 
 const loadGroupOverview = () => import('./pages/Account/groups/GroupOverview.jsx');
 const GroupLayout = lazyNamed(() => import('./pages/Account/groups/GroupLayout.jsx'));
@@ -227,6 +229,7 @@ export function AppRoutes() {
           <Route path="dashboard" element={<PlatformDashboardPage />} />
           <Route path="instituciones" element={<RequirePermission permission="SUPERVISAR_INSTITUCIONES"><PlatformInstitutionsPage /></RequirePermission>} />
           <Route path="instituciones/:idInstitucion" element={<RequirePermission permission="SUPERVISAR_INSTITUCIONES"><PlatformInstitutionDetailPage /></RequirePermission>} />
+          <Route path="notificaciones" element={<PlatformNotificationsPage />} />
           <Route path="moderadores" element={<RequirePermission permission="GESTIONAR_MODERADORES"><ModeratorsPage /></RequirePermission>} />
           <Route path="moderadores/:idUsuario" element={<RequirePermission permission="GESTIONAR_MODERADORES"><ModeratorDetailPage /></RequirePermission>} />
           <Route path="transferencia" element={<RequireMfa><TransferPage /></RequireMfa>} />

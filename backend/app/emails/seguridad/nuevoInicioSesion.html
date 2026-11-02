@@ -15,5 +15,9 @@
 {{ m.boton(urlSeguridad, "Revisar seguridad", secundario=true) }}
 {% endblock %}
 {% block complemento %}
+{% if urlDesuscribir is defined %}
 <p style="{{ m.P_SUAVE }}">¿No querés recibir este aviso cada vez que iniciás sesión? <a href="{{ urlDesuscribir }}" style="color:{{ m.TEXTO_SUAVE }};text-decoration:underline;">Dejar de recibir avisos de inicio de sesión</a>. Podés volver a activarlos desde la seguridad de tu cuenta. Las alertas de actividad sospechosa se envían siempre.</p>
+{% else %}
+<p style="{{ m.P_SUAVE }}">Como parte de la administración de la plataforma, este aviso se envía en cada inicio de sesión y no se puede desactivar.</p>
+{% endif %}
 {% endblock %}

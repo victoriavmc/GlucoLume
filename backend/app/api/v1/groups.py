@@ -19,6 +19,7 @@ from app.schemas.group import (
     GroupDeletionRequest,
     GroupEmailRequest,
     GroupInvitationRead,
+    GroupInviteRequest,
     GroupMemberRead,
     MyGroupResponse,
     MySharingRead,
@@ -149,9 +150,11 @@ def lookupCandidate(idGrupo: uuid.UUID, data: GroupEmailRequest, auth: CurrentAu
 
 
 @router.post("/{idGrupo}/invitations", response_model=GroupInvitationRead, status_code=status.HTTP_201_CREATED,
-             summary="Invitar (administrador)")
-def invite(idGrupo: uuid.UUID, data: GroupEmailRequest, auth: CurrentAuth, db: DbSession):
-    return groupService.invite(db, auth.user, idGrupo, data.correoElectronico)
+             summary="Invitar (administrador)",
+             description="Con una cuenta individual activa, la invitación se ve en GlucoLume. Sin cuenta, envía un correo para "
+                         "crearla (requiere nombre y apellido) y activarla.")
+def invite(idGrupo: uuid.UUID, data: GroupInviteRequest, auth: CurrentAuth, db: DbSession):
+    return groupService.invite(db, auth.user, idGrupo, data.correoElectronico, data.nombre, data.apellido)
 
 
 @router.delete("/{idGrupo}/invitations/{idGrupoUsuario}", status_code=NO_CONTENT,

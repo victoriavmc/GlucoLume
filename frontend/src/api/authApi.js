@@ -165,7 +165,7 @@ export function verifyAccountMfaRecovery(codigo) {
 
 // --- Activación de una cuenta creada por una invitación institucional -------------------------------
 
-/** POST /auth/account-activation/check { token } -> { nombre, apellido, correoEnmascarado, invitaciones } */
+/** POST /auth/account-activation/check { token } -> { nombre, apellido, correoEnmascarado, invitaciones, gruposInvitaciones } */
 export function checkAccountActivation(token) {
   return request('/auth/account-activation/check', { method: 'POST', body: { token } });
 }

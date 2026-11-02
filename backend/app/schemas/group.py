@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.utils.normalizers import normalizeEmail, normalizeSentence, normalizeStatus
+from app.utils.normalizers import normalizeEmail, normalizeProperName, normalizeSentence, normalizeStatus
 
 EstadoGrupo = Literal["ACTIVO", "INACTIVO", "CERRADO"]
 
@@ -185,6 +185,18 @@ class GroupEmailRequest(BaseModel):
     @classmethod
     def normalizarCorreo(cls, value):
         return normalizeEmail(value)
+
+
+class GroupInviteRequest(GroupEmailRequest):
+    """Invitar: correo y, si no hay cuenta, nombre y apellido para crearla (cuenta pendiente de activación)."""
+
+    nombre: Annotated[str, Field(min_length=1, max_length=100)] | None = None
+    apellido: Annotated[str, Field(min_length=1, max_length=100)] | None = None
+
+    @field_validator("nombre", "apellido", mode="before")
+    @classmethod
+    def normalizarNombre(cls, value):
+        return normalizeProperName(value) if isinstance(value, str) and value.strip() else None
 
 
 class TransferAdminRequest(BaseModel):

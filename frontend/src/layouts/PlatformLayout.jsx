@@ -3,7 +3,7 @@
 // GET /platform/me; el backend vuelve a comprobarlos en cada llamada (ocultar una opción no reemplaza la autorización).
 
 import {
-  Building2, ClipboardList, CreditCard, Cpu, Gauge, KeyRound, Layers, LogOut, Menu, ShieldCheck, UserCog, UserRound, Users, X,
+  Bell, Building2, ClipboardList, CreditCard, Cpu, Gauge, KeyRound, Layers, LogOut, Menu, ShieldCheck, UserCog, UserRound, Users, X,
 } from 'lucide-react';
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -25,6 +25,7 @@ const NAV = [
   { heading: 'Inicio', items: [
     { to: '/plataforma/dashboard', label: 'Dashboard general', icon: Gauge },
     { to: '/plataforma/instituciones', label: 'Instituciones', icon: Building2, permission: 'SUPERVISAR_INSTITUCIONES' },
+    { to: '/plataforma/notificaciones', label: 'Notificaciones', icon: Bell },
   ] },
   { heading: 'Administración', items: [
     { to: '/plataforma/moderadores', label: 'Moderadores del sistema', icon: Users, permission: 'GESTIONAR_MODERADORES' },
@@ -50,7 +51,7 @@ const NAV = [
 ];
 
 const CRUMBS = {
-  dashboard: 'Dashboard general', instituciones: 'Instituciones', moderadores: 'Moderadores del sistema', transferencia: 'Transferir administración',
+  dashboard: 'Dashboard general', instituciones: 'Instituciones', notificaciones: 'Notificaciones', moderadores: 'Moderadores del sistema', transferencia: 'Transferir administración',
   dispositivos: 'Dispositivos globales', matrices: 'Matrices globales', auditoria: 'Auditoría general',
   suscripciones: 'Suscripciones y pagos', perfil: 'Mi perfil', seguridad: 'Seguridad y MFA', 'cambiar-contrasena': 'Cambiar contraseña',
 };

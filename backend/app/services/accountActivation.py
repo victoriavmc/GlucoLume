@@ -6,6 +6,8 @@
 # PENDIENTE: la acepta o rechaza después, desde Instituciones. Alternativa: ingresar con Google con ese mismo correo
 # verificado (app/services/auth.py, _linkOrCreateGoogleUser).
 
+from datetime import timedelta
+
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -15,22 +17,24 @@ from app.core.exceptions import AuthError
 from app.emails.formatting import maskEmail
 from app.models.accountToken import AccountToken
 from app.models.consent import TipoConsentimiento
+from app.models.group import Group
+from app.models.groupUser import GroupUser
 from app.models.institution import Institution
 from app.models.institutionUser import InstitutionUser
 from app.models.localCredential import LocalCredential
 from app.models.user import User
-from app.schemas.auth import ActivationInfo, ActivationInvitation, LoginResponse
+from app.schemas.auth import ActivationGroupInvitation, ActivationInfo, ActivationInvitation, LoginResponse
 from app.services import accountGrace
 from app.services import auth as authService
 from app.services import consent as consentService
 from app.services.audit import registerEvent
-from app.services.invitedAccounts import findActivationToken, hasLiveInvitation, isInvitedPendingAccount
+from app.services.invitedAccounts import INVITATION_VALIDITY_DAYS, findActivationToken, hasLiveInvitation, isInvitedPendingAccount
 from app.utils.timeZone import nowForDb
 from app.utils.userAgent import ClientInfo
 
 INVALID_MESSAGE = "El enlace de activación es inválido o ya fue usado."
-NOT_LIVE_MESSAGE = "La invitación ya no está vigente. Pedí a la institución que te envíe una nueva."
-EXPIRED_MESSAGE = "El enlace de activación venció. Pedí a la institución que te reenvíe la invitación."
+NOT_LIVE_MESSAGE = "La invitación ya no está vigente. Pedí a quien te invitó que te envíe una nueva."
+EXPIRED_MESSAGE = "El enlace de activación venció. Pedí a quien te invitó que te reenvíe la invitación."
 
 
 def _load(db: Session, token: str) -> tuple[AccountToken, User]:
@@ -49,7 +53,7 @@ def _load(db: Session, token: str) -> tuple[AccountToken, User]:
 
 
 def checkActivation(db: Session, token: str) -> ActivationInfo:
-    """Datos para la pantalla de activación: nombre, correo enmascarado e invitaciones pendientes."""
+    """Datos para la pantalla de activación: nombre, correo enmascarado e invitaciones pendientes (institucionales y de grupo)."""
     _, user = _load(db, token)
     rows = db.execute(
         select(Institution.nombre, InstitutionUser.rolInstitucion)
@@ -57,9 +61,17 @@ def checkActivation(db: Session, token: str) -> ActivationInfo:
         .where(InstitutionUser.idUsuarioInvitado == user.idUsuario, InstitutionUser.estadoRelacion == "PENDIENTE",
                Institution.estado == "ACTIVA")
     ).all()
+    now = nowForDb()
+    groupNames = db.scalars(
+        select(Group.nombre)
+        .join(GroupUser, GroupUser.idGrupo == Group.idGrupo)
+        .where(GroupUser.idUsuario == user.idUsuario, GroupUser.estadoRelacion == "PENDIENTE",
+               GroupUser.fechaInvitacion > now - timedelta(days=INVITATION_VALIDITY_DAYS), Group.estado == "ACTIVO")
+    ).all()
     return ActivationInfo(
         nombre=user.nombre, apellido=user.apellido, correoEnmascarado=maskEmail(user.correoElectronico),
         invitaciones=[ActivationInvitation(nombreInstitucion=row[0], rolInstitucion=row[1]) for row in rows],
+        gruposInvitaciones=[ActivationGroupInvitation(nombreGrupo=name) for name in groupNames],
     )
 
 

@@ -110,3 +110,16 @@ def test_restablecer_desbloquea_la_cuenta(db, mails, web):
     forgot(web, "persona@example.com")
     assert web.post(RESET, json={"token": linkToken(mails), "password": NEW}).status_code == 200
     assert web.post("/api/v1/auth/login", json={"identificador": "persona", "password": NEW}).status_code == 200
+
+
+def test_restablecer_no_admite_la_contrasena_anterior(db, mails, web):
+    user = makeUser(db, email="persona@example.com", usuario="persona")
+    forgot(web, "persona@example.com")
+    assert web.post(RESET, json={"token": linkToken(mails), "password": NEW}).status_code == 200
+    forgot(web, "persona@example.com")
+    sent = [m for m in mails if "Restablecé tu contraseña" in m["subject"]]
+    token = re.search(r"/restablecer-contrasena\?token=([\w-]+)", sent[-1]["text"]).group(1)
+    rejected = web.post(RESET, json={"token": token, "password": PASSWORD})
+    assert rejected.status_code == 422 and rejected.json()["codigo"] == "PASSWORD_ANTERIOR"
+    # El enlace sigue vivo: con una contraseña nueva se completa.
+    assert web.post(RESET, json={"token": token, "password": "Zorro#Lento-2028"}).status_code == 200

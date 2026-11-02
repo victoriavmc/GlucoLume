@@ -413,8 +413,13 @@ class ActivationInvitation(BaseModel):
     rolInstitucion: str
 
 
+class ActivationGroupInvitation(BaseModel):
+    nombreGrupo: str
+
+
 class ActivationInfo(BaseModel):
     nombre: str | None
     apellido: str | None
     correoEnmascarado: str
     invitaciones: list[ActivationInvitation]
+    gruposInvitaciones: list[ActivationGroupInvitation] = []

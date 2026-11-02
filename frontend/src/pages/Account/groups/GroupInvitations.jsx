@@ -22,6 +22,8 @@ export function GroupInvitations() {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [noAccount, setNoAccount] = useState(false); // el correo buscado no tiene cuenta: se ofrece invitarla por correo
+  const [newAccount, setNewAccount] = useState({ nombre: '', apellido: '' });
 
   const load = useCallback(async () => {
     try {
@@ -48,12 +50,14 @@ export function GroupInvitations() {
     setFieldError('');
     setError(null);
     setCandidate(null);
+    setNoAccount(false);
     setNotice('');
     setBusy(true);
     try {
       setCandidate(await groupsApi.lookupCandidate(group.idGrupo, email.trim()));
     } catch (lookupError) {
       setError({ message: handleOperationError(lookupError), codigo: lookupError.codigo });
+      setNoAccount(lookupError.codigo === 'USUARIO_NO_ENCONTRADO');
     } finally {
       setBusy(false);
     }
@@ -107,6 +111,31 @@ export function GroupInvitations() {
     setCopied(await copyText(individualSignupUrl()));
   }
 
+  async function sendSignupInvitation(event) {
+    event.preventDefault();
+    if (busy) return;
+    const nombre = newAccount.nombre.trim();
+    const apellido = newAccount.apellido.trim();
+    if (!nombre || !apellido) {
+      setError({ message: 'Ingresá nombre y apellido para crear su cuenta.' });
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await groupsApi.invite(group.idGrupo, email.trim(), { nombre, apellido });
+      setNotice(`Enviamos a ${email.trim()} un correo para que cree su cuenta y acepte la invitación al grupo. Tiene 7 días para hacerlo.`);
+      setEmail('');
+      setNoAccount(false);
+      setNewAccount({ nombre: '', apellido: '' });
+      await load();
+    } catch (inviteError) {
+      setError({ message: handleOperationError(inviteError), codigo: inviteError.codigo });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="panel" aria-labelledby="grupo-invitar">
       <div className="panel-title">
@@ -122,7 +151,7 @@ export function GroupInvitations() {
       <form className="member-search" onSubmit={search} noValidate>
         <TextField label="Correo electrónico de la cuenta individual" icon={Mail} type="email" autoComplete="off"
           maxLength={254} value={email} error={fieldError}
-          onChange={(event) => { setEmail(event.target.value); setCandidate(null); setError(null); setCopied(false); }} />
+          onChange={(event) => { setEmail(event.target.value); setCandidate(null); setError(null); setNoAccount(false); setCopied(false); }} />
         <SubmitButton loading={busy && !candidate} loadingLabel="Buscando…" className="btn btn-primary">
           <Search size={16} aria-hidden="true" /> Buscar
         </SubmitButton>
@@ -139,6 +168,24 @@ export function GroupInvitations() {
             </div>
           )}
         </Alert>
+      )}
+      {noAccount && (
+        <form className="member-candidate" onSubmit={sendSignupInvitation} noValidate>
+          <p>
+            Le enviamos un correo a <b>{email.trim()}</b> con la invitación al grupo. Desde el enlace crea su cuenta
+            (elige su nombre de usuario y su contraseña) y después puede aceptar o rechazar la invitación. Tiene 7 días
+            para hacerlo.
+          </p>
+          <TextField label="Nombre" maxLength={100} value={newAccount.nombre}
+            onChange={(event) => setNewAccount({ ...newAccount, nombre: event.target.value })} />
+          <TextField label="Apellido" maxLength={100} value={newAccount.apellido}
+            onChange={(event) => setNewAccount({ ...newAccount, apellido: event.target.value })} />
+          <div className="form-actions">
+            <SubmitButton loading={busy} loadingLabel="Enviando…" className="btn btn-primary">
+              <Send size={16} aria-hidden="true" /> Enviar invitación por correo
+            </SubmitButton>
+          </div>
+        </form>
       )}
       {candidate && (
         <div className="member-candidate">

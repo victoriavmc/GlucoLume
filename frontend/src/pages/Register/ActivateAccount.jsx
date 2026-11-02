@@ -152,6 +152,12 @@ export default function ActivateAccount() {
               Después de activar tu cuenta vas a poder aceptar o rechazar la invitación.
             </Alert>
           )}
+          {state.info.gruposInvitaciones?.length > 0 && (
+            <Alert kind="info">
+              Te invitaron al grupo {state.info.gruposInvitaciones.map((g) => `«${g.nombreGrupo}»`).join(', ')}. Tenés hasta que
+              venza este enlace para activar tu cuenta; después vas a poder aceptar o rechazar la invitación.
+            </Alert>
+          )}
           {error && <Alert>{error}</Alert>}
           <TextField label="Nombre de usuario" icon={AtSign} autoComplete="username" maxLength={50} value={form.usuario}
             onChange={update('usuario')} error={errors.usuario} />

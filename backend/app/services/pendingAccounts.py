@@ -1,8 +1,9 @@
 # PendingAccounts - Depuración de cuentas invitadas que nunca se activaron y ya no tienen salida
 #
-# Una invitación a una persona sin cuenta crea un Usuario USUARIO_INSTITUCIONAL PENDIENTE sin credenciales y un enlace de activación de 7 días.
-# Esa cuenta todavía NO existe operativamente (no inicia sesión, no tiene permisos, no tiene plazo de gracia). Queda «sin salida» cuando
-#   - no le queda ninguna invitación que pueda aceptar (cancelada, rechazada, vencida o de una institución cerrada) Y
+# Una invitación a una persona sin cuenta (institucional o de grupo familiar) crea un Usuario PENDIENTE sin credenciales y un enlace de
+# activación de 7 días. Esa cuenta todavía NO existe operativamente (no inicia sesión, no tiene permisos, no tiene plazo de gracia). Queda
+# «sin salida» cuando
+#   - no le queda ninguna invitación que pueda aceptar (cancelada, rechazada, vencida o de una institución o grupo cerrado) Y
 #   - su enlace de activación ya venció (o no tiene).
 # Entonces se depura: se anonimiza como cualquier cuenta eliminada (sin borrarla: la referencian InstitucionUsuario y Auditoria), lo que además
 # libera el correo para un registro propio. Una cuenta con una invitación vigente o un enlace vigente NUNCA se toca, ni una cuenta ya
@@ -20,13 +21,15 @@ from sqlalchemy.orm import Session
 
 from app.models.accountToken import AccountToken
 from app.models.externalIdentity import ExternalIdentity
+from app.models.group import Group
+from app.models.groupUser import GroupUser
 from app.models.institution import Institution
 from app.models.institutionUser import InstitutionUser
 from app.models.localCredential import LocalCredential
 from app.models.user import User
 from app.services import accountDeletion, accountGrace
 from app.services.audit import registerEvent
-from app.services.invitedAccounts import INVITATION_VALIDITY_DAYS, TIPO_INSTITUCIONAL, TOKEN_ACTIVACION
+from app.services.invitedAccounts import INVITATION_VALIDITY_DAYS, TIPOS_INVITABLES, TOKEN_ACTIVACION
 from app.utils.dbRetry import retryOnDeadlock
 from app.utils.timeZone import nowForDb
 
@@ -40,12 +43,16 @@ def _deadFilters(now: datetime):
         InstitutionUser.idUsuarioInvitado == User.idUsuario, InstitutionUser.estadoRelacion == "PENDIENTE",
         InstitutionUser.fechaInvitacion > now - timedelta(days=INVITATION_VALIDITY_DAYS),
         InstitutionUser.idInstitucion == Institution.idInstitucion, Institution.estado == "ACTIVA")
+    liveGroup = exists().where(
+        GroupUser.idUsuario == User.idUsuario, GroupUser.estadoRelacion == "PENDIENTE",
+        GroupUser.fechaInvitacion > now - timedelta(days=INVITATION_VALIDITY_DAYS),
+        GroupUser.idGrupo == Group.idGrupo, Group.estado == "ACTIVO")
     validLink = exists().where(AccountToken.idUsuario == User.idUsuario, AccountToken.tipo == TOKEN_ACTIVACION,
                                AccountToken.fechaUso.is_(None), AccountToken.fechaExpiracion > now)
     return (
-        User.estado == "PENDIENTE", User.tipoCuenta == TIPO_INSTITUCIONAL,
+        User.estado == "PENDIENTE", User.tipoCuenta.in_(TIPOS_INVITABLES),
         ~exists().where(LocalCredential.idUsuario == User.idUsuario), ~exists().where(ExternalIdentity.idUsuario == User.idUsuario),
-        ~live, ~validLink,
+        ~live, ~liveGroup, ~validLink,
     )
 
 

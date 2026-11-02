@@ -31,13 +31,19 @@ INSTITUCION_SOLICITUD_ACEPTADA = "INSTITUCION_SOLICITUD_ACEPTADA"
 INSTITUCION_SOLICITUD_RECHAZADA = "INSTITUCION_SOLICITUD_RECHAZADA"
 # Envío del resultado de una medición por correo (lo manda el flujo de medición): el aviso de la bandeja llega cuando termina.
 RESULTADO_ENVIADO = "RESULTADO_ENVIADO"
+# Administración de la plataforma (solo para cuentas ADMINISTRADOR_PLATAFORMA y MODERADOR_PLATAFORMA). Los correos de estos hechos ya los
+# envía services/platform.py: aquí solo se agrega la bandeja de la página.
+PLATAFORMA_TRANSFERENCIA_SOLICITADA = "PLATAFORMA_TRANSFERENCIA_SOLICITADA"  # al moderador a quien se ofrece la administración
+PLATAFORMA_TRANSFERENCIA_RESPONDIDA = "PLATAFORMA_TRANSFERENCIA_RESPONDIDA"  # al administrador: aceptada o rechazada
+PLATAFORMA_MODERADOR_ACTIVO = "PLATAFORMA_MODERADOR_ACTIVO"  # al administrador: un moderador activó su cuenta
 
 CATEGORIA_SEGURIDAD = "SEGURIDAD"
 CATEGORIA_GRUPO = "GRUPO"
 CATEGORIA_RECORDATORIO = "RECORDATORIO"
 CATEGORIA_INSTITUCION = "INSTITUCION"
 CATEGORIA_MEDICION = "MEDICION"
-CATEGORIAS = (CATEGORIA_SEGURIDAD, CATEGORIA_GRUPO, CATEGORIA_RECORDATORIO, CATEGORIA_INSTITUCION, CATEGORIA_MEDICION)
+CATEGORIA_PLATAFORMA = "PLATAFORMA"
+CATEGORIAS = (CATEGORIA_SEGURIDAD, CATEGORIA_GRUPO, CATEGORIA_RECORDATORIO, CATEGORIA_INSTITUCION, CATEGORIA_MEDICION, CATEGORIA_PLATAFORMA)
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,7 @@ class EventSpec:
     porCorreo: bool = True
     obligatorio: bool = False  # alerta crítica: siempre en la página, la cuenta no puede apagarla
     correo: bool = True  # tiene canal de correo propio; si no, el aviso solo llega a la página
+    plataforma: bool = False  # solo lo reciben las cuentas de la administración de la plataforma
 
 
 CATALOGO: dict[str, EventSpec] = {
@@ -71,6 +78,9 @@ CATALOGO: dict[str, EventSpec] = {
     INSTITUCION_SOLICITUD_ACEPTADA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
     INSTITUCION_SOLICITUD_RECHAZADA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
     RESULTADO_ENVIADO: EventSpec(CATEGORIA_MEDICION, porCorreo=False, correo=False),
+    PLATAFORMA_TRANSFERENCIA_SOLICITADA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
+    PLATAFORMA_TRANSFERENCIA_RESPONDIDA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
+    PLATAFORMA_MODERADOR_ACTIVO: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
 }
 EVENTOS = tuple(CATALOGO)
 

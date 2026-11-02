@@ -44,9 +44,11 @@ from app.schemas.platform import (
     TransferOverview,
     TransferRead,
 )
+from app.models import notificationEvents as avisos
 from app.services import auth as authService
 from app.services import email as emailService
 from app.services import mfa
+from app.services import userNotifications
 from app.services.audit import registerEvent
 from app.utils.timeZone import nowForDb
 from app.utils.userAgent import ClientInfo
@@ -400,6 +402,7 @@ def completeActivation(db: Session, token: str, usuario: str, password: str, cli
         db.rollback()
         raise _error("USUARIO_REGISTRADO", "El nombre de usuario ya está registrado.") from error
     db.refresh(user)
+    _notifyModeratorActivated(db, user, accountToken.idTokenCuenta)
     if mfa.isEnabled(db, user):
         # Re-invitación de una cuenta que conserva su MFA: el enlace del correo fija la contraseña, pero la sesión exige el segundo factor
         # (igual que el inicio de sesión y el restablecimiento de contraseña). Una cuenta nueva, sin MFA, recibe la sesión para configurarlo.
@@ -496,13 +499,15 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     credential = db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == user.idUsuario))
     if credential is None:
         raise _error("TOKEN_INVALIDO", "El enlace es inválido o ya fue usado.")
+    if (error := authService.previousPasswordError(db, credential, password)) is not None:
+        raise error
     now = nowForDb()
     used = db.execute(update(AccountToken).where(AccountToken.idTokenCuenta == accountToken.idTokenCuenta, AccountToken.fechaUso.is_(None))
                       .values(fechaUso=now).execution_options(synchronize_session=False)).rowcount
     if used != 1:
         db.rollback()
         raise _error("TOKEN_INVALIDO", "El enlace es inválido o ya fue usado.")
-    credential.passwordHash = security.hashPassword(password)
+    authService.replacePassword(db, credential, password, now)
     credential.intentosFallidosConsecutivos = 0
     credential.bloqueadoHasta = None
     credential.fechaUltimoCambioPassword = now
@@ -525,8 +530,10 @@ def changeOwnPassword(db: Session, user: User, currentSession: UserSession, actu
         raise _error("CUENTA_SOLO_GOOGLE", "Tu cuenta ingresa con Google y no tiene contraseña local.")
     reauthenticate(db, user, Reauthentication(password=actual, codigo=codigo, codigoRecuperacion=codigoRecuperacion), "CAMBIAR_PASSWORD")
     authService._requirePasswordPolicy(new, user.usuario, user.correoElectronico, user.nombre, user.apellido)
+    if (error := authService.previousPasswordError(db, credential, new)) is not None:
+        raise error
     now = nowForDb()
-    credential.passwordHash = security.hashPassword(new)
+    authService.replacePassword(db, credential, new, now)
     credential.fechaUltimoCambioPassword = now
     db.execute(update(UserSession).where(UserSession.idUsuario == user.idUsuario, UserSession.idSesion != currentSession.idSesion,
                                          UserSession.fechaRevocacion.is_(None)).values(fechaRevocacion=now)
@@ -598,6 +605,11 @@ def startTransfer(db: Session, actor: User, idDestino: uuid.UUID, reauth: Reauth
         EmailEventType.TRANSFERENCIA_ADMIN_SOLICITADA, target.correoElectronico,
         {"nombre": target.nombre, "nombreAdministrador": _fullName(actor) or "El administrador", "fechaEvento": nowForDb(),
          "urlTransferencia": emailService.frontendUrl("plataformaTransferencia")})
+    userNotifications.notify(
+        db, target, avisos.PLATAFORMA_TRANSFERENCIA_SOLICITADA, "Te ofrecieron la administración",
+        "Podés aceptar o rechazar la administración de GlucoLume desde Transferir administración.",
+        url=userNotifications.URL_PLATAFORMA_TRANSFERENCIA,
+        clave=f"{avisos.PLATAFORMA_TRANSFERENCIA_SOLICITADA}:{transfer.idTransferenciaAdministracion}")
     return _transferRead(db, transfer, actor)
 
 
@@ -643,7 +655,7 @@ def respondTransfer(db: Session, actor: User, accept: bool, reauth: Reauthentica
         registerEvent(db, "PERMISO", "RECHAZAR_TRANSFERENCIA_ADMINISTRACION", True, actor.idUsuario, "TransferenciaAdministracion",
                       transfer.idTransferenciaAdministracion, modulo=MODULE)
         db.commit()
-        _notifyResponse(origin, actor, False, now)
+        _notifyResponse(db, origin, actor, False, now, transfer.idTransferenciaAdministracion)
         db.refresh(transfer)
         return _transferRead(db, transfer, actor)
 
@@ -674,16 +686,36 @@ def respondTransfer(db: Session, actor: User, accept: bool, reauth: Reauthentica
         db.rollback()
         raise _error("TRANSFERENCIA_OBSOLETA", "Ya existe otro administrador del sistema: la transferencia no se aplicó.") from error
     db.expire_all()
-    _notifyResponse(origin, actor, True, now)
+    _notifyResponse(db, origin, actor, True, now, transfer.idTransferenciaAdministracion)
     transfer = db.get(PlatformTransfer, transfer.idTransferenciaAdministracion)
     return _transferRead(db, transfer, db.get(User, actor.idUsuario))
 
 
-def _notifyResponse(origin: User | None, actor: User, accepted: bool, now: datetime) -> None:
+def _notifyResponse(db: Session, origin: User | None, actor: User, accepted: bool, now: datetime, idTransferencia) -> None:
     if origin is not None:
         emailService.sendEmailEventInBackground(
             EmailEventType.TRANSFERENCIA_ADMIN_RESPONDIDA, origin.correoElectronico,
             {"nombre": origin.nombre, "aceptada": accepted, "nombreDestinatario": _fullName(actor) or "El moderador", "fechaEvento": now})
+        respuesta = "aceptó" if accepted else "rechazó"
+        userNotifications.notify(
+            db, origin, avisos.PLATAFORMA_TRANSFERENCIA_RESPONDIDA,
+            "Transferencia aceptada" if accepted else "Transferencia rechazada",
+            f"{_fullName(actor) or 'El moderador'} {respuesta} la administración de GlucoLume.",
+            url=userNotifications.URL_PLATAFORMA_TRANSFERENCIA,
+            clave=f"{avisos.PLATAFORMA_TRANSFERENCIA_RESPONDIDA}:{idTransferencia}")
+
+
+def _notifyModeratorActivated(db: Session, user: User, idInvitacion) -> None:
+    """Avisa al administrador vigente que un moderador activó su cuenta. Cada invitación es un hecho: una re-invitación da otro aviso."""
+    if user.tipoCuenta != MOD:
+        return
+    admin = db.scalar(select(User).where(User.tipoCuenta == ADMIN, User.estado == "ACTIVO"))
+    if admin is None:
+        return
+    userNotifications.notify(
+        db, admin, avisos.PLATAFORMA_MODERADOR_ACTIVO, "Un moderador activó su cuenta",
+        f"{_fullName(user) or user.correoElectronico} activó su cuenta de moderación.",
+        url=userNotifications.URL_PLATAFORMA_MODERADORES, clave=f"{avisos.PLATAFORMA_MODERADOR_ACTIVO}:{idInvitacion}")
 
 
 # --- Inicialización segura del primer administrador ------------------------------------------------------------

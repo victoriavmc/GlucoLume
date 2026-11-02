@@ -37,6 +37,7 @@ from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexpo
     CAMBIO_CONTRASENA,
     CAMBIO_MFA,
     CATALOGO,
+    CATEGORIA_SEGURIDAD,
     CATEGORIAS,
     EVENTOS,
     INICIO_SESION,
@@ -45,6 +46,9 @@ from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexpo
     INVITACION_GRUPO,
     MEDICION_GRUPO,
     NUEVA_ACCION_GRUPO,
+    PLATAFORMA_MODERADOR_ACTIVO,
+    PLATAFORMA_TRANSFERENCIA_RESPONDIDA,
+    PLATAFORMA_TRANSFERENCIA_SOLICITADA,
     RECORDATORIO_MEDICION,
     RESULTADO_ENVIADO,
     eventsOf,
@@ -75,12 +79,16 @@ ESTADO_ACTIVO = "ACTIVO"
 ESTADO_RELACION_ACTIVO = "ACTIVO"
 ROL_PROPIETARIO = "PROPIETARIO"
 TIPO_INDIVIDUAL = "CONSUMIDOR_FINAL"
+TIPO_ADMINISTRADOR = "ADMINISTRADOR_PLATAFORMA"
+TIPOS_PLATAFORMA = (TIPO_ADMINISTRADOR, "MODERADOR_PLATAFORMA")
 URL_MEDICIONES = "/app/mediciones"
 URL_GRUPO = "/app/grupo"
 URL_SEGURIDAD = "/app/seguridad"
 # Destinos que un aviso puede abrir: rutas que existen en la aplicación (frontend/src/App.jsx). Cualquier otra se descarta al guardar.
 URL_INSTITUCIONES = "/app/instituciones"
-URLS_PERMITIDAS = (URL_MEDICIONES, URL_GRUPO, URL_SEGURIDAD, URL_INSTITUCIONES)
+URL_PLATAFORMA_TRANSFERENCIA = "/plataforma/transferencia"
+URL_PLATAFORMA_MODERADORES = "/plataforma/moderadores"
+URLS_PERMITIDAS = (URL_MEDICIONES, URL_GRUPO, URL_SEGURIDAD, URL_INSTITUCIONES, URL_PLATAFORMA_TRANSFERENCIA, URL_PLATAFORMA_MODERADORES)
 INBOX_LIMIT = 20
 INBOX_MAX_LIMIT = 50
 ENVIO_PENDIENTE = "PENDIENTE"
@@ -119,10 +127,21 @@ def safeUrl(url: str | None) -> str | None:
 # --- Canales y preferencias ----------------------------------------------------------------------
 
 
+def obligatorio(user: User, evento: str) -> bool:
+    """¿La cuenta no puede apagar este aviso? Las alertas críticas, siempre. A las cuentas de la plataforma (administrador y moderador), también todas las de seguridad."""
+    spec = CATALOGO[evento]
+    return spec.obligatorio or (spec.categoria == CATEGORIA_SEGURIDAD and user.tipoCuenta in TIPOS_PLATAFORMA)
+
+
+def esPlataforma(user: User) -> bool:
+    """¿La cuenta pertenece a la administración de la plataforma? Solo ella ve y puede elegir los avisos `plataforma` del catálogo."""
+    return user.tipoCuenta in TIPOS_PLATAFORMA
+
+
 def _channels(user: User, row: NotificationPreference | None, evento: str) -> tuple[bool, bool]:
     spec = CATALOGO[evento]
-    if spec.obligatorio:
-        return True, True  # alerta crítica: la página siempre; el correo lo envía el flujo de seguridad que la origina
+    if obligatorio(user, evento):
+        return True, True  # aviso obligatorio: la página siempre; el correo lo envía el flujo que lo origina (p. ej. el inicio de sesión)
     enPagina, porCorreo = spec.enPagina, spec.porCorreo
     if row is not None:
         enPagina, porCorreo = row.enPagina, row.porCorreo
@@ -148,23 +167,30 @@ def settings(db: Session, user: User) -> NotificationSettingsRead:
         schedule = db.get(ReminderSchedule, user.idUsuario)
     preferencias = []
     for evento in EVENTOS:
+        if CATALOGO[evento].plataforma and not esPlataforma(user):
+            continue  # los avisos de la administración no aparecen en la cuenta individual
         enPagina, porCorreo = _channels(user, rows.get(evento), evento)
         preferencias.append(NotificationPreferenceRead(
             evento=evento, categoria=CATALOGO[evento].categoria, enPagina=enPagina, porCorreo=porCorreo,
-            obligatoria=CATALOGO[evento].obligatorio, correoDisponible=CATALOGO[evento].correo))
+            obligatoria=obligatorio(user, evento), correoDisponible=CATALOGO[evento].correo))
     return NotificationSettingsRead(preferencias=preferencias, recordatorio=_scheduleRead(schedule))
+
+
+def assertEditable(user: User, evento: str) -> None:
+    """Rechaza un aviso que no existe o que la cuenta no puede cambiar. La ruta lo llama antes de tocar nada más (p. ej. el correo de inicio de sesión)."""
+    if evento not in CATALOGO or (CATALOGO[evento].plataforma and not esPlataforma(user)):
+        raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
+    if obligatorio(user, evento):
+        raise AuthError("AVISO_OBLIGATORIO", "Es una alerta de seguridad: se entrega siempre y no se puede desactivar.")
 
 
 def updatePreference(db: Session, user: User, evento: str, *, enPagina: bool | None = None,
                      porCorreo: bool | None = None) -> None:
     """Cambia los canales de un aviso. El correo de INICIO_SESION lo guarda authService (ver api/v1/userNotifications.py).
 
-    Las alertas críticas de seguridad no se pueden apagar. Sin cambio no se audita. Solo se registra qué canal cambió, no datos personales.
+    Las alertas obligatorias no se pueden apagar (ver `obligatorio`). Sin cambio no se audita. Solo se registra qué canal cambió, no datos personales.
     """
-    if evento not in CATALOGO:
-        raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
-    if CATALOGO[evento].obligatorio:
-        raise AuthError("AVISO_OBLIGATORIO", "Es una alerta de seguridad: se entrega siempre y no se puede desactivar.")
+    assertEditable(user, evento)
     if porCorreo and not CATALOGO[evento].correo:
         raise AuthError("CANAL_NO_DISPONIBLE", "Este aviso solo se muestra en la aplicación.")
     requireReady(db)

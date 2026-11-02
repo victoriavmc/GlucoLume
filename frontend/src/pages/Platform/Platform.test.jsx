@@ -168,11 +168,39 @@ describe('Menú y permisos', () => {
     renderAt('/plataforma/dashboard');
     const nav = within(await screen.findByRole('navigation', { name: 'Secciones de administración' }));
     for (const label of ['Dashboard general', 'Moderadores del sistema', 'Transferir administración', 'Dispositivos globales', 'Matrices globales',
-      'Instituciones', 'Auditoría y seguridad', 'Próximamente', 'Mi perfil', 'Seguridad y MFA', 'Cambiar contraseña']) {
+      'Instituciones', 'Notificaciones', 'Auditoría y seguridad', 'Próximamente', 'Mi perfil', 'Seguridad y MFA', 'Cambiar contraseña']) {
       expect(nav.getByRole('link', { name: label })).toBeInTheDocument();
     }
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Administración de GlucoLume' })).toHaveAttribute('href', '/plataforma/dashboard');
+  });
+
+  it('la bandeja muestra los avisos reales, los marca como leídos y las ideas indican cuáles ya llegan', async () => {
+    const unread = {
+      noLeidas: 1, total: 1, hayMas: false, notificaciones: [{
+        idNotificacion: 'n1', evento: 'PLATAFORMA_MODERADOR_ACTIVO', categoria: 'PLATAFORMA', titulo: 'Un moderador activó su cuenta',
+        mensaje: 'Ana activó su cuenta de moderación.', url: '/plataforma/moderadores', fechaCreacion: '2026-11-02T10:00:00', leida: false,
+      }],
+    };
+    const read = { ...unread, noLeidas: 0, notificaciones: [{ ...unread.notificaciones[0], leida: true }] };
+    const { calls } = panel(me(), ADMIN_ACCOUNT, {
+      'GET /notificaciones': [jsonResponse(200, unread), jsonResponse(200, read)],
+      'POST /notificaciones/n1/leer': jsonResponse(200, { noLeidas: 0, marcadas: 1 }),
+    });
+    renderAt('/plataforma/notificaciones');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Notificaciones' })).toBeInTheDocument();
+    expect(await screen.findByText('Un moderador activó su cuenta')).toBeInTheDocument();
+    expect(screen.getByText('1 sin leer')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Abrir' })).toHaveAttribute('href', '/plataforma/moderadores');
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Marcar como leída' }));
+    expect(await screen.findByText('Leída')).toBeInTheDocument();
+    expect(calls.map((call) => call.key)).toContain('POST /notificaciones/n1/leer');
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Seguridad y acceso' })).toBeInTheDocument();
+    expect(screen.getAllByText('Activa').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Próximamente').length).toBeGreaterThan(0);
+    expect(screen.getByText(/incluye datos de salud/)).toBeInTheDocument();
   });
 
   it('el moderador ve solo lo técnico y su dashboard es técnico', async () => {

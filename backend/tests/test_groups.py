@@ -6,6 +6,7 @@
 #
 # Usan el esquema SQLite temporal y el SMTP simulado de test_account_deletion.py.
 
+import re
 import threading
 import uuid
 from datetime import timedelta
@@ -15,18 +16,22 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import sessionmaker
 
 from app.core.exceptions import AuthError
+from app.models.accountToken import AccountToken
 from app.models.audit import Audit
 from app.models.device import Device
 from app.models.group import Group
 from app.models.groupUser import GroupUser
+from app.models.localCredential import LocalCredential
 from app.models.measurement import Measurement
 from app.models.measurementProfile import MeasurementProfile
 from app.models.user import User
 from app.schemas.group import FamilyGroupCreateRequest, FamilyGroupUpdateRequest, SharingSettings
 from app.integrations.email import sender
+from app.services import accountActivation
 from app.services import dashboard as dashboards
 from app.services import group as groups
 from app.services import notifications
+from app.services import pendingAccounts
 from app.services.contact import RateLimiter
 from app.utils.timeZone import nowForDb
 from tests.test_account_deletion import (  # noqa: F401 - fixtures
@@ -188,8 +193,9 @@ def test_rechazar_registra_y_no_crea_vinculo(db, mails):
 def test_mensajes_de_invitacion(db, mails):
     ana = person(db, "ana")
     group = create(db, ana)
-    error = expectError("USUARIO_NO_ENCONTRADO", groups.invite, db, ana, group.idGrupo, "nadie@example.com")
+    error = expectError("USUARIO_NO_ENCONTRADO", groups.lookupCandidate, db, ana, group.idGrupo, "nadie@example.com")
     assert error.message.startswith("No existe una cuenta individual registrada con este correo.")
+    expectError("DATOS_REQUERIDOS", groups.invite, db, ana, group.idGrupo, "nadie@example.com")
     pendiente = person(db, "pendiente")
     pendiente.estado = "PENDIENTE"  # correo sin verificar
     db.commit()
@@ -654,3 +660,98 @@ def test_revocar_historial_bloquea_tambien_los_graficos(db, mails, family):
     share(db, family.beto, family.id, comparteHistorial=False)
     expectError("DATOS_NO_COMPARTIDOS", groups.sharedStatistics, db, family.ana, family.id, family.betoLink)
     expectError("DATOS_NO_COMPARTIDOS", groups.sharedHistory, db, family.ana, family.id, family.betoLink)
+
+
+# --- Invitación a una persona sin cuenta --------------------------------------------------------
+
+
+NEW_PASSWORD = "Glucolume#Prueba2026"  # nosec B105 - contraseña de prueba
+
+
+def tokenFrom(mail) -> str:
+    match = re.search(r"/activar-cuenta\?token=([A-Za-z0-9_\-]+)", mail["html"])
+    assert match, "El correo debe traer el enlace de activación."
+    return match.group(1)
+
+
+def nuevaCuenta(db) -> User:
+    db.expire_all()
+    return db.scalar(select(User).where(User.correoElectronico == "nueva@example.com"))
+
+
+def test_sin_cuenta_exige_nombre_y_apellido_y_no_crea_nada(db, mails):
+    ana = person(db, "ana")
+    group = create(db, ana)
+    before = len(mails)
+    expectError("DATOS_REQUERIDOS", groups.invite, db, ana, group.idGrupo, "nueva@example.com")
+    assert nuevaCuenta(db) is None and len(mails) == before
+
+
+def test_sin_cuenta_crea_cuenta_pendiente_y_envia_el_enlace_con_el_usuario_del_invitante(db, mails):
+    ana = person(db, "ana")
+    group = create(db, ana)
+    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com", "lucía", "sosa")
+    nueva = nuevaCuenta(db)
+    assert (nueva.estado, nueva.tipoCuenta, nueva.nombre, nueva.apellido) == ("PENDIENTE", "CONSUMIDOR_FINAL", "Lucía", "Sosa")
+    assert db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == nueva.idUsuario)) is None  # sin contraseña
+    mail = mails[-1]
+    assert mail["to"] == "nueva@example.com" and "/activar-cuenta?token=" in mail["html"]
+    assert "El usuario <strong>ana</strong>" in mail["html"] and "Familia Pérez" in mail["html"] and "7 días" in mail["html"]
+    assert invitation.fechaVencimiento - invitation.fechaInvitacion == timedelta(days=groups.INVITATION_VALIDITY_DAYS)
+    assert audits(db, "CREAR_CUENTA_INVITADA") and audits(db, "INVITAR_GRUPO")
+
+
+def test_la_persona_activa_su_cuenta_ve_la_invitacion_y_acepta(db, mails):
+    ana = person(db, "ana")
+    group = create(db, ana)
+    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    token = tokenFrom(mails[-1])
+    info = accountActivation.checkActivation(db, token)
+    assert [grupo.nombreGrupo for grupo in info.gruposInvitaciones] == ["Familia Pérez"]
+    accountActivation.completeActivation(db, token, "lucia", NEW_PASSWORD, aceptaPolitica=True)
+    nueva = nuevaCuenta(db)
+    assert nueva.estado == "ACTIVO" and nueva.usuario == "lucia"
+    assert [received.nombreGrupo for received in groups.listReceivedInvitations(db, nueva)] == ["Familia Pérez"]
+    assert groups.respondInvitation(db, nueva, invitation.idGrupoUsuario, accept=True).miRol == "MIEMBRO"
+    expectError("TOKEN_INVALIDO", accountActivation.checkActivation, db, token)  # un solo uso
+
+
+def test_el_enlace_y_la_invitacion_vencen_a_los_7_dias(db, mails):
+    ana = person(db, "ana")
+    group = create(db, ana)
+    groups.invite(db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    token = tokenFrom(mails[-1])
+    db.execute(update(AccountToken).values(fechaCreacion=nowForDb() - timedelta(days=8), fechaExpiracion=nowForDb() - timedelta(minutes=1)))
+    db.commit()
+    expectError("TOKEN_VENCIDO", accountActivation.checkActivation, db, token)
+    # Vencida y sin enlace vigente, la cuenta sin salida se depura: queda anonimizada y libera el correo.
+    assert pendingAccounts.purgeDead(db, nowForDb() + timedelta(days=groups.INVITATION_VALIDITY_DAYS + 1)) == 1
+    assert nuevaCuenta(db) is None
+    assert db.scalar(select(func.count()).select_from(User).where(User.estado == "ELIMINADO")) == 1
+
+
+def test_reinvitar_una_cuenta_sin_activar_reutiliza_la_cuenta_y_renueva_el_enlace(db, mails):
+    ana = person(db, "ana")
+    group = create(db, ana)
+    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    expectError("INVITACION_PENDIENTE", groups.invite, db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    oldToken = tokenFrom(mails[-1])
+    groups.cancelInvitation(db, ana, group.idGrupo, invitation.idGrupoUsuario)
+    expectError("INVITACION_NO_VIGENTE", accountActivation.checkActivation, db, oldToken)
+    again = groups.invite(db, ana, group.idGrupo, "nueva@example.com")  # ya tiene nombre y apellido: no los vuelve a pedir
+    assert db.scalar(select(func.count()).select_from(User).where(User.correoElectronico == "nueva@example.com")) == 1
+    newToken = tokenFrom(mails[-1])
+    assert newToken != oldToken and accountActivation.checkActivation(db, newToken).gruposInvitaciones
+    groups.resendInvitation(db, ana, group.idGrupo, again.idGrupoUsuario)
+    assert tokenFrom(mails[-1]) != newToken  # el reenvío trae un enlace nuevo
+    expectError("TOKEN_INVALIDO", accountActivation.checkActivation, db, newToken)
+
+
+def test_la_busqueda_no_revela_cuentas_sin_activar_de_otro_tipo(db, mails):
+    ana = person(db, "ana")
+    group = create(db, ana)
+    expectError("USUARIO_NO_ENCONTRADO", groups.lookupCandidate, db, ana, group.idGrupo, "nadie@example.com")
+    pending = makeUser(db, email="registrada@example.com", usuario="registrada", local=True)
+    pending.estado = "PENDIENTE"  # registrada, sin verificar: no es una cuenta invitada
+    db.commit()
+    expectError("USUARIO_NO_ENCONTRADO", groups.invite, db, ana, group.idGrupo, "registrada@example.com", "Ana", "Sosa")

@@ -37,6 +37,7 @@ const MESSAGES = {
   CREDENCIAL_EXISTENTE: 'Tu cuenta ya tiene una contraseña.',
   PASSWORD_INCORRECTA: 'La contraseña es incorrecta.',
   PASSWORD_REPETIDA: 'La contraseña nueva tiene que ser distinta de la actual.',
+  PASSWORD_ANTERIOR: 'Es una contraseña vieja. Elegí una distinta.',
   CREDENCIAL_LOCAL_INEXISTENTE: 'Tu cuenta todavía no tiene contraseña: creala primero.',
   PASSWORD_REQUERIDA: 'Ingresá tu contraseña actual.',
   CODIGO_MFA_REQUERIDO: 'Ingresá el código de verificación en dos pasos.',

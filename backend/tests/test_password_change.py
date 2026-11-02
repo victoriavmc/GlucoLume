@@ -6,8 +6,10 @@
 import pyotp
 from sqlalchemy import select
 
+from app.core import security
 from app.models.audit import Audit
 from app.models.localCredential import LocalCredential
+from app.services.auth import PASSWORD_HISTORY_SIZE
 from app.models.userSession import UserSession
 from tests.test_account_deletion import PASSWORD, db, engine, makeUser, mails  # noqa: F401
 from tests.test_platform import enableMfa, login, web  # noqa: F401
@@ -97,3 +99,26 @@ def test_una_cuenta_solo_google_debe_crear_primero_su_contrasena(db, mails):
     with pytest.raises(AuthError) as error:
         authService.changeLocalPassword(db, user, makeSession(db, user), PASSWORD, NEW, None, None)
     assert error.value.code == "CREDENCIAL_LOCAL_INEXISTENTE"
+
+
+def test_no_admite_la_contrasena_anterior_y_lo_dice_sin_mas(db, mails, web):
+    user = makeUser(db, email="persona@example.com", usuario="persona")
+    headers = login(web, user)
+    assert web.post(URL, headers=headers, json={"passwordActual": PASSWORD, "passwordNueva": NEW}).status_code == 200
+    back = web.post(URL, headers=headers, json={"passwordActual": NEW, "passwordNueva": PASSWORD})
+    assert back.status_code == 422 and back.json()["codigo"] == "PASSWORD_ANTERIOR"
+    assert "contraseña vieja" in back.text
+    assert security.verifyPassword(NEW, hash_of(db, user))[0]  # la vigente sigue siendo NEW
+    assert web.post("/api/v1/auth/login", json={"identificador": "persona", "password": NEW}).status_code == 200
+
+
+def test_recuerda_solo_las_ultimas_cinco_anteriores(db, mails, web):
+    user = makeUser(db, email="persona@example.com", usuario="persona")
+    headers = login(web, user)
+    chain = [PASSWORD] + [f"Zorro#Lento-{year}" for year in range(2027, 2027 + PASSWORD_HISTORY_SIZE + 1)]  # una más que el historial: la primera queda fuera
+    for actual, nueva in zip(chain, chain[1:]):
+        assert web.post(URL, headers=headers, json={"passwordActual": actual, "passwordNueva": nueva}).status_code == 200
+    rejected = web.post(URL, headers=headers, json={"passwordActual": chain[-1], "passwordNueva": chain[1]})
+    assert rejected.status_code == 422 and rejected.json()["codigo"] == "PASSWORD_ANTERIOR"
+    back = web.post(URL, headers=headers, json={"passwordActual": chain[-1], "passwordNueva": PASSWORD})
+    assert back.status_code == 200, back.text

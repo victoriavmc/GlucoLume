@@ -38,6 +38,8 @@ class EmailEventType(StrEnum):
     # Confirmación al creador de un grupo familiar.
     GRUPO_CREADO = "GRUPO_CREADO"
     INVITACION_GRUPO = "INVITACION_GRUPO"
+    # Invitación a una persona sin cuenta: activa su cuenta (la crea) y después acepta o rechaza el grupo.
+    INVITACION_GRUPO_NUEVA_CUENTA = "INVITACION_GRUPO_NUEVA_CUENTA"
     AGREGADO_GRUPO = "AGREGADO_GRUPO"
     ELIMINADO_GRUPO = "ELIMINADO_GRUPO"
     MIEMBRO_ABANDONO_GRUPO = "MIEMBRO_ABANDONO_GRUPO"
@@ -192,7 +194,7 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     # --- Seguridad ------------------------------------------------------------------------
     _E.NUEVO_INICIO_SESION: EmailEventSpec(
         "seguridad/nuevoInicioSesion.html", "Nuevo inicio de sesión en GlucoLume", CATEGORIA_SEGURIDAD,
-        ("fechaEvento", "urlSeguridad", "urlDesuscribir"), ("urlSeguridad", "urlDesuscribir"), securityNotice=True,
+        ("fechaEvento", "urlSeguridad"), ("urlSeguridad", "urlDesuscribir"), securityNotice=True,
     ),
     _E.INTENTO_ACCESO_INUSUAL: EmailEventSpec(
         "seguridad/intentoAccesoInusual.html", "Revisá una actividad de seguridad", CATEGORIA_SEGURIDAD,
@@ -242,6 +244,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
         "grupos/invitacionGrupo.html", "Te invitaron a un grupo de GlucoLume", CATEGORIA_GRUPO,
         ("nombreGrupo", "nombreInvitante", "fechaEvento", "fechaExpiracion", "urlAceptar", "urlRechazar"),
         ("urlAceptar", "urlRechazar"),
+    ),
+    _E.INVITACION_GRUPO_NUEVA_CUENTA: EmailEventSpec(
+        "grupos/invitacionGrupoNuevaCuenta.html", "Activá tu cuenta para sumarte a un grupo de GlucoLume", CATEGORIA_GRUPO,
+        ("nombreGrupo", "nombreInvitante", "fechaExpiracion", "urlActivar"), ("urlActivar",),
     ),
     _E.AGREGADO_GRUPO: EmailEventSpec(
         "grupos/agregadoGrupo.html", "Ahora formás parte de un grupo", CATEGORIA_GRUPO,

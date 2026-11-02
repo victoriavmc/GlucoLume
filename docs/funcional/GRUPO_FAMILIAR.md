@@ -38,9 +38,17 @@ y grupo, un administrador por grupo.
 
 - Crear: nombre obligatorio (`NOMBRE_REQUERIDO`) y descripción opcional; quien crea queda como administrador con todo sin compartir. Con un
   grupo ACTIVO no se crea otro ni se acepta otra invitación (`YA_PERTENECE_A_GRUPO`).
-- Invitar: por **correo exacto** de una cuenta individual activa. Se rechazan inexistentes, cuentas no individuales (`CUENTA_NO_INDIVIDUAL`),
-  integrantes (`VINCULO_EXISTENTE`) e invitaciones pendientes (`INVITACION_PENDIENTE`); la búsqueda tiene límite (`DEMASIADAS_SOLICITUDES`).
-  La invitación queda PENDIENTE, se avisa por correo, vence a los 7 días (`INVITACION_VENCIDA`) y se puede cancelar.
+- Invitar: por **correo exacto**. Con una cuenta individual activa, la invitación queda PENDIENTE y se avisa en la aplicación y por correo.
+  Se rechazan cuentas no individuales (`CUENTA_NO_INDIVIDUAL`), integrantes (`VINCULO_EXISTENTE`) e invitaciones pendientes
+  (`INVITACION_PENDIENTE`); la búsqueda tiene límite (`DEMASIADAS_SOLICITUDES`).
+- Sin cuenta (`USUARIO_NO_ENCONTRADO` en la búsqueda): el administrador envía la invitación por correo indicando nombre y apellido
+  (`DATOS_REQUERIDOS` si faltan). Se crea una cuenta individual PENDIENTE sin contraseña y un enlace de activación de un solo uso. El correo
+  informa el grupo y el usuario de quien invita, y el enlace lleva a activar la cuenta (elegir nombre de usuario y contraseña, como en el
+  registro). Al activarla, la persona ve la invitación y puede aceptarla o rechazarla. Un correo sin verificar o una cuenta bloqueada o
+  eliminada sigue respondiendo `USUARIO_NO_ENCONTRADO`.
+- Plazo: la invitación y el enlace de activación vencen a los 7 días (`INVITACION_VENCIDA`); el enlace y la invitación deben usarse dentro de ese
+  plazo. Una invitación cancelada, rechazada o vencida no activa la cuenta. Una cuenta sin invitación vigente ni enlace vigente se depura
+  automáticamente (anonimizada, libera el correo). Reenviar la invitación de una cuenta sin activar genera un enlace nuevo.
 
 ## 5. Privacidad de cada integrante
 

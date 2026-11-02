@@ -38,6 +38,7 @@ def getSettings(auth: CurrentAuth, db: DbSession):
     description="`enPagina` muestra el aviso en la sección; `porCorreo` envía un correo. Los campos omitidos no cambian.",
 )
 def updatePreference(evento: EventoAviso, data: NotificationPreferenceUpdate, auth: CurrentAuth, db: DbSession):
+    notificationService.assertEditable(auth.user, evento)  # antes de tocar el correo de inicio de sesión: si no se puede cambiar, no se cambia nada
     if evento == notificationService.INICIO_SESION and data.porCorreo is not None:
         authService.setNewLoginNotification(db, auth.user, data.porCorreo)
     notificationService.updatePreference(db, auth.user, evento, enPagina=data.enPagina, porCorreo=data.porCorreo)

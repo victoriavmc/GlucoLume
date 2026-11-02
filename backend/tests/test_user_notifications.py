@@ -58,6 +58,10 @@ def preferencia(settings, evento):
     return next(p for p in settings.preferencias if p.evento == evento)
 
 
+# Los avisos de la administración de la plataforma no se ofrecen a la cuenta individual.
+EVENTOS_CUENTA_INDIVIDUAL = [e for e in service.EVENTOS if not service.CATALOGO[e].plataforma]
+
+
 def scheduleOf(db, user) -> ReminderSchedule | None:
     db.expire_all()
     return db.get(ReminderSchedule, user.idUsuario)
@@ -99,7 +103,7 @@ def test_los_valores_por_omision_y_el_correo_de_inicio_de_sesion_vienen_de_la_cu
 
     settings = service.settings(db, user)
 
-    assert [p.evento for p in settings.preferencias] == list(service.EVENTOS)
+    assert [p.evento for p in settings.preferencias] == EVENTOS_CUENTA_INDIVIDUAL
     assert (preferencia(settings, "INICIO_SESION").enPagina, preferencia(settings, "INICIO_SESION").porCorreo) == (True, False)
     assert (preferencia(settings, "RECORDATORIO_MEDICION").enPagina, preferencia(settings, "RECORDATORIO_MEDICION").porCorreo) == (True, False)
     assert settings.recordatorio.modo == "NINGUNO"
@@ -832,6 +836,48 @@ def test_el_correo_de_inicio_de_sesion_sigue_su_propio_interruptor(db, mails):
     assert len(mails) == 2
 
 
+@pytest.mark.parametrize("tipoCuenta", ["ADMINISTRADOR_PLATAFORMA", "MODERADOR_PLATAFORMA"])
+def test_la_cuenta_de_plataforma_recibe_el_aviso_de_inicio_de_sesion_aunque_lo_tenga_apagado(db, mails, tipoCuenta):
+    admin = makeUser(db, tipoCuenta=tipoCuenta)
+    admin.notificarNuevoInicioSesion = False
+    db.commit()
+
+    inicio = preferencia(service.settings(db, admin), "INICIO_SESION")
+    assert (inicio.enPagina, inicio.porCorreo, inicio.obligatoria) == (True, True, True)
+    expectError("AVISO_OBLIGATORIO", service.updatePreference, db, admin, "INICIO_SESION", porCorreo=False)
+    expectError("AVISO_OBLIGATORIO", authService.setNewLoginNotification, db, admin, False)
+    assert admin.notificarNuevoInicioSesion is False  # el rechazo no cambia el interruptor de la cuenta
+
+    login(db, admin, CHROME)
+    login(db, admin, FIREFOX)
+
+    assert len(mails) == 2  # un correo por acceso, también con el interruptor apagado en la base
+    [aviso] = service.inbox(db, admin).notificaciones
+    assert aviso.evento == "INICIO_SESION"
+
+
+def test_el_cliente_no_recibe_el_aviso_de_inicio_de_sesion_si_lo_apaga(db, mails):
+    user = makeUser(db)
+    service.updatePreference(db, user, "INICIO_SESION", enPagina=False)
+    authService.setNewLoginNotification(db, user, False)
+
+    login(db, user, CHROME)
+    login(db, user, FIREFOX)
+
+    assert mails == [] and service.inbox(db, user).notificaciones == []
+    assert preferencia(service.settings(db, user), "INICIO_SESION").obligatoria is False
+
+
+@pytest.mark.parametrize("tipoCuenta", ["ADMINISTRADOR_PLATAFORMA", "MODERADOR_PLATAFORMA"])
+def test_la_cuenta_de_plataforma_no_puede_apagar_ningun_aviso_de_seguridad(db, tipoCuenta):
+    admin = makeUser(db, tipoCuenta=tipoCuenta)
+
+    for evento in ("INICIO_SESION", "CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA"):
+        expectError("AVISO_OBLIGATORIO", service.updatePreference, db, admin, evento, enPagina=False)
+    assert all(p.obligatoria for p in service.settings(db, admin).preferencias if p.categoria == "SEGURIDAD")
+    assert all(p.categoria != "GRUPO" or not p.obligatoria for p in service.settings(db, admin).preferencias)
+
+
 def test_sin_datos_del_cliente_no_se_registra_ni_se_avisa(db):
     user = makeUser(db)
 
@@ -1113,7 +1159,7 @@ def test_la_migracion_v5_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
         assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
         assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
-    for evento in (e for e in notificationEvents.EVENTOS if e != "RESULTADO_ENVIADO"):  # ese aviso lo agrega la v6
+    for evento in (e for e in notificationEvents.EVENTOS if e != "RESULTADO_ENVIADO" and not e.startswith("PLATAFORMA_")):  # los agregan v6 y v7
         assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
     for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
         assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
@@ -1126,6 +1172,24 @@ def test_la_migracion_v6_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     code = re.sub(r"--[^\n]*", "", script)
 
     assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V6'" in script
+    assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script  # exige v3
+    assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
+    for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
+        assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
+        assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
+    for evento in (e for e in notificationEvents.EVENTOS if not e.startswith("PLATAFORMA_")):  # esos avisos los agrega la v7
+        assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
+    for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
+        assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
+
+
+def test_la_migracion_v7_admite_todos_los_avisos_del_catalogo_y_es_idempotente():
+    import re
+
+    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_notificaciones_v7.sql").read_text(encoding="utf-8")
+    code = re.sub(r"--[^\n]*", "", script)
+
+    assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V7'" in script
     assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script  # exige v3
     assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
@@ -1179,7 +1243,7 @@ def test_las_rutas_leen_y_guardan_las_preferencias_de_la_sesion(db, http):
     holder["user"] = makeUser(db)
 
     settings = client.get("/api/v1/notificaciones/preferencias").json()
-    assert [p["evento"] for p in settings["preferencias"]] == list(service.EVENTOS)
+    assert [p["evento"] for p in settings["preferencias"]] == EVENTOS_CUENTA_INDIVIDUAL
     assert {p["evento"] for p in settings["preferencias"] if p["obligatoria"]} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"}
 
     response = client.put("/api/v1/notificaciones/preferencias/INICIO_SESION", json={"porCorreo": False})

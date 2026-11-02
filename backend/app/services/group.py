@@ -60,15 +60,18 @@ from app.schemas.group import (
     SharingSettings,
 )
 from app.services import email as emailService
+from app.services import invitedAccounts
 from app.services import measurement as measurementService
 from app.services import notifications
 from app.services import userNotifications
 from app.services.audit import registerEvent
 from app.services.rateLimiter import RateLimiter
 from app.services.measurementProfile import calculateAge
+from app.utils.normalizers import normalizeProperName
 from app.utils.timeZone import nowForDb
 
 TIPO_INDIVIDUAL = "CONSUMIDOR_FINAL"
+ESTADO_CUENTA_PENDIENTE = "PENDIENTE"  # cuenta creada por una invitación, todavía sin activar
 GRUPO_ACTIVO = "ACTIVO"
 GRUPO_ELIMINADO = "CERRADO"
 ROL_ADMIN = "PROPIETARIO"  # ADMINISTRADOR del grupo familiar
@@ -87,12 +90,13 @@ SHARING_FIELDS = ("compartePerfil", "comparteUltimaMedicion", "comparteHistorial
 
 ACTIVE_GROUP_INDEX = "UX_GrupoUsuario_grupoActivo"
 LINK_INDEX = "UX_GrupoUsuario_vinculoVigente"
+USER_EMAIL_UNIQUE_INDEX = "UX_Usuario_correoElectronico"
 ADMIN_INDEX = "UX_GrupoUsuario_administrador"
 
 ALREADY_IN_GROUP_MESSAGE = "Ya pertenecés a un grupo. Para crear otro, primero debés abandonar el grupo actual."
 NOT_FOUND_ACCOUNT_MESSAGE = (
-    "No existe una cuenta individual registrada con este correo. La persona deberá registrarse en GlucoLume antes "
-    "de incorporarse."
+    "No existe una cuenta individual registrada con este correo. Podés enviarle una invitación por correo para que "
+    "cree su cuenta y se sume al grupo."
 )
 INSTITUTIONAL_ACCOUNT_MESSAGE = (
     "El correo corresponde a una cuenta institucional: solo las cuentas individuales pueden formar parte de grupos "
@@ -105,6 +109,11 @@ PENDING_INVITATION_MESSAGE = ("Ya hay una invitación pendiente para esta person
                               "Podés reenviarla desde la lista de invitaciones pendientes.")
 
 _lookupLimiter = RateLimiter(20, 10 * 60, name="grupo:consulta")
+
+# Quién recibe la invitación: cuenta individual activa, cuenta creada por una invitación y todavía sin activar, o correo sin cuenta.
+ACCOUNT_KIND_EXISTING = "EXISTENTE"
+ACCOUNT_KIND_INVITED = "INVITADA_PENDIENTE"
+ACCOUNT_KIND_NEW = "NUEVA"
 
 
 @dataclass(frozen=True)
@@ -332,13 +341,20 @@ def listSentInvitations(db: Session, actor: User, idGrupo: uuid.UUID) -> list[Gr
     ]
 
 
-def _eligibleTarget(db: Session, idGrupo: uuid.UUID, correoElectronico: str, now: datetime) -> User:
+def _eligibleTarget(db: Session, idGrupo: uuid.UUID, correoElectronico: str, now: datetime) -> tuple[User | None, str]:
+    """Quién puede recibir la invitación. Sin cuenta devuelve (None, NUEVA): se crea al invitar, con nombre y apellido."""
     target = db.scalar(select(User).where(User.correoElectronico == correoElectronico))
-    if target is None or target.estado != "ACTIVO":
-        # Inexistente, con el correo sin verificar, bloqueada o eliminada: mismo mensaje.
+    if target is None:
+        return None, ACCOUNT_KIND_NEW
+    if target.tipoCuenta == TIPO_INDIVIDUAL and invitedAccounts.isInvitedPendingAccount(db, target):
+        kind = ACCOUNT_KIND_INVITED
+    elif target.estado != "ACTIVO":
+        # Correo sin verificar, bloqueada o eliminada: mismo mensaje que una cuenta inexistente.
         raise AuthError("USUARIO_NO_ENCONTRADO", NOT_FOUND_ACCOUNT_MESSAGE)
-    if target.tipoCuenta != TIPO_INDIVIDUAL:
+    elif target.tipoCuenta != TIPO_INDIVIDUAL:
         raise AuthError("CUENTA_NO_INDIVIDUAL", INSTITUTIONAL_ACCOUNT_MESSAGE)
+    else:
+        kind = ACCOUNT_KIND_EXISTING
     current = db.scalar(
         select(GroupUser).where(GroupUser.idGrupo == idGrupo, GroupUser.idUsuario == target.idUsuario,
                                 GroupUser.estadoRelacion != BAJA)
@@ -351,9 +367,9 @@ def _eligibleTarget(db: Session, idGrupo: uuid.UUID, correoElectronico: str, now
         raise AuthError("VINCULO_EXISTENTE", ALREADY_MEMBER_MESSAGE)
     if current is not None:
         raise AuthError("INVITACION_PENDIENTE", PENDING_INVITATION_MESSAGE)
-    if activeRelation(db, target) is not None:
+    if kind == ACCOUNT_KIND_EXISTING and activeRelation(db, target) is not None:
         raise AuthError("YA_PERTENECE_A_GRUPO", IN_OTHER_GROUP_MESSAGE)
-    return target
+    return target, kind
 
 
 def _limit(actor: User) -> None:
@@ -364,39 +380,76 @@ def _limit(actor: User) -> None:
 def lookupCandidate(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str) -> GroupCandidate:
     requireMembership(db, actor, idGrupo, admin=True)
     _limit(actor)
-    target = _eligibleTarget(db, idGrupo, correoElectronico, nowForDb())
+    target, _ = _eligibleTarget(db, idGrupo, correoElectronico, nowForDb())
     db.rollback()  # la búsqueda no persiste nada
+    if target is None:
+        raise AuthError("USUARIO_NO_ENCONTRADO", NOT_FOUND_ACCOUNT_MESSAGE)
     return GroupCandidate(nombre=target.nombre, apellido=target.apellido)
 
 
-def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str) -> GroupInvitationRead:
-    """Registra la invitación PENDIENTE y avisa por correo. No incorpora a nadie hasta que acepte."""
+def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str, nombre: str | None = None,
+           apellido: str | None = None) -> GroupInvitationRead:
+    """Registra la invitación PENDIENTE y avisa por correo. No incorpora a nadie hasta que acepte.
+
+    Si el correo no tiene cuenta, crea una cuenta PENDIENTE con nombre y apellido y envía un enlace de activación: la persona
+    elige su nombre de usuario y su contraseña allí y después acepta o rechaza el grupo, dentro del mismo plazo de 7 días."""
     membership = requireMembership(db, actor, idGrupo, admin=True)
     _limit(actor)
     now = nowForDb()
     try:
-        target = _eligibleTarget(db, idGrupo, correoElectronico, now)
+        target, kind = _eligibleTarget(db, idGrupo, correoElectronico, now)
+        if kind == ACCOUNT_KIND_NEW and not (nombre and apellido):
+            raise AuthError("DATOS_REQUERIDOS", "Ingresá nombre y apellido para crear la cuenta de la persona.")
     except AuthError as error:
         registerEvent(db, "PERMISO", "INVITAR_GRUPO", False, actor.idUsuario, "Grupo", idGrupo,
                       observacion=f"Motivo: {error.code}")
         db.commit()
         raise
-    relation = GroupUser(idGrupo=idGrupo, idUsuario=target.idUsuario, rolGrupo=ROL_MIEMBRO, estadoRelacion=PENDIENTE,
-                         fechaInvitacion=now)
+    activationToken = None
     try:
+        if kind == ACCOUNT_KIND_NEW:
+            target = User(nombre=normalizeProperName(nombre), apellido=normalizeProperName(apellido),
+                          correoElectronico=correoElectronico, tipoCuenta=TIPO_INDIVIDUAL, estado=ESTADO_CUENTA_PENDIENTE)
+            db.add(target)
+            db.flush()
+            registerEvent(db, "CRUD", "CREAR_CUENTA_INVITADA", True, actor.idUsuario, "Usuario", target.idUsuario,
+                          datosNuevos={"tipoCuenta": TIPO_INDIVIDUAL, "estado": ESTADO_CUENTA_PENDIENTE, "idGrupo": str(idGrupo)},
+                          modulo="GRUPOS")
+        relation = GroupUser(idGrupo=idGrupo, idUsuario=target.idUsuario, rolGrupo=ROL_MIEMBRO, estadoRelacion=PENDIENTE,
+                             fechaInvitacion=now)
         db.add(relation)
         db.flush()
+        if kind != ACCOUNT_KIND_EXISTING:
+            activationToken = invitedAccounts.issueActivationToken(db, target, _expiry(relation))
         registerEvent(db, "PERMISO", "INVITAR_GRUPO", True, actor.idUsuario, "GrupoUsuario", relation.idGrupoUsuario)
         db.commit()
     except IntegrityError as error:
         db.rollback()
         if _violates(error, LINK_INDEX):
             raise AuthError("INVITACION_PENDIENTE", PENDING_INVITATION_MESSAGE) from error
+        if _violates(error, USER_EMAIL_UNIQUE_INDEX):
+            # Carrera: otra solicitud creó la cuenta de este correo en paralelo.
+            raise AuthError("INVITACION_PENDIENTE", "Otra solicitud acaba de registrar este correo. Volvé a intentarlo.") from error
         raise
-    _notifyInvitation(db, actor, membership.group, target, relation, now,
-                      f"{userNotifications.INVITACION_GRUPO}:{relation.idGrupoUsuario}")
+    _sendInvitation(db, actor, membership.group, target, relation, now, activationToken,
+                    f"{userNotifications.INVITACION_GRUPO}:{relation.idGrupoUsuario}")
     return GroupInvitationRead(idGrupoUsuario=relation.idGrupoUsuario, nombre=target.nombre, apellido=target.apellido,
                                fechaInvitacion=now, fechaVencimiento=_expiry(relation), vencida=False)
+
+
+def _sendInvitation(db: Session, actor: User, group: Group, target: User, relation: GroupUser, now: datetime,
+                    activationToken: str | None, clave: str) -> None:
+    """Sin cuenta activa (cuenta nueva o invitada sin activar), el correo trae el enlace de activación. Con cuenta activa, el aviso
+    según las preferencias de INVITACION_GRUPO de quien recibe la invitación."""
+    if activationToken is not None:
+        emailService.sendEmailEventInBackground(
+            EmailEventType.INVITACION_GRUPO_NUEVA_CUENTA, target.correoElectronico,
+            {"nombreGrupo": group.nombre, "nombreInvitante": actor.usuario or _fullName(actor),
+             "fechaExpiracion": _expiry(relation),
+             "urlActivar": f"{emailService.frontendUrl('activarCuenta')}?token={activationToken}"},
+        )
+        return
+    _notifyInvitation(db, actor, group, target, relation, now, clave)
 
 
 def _notifyInvitation(db: Session, actor: User, group: Group, target: User, relation: GroupUser, now: datetime,
@@ -427,7 +480,7 @@ def resendInvitation(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuari
     """Reenvía una invitación PENDIENTE: renueva su vencimiento de 7 días y avisa otra vez. Misma fila, nunca un vínculo nuevo.
 
     Sirve también para una invitación vencida (queda vigente de nuevo). La clave del aviso incluye el instante del reenvío,
-    así cada reenvío es un aviso y un correo propios.
+    así cada reenvío es un aviso y un correo propios. Si la cuenta todavía no se activó, el correo trae un enlace de activación nuevo.
     """
     membership = requireMembership(db, actor, idGrupo, admin=True)
     _limit(actor)
@@ -435,16 +488,19 @@ def resendInvitation(db: Session, actor: User, idGrupo: uuid.UUID, idGrupoUsuari
     if relation is None or relation.idGrupo != idGrupo or relation.estadoRelacion != PENDIENTE:
         raise AuthError("INVITACION_NO_ENCONTRADA", "No encontramos esa invitación pendiente.")
     target = db.get(User, relation.idUsuario)
-    if target is None or target.estado != "ACTIVO":
+    if target is None or (target.estado != "ACTIVO" and not invitedAccounts.isInvitedPendingAccount(db, target)):
         raise AuthError("INVITACION_NO_ENCONTRADA", "No encontramos esa invitación pendiente.")
-    if activeRelation(db, target) is not None:
+    if target.estado == "ACTIVO" and activeRelation(db, target) is not None:
         raise AuthError("YA_PERTENECE_A_GRUPO", IN_OTHER_GROUP_MESSAGE)
     now = nowForDb()
     relation.fechaInvitacion = now
+    activationToken = None
+    if target.estado != "ACTIVO":
+        activationToken = invitedAccounts.issueActivationToken(db, target, _expiry(relation))
     registerEvent(db, "PERMISO", "REENVIAR_INVITACION_GRUPO", True, actor.idUsuario, "GrupoUsuario", idGrupoUsuario)
     db.commit()
-    _notifyInvitation(db, actor, membership.group, target, relation, now,
-                      f"{userNotifications.INVITACION_GRUPO}:{idGrupoUsuario}:{now:%Y%m%dT%H%M%S%f}")
+    _sendInvitation(db, actor, membership.group, target, relation, now, activationToken,
+                    f"{userNotifications.INVITACION_GRUPO}:{idGrupoUsuario}:{now:%Y%m%dT%H%M%S%f}")
     return GroupInvitationRead(idGrupoUsuario=idGrupoUsuario, nombre=target.nombre, apellido=target.apellido,
                                fechaInvitacion=now, fechaVencimiento=_expiry(relation), vencida=False)
 

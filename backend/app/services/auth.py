@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import get_args
 
 import jwt
-from sqlalchemy import and_, case, delete, null, or_, select, update
+from sqlalchemy import and_, case, delete, desc, null, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
@@ -32,6 +32,7 @@ from app.integrations.google.oauth import GOOGLE_PROVIDER, GoogleIdentity
 from app.models.accountToken import TOKEN_TYPE_CHECK_NAME, AccountToken, TipoTokenCuenta
 from app.models.externalIdentity import ExternalIdentity
 from app.models.localCredential import LocalCredential
+from app.models.localCredentialHistory import LocalCredentialHistory
 from app.models.user import User
 from app.models.userSession import UserSession
 from app.schemas.auth import (
@@ -62,6 +63,8 @@ logger = logging.getLogger(__name__)
 # Límite de CK_CredencialLocal_intentos.
 MAX_FAILED_LOGIN_ATTEMPTS = 3
 ACCOUNT_LOCKED_MESSAGE = "Demasiados intentos fallidos. Intentá más tarde."
+# Contraseñas anteriores (además de la vigente) que no se pueden volver a usar al cambiarla.
+PASSWORD_HISTORY_SIZE = 3
 
 ESTADO_ACTIVO = "ACTIVO"
 ESTADO_PENDIENTE = "PENDIENTE"
@@ -531,6 +534,40 @@ def _registerSuccessfulPassword(
     _setCommitted(credential, **values)
 
 
+def previousPasswordError(db: Session, credential: LocalCredential, password: str) -> AuthError | None:
+    """Por qué la contraseña nueva no sirve: es la vigente (PASSWORD_REPETIDA) o una de las últimas PASSWORD_HISTORY_SIZE
+    anteriores (PASSWORD_ANTERIOR). Nunca se guarda ni se muestra la contraseña."""
+    if security.verifyPassword(password, credential.passwordHash)[0]:
+        return AuthError("PASSWORD_REPETIDA", "La contraseña nueva tiene que ser distinta de la actual.")
+    previous = db.scalars(
+        select(LocalCredentialHistory.passwordHash)
+        .where(LocalCredentialHistory.idCredencialLocal == credential.idCredencialLocal)
+        .order_by(desc(LocalCredentialHistory.fechaCreacion))
+        .limit(PASSWORD_HISTORY_SIZE)
+    ).all()
+    if any(security.verifyPassword(password, oldHash)[0] for oldHash in previous):
+        return AuthError("PASSWORD_ANTERIOR", "Es una contraseña vieja. Elegí una distinta.")
+    return None
+
+
+def replacePassword(db: Session, credential: LocalCredential, password: str, now: datetime) -> None:
+    """Guarda el hash de la nueva contraseña y pasa la vigente al historial, del que se descartan las más antiguas.
+    Deja los cambios pendientes de commit, como el resto de los cambios de CredencialLocal."""
+    db.add(LocalCredentialHistory(
+        idCredencialLocal=credential.idCredencialLocal, passwordHash=credential.passwordHash, fechaCreacion=now,
+    ))
+    db.flush()
+    stale = db.scalars(
+        select(LocalCredentialHistory.idCredencialLocalHistorial)
+        .where(LocalCredentialHistory.idCredencialLocal == credential.idCredencialLocal)
+        .order_by(desc(LocalCredentialHistory.fechaCreacion))
+        .offset(PASSWORD_HISTORY_SIZE)
+    ).all()
+    if stale:
+        db.execute(delete(LocalCredentialHistory).where(LocalCredentialHistory.idCredencialLocalHistorial.in_(stale)))
+    credential.passwordHash = security.hashPassword(password)
+
+
 def verifyCurrentPassword(db: Session, credential: LocalCredential, password: str) -> bool:
     """Reautenticación con la contraseña actual (operaciones sensibles con la sesión o el desafío ya abiertos).
 
@@ -944,12 +981,13 @@ def _authenticatedResponse(
 ) -> LoginResponse:
     """Sesión definitiva más la indicación de perfil incompleto (no bloquea el acceso)."""
     tokens = _createSession(db, user)
-    if user.notificarNuevoInicioSesion:
+    avisoSiempre = userNotifications.obligatorio(user, userNotifications.INICIO_SESION)  # administrador de la plataforma: no lo puede apagar
+    if user.notificarNuevoInicioSesion or avisoSiempre:
         client = clientInfo or ClientInfo()
         _notify(
             EmailEventType.NUEVO_INICIO_SESION, user, fechaEvento=nowForDb(), metodo=methodLabel,
             navegador=client.navegador, sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo,
-            urlSeguridad=_securityUrl(), urlDesuscribir=_newLoginUnsubscribeUrl(user),
+            urlSeguridad=_securityUrl(), urlDesuscribir=None if avisoSiempre else _newLoginUnsubscribeUrl(user),
         )
     # El inicio de sesión ya quedó auditado (LOGIN_*). Aviso visible solo si viene de un equipo que la cuenta nunca había usado
     # (services/knownAccess.py); el correo sigue arriba, con su propio enlace de desuscripción.
@@ -1138,6 +1176,8 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     if credential is None:
         raise invalid
     _requirePasswordPolicy(password, user.usuario, user.correoElectronico, user.nombre, user.apellido)
+    if (error := previousPasswordError(db, credential, password)) is not None:
+        raise error
     used = db.execute(
         update(AccountToken)
         .where(AccountToken.idTokenCuenta == accountToken.idTokenCuenta, AccountToken.fechaUso.is_(None))
@@ -1147,7 +1187,7 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     if used != 1:
         db.rollback()
         raise invalid
-    credential.passwordHash = security.hashPassword(password)
+    replacePassword(db, credential, password, now)
     credential.intentosFallidosConsecutivos = 0
     credential.bloqueadoHasta = None
     credential.fechaUltimoCambioPassword = now
@@ -1230,12 +1270,12 @@ def changeLocalPassword(db: Session, user: User, currentSession: UserSession, ac
             db.commit()
             raise AuthError("CODIGO_MFA_REQUERIDO", "Ingresá el código de verificación en dos pasos.")
         mfa.verifyFactor(db, factor, codigo, codigoRecuperacion)
-    if security.verifyPassword(new, credential.passwordHash)[0]:
+    if (error := previousPasswordError(db, credential, new)) is not None:
         db.commit()
-        raise AuthError("PASSWORD_REPETIDA", "La contraseña nueva tiene que ser distinta de la actual.")
+        raise error
     _requirePasswordPolicy(new, user.usuario, user.correoElectronico, user.nombre, user.apellido)
     now = nowForDb()
-    credential.passwordHash = security.hashPassword(new)
+    replacePassword(db, credential, new, now)
     credential.fechaUltimoCambioPassword = now
     db.execute(update(UserSession).where(
         UserSession.idUsuario == user.idUsuario, UserSession.idSesion != currentSession.idSesion,
@@ -1262,6 +1302,8 @@ def _newLoginUnsubscribeUrl(user: User) -> str:
 
 def setNewLoginNotification(db: Session, user: User, habilitada: bool, origen: str = ORIGEN_CUENTA) -> bool:
     """Activa o desactiva el aviso NUEVO_INICIO_SESION. Devuelve True si cambió; sin cambio no se audita."""
+    if not habilitada and userNotifications.obligatorio(user, userNotifications.INICIO_SESION):
+        raise AuthError("AVISO_OBLIGATORIO", "El aviso de inicio de sesión es obligatorio para tu cuenta de la plataforma.")
     if user.notificarNuevoInicioSesion == habilitada:
         return False
     user.notificarNuevoInicioSesion = habilitada

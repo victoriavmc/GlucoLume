@@ -57,6 +57,7 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 
 - **Canales independientes (RN-NOT-07):** `enPagina` y `porCorreo` se guardan y se respetan por separado. Con la página apagada la fila queda con `visible = 0` (no aparece ni se puede marcar) y solo sirve de registro del correo.
 - **Obligatorios:** las alertas críticas se muestran siempre en la página; `PUT /preferencias/{evento}` responde `409 AVISO_OBLIGATORIO` y, aunque exista una fila de preferencia apagada, el servicio las entrega. El correo de esas alertas lo envía el flujo de seguridad que las origina (no depende de preferencias, como antes).
+- **Cuentas de la plataforma (`ADMINISTRADOR_PLATAFORMA` y `MODERADOR_PLATAFORMA`):** todos los avisos de Seguridad son obligatorios para su cuenta, también `INICIO_SESION`: le llegan siempre en la página y por correo, y su interruptor de «Avisos de inicio de sesión» (Cuenta › Seguridad) queda fijo. Los clientes siguen sus preferencias. La regla está en `services/userNotifications.obligatorio` y la usan el servicio, el inicio de sesión (`services/auth.py`) y la ruta de preferencias (`assertEditable`, que valida antes de tocar el correo de inicio de sesión).
 - **Mediciones del grupo:** antes compartían el aviso `NUEVA_ACCION_GRUPO`; ahora tienen el suyo. La migración copia la elección previa de cada cuenta. Siguen respetando el permiso individual `notificaMedicion` de cada integrante.
 
 ## 3. Reglas de negocio

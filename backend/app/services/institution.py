@@ -36,11 +36,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import case, delete, func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core import security
 from app.core.exceptions import AuthError
 from app.emails.eventTypes import EmailEventType
 from app.models.accountToken import AccountToken, TipoTokenCuenta
@@ -77,7 +76,7 @@ from app.services import quota, schemaCompat
 from app.services.audit import registerEvent
 from app.services.rateLimiter import RateLimiter
 from app.services import invitedAccounts
-from app.services.invitedAccounts import isInvitedPendingAccount
+from app.services.invitedAccounts import isInvitedPendingAccount, issueActivationToken
 from app.utils.dbRetry import retryOnDeadlock
 from app.utils.normalizers import normalizeProperName
 from app.utils.timeZone import nowForDb
@@ -823,16 +822,6 @@ def lookupCandidate(
                            cuentaPendiente=kind == ACCOUNT_KIND_INVITED)
 
 
-def _issueActivationToken(db: Session, user: User, expiresAt: datetime) -> str:
-    """Token de activación nuevo (solo se guarda su hash); invalida los anteriores sin usar. Lo confirma quien llama."""
-    db.execute(delete(AccountToken).where(AccountToken.idUsuario == user.idUsuario, AccountToken.tipo == TOKEN_ACTIVACION,
-                                          AccountToken.fechaUso.is_(None)))
-    token = security.generateOpaqueToken()
-    db.add(AccountToken(idUsuario=user.idUsuario, tipo=TOKEN_ACTIVACION, tokenHash=security.hashOpaqueToken(token),
-                        fechaExpiracion=expiresAt))
-    return token
-
-
 def _sendInvitation(institution: Institution, actor: User, target: User, relation: InstitutionUser,
                     activationToken: str | None) -> None:
     expiry = _invitationExpiry(relation)
@@ -917,7 +906,7 @@ def invite(
                 return invite(db, actor, idInstitucion, rol, correoElectronico, nombre, apellido, datos, _retry=False)
             raise AuthError("INVITACION_PENDIENTE", "Otra solicitud acaba de modificar esta cuenta. Volvé a intentarlo.")
         if kind in (ACCOUNT_KIND_NEW, ACCOUNT_KIND_INVITED):
-            activationToken = _issueActivationToken(db, target, _invitationExpiry(relation))
+            activationToken = issueActivationToken(db, target, _invitationExpiry(relation))
         registerEvent(
             db, "PERMISO", "INVITAR_MIEMBRO_INSTITUCION", True, actor.idUsuario, "InstitucionUsuario",
             relation.idInstitucionUsuario,
@@ -968,7 +957,7 @@ def resendInvitation(
         raise AuthError("INVITACION_NO_ENCONTRADA", "No encontramos esa invitación pendiente.")
     relation.fechaInvitacion = now
     relation.idUsuarioInvitador = actor.idUsuario
-    activationToken = _issueActivationToken(db, target, _invitationExpiry(relation)) \
+    activationToken = issueActivationToken(db, target, _invitationExpiry(relation)) \
         if isInvitedPendingAccount(db, target) else None
     registerEvent(db, "PERMISO", "REENVIAR_INVITACION_INSTITUCION", True, actor.idUsuario, "InstitucionUsuario",
                   idInstitucionUsuario)
