@@ -169,6 +169,13 @@ describe('Registro con un correo que ya tiene cuenta', () => {
     renderAt('/auth/google/callback#error=CUENTA_OTRO_TIPO');
     expect(await screen.findByText(/ya está registrado con otro tipo de cuenta/)).toBeInTheDocument();
   });
+
+  it('con Google, si ese correo ya tiene cuenta se explica antes de llevar a iniciar sesión', async () => {
+    mockApi({});
+    renderAt('/auth/google/callback#error=CUENTA_YA_EXISTE');
+    expect(await screen.findByText(/Ya tenés una cuenta con ese correo/)).toBeInTheDocument();
+    expect(screen.getByText(/Te llevamos a iniciar sesión/)).toBeInTheDocument();
+  });
 });
 
 describe('Registro: confirmación de la Política de Privacidad', () => {

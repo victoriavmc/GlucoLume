@@ -16,11 +16,12 @@
 # estado actual) no pertenece al perfil.
 
 import secrets
+import time
 from dataclasses import dataclass
 from datetime import date, datetime
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthError
@@ -109,16 +110,39 @@ def _syncFromUser(profile: MeasurementProfile, user: User) -> bool:
     return changed
 
 
+PROFILE_LOCK_ATTEMPTS = 3
+LOCK_TIMEOUT_MARKER = "(1222)"  # SQL Server: «Lock request time out period exceeded»
+
+
+def _isLockTimeout(error: DBAPIError) -> bool:
+    return LOCK_TIMEOUT_MARKER in str(error.orig)
+
+
 def ensureConsumerProfile(db: Session, user: User) -> MeasurementProfile:
     """Devuelve el perfil propio del consumidor final, creándolo la primera vez y actualizándolo desde Usuario.
 
     La fecha de nacimiento y el sexo de Usuario (PATCH /auth/me/profile) son opcionales: si faltan, el perfil se crea
     igual y esos datos quedan sin informar. Confirma la transacción. La creación se audita (sin datos personales); la
     sincronización no, porque el cambio ya se auditó al actualizar el Usuario.
+
+    Si otra petición está creando el mismo perfil, esta espera hasta el tiempo límite de bloqueo (DB_LOCK_TIMEOUT_MS) y
+    entonces reintenta: la otra ya lo habrá confirmado y se usa ese.
     """
     if user.tipoCuenta != TIPO_CONSUMIDOR_FINAL or user.estado != ESTADO_ACTIVO:
         raise AuthError("PERFIL_NO_DISPONIBLE", "Solo una cuenta de consumidor final activa tiene perfil de medición propio.")
 
+    for attempt in range(1, PROFILE_LOCK_ATTEMPTS + 1):
+        try:
+            return _ensureConsumerProfileOnce(db, user)
+        except DBAPIError as error:
+            if not _isLockTimeout(error) or attempt == PROFILE_LOCK_ATTEMPTS:
+                raise
+            db.rollback()
+            time.sleep(0.2 * attempt)
+    raise AssertionError("unreachable")
+
+
+def _ensureConsumerProfileOnce(db: Session, user: User) -> MeasurementProfile:
     profile = getConsumerProfile(db, user)
     if profile is not None:
         if _syncFromUser(profile, user):

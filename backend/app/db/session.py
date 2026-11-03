@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 
-from sqlalchemy import URL, Engine, create_engine
+from sqlalchemy import URL, Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import getSettings
@@ -49,7 +49,23 @@ def _createEngine(username: str, password: str) -> Engine:
             **({"HostNameInCertificate": settings.DB_CERTIFICATE_HOSTNAME} if settings.DB_CERTIFICATE_HOSTNAME else {}),
         },
     )
-    return limitDriverCalls(create_engine(url, pool_pre_ping=True), settings.DB_MAX_CONCURRENT_CALLS)
+    engine = create_engine(url, pool_pre_ping=True)
+    if settings.DB_LOCK_TIMEOUT_MS > 0:
+        _limitLockWaits(engine, settings.DB_LOCK_TIMEOUT_MS)
+    return limitDriverCalls(engine, settings.DB_MAX_CONCURRENT_CALLS)
+
+
+def _limitLockWaits(engine: Engine, milliseconds: int) -> None:
+    """Fija LOCK_TIMEOUT en cada conexión nueva (el pool la conserva). Se confirma enseguida para no dejar una transacción abierta."""
+    if not isinstance(engine, Engine):  # reemplazo de prueba (como en limitDriverCalls)
+        return
+
+    @event.listens_for(engine, "connect")
+    def setLockTimeout(dbapiConnection, connectionRecord):
+        cursor = dbapiConnection.cursor()
+        cursor.execute(f"SET LOCK_TIMEOUT {int(milliseconds)}")
+        cursor.close()
+        dbapiConnection.commit()
 
 
 @lru_cache

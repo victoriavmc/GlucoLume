@@ -27,14 +27,16 @@ USERNAME_MIN_LENGTH = 4
 def validateUsername(value: str | None) -> str | None:
     """El "@" distingue correo de username al iniciar sesión; el username no puede quedar vacío.
 
-    Se aplica al crear o elegir el username (registro local y perfil de una cuenta Google). Los espacios
-    de los extremos no cuentan para el largo mínimo.
+    Se aplica al crear o elegir el username (registro local y perfil de una cuenta Google). Devuelve el valor
+    sin espacios de los extremos, que es el que se guarda.
     """
     if value is None:
         return value
+    # Los espacios de los extremos no forman parte del username: "  juan" y "juan" tienen que ser el mismo nombre.
+    value = value.strip()
     if not value or "@" in value:
         raise ValueError("El nombre de usuario no puede estar vacío ni contener '@'.")
-    if len(value.strip()) < USERNAME_MIN_LENGTH:
+    if len(value) < USERNAME_MIN_LENGTH:
         raise ValueError(f"El nombre de usuario debe tener al menos {USERNAME_MIN_LENGTH} caracteres.")
     return value
 
@@ -42,7 +44,8 @@ def validateUsername(value: str | None) -> str | None:
 class UserBase(BaseModel):
     nombre: Annotated[str, Field(max_length=100)] | None = None
     apellido: Annotated[str, Field(max_length=100)] | None = None
-    # Username/login: se conserva tal cual (sin cambio de mayúsculas). Regla funcional pendiente.
+    # Username/login: se guarda tal cual lo escribe la persona. No puede repetirse sin distinguir mayúsculas: lo resuelve la
+    # collation de la base (CI), igual que el índice único UX_Usuario_usuario.
     usuario: Annotated[str, Field(max_length=50)] | None = None
 
     @field_validator("nombre", "apellido", mode="before")
@@ -110,7 +113,7 @@ class UserProfileUpdate(BaseModel):
 
     nombre: Annotated[str, Field(min_length=1, max_length=100)] | None = None
     apellido: Annotated[str, Field(min_length=1, max_length=100)] | None = None
-    # Username/login: se conserva tal cual (sin cambio de mayúsculas).
+    # Username/login: se guarda tal cual lo escribe la persona (ver UserBase.usuario).
     usuario: Annotated[str, Field(max_length=50)] | None = None
     fechaNacimiento: date | None = None
     sexo: Sexo | None = None

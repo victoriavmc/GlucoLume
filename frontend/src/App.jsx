@@ -90,6 +90,7 @@ const PlatformLogin = lazyNamed(loadPlatformAuth, 'PlatformLogin');
 const PlatformReset = lazyNamed(loadPlatformAuth, 'PlatformReset');
 const SecurityPage = lazyNamed(() => import('./pages/Account/SecurityPage.jsx'));
 const HelpPage = lazyNamed(() => import('./pages/Account/help/HelpPage.jsx'), 'HelpPage');
+const PublicHelpPage = lazyNamed(() => import('./pages/Account/help/HelpPage.jsx'), 'PublicHelpPage');
 const NotificationsPage = lazyNamed(() => import('./pages/Account/notifications/NotificationsPage.jsx'));
 const NotificationPreferencesPage = lazyNamed(() => import('./pages/Account/notifications/NotificationPreferencesPage.jsx'));
 
@@ -204,6 +205,8 @@ export function AppRoutes() {
         <Route path="/consejos" element={<PublicTipsPage />} />
         <Route path="/consejos/:idConsejo" element={<PublicTipsPage />} />
         <Route path="/caracteristicas" element={<CaracteristicasPage />} />
+        {/* Guía de uso sin iniciar sesión (mismo contenido que /app/ayuda). */}
+        <Route path="/ayuda" element={<PublicHelpPage />} />
         <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
         <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
         <Route

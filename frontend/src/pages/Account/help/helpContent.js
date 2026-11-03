@@ -29,7 +29,7 @@ const TEMA_INICIAR_SESION = {
   titulo: 'Iniciar sesión',
   intro: 'Entrás con usuario o correo y contraseña, o con Google. Si tenés verificación en dos pasos, te pide un código más.',
   pasos: [
-    { texto: 'Escribí tu usuario o correo y tu contraseña. Marcá Recordarme si querés seguir en este equipo.' },
+    { texto: 'Escribí tu usuario o correo y tu contraseña. Marcá Recordarme si querés seguir en este equipo.', boton: 'Iniciar sesión', captura: 'iniciar-sesion.png' },
     { texto: 'Si tu cuenta tiene verificación en dos pasos, ingresá el código de 6 dígitos de tu app autenticadora.' },
     { texto: 'Si no podés usar la app, tocá «Usar un código de recuperación» y escribí uno de los que guardaste.' },
   ],
@@ -41,6 +41,7 @@ const TEMA_INICIAR_SESION = {
     { titulo: 'CASO 5 · Olvidaste los códigos de recuperación', texto: 'No los necesitás si tenés la app: usá el código de 6 dígitos. Si tampoco tenés la app, mirá el caso 6.' },
     { titulo: 'CASO 6 · Perdiste la app y los códigos', texto: 'Tocá «Recuperar acceso de otra manera». Escribí tu contraseña actual y entrá con el código que llega al correo (vence en 10 minutos). Eso desactiva la verificación en dos pasos y cierra tus otras sesiones: podés volver a activarla en Seguridad.' },
     { titulo: 'Contraseña incorrecta', texto: 'Con 3 intentos fallidos el acceso se bloquea 15 minutos.' },
+    { titulo: 'Correo sin verificar', texto: 'La app no te deja entrar y muestra «Tenés que verificar tu correo electrónico antes de iniciar sesión». Abrí el correo de verificación, o tocá «Reenviar correo de verificación» en la misma pantalla. El reenvío no extiende el plazo de 24 horas.', captura: 'iniciar-sesion-sin-verificar.png' },
   ],
 };
 
@@ -49,7 +50,7 @@ const TEMA_RECUPERAR = {
   titulo: 'Recuperar contraseña',
   intro: 'Si olvidaste la contraseña, la recuperás desde el correo. Solo sirve para cuentas que tienen contraseña.',
   pasos: [
-    { texto: 'En la pantalla de ingreso tocá «¿Olvidaste tu contraseña?» y escribí tu correo.' },
+    { texto: 'En la pantalla de ingreso tocá «¿Olvidaste tu contraseña?» y escribí tu correo.', boton: '¿Olvidaste tu contraseña?', captura: 'olvide-contrasena.png' },
     { texto: 'Abrí el enlace del correo. Vence en 30 minutos y se usa una sola vez.' },
     { texto: 'Escribí la nueva contraseña dos veces y confirmala.' },
   ],
@@ -67,7 +68,7 @@ const TEMA_PERFIL = {
   titulo: 'Perfil',
   intro: 'Tus datos personales. La fecha de nacimiento y el sexo se usan para calcular la referencia de glucosa.',
   pasos: [
-    { texto: 'Entrá a Perfil y tocá Editar perfil.', ir: { to: '/app/perfil', label: 'Abrir Perfil' } },
+    { texto: 'Entrá a Perfil y tocá Editar perfil.', ir: { to: '/app/perfil', label: 'Abrir Perfil' }, boton: 'Editar perfil', captura: 'perfil-editar.png' },
     { texto: 'Agregá los datos que falten: nombre, apellido, usuario, fecha de nacimiento y sexo (femenino o masculino).' },
     { texto: 'Guardá los cambios. El correo electrónico no se edita desde acá.' },
   ],
@@ -141,17 +142,28 @@ export const AYUDA_CLIENTE = [
   {
     id: 'registro',
     titulo: 'Registro',
-    intro: 'Hay tres formas de tener cuenta: con correo y contraseña, con Google, o con las dos.',
+    intro: 'Podés tener cuenta con correo y contraseña, con Google, o con las dos. Con correo primero verificás el correo; con Google no hace falta, porque Google ya verificó tu dirección.',
     pasos: [
-      { texto: 'Registrate con nombre, apellido, correo, usuario (4 a 50 caracteres, sin «@»), contraseña repetida y la aceptación de la Política de Privacidad.' },
-      { texto: 'Abrí el enlace del correo de verificación dentro de las 24 horas. Si no llegó, reenviá la verificación.' },
-      { texto: 'Si preferís Google, tocá Continuar con Google y aceptá la Política de Privacidad.' },
+      { texto: 'Tocá Registrarse y elegí Uso personal.', captura: 'registro-tipo-cuenta.png', pie: 'Pantalla Crear una cuenta: elegí Uso personal.' },
+      { texto: 'Completá nombre, apellido, correo, usuario (4 a 50 caracteres, sin «@») y contraseña. Repetí la contraseña.', captura: 'registro-datos.png', pie: 'Formulario Tus datos: correo, usuario y contraseña.' },
+      { texto: 'Elegí una contraseña que cumpla todos los requisitos: 8 o más caracteres, mayúscula, minúscula, número y símbolo. No puede contener tu nombre, apellido, usuario ni correo.', captura: 'registro-contrasena-requisitos.png', pie: 'Cada requisito se marca en verde cuando lo cumplís.' },
+      { texto: 'Leé la Política de Privacidad y marcá «Leí la Política de Privacidad». Sin esa casilla no se crea la cuenta.', captura: 'registro-politica.png', pie: 'La casilla queda sin marcar hasta que la tildes.' },
+      { texto: 'Tocá Crear cuenta. Te llega un correo para verificar tu dirección.', captura: 'registro-verificar-correo.png', pie: 'Correo de verificación: tocá Verificar mi correo.' },
+      { texto: 'Abrí el correo y tocá Verificar mi correo. El enlace vence en 24 horas y se usa una sola vez.' },
+      { texto: 'Listo: al verificar te llega el correo de bienvenida y ya podés iniciar sesión.', captura: 'registro-bienvenida.png', pie: 'Correo de bienvenida con los datos de la cuenta.' },
+      { texto: 'Si preferís Google, tocá Continuar con Google, elegí tu cuenta y aceptá la Política de Privacidad.', captura: 'registro-google-elegir-cuenta.png', pie: 'Elegí la cuenta de Google con la que querés entrar.' },
     ],
     casos: [
-      { titulo: 'CASO 1 · Correo y verificación', texto: 'La cuenta queda pendiente hasta que verifiques el correo. Si no lo hacés en 24 horas, se elimina. Si el correo ya está registrado, el formulario lo informa.' },
-      { titulo: 'CASO 2 · Solo Google', texto: 'La cuenta se crea sin contraseña. Podés crear una después en Seguridad.' },
-      { titulo: 'CASO 3 · Sincronizar ambos', texto: 'Si ya tenés cuenta activa con correo y contraseña, y entrás con Google usando ese mismo correo verificado, las dos formas quedan vinculadas solas. Desde ese momento entrás con cualquiera.' },
-      { titulo: 'Google sin cuenta previa', texto: 'Entrar con Google no crea cuentas: si no estás registrado, el sistema te lo indica y tenés que registrarte.' },
+      { titulo: 'CASO 1 · Usuario con «@»', texto: 'El usuario no puede contener «@» (ese símbolo es del correo). Escribí solo letras, números y guiones.', captura: 'registro-usuario-arroba.png' },
+      { titulo: 'CASO 2 · Contraseña que no cumple', texto: 'La app marca qué falta: mayúscula, minúscula, número, símbolo o longitud. También rechaza tu nombre, apellido o usuario dentro de la contraseña.', captura: 'registro-usuario-y-contrasena.png' },
+      { titulo: 'CASO 3 · Sincronizar ambos', texto: 'Si ya verificaste la cuenta con correo, al entrar con Google con el mismo correo se vinculan solas. Si todavía no la verificaste, Google no la vincula: verificá el correo primero.', captura: 'google-vinculada.png' },
+      { titulo: 'CASO 4 · Contraseña demasiado común', texto: 'Por ejemplo «Hola123.» cumple los requisitos pero es fácil de adivinar: la app dice «es demasiado común». Elegí otra.', captura: 'registro-contrasena-comun.png' },
+      { titulo: 'CASO 5 · No aceptaste la Política de Privacidad', texto: 'Aparece «Para continuar tenés que confirmar que leíste la Política de Privacidad». Marcá la casilla y volvé a intentar.', captura: 'registro-politica.png' },
+      { titulo: 'CASO 6 · Correo inválido', texto: 'Aparece «Ingresá un correo electrónico válido». Revisá que tenga @ y dominio, por ejemplo tunombre@gmail.com.', captura: 'registro-correo-invalido.png' },
+      { titulo: 'CASO 7 · El correo ya tiene una cuenta', texto: 'Un mismo correo solo puede tener una cuenta, aunque la hayas creado como otro tipo. Iniciá sesión o usá otro correo.', captura: 'registro-correo-existe-personal.png' },
+      { titulo: 'CASO 8 · Con Google, el correo tiene una cuenta de otro tipo', texto: 'Aparece «Ese correo ya está registrado con otro tipo de cuenta». Entrá con tu cuenta existente.', captura: 'google-otro-tipo.png' },
+      { titulo: 'CASO 9 · Correo sin verificar: no podés iniciar sesión', texto: 'Si creaste la cuenta con correo y no lo verificaste, la app te avisa: «Tenés que verificar tu correo electrónico antes de iniciar sesión». Abrí el correo de verificación (vence en 24 horas) o tocá «Reenviar correo de verificación»: el reenvío no extiende el plazo.', captura: 'iniciar-sesion-sin-verificar.png' },
+      { titulo: 'CASO 10 · Google sin cuenta previa', texto: 'Entrar con Google no crea cuentas: si no estás registrado, el sistema te lo indica y tenés que registrarte.', captura: 'registro-google-elegir-cuenta.png' },
     ],
   },
   {
@@ -174,8 +186,8 @@ export const AYUDA_CLIENTE = [
     intro: 'La bandeja reúne los avisos de tu cuenta, tu grupo y tus recordatorios. Está en el menú Notificaciones.',
     pasos: [
       { texto: 'Abrí la bandeja y usá los filtros: todas, sin leer o por categoría.', ir: { to: '/app/notificaciones', label: 'Abrir Notificaciones' } },
-      { texto: 'Marcá como leída una notificación tocándola, o todas juntas con «Marcar todas como leídas».' },
-      { texto: 'Para borrar, usá «Eliminar…»: podés borrar solo las leídas o vaciar la bandeja (pide confirmación y no se puede deshacer).' },
+      { texto: 'Marcá como leída una notificación tocándola, o todas juntas con «Marcar todas como leídas».', boton: 'Marcar todas como leídas', captura: 'notificaciones-marcar-leidas.png' },
+      { texto: 'Para borrar, usá «Eliminar…»: podés borrar solo las leídas o vaciar la bandeja (pide confirmación y no se puede deshacer).', boton: 'Eliminar…', captura: 'eliminar-notificaciones.png' },
       { texto: 'En Preferencias elegí, por categoría, si querés el aviso en la aplicación, por correo o en ambos.', ir: { to: '/app/notificaciones/preferencias', label: 'Abrir Preferencias' } },
       { texto: 'En Horario para medirme elegí no recibir recordatorios, uno cada cierto tiempo o a horas específicas.' },
     ],
@@ -199,7 +211,8 @@ export const AYUDA_CLIENTE = [
       { texto: 'Instalá el puente en la computadora Windows donde conectás el Arduino: acquisition\\bridge\\Instalar-Puente.bat.' },
       { texto: 'En Conectar dispositivo elegí el medio: Bluetooth HC-05/HC-06 (9600 baudios) o USB (115200).', ir: { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' } },
       { texto: 'Mirá el estado de la conexión y resolvé lo que indique antes de medir.' },
-      { texto: 'Tocá Usar dispositivo para tomar el control del puente. Al terminar, tocá Dejar de usar.' },
+      { texto: 'Tocá Usar dispositivo para tomar el control del puente.', boton: 'Usar dispositivo', captura: 'conectar-pantalla.png', pie: 'Pantalla de Conectar dispositivo. Con el puente en marcha aparece el botón «Usar dispositivo».' },
+      { texto: 'Al terminar, tocá Dejar de usar para liberarlo.', boton: 'Dejar de usar', captura: 'conectar-pantalla.png', pie: 'Pantalla de Conectar dispositivo. Mientras lo usás, el botón «Dejar de usar» aparece aquí.' },
     ],
     detalles: [
       { titulo: 'Puente serie detenido', texto: 'Iniciá Puente-GlucoLume.bat en la computadora.' },
@@ -217,7 +230,8 @@ export const AYUDA_CLIENTE = [
       { texto: 'SEGUNDO · Autorización: en Nueva medición aceptá «Autorización para almacenar tus mediciones». Sin eso no se mide.', ir: { to: '/app/mediciones/nueva', label: 'Nueva medición' } },
       { texto: 'Conectá el dispositivo y verificá que el estado sea Conectado.' },
       { texto: 'Elegí dispositivo, modo (Oximetría o Glucosa experimental) y alimentación. Si hace falta, completá edad y sexo solo para esta medición.' },
-      { texto: 'Tocá Iniciar medición, apoyá el dedo y esperá a que la lectura se estabilice. Después tocá Guardar medición, o Cancelar.' },
+      { texto: 'Tocá Iniciar medición, apoyá el dedo y esperá a que la lectura se estabilice.', boton: 'Iniciar medición', captura: 'medicion-pantalla.png', pie: 'Pantalla de Nueva medición. Con el dispositivo conectado aparece el botón «Iniciar medición».' },
+      { texto: 'Tocá Guardar medición para registrarla, o Cancelar para descartarla.', boton: 'Guardar medición', captura: 'medicion-pantalla.png', pie: 'Al terminar la lectura aparecen «Guardar medición» y «Cancelar» en esta pantalla.' },
       { texto: 'Revisá Mi dashboard, el Historial y los gráficos.', ir: { to: '/app/mediciones', label: 'Ver mis mediciones' } },
     ],
     detalles: [
@@ -230,7 +244,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 1 · Medición permitida', texto: 'Autorización vigente, perfil con regla, dispositivo conectado, operativo y libre. Al guardar, la medición queda completada y entra en tus estadísticas.' },
     ],
     tabla: {
-      encabezados: ['CASO 2 · Error al medir', 'Qué hacer'],
+      encabezados: ['Qué ves', 'Qué hacer'],
       filas: [
         ['Falta la autorización', 'Aceptala en Nueva medición.'],
         ['No hay comunicación con el Arduino', 'Iniciá el puente y revisá el Bluetooth o el cable USB.'],
@@ -248,7 +262,7 @@ export const AYUDA_CLIENTE = [
     titulo: 'Grupo familiar',
     intro: 'Compartí, si querés, información de tus mediciones con las personas de tu grupo. Ser administrador/a no da acceso a los datos de los demás.',
     pasos: [
-      { texto: 'Creá un grupo (nombre obligatorio, descripción opcional) o aceptá una invitación. Solo podés tener un grupo a la vez.', ir: { to: '/app/grupo', label: 'Abrir Grupo' } },
+      { texto: 'Creá un grupo (nombre obligatorio, descripción opcional) o aceptá una invitación. Solo podés tener un grupo a la vez.', ir: { to: '/app/grupo', label: 'Abrir Grupo' }, boton: 'Crear grupo', captura: 'grupo-crear.png' },
       { texto: 'Como administrador/a, invitá por correo exacto a una cuenta individual.' },
       { texto: 'En Mi privacidad elegí qué ven los demás: Perfil, Última medición, Historial (con gráficos y estadísticas) y Aviso de medición (solo fecha y hora). Todo arranca apagado.' },
       { texto: 'En Datos compartidos revisá lo que cada persona habilitó.' },
@@ -264,11 +278,11 @@ export const AYUDA_CLIENTE = [
     casos: [
       { titulo: 'CASO 1 · Invitar a una cuenta individual existente', texto: 'Queda pendiente por 7 días. Le llega el aviso en la aplicación y por correo.' },
       { titulo: 'CASO 2 · Invitar a un correo sin cuenta', texto: 'Solo hace falta el correo. Se le envía una invitación con un enlace para activar la cuenta: elige usuario y contraseña, y después ve la invitación para aceptarla o rechazarla. Vence en 7 días.' },
-      { titulo: 'CASO 4 · Aceptar', texto: 'Pasás a ser integrante, con todo lo que compartís apagado. Si ya tenés grupo, no podés aceptar otra invitación.' },
+      { titulo: 'CASO 3 · Aceptar', texto: 'Pasás a ser integrante, con todo lo que compartís apagado. Si ya tenés grupo, no podés aceptar otra invitación.' },
       { titulo: 'CASO 4 · Rechazar', texto: 'La invitación se cierra y el administrador puede volver a invitarte.' },
     ],
     tabla: {
-      encabezados: ['CASO 3 · Error al invitar', 'Qué significa'],
+      encabezados: ['Qué ves', 'Qué significa'],
       filas: [
         ['Correo de una cuenta institucional', 'No se puede invitar: el grupo es solo para cuentas individuales.'],
         ['La persona ya es integrante', '«Esta persona ya forma parte del grupo».'],
@@ -311,18 +325,21 @@ export const AYUDA_INSTITUCIONAL = [
   {
     id: 'registro',
     titulo: 'Registro y acceso',
-    intro: 'La cuenta institucional es distinta de la individual: si necesitás las dos, usá un correo para cada una.',
+    intro: 'La cuenta institucional es distinta de la individual: si necesitás las dos, usá un correo para cada una. Se verifica igual que la personal.',
     pasos: [
-      { texto: 'Registrate con nombre, apellido, correo, usuario, contraseña y la aceptación de la Política de Privacidad.' },
-      { texto: 'Verificá el correo dentro de las 24 horas.' },
+      { texto: 'Tocá Registrarse y elegí Uso institucional.', captura: 'registro-tipo-cuenta.png', pie: 'Pantalla Crear una cuenta: elegí Uso institucional.' },
+      { texto: 'Completá nombre, apellido, correo, usuario y contraseña (repetila). La contraseña debe cumplir todos los requisitos.' },
+      { texto: 'Leé la Política de Privacidad y marcá «Leí la Política de Privacidad».', captura: 'registro-politica.png', pie: 'Sin esa casilla no se crea la cuenta.' },
+      { texto: 'Tocá Crear cuenta institucional y abrí el correo de verificación dentro de las 24 horas.', captura: 'registro-verificar-correo.png', pie: 'Correo de verificación: tocá Verificar mi correo.' },
       { texto: 'Si te invitaron, abrí el enlace de Activación de cuenta, elegí usuario y contraseña (o entrá con Google con ese mismo correo).' },
     ],
     casos: [
       { titulo: 'CASO 1 · Registro con correo', texto: 'Queda pendiente hasta verificar el correo. Sin institución, la cuenta no puede operar hasta que aceptes una invitación o crees una institución.' },
       { titulo: 'CASO 2 · Registro con Google', texto: 'Exige aceptar la política. La cuenta se crea sin contraseña.' },
       { titulo: 'CASO 3 · Sincronizar ambos', texto: 'Igual que en la cuenta individual: si ya tenés cuenta institucional activa y entrás con Google usando el mismo correo verificado, las dos formas quedan vinculadas.' },
-      { titulo: 'CASO 4 · Correo de una cuenta individual', texto: 'No sirve para una cuenta institucional: registrate con otro correo.' },
-      { titulo: 'CASO 5 · Enlace de activación', texto: 'Es de un solo uso y vence con la invitación (7 días). Si la invitación fue cancelada o rechazada, el enlace no activa la cuenta.' },
+      { titulo: 'CASO 4 · Correo de una cuenta individual', texto: 'No sirve para una cuenta institucional: la app dice «Este correo ya está registrado». Registrate con otro correo.', captura: 'registro-correo-existe-institucional.png' },
+      { titulo: 'CASO 5 · Con Google, el correo tiene una cuenta de otro tipo', texto: 'Aparece «Ese correo ya está registrado con otro tipo de cuenta». Entrá con tu cuenta existente o usá otro correo.', captura: 'google-otro-tipo.png' },
+      { titulo: 'CASO 6 · Enlace de activación', texto: 'Es de un solo uso y vence con la invitación (7 días). Si la invitación fue cancelada o rechazada, el enlace no activa la cuenta.' },
     ],
   },
   TEMA_CONTRASENAS,
@@ -383,7 +400,7 @@ export const AYUDA_INSTITUCIONAL = [
     titulo: 'Personal',
     intro: 'El propietario agrega moderadores y el moderador agrega operadores. Siempre por invitación que la persona acepta.',
     pasos: [
-      { texto: 'En Personal tocá agregar, elegí el rol (moderador u operador) e ingresá el correo.' },
+      { texto: 'En Personal tocá agregar, elegí el rol (moderador u operador) e ingresá el correo.', boton: 'Agregar moderador', captura: 'institucional-personal-agregar.png' },
       { texto: 'Si la persona no tiene cuenta, completá nombre y apellido. Si ya tiene cuenta institucional, confirmá nombre y apellido.' },
       { texto: 'Opcional: cargá los datos profesionales. Son matrícula, legajo y función.' },
       { texto: 'En Invitaciones podés ver el estado, reenviar o cancelar cada invitación.' },
@@ -406,7 +423,7 @@ export const AYUDA_INSTITUCIONAL = [
     titulo: 'Pacientes',
     intro: 'Los datos de salud de un paciente los ve solo su operador responsable actual. Propietario y moderador ven los datos administrativos.',
     pasos: [
-      { texto: 'Agregá un paciente con nombre y apellido. Documento, nacimiento y sexo son opcionales. Si lo cargás como operador, quedás como responsable.', ir: { to: '/app/instituciones', label: 'Abrir Instituciones' } },
+      { texto: 'Agregá un paciente con nombre y apellido. Documento, nacimiento y sexo son opcionales. Si lo cargás como operador, quedás como responsable.', ir: { to: '/app/instituciones', label: 'Abrir Instituciones' }, boton: 'Agregar paciente', captura: 'institucional-pacientes-agregar.png' },
       { texto: 'Buscá y filtrá la lista. Editá los datos desde la ficha del paciente.' },
       { texto: 'Para medir, el responsable toca Medir con el dispositivo. Un paciente sin responsable no se puede medir.' },
       { texto: 'Para cambiar de responsable: el operador responsable transfiere el paciente y el destino acepta en Transferencias.' },
@@ -450,9 +467,9 @@ export const AYUDA_INSTITUCIONAL = [
     titulo: 'Matrices',
     intro: 'La matriz define las reglas de referencia que se aplican a las mediciones de glucosa. Todos ven cuál está vigente.',
     pasos: [
-      { texto: 'Propietario o moderador: en Matrices tocá Crear matriz institucional.', ir: { to: '/app/matrices', label: 'Abrir Matrices' } },
-      { texto: 'Abrí la matriz en borrador y tocá Agregar regla: sexo, condición de comida, rango de edad, minutos desde la ingesta e intervalo de glucosa de referencia.' },
-      { texto: 'Tocá Validar reglas para revisar el borrador.' },
+      { texto: 'Propietario o moderador: en Matrices tocá Crear matriz institucional.', ir: { to: '/app/matrices', label: 'Abrir Matrices' }, boton: 'Crear matriz institucional', captura: 'institucional-matrices-crear.png' },
+      { texto: 'Abrí la matriz en borrador y tocá Agregar regla: sexo, condición de comida, rango de edad, minutos desde la ingesta e intervalo de glucosa de referencia.', boton: 'Agregar regla', captura: 'institucional-matrices-agregar-regla.png' },
+      { texto: 'Tocá Revisar configuración para validar las reglas antes de guardar.', boton: 'Revisar configuración', captura: 'institucional-matrices-revisar.png' },
       { texto: 'Si la validación está bien, tocá Activar y confirmá. Las próximas mediciones la usan y la anterior queda como versión histórica.' },
       { texto: 'Para cambiar una matriz activa, creá una versión nueva: la activa no se edita.' },
       { texto: 'Exportá la matriz en CSV (por defecto), Excel o PDF: una fila por regla.' },

@@ -37,6 +37,11 @@ def test_registro_acepta_username_valido(usuario):
     assert register(usuario).usuario == usuario
 
 
+def test_registro_guarda_username_sin_espacios_de_los_extremos():
+    # "  juan" y "juan" son el mismo nombre para quien lo ve: no puede quedar guardado con espacios.
+    assert register("  vmc_2026  ").usuario == "vmc_2026"
+
+
 def test_registro_sin_username_sigue_permitido():
     assert register(None).usuario is None
 

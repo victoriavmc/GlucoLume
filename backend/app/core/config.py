@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Tope de hilos que usan el driver ODBC al mismo tiempo en este proceso (app/db/gate.py). Con 6 u 8 hilos simultáneos pyodbc rinde ~9 veces menos
     # y gasta ~40 veces más CPU por consulta (medido, docs/RENDIMIENTO.md); con 2 la API sostiene ~7 veces más pedidos por segundo que sin tope (óptimo medido con 1 CPU; ver el barrido de RENDIMIENTO.md §3.1). 0 lo desactiva.
     DB_MAX_CONCURRENT_CALLS: int = 2
+    # Espera máxima por un bloqueo de SQL Server, en ms (SET LOCK_TIMEOUT en cada conexión nueva, app/db/session.py). Sin límite, una consulta
+    # que espera una transacción ajena puede retener un hueco de DB_MAX_CONCURRENT_CALLS: si todos los huecos quedan así, la transacción que
+    # los libera no puede confirmarse y la petición se cuelga (interbloqueo reproducido en la base local). Pasado el tiempo, la consulta falla
+    # con el error 1222 y el servicio lo reintenta. 0 = sin límite (comportamiento anterior).
+    DB_LOCK_TIMEOUT_MS: int = 5000
     # Cuenta de base propia de los procesos de conservación (servicio «lifecycle» y app/jobs), GL-03: es la única que puede borrar eventos
     # vencidos de Auditoria y anular IP/navegador de AuditoriaContexto; la de la API (DB_USER) queda con DENY UPDATE, DELETE sobre ambas
     # (database/reference/GlucoLume_permisos.sql). Las dos o ninguna; sin ellas, los jobs usan DB_USER como antes. El contenedor de la API
@@ -280,6 +285,13 @@ class Settings(BaseSettings):
     def validarTopeDeLlamadas(cls, value: int) -> int:
         if not 0 <= value <= 64:
             raise ValueError("DB_MAX_CONCURRENT_CALLS debe estar entre 0 (sin tope) y 64.")
+        return value
+
+    @field_validator("DB_LOCK_TIMEOUT_MS")
+    @classmethod
+    def validarEsperaDeBloqueo(cls, value: int) -> int:
+        if not 0 <= value <= 60000:
+            raise ValueError("DB_LOCK_TIMEOUT_MS debe estar entre 0 (sin límite) y 60000.")
         return value
 
     @field_validator("RATE_LIMIT_REDIS_TIMEOUT_SECONDS", "RATE_LIMIT_REDIS_RETRY_SECONDS")

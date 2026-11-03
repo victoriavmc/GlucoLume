@@ -281,7 +281,7 @@ def test_cuenta_solo_google_usa_el_ingreso_con_google_mas_correo(db, mails):
     activate(db, user)
     identity = GoogleIdentity(subject=f"sub-{user.idUsuario}", email=EMAIL, emailVerified=True, givenName=None,
                               familyName=None)
-    code = authService.createGoogleExchangeCode(db, authService.identifyGoogleUser(db, identity, "CONSUMIDOR_FINAL", True))
+    code = authService.createGoogleExchangeCode(db, authService.identifyGoogleUser(db, identity))
     googleChallenge = authService.exchangeGoogleCode(db, code).challengeToken
 
     started = recovery.startRecovery(db, googleChallenge, None)

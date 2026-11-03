@@ -71,6 +71,35 @@ describe('Ayuda: guía separada por tipo de cuenta', () => {
   });
 });
 
+describe('Ayuda: capturas ampliables', () => {
+  it('tocar una captura abre la imagen ampliada y Escape la cierra', async () => {
+    mockRoutes(ACCOUNT);
+    const user = userEvent.setup();
+    renderAt('/app/ayuda');
+
+    const captura = (await screen.findAllByRole('button', { name: /Ampliar imagen: Menú lateral con «Perfil»/ }))[0];
+    await user.click(captura);
+
+    const ampliada = await screen.findByRole('dialog', { name: 'Menú lateral: tocá «Perfil».' });
+    expect(within(ampliada).getByRole('img', { name: 'Menú lateral con «Perfil» marcado' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('la X de cerrar del visor está arriba y cierra la imagen ampliada', async () => {
+    mockRoutes(ACCOUNT);
+    const user = userEvent.setup();
+    renderAt('/app/ayuda');
+
+    await user.click((await screen.findAllByRole('button', { name: /Ampliar imagen: Menú lateral con «Perfil»/ }))[0]);
+    await screen.findByRole('dialog', { name: 'Menú lateral: tocá «Perfil».' });
+    await user.click(screen.getByRole('button', { name: 'Cerrar' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
 describe('Ayuda: contenido', () => {
   it('cada tema tiene id único por guía y los enlaces apuntan al espacio privado', () => {
     for (const guia of [AYUDA_CLIENTE, AYUDA_INSTITUCIONAL]) {

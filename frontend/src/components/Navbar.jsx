@@ -81,15 +81,29 @@ export function Navbar({ activeSection }) {
                   Consejos
                 </Link>
               </li>
+              <li>
+                <Link
+                  to="/ayuda"
+                  className={pathname.startsWith("/ayuda") ? "is-active" : undefined}
+                  aria-current={pathname.startsWith("/ayuda") ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  Ayuda
+                </Link>
+              </li>
             </ul>
           </nav>
           <div className="navbar-actions">
-            <Link to="/login" className="btn btn-outline">
-              Iniciar sesión
-            </Link>
-            <Link to="/registro" className="btn btn-primary">
-              Registrarse
-            </Link>
+            {pathname !== "/login" && (
+              <Link to="/login" className="btn btn-outline">
+                Iniciar sesión
+              </Link>
+            )}
+            {pathname !== "/registro" && (
+              <Link to="/registro" className="btn btn-primary">
+                Registrarse
+              </Link>
+            )}
           </div>
         </div>
       </div>

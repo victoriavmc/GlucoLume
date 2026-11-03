@@ -61,6 +61,7 @@ describe("Landing: estructura", () => {
       ["Características", "/caracteristicas"],
       ["Contacto", "#contacto"],
       ["Consejos", "/consejos"],
+      ["Ayuda", "/ayuda"],
     ]);
   });
 

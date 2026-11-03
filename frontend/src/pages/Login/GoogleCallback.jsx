@@ -16,6 +16,10 @@ import { AuthShell, MFA_RECOVERED_NOTICE } from './Login.jsx';
 import { MfaForm } from './MfaForm.jsx';
 import { MfaRecoveryFlow } from './MfaRecoveryFlow.jsx';
 
+// Registrarse con Google con un correo que ya tiene cuenta: el backend lo rechaza y aquí se redirige a iniciar sesión.
+const CUENTA_EXISTENTE_CODES = ['CUENTA_YA_EXISTE', 'CUENTA_OTRO_TIPO'];
+const CUENTA_EXISTENTE_REDIRECT_MS = 4000;
+
 function readFragment() {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   // El código no debe quedar en el historial ni en la barra de direcciones.
@@ -59,6 +63,13 @@ export default function GoogleCallback() {
     // finish usa refs y navigate: solo debe ejecutarse al montar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completeGoogle]);
+
+  useEffect(() => {
+    // Ese correo ya tiene cuenta: se muestra el motivo un momento y se lleva a iniciar sesión (sin pasar por MFA).
+    if (state.phase !== 'error' || !CUENTA_EXISTENTE_CODES.includes(state.code)) return undefined;
+    const timer = setTimeout(() => navigate('/login', { replace: true }), CUENTA_EXISTENTE_REDIRECT_MS);
+    return () => clearTimeout(timer);
+  }, [state, navigate]);
 
   async function handleMfa(factor) {
     try {
@@ -108,6 +119,9 @@ export default function GoogleCallback() {
       {state.phase === 'error' && (
         <div className="auth-form">
           <Alert>{state.message}</Alert>
+          {CUENTA_EXISTENTE_CODES.includes(state.code) && (
+            <p className="auth-status" role="status">Te llevamos a iniciar sesión…</p>
+          )}
           {state.code === 'CUENTA_NO_REGISTRADA' && (
             <Link to="/registro" className="btn btn-primary btn-block btn-lg">
               Registrarme

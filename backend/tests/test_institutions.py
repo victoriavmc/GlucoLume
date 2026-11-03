@@ -132,8 +132,9 @@ def test_login_con_google_conserva_el_tipo_de_la_cuenta(db, mails, googleEnv, mo
     async def fetchIdentity(request):
         return identity
 
-    # Aunque la intención guardada sea "institucion", una cuenta existente solo inicia sesión.
-    runCallback(db, monkeypatch, fetchIdentity, {"glucolume_registro": "institucion", "glucolume_politica": True})
+    # Registrarse con la intención "institucion" con una cuenta personal existente: se rechaza y no cambia el tipo.
+    assert runCallback(db, monkeypatch, fetchIdentity, {"glucolume_registro": "institucion", "glucolume_politica": True}) \
+        == "error=CUENTA_OTRO_TIPO"
     assert reload(db, User, personal.idUsuario).tipoCuenta == "CONSUMIDOR_FINAL"
     assert count(db, User) == 1
 

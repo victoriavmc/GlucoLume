@@ -11,7 +11,7 @@ from datetime import date, datetime
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.exceptions import AuthError
 from app.models.audit import Audit
@@ -282,3 +282,61 @@ def test_paciente_rechaza_fecha_futura_y_sexo_invalido():
         patient(fechaNacimiento="2999-01-01")
     with pytest.raises(ValidationError):
         patient(sexoModelo="OTRO")
+
+
+# --- Bloqueo entre peticiones (SQL Server: error 1222 por tiempo de espera de bloqueo) -----------------------------------
+
+def _lockTimeout() -> DBAPIError:
+    return DBAPIError("SELECT ...", {}, Exception("[HY000] Lock request time out period exceeded. (1222) (SQLExecDirectW)"))
+
+
+def test_bloqueo_agotado_se_reintenta_y_usa_el_perfil_que_creo_la_otra_peticion(db, monkeypatch):
+    user = makeUser(db)
+    original = profiles._ensureConsumerProfileOnce
+    intentos = []
+
+    def primeroBloqueado(session, u):
+        intentos.append(1)
+        if len(intentos) == 1:
+            raise _lockTimeout()
+        return original(session, u)
+
+    monkeypatch.setattr(profiles, "_ensureConsumerProfileOnce", primeroBloqueado)
+    monkeypatch.setattr(profiles.time, "sleep", lambda seconds: None)
+
+    profile = profiles.ensureConsumerProfile(db, user)
+
+    assert len(intentos) == 2
+    assert profile.idUsuario == user.idUsuario
+    assert db.scalar(select(func.count()).select_from(MeasurementProfile).where(MeasurementProfile.idUsuario == user.idUsuario)) == 1
+
+
+def test_bloqueo_que_no_se_libera_falla_tras_los_intentos(db, monkeypatch):
+    user = makeUser(db)
+    intentos = []
+
+    def siempreBloqueado(session, u):
+        intentos.append(1)
+        raise _lockTimeout()
+
+    monkeypatch.setattr(profiles, "_ensureConsumerProfileOnce", siempreBloqueado)
+    monkeypatch.setattr(profiles.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(DBAPIError):
+        profiles.ensureConsumerProfile(db, user)
+    assert len(intentos) == profiles.PROFILE_LOCK_ATTEMPTS
+
+
+def test_otro_error_de_base_no_se_reintenta(db, monkeypatch):
+    user = makeUser(db)
+    intentos = []
+
+    def errorAjeno(session, u):
+        intentos.append(1)
+        raise DBAPIError("SELECT ...", {}, Exception("[42S02] Invalid object name 'X'"))
+
+    monkeypatch.setattr(profiles, "_ensureConsumerProfileOnce", errorAjeno)
+
+    with pytest.raises(DBAPIError):
+        profiles.ensureConsumerProfile(db, user)
+    assert len(intentos) == 1

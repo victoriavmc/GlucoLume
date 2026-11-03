@@ -149,3 +149,72 @@
     white-space: normal;
   }
 }
+
+/* Paso con captura: el texto arriba y la imagen centrada debajo. */
+.help-paso {
+  display: grid;
+  gap: 12px;
+}
+
+.help-paso-visual {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Captura real de la app (public/ayuda/): la barra lateral o la pantalla con el botón señalado. */
+.help-captura {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.help-captura img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* La captura es un botón: el cursor de lupa avisa que se puede ampliar. */
+.help-captura-boton {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.help-captura-boton:focus-visible {
+  outline: 3px solid var(--red-600);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
+}
+
+/* Imagen dentro del visor: ocupa el ancho del modal y entra completa en la pantalla. */
+.help-visor-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 110px);
+  object-fit: contain;
+}
+
+/* Las capturas de los casos van debajo del texto, con un ancho razonable. */
+.help-casos .help-captura {
+  max-width: 420px;
+  margin-top: 6px;
+}
+
+.help-captura figcaption {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink-500);
+}

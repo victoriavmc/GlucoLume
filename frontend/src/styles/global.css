@@ -574,3 +574,45 @@ main[tabindex='-1']:focus {
   gap: 10px;
   margin-top: 18px;
 }
+
+/* Visor de imágenes: ventana grande, título arriba a la izquierda y X de cerrar arriba a la derecha. */
+.modal-visor {
+  position: relative;
+  width: min(1040px, 100%);
+  max-height: calc(100vh - 32px);
+  padding: 16px 16px 16px;
+  overflow: auto;
+}
+
+.modal-visor h2 {
+  margin: 0 56px 12px 8px;
+  font-size: 18px;
+  line-height: 40px;
+}
+
+.modal-cerrar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-700);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+.modal-cerrar:hover {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.modal-cerrar:focus-visible {
+  outline: 3px solid var(--red-600);
+  outline-offset: 2px;
+}

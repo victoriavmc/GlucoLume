@@ -4,6 +4,7 @@
 //
 // role="alertdialog" (por defecto): confirmaciones y avisos que interrumpen. role="dialog": formularios dentro de la ventana.
 
+import { X } from 'lucide-react';
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -14,7 +15,8 @@ function focusableIn(root) {
   return [...root.querySelectorAll(FOCUSABLE)].filter((element) => !element.closest('[hidden], [inert]') && getComputedStyle(element).visibility !== 'hidden');
 }
 
-export function Modal({ title, children, actions, onClose, role = 'alertdialog' }) {
+// visor: ventana grande para ver una imagen. El título queda solo para lectores de pantalla y la X de cerrar va arriba a la derecha.
+export function Modal({ title, children, actions, onClose, role = 'alertdialog', visor = false }) {
   const titleId = useId();
   const bodyId = useId();
   const dialogRef = useRef(null);
@@ -78,7 +80,7 @@ export function Modal({ title, children, actions, onClose, role = 'alertdialog' 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeRef.current?.()}>
       <div
-        className="modal"
+        className={visor ? 'modal modal-visor' : 'modal'}
         role={role}
         aria-modal="true"
         aria-labelledby={titleId}
@@ -86,9 +88,14 @@ export function Modal({ title, children, actions, onClose, role = 'alertdialog' 
         tabIndex={-1}
         ref={dialogRef}
       >
+        {visor && (
+          <button type="button" className="modal-cerrar" aria-label="Cerrar" onClick={() => closeRef.current?.()}>
+            <X size={22} aria-hidden="true" />
+          </button>
+        )}
         <h2 id={titleId}>{title}</h2>
         <div className="modal-body" id={bodyId}>{children}</div>
-        <div className="modal-actions">{actions}</div>
+        {actions && <div className="modal-actions">{actions}</div>}
       </div>
     </div>,
     document.body,

@@ -88,7 +88,7 @@ def test_canje_con_mfa_devuelve_desafio(db, mails):
     secret = enableMfa(db, user)
     identity = GoogleIdentity(subject=f"sub-{user.idUsuario}", email=EMAIL, emailVerified=True,
                               givenName=None, familyName=None)
-    code = authService.createGoogleExchangeCode(db, authService.identifyGoogleUser(db, identity, "CONSUMIDOR_FINAL", True))
+    code = authService.createGoogleExchangeCode(db, authService.identifyGoogleUser(db, identity))
 
     response = authService.exchangeGoogleCode(db, code)
     assert response.estado == "MFA_REQUERIDO" and response.tokens is None and response.challengeToken
@@ -291,11 +291,12 @@ def test_refresh_token_tras_el_canje(db, mails):
     assert renewed.accessToken and renewed.refreshToken != tokens.refreshToken
 
 
-def test_usuario_google_existente_inicia_sesion_sin_duplicar(db, mails):
+def test_registro_con_google_de_cuenta_existente_se_rechaza_sin_duplicar(db, mails):
     first = authService.identifyGoogleUser(db, IDENTITY, "CONSUMIDOR_FINAL", True)
-    # Mismo tipo: entra con la cuenta existente, sin duplicar.
-    again = authService.identifyGoogleUser(db, IDENTITY, "CONSUMIDOR_FINAL", True)
-    assert again.idUsuario == first.idUsuario
+    # Mismo tipo: ya tiene cuenta, se le pide iniciar sesión (no entra desde el registro ni pasa por MFA).
+    with pytest.raises(AuthError) as same:
+        authService.identifyGoogleUser(db, IDENTITY, "CONSUMIDOR_FINAL", True)
+    assert same.value.code == "CUENTA_YA_EXISTE"
     # Otro tipo: no se registra y no se entra en silencio; la cuenta existente no cambia.
     with pytest.raises(AuthError) as other:
         authService.identifyGoogleUser(db, IDENTITY, "USUARIO_INSTITUCIONAL", True)
@@ -304,6 +305,17 @@ def test_usuario_google_existente_inicia_sesion_sin_duplicar(db, mails):
     assert db.scalar(select(func.count()).select_from(User)) == 1
     # Iniciar sesión (sin intención de registro) sigue entrando con el tipo que ya tiene.
     assert authService.identifyGoogleUser(db, IDENTITY).idUsuario == first.idUsuario
+
+
+def test_registro_con_google_de_cuenta_con_mfa_se_rechaza_antes_del_desafio(db, mails):
+    user = makeUser(db, local=False, google=True)
+    enableMfa(db, user)
+    identity = GoogleIdentity(subject=f"sub-{user.idUsuario}", email=EMAIL, emailVerified=True,
+                              givenName=None, familyName=None)
+    with pytest.raises(AuthError) as error:
+        authService.identifyGoogleUser(db, identity, "CONSUMIDOR_FINAL", True)
+    assert error.value.code == "CUENTA_YA_EXISTE"
+    assert db.scalar(select(func.count()).select_from(User)) == 1
 
 
 def test_registro_local_con_correo_ya_registrado_en_otro_tipo_no_crea_otra_cuenta(db, mails):
@@ -329,7 +341,11 @@ def test_cuenta_local_no_verificada_no_se_vincula_automaticamente(db, mails):
 
 def test_cuenta_local_activa_se_vincula_segun_la_regla_existente(db, mails):
     local = makeUser(db, email="nueva.persona@example.com", usuario="nueva")
-    user = authService.identifyGoogleUser(db, IDENTITY, "CONSUMIDOR_FINAL", True)
+    # Registrarse con Google sobre una cuenta que ya existe se rechaza; iniciar sesión con Google sí la vincula.
+    with pytest.raises(AuthError) as error:
+        authService.identifyGoogleUser(db, IDENTITY, "CONSUMIDOR_FINAL", True)
+    assert error.value.code == "CUENTA_YA_EXISTE"
+    user = authService.identifyGoogleUser(db, IDENTITY)
     assert user.idUsuario == local.idUsuario
     assert "Google" in mails[-1]["subject"]
 
@@ -409,6 +425,6 @@ def test_codigo_de_google_con_mfa_no_se_confunde_con_transferencia(db, mails):
     enableMfa(db, user)
     identity = GoogleIdentity(subject=f"sub-{user.idUsuario}", email=EMAIL, emailVerified=True,
                               givenName=None, familyName=None)
-    code = authService.createGoogleExchangeCode(db, authService.identifyGoogleUser(db, identity, "CONSUMIDOR_FINAL", True))
+    code = authService.createGoogleExchangeCode(db, authService.identifyGoogleUser(db, identity))
     assert not code.startswith(authService.SESSION_TRANSFER_PREFIX)
     assert authService.exchangeGoogleCode(db, code).estado == "MFA_REQUERIDO"

@@ -1,4 +1,7 @@
+/* Mismo ancho y alto en todas las páginas: no heredar --max ni --nav-h de la Landing. */
 .navbar {
+  --nav-max: 1320px;
+  --nav-h: 80px;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -7,11 +10,12 @@
   border-bottom: 1px solid rgba(231, 233, 240, 0.8);
 }
 
-.navbar-inner {
+.navbar .navbar-inner {
   display: flex;
   align-items: center;
-  gap: 24px;
-  min-height: var(--nav-h, 80px);
+  gap: 16px;
+  max-width: var(--nav-max);
+  height: var(--nav-h);
 }
 
 .logo {
@@ -48,12 +52,13 @@
   display: flex;
   align-items: center;
   flex: 1;
-  gap: 24px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .navbar-links {
   display: flex;
-  gap: 6px;
+  gap: 2px;
   margin: 0 auto;
   padding: 0;
   list-style: none;
@@ -62,10 +67,11 @@
 .navbar-links a {
   position: relative;
   display: block;
-  padding: 12px 16px;
+  padding: 12px 12px;
   color: var(--ink-700);
   font-size: 16px;
   font-weight: 500;
+  white-space: nowrap;
   text-decoration: none;
   border-radius: 10px;
 }
@@ -81,8 +87,8 @@
 .navbar-links a.is-active::after {
   content: '';
   position: absolute;
-  left: 16px;
-  right: 16px;
+  left: 12px;
+  right: 12px;
   bottom: -14px;
   height: 2px;
   border-radius: 2px;
@@ -91,11 +97,17 @@
 
 .navbar-actions {
   display: flex;
+  flex: none;
   gap: 10px;
+}
+
+.navbar-actions .btn {
+  white-space: nowrap;
 }
 
 .navbar-toggle {
   display: none;
+  flex: none;
   margin-left: auto;
   width: 44px;
   height: 44px;
@@ -107,7 +119,8 @@
   cursor: pointer;
 }
 
-@media (max-width: 1080px) {
+/* Hasta 1360px la fila de enlaces + acciones (~1210px con los siete enlaces) no cabe con el gutter y la barra de desplazamiento: se pasa a hamburguesa. */
+@media (max-width: 1360px) {
   .navbar-toggle {
     display: grid;
   }

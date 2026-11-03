@@ -748,10 +748,11 @@ def identifyGoogleUser(
 ) -> User:
     """Casos 2 y 3: identifica por proveedor + subjectProveedor; vincula o crea según RF04/RN05.
 
-    Un único flujo para registrarse e iniciar sesión: si la identidad o el correo ya existen se usa esa
-    cuenta (su tipo no cambia); si no, se crea una cuenta nueva del tipo público pedido al iniciar el
-    flujo. Sin tipoCuentaNueva (inicio de sesión, no registro) NUNCA se crea una cuenta: solo entra una identidad ya
-    vinculada o un correo ya registrado (vinculación segura); si no existe, CUENTA_NO_REGISTRADA.
+    Registrarse con Google (tipoCuentaNueva) crea una cuenta nueva del tipo pedido; si el correo o la identidad ya
+    tienen cuenta, se rechaza (CUENTA_YA_EXISTE / CUENTA_OTRO_TIPO) antes de cualquier sesión o desafío MFA, para que
+    la persona vaya a iniciar sesión. Excepción: la activación de una cuenta invitada (no es un registro nuevo).
+    Sin tipoCuentaNueva (inicio de sesión) NUNCA se crea una cuenta: solo entra una identidad ya vinculada o un correo
+    ya registrado (vinculación segura); si no existe, CUENTA_NO_REGISTRADA.
     No entrega sesión: eso lo hace _completePrimaryAuthentication.
     """
     now = nowForDb()
@@ -764,6 +765,8 @@ def identifyGoogleUser(
     outcome = None
     if external is not None:
         user = db.get(User, external.idUsuario)
+        if tipoCuentaNueva:
+            _rechazarRegistroConCuentaExistente(db, user, tipoCuentaNueva)
         external.ultimoAcceso = now
         external.emailProveedor = identity.email
         external.emailVerificado = identity.emailVerified
@@ -876,6 +879,22 @@ GOOGLE_ACCOUNT_CREATED = "CREADA"
 GOOGLE_ACCOUNT_LINKED = "VINCULADA"
 
 
+def _rechazarRegistroConCuentaExistente(db: Session, user: User, tipoCuenta: str) -> None:
+    """Registro con Google de un correo que ya tiene cuenta: no se crea otra ni se entra desde el registro."""
+    if user.tipoCuenta != tipoCuenta:
+        code = "CUENTA_OTRO_TIPO"
+        message = (
+            "Ese correo ya está registrado con otro tipo de cuenta, por lo que no podés registrarte de nuevo. "
+            "Iniciá sesión con tu cuenta existente."
+        )
+    else:
+        code = "CUENTA_YA_EXISTE"
+        message = "Ya tenés una cuenta con ese correo, por lo que no podés registrarte de nuevo. Iniciá sesión."
+    registerEvent(db, "LOGIN", "REGISTRO_GOOGLE", False, user.idUsuario, observacion="Correo ya registrado", motivo=code)
+    db.commit()
+    raise AuthError(code, message)
+
+
 def _linkOrCreateGoogleUser(
     db: Session, identity: GoogleIdentity, now, tipoCuenta: str | None, aceptaPolitica: bool = False
 ) -> tuple[User, str]:
@@ -887,6 +906,7 @@ def _linkOrCreateGoogleUser(
 
     email = normalizeEmail(identity.email)
     user = _findUserByEmail(db, email)
+    activada = False
 
     if (user is not None and invitedAccounts.isInvitedPendingAccount(db, user) and invitedAccounts.hasValidActivationToken(db, user, now)
             and invitedAccounts.hasLiveInvitation(db, user, now)):
@@ -906,6 +926,7 @@ def _linkOrCreateGoogleUser(
         registerEvent(db, "CRUD", "ACTIVAR_CUENTA_INVITADA", True, user.idUsuario, "Usuario", user.idUsuario,
                       datosNuevos={"estado": ESTADO_ACTIVO, "metodo": "GOOGLE"})
         accountGrace.startIfOrphaned(db, user.idUsuario, now, user.idUsuario, accountGrace.ORIGEN_ACTIVACION)  # habilitada sin vínculo activo
+        activada = True
     if user is not None:
         # Caso 3: vinculación automática a la cuenta existente.
         if user.estado != ESTADO_ACTIVO or _getGoogleIdentity(db, user) is not None:
@@ -915,6 +936,8 @@ def _linkOrCreateGoogleUser(
                 "VINCULACION_RECHAZADA",
                 "Existe una cuenta con este correo que no puede vincularse automáticamente.",
             )
+        if tipoCuenta is not None and not activada:
+            _rechazarRegistroConCuentaExistente(db, user, tipoCuenta)
         registerEvent(db, "PERMISO", "VINCULACION_GOOGLE", True, user.idUsuario, "Usuario", user.idUsuario)
         outcome = GOOGLE_ACCOUNT_LINKED
     elif tipoCuenta is None:

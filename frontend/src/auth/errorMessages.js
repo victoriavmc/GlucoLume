@@ -18,6 +18,7 @@ const MESSAGES = {
     'No pudimos usar esa cuenta de Google. Si ya tenés una cuenta con ese correo, iniciá sesión con tu contraseña.',
   CUENTA_OTRO_TIPO:
     'Ese correo ya está registrado con otro tipo de cuenta, por lo que no podés registrarte de nuevo. Iniciá sesión con tu cuenta existente.',
+  CUENTA_YA_EXISTE: 'Ya tenés una cuenta con ese correo, por lo que no podés registrarte de nuevo. Iniciá sesión.',
   POLITICA_NO_ACEPTADA: 'Para continuar tenés que confirmar que leíste la Política de Privacidad.',
   ACCESO_PLATAFORMA_REQUERIDO: 'Esta cuenta administra GlucoLume: ingresá por el acceso administrativo.',
   ACCESO_PLATAFORMA_DENEGADO: 'Esta cuenta no tiene acceso a la administración de la plataforma.',
