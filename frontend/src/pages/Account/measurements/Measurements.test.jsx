@@ -937,6 +937,19 @@ describe('Detalle de glucosa experimental: matriz de referencia', () => {
     expect(panel.getByText('No informada')).toBeInTheDocument();
   });
 
+  it('cada regla candidata muestra su propio semáforo frente al valor', async () => {
+    const perRule = reference({ grupos: [{ sexoModelo: 'FEMENINO', titulo: 'Referencia femenina', reglas: [{ ...female, semaforo: 'VERDE' }, { ...male, semaforo: 'ROJO' }],
+      reglaSeleccionada: null, posicion: null, aplicada: false,
+      motivoSinSeleccion: 'La condición de alimentación no está determinada: se muestran las reglas disponibles sin elegir una.' }] });
+    routes({ [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, glucoseDetail(perRule)) });
+    renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
+    const panel = within(await screen.findByRole('region', { name: 'Matriz de referencia de glucosa' }));
+    const list = within(panel.getByRole('article', { name: 'Referencia femenina' })).getByRole('list', { name: /Reglas disponibles/ });
+    expect(list).toHaveTextContent('Está bien');
+    expect(list).toHaveTextContent('Muy alto');
+    expect(list.querySelectorAll('.semaforo-luz.is-on')).toHaveLength(2);
+  });
+
   it('con el sexo informado muestra una sola referencia y destaca la regla aplicada', async () => {
     const applied = reference({ estado: 'APLICADA', sexoInformado: true, sexoModelo: 'FEMENINO', avisoSexo: null, grupos: [
       { sexoModelo: 'FEMENINO', titulo: 'Referencia femenina', reglas: [female], reglaSeleccionada: female, posicion: 'DENTRO', aplicada: true, motivoSinSeleccion: null }] });

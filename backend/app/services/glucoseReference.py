@@ -34,12 +34,14 @@ def _minutes(measurement: Measurement) -> int | None:
     return int((measurement.fechaHoraInicio - measurement.fechaHoraUltimaComida).total_seconds() // 60)
 
 
-def _ruleRead(rule: MatrixRule) -> ReferenceRule:
-    return ReferenceRule(
+def _ruleRead(rule: MatrixRule, value: float | None) -> ReferenceRule:
+    read = ReferenceRule(
         idRegla=rule.idReglaMatriz, codigo=rule.codigoRegla, sexoModelo=rule.sexoModelo, edadDesde=rule.edadDesde, edadHasta=rule.edadHasta,
         condicionComida=rule.condicionComida, minutosComidaMin=rule.minutosComidaMin, minutosComidaMax=rule.minutosComidaMax,
         glucosaMinReferencia=None if rule.glucosaMinReferencia is None else float(rule.glucosaMinReferencia),
         glucosaMaxReferencia=float(rule.glucosaMaxReferencia))
+    read.semaforo = semaphore(read, value)
+    return read
 
 
 def _inAge(rule: MatrixRule, age: int) -> bool:
@@ -145,9 +147,9 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
             reason = "Hay más de una regla posible para este contexto: se muestran todas sin elegir una."
         else:
             selected = candidates[0]
-        read = _ruleRead(selected) if selected is not None else None
+        read = _ruleRead(selected, value) if selected is not None else None
         groups.append(ReferenceGroup(
-            sexoModelo=sex, titulo=SEX_TITLES.get(sex, f"Referencia {sex}"), reglas=[_ruleRead(r) for r in candidates],
+            sexoModelo=sex, titulo=SEX_TITLES.get(sex, f"Referencia {sex}"), reglas=[_ruleRead(r, value) for r in candidates],
             reglaSeleccionada=read, posicion=position(read, value), motivoSinSeleccion=reason,
             aplicada=bool(selected is not None and estimated and appliedRule == selected.idReglaMatriz)))
     # El semáforo sale de la regla aplicada si la hay; si no, de la única regla que quedó determinada.

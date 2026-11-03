@@ -49,6 +49,12 @@ export function personName(person) {
   return [person.nombre, person.apellido].filter(Boolean).join(' ') || 'Integrante';
 }
 
+/** Opción para designar administrador: nombre y apellido (o usuario si falta) y, entre paréntesis, el correo, que siempre identifica a la cuenta. */
+export function memberOptionLabel(member) {
+  const name = [member.nombre, member.apellido].filter(Boolean).join(' ') || member.usuario || 'Integrante';
+  return member.correoElectronico ? `${name} (${member.correoElectronico})` : name;
+}
+
 /** El backend guarda la hora de Argentina sin zona (AAAA-MM-DDTHH:MM:SS): se muestra tal cual. */
 export function formatDateTime(value) {
   if (!value) return '';

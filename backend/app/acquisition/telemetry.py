@@ -179,6 +179,8 @@ def parseLine(line: str) -> Reading | Notice | PpgChunk | Identity | None:
         return Notice(text[:200], error=True)
     if text.startswith(INFO_PREFIXES):
         return Notice(text[:200])
+    if text.startswith("RAW,"):
+        return None  # flujo de muestras cada 10 ms (firmware con RAW,ON, solo USB): no es telemetría ni se guarda
     if text.startswith("PPG,"):
         return parsePpg(text)
     if text.startswith("GLUCOLUME,"):

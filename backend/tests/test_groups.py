@@ -194,7 +194,7 @@ def test_mensajes_de_invitacion(db, mails):
     ana = person(db, "ana")
     group = create(db, ana)
     error = expectError("USUARIO_NO_ENCONTRADO", groups.lookupCandidate, db, ana, group.idGrupo, "nadie@example.com")
-    assert error.message.startswith("No existe una cuenta individual registrada con este correo.")
+    assert error.message.startswith("No hay una cuenta individual activa con este correo.")
     pendiente = person(db, "pendiente")
     pendiente.estado = "PENDIENTE"  # correo sin verificar
     db.commit()
@@ -626,6 +626,15 @@ def test_todos_los_integrantes_ven_que_comparte_cada_uno(db, mails, family):
         assert beto.tienePerfil is True
         dumped = beto.model_dump()
         assert "spo2" not in dumped and "medicion" not in dumped  # el listado muestra permisos, nunca datos
+
+
+def test_solo_el_administrador_ve_usuario_y_correo_de_cada_integrante(db, mails, family):
+    admin = {m.idGrupoUsuario: m for m in groups.listMembers(db, family.ana, family.id)}
+    assert admin[family.betoLink].correoElectronico == family.beto.correoElectronico
+    assert admin[family.betoLink].usuario == family.beto.usuario
+    member = {m.idGrupoUsuario: m for m in groups.listMembers(db, family.beto, family.id)}
+    assert member[family.anaLink].correoElectronico is None and member[family.anaLink].usuario is None
+    assert member[family.betoLink].correoElectronico is None  # tampoco el propio: el listado no lo muestra a miembros
 
 
 def test_juan_comparte_historial_y_pepe_ve_sus_graficos(db, mails):

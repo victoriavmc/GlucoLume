@@ -167,14 +167,14 @@ describe('Invitaciones (administrador)', () => {
       [`GET ${BASE}/invitations`]: jsonResponse(200, []),
       [`POST ${BASE}/invitations/lookup`]: jsonResponse(404, {
         codigo: 'USUARIO_NO_ENCONTRADO',
-        detail: 'No existe una cuenta individual registrada con este correo. Podés enviarle una invitación por correo para que cree su cuenta y se sume al grupo.',
+        detail: 'No hay una cuenta individual activa con este correo. Si la persona ya se registró, pedile que verifique su correo y volvé a intentar. Si todavía no tiene cuenta, podés enviarle una invitación por correo para que la cree y se sume al grupo.',
       }),
     });
     const user = userEvent.setup();
     renderAt(`/app/grupo/${ID}/integrantes`);
     await user.type(await screen.findByLabelText('Correo electrónico de la cuenta individual'), 'nadie@example.com');
     await user.click(screen.getByRole('button', { name: /Buscar/ }));
-    expect(await screen.findByText(/No existe una cuenta individual registrada con este correo/)).toBeInTheDocument();
+    expect(await screen.findByText(/No hay una cuenta individual activa con este correo/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Registro de cuentas individuales' })).toHaveAttribute('href', '/registro?tipo=usuario');
   });
 
@@ -185,7 +185,7 @@ describe('Invitaciones (administrador)', () => {
       [`GET ${BASE}/invitations`]: jsonResponse(200, []),
       [`POST ${BASE}/invitations/lookup`]: jsonResponse(404, {
         codigo: 'USUARIO_NO_ENCONTRADO',
-        detail: 'No existe una cuenta individual registrada con este correo.',
+        detail: 'No hay una cuenta individual activa con este correo.',
       }),
       [`POST ${BASE}/invitations`]: jsonResponse(201, { idGrupoUsuario: 'gu-lucia', nombre: null, apellido: null,
         fechaInvitacion: '2026-10-08T10:00:00', fechaVencimiento: '2026-10-15T10:00:00', vencida: false }),
@@ -450,13 +450,35 @@ describe('Configuración', () => {
       [`GET ${BASE}`]: jsonResponse(200, group('ADMINISTRADOR', { cantidadIntegrantes: 2 })),
       [`GET ${BASE}/members`]: jsonResponse(200, [
         { idGrupoUsuario: 'gu-me', nombre: 'Victoria', apellido: 'Cortés', rol: 'ADMINISTRADOR', estado: 'ACTIVO', fechaIncorporacion: '2026-10-01T10:00:00', esVos: true },
-        { idGrupoUsuario: 'gu-beto', nombre: 'Beto', apellido: 'Ruiz', rol: 'MIEMBRO', estado: 'ACTIVO', fechaIncorporacion: '2026-10-02T10:00:00', esVos: false },
+        { idGrupoUsuario: 'gu-beto', nombre: 'Beto', apellido: 'Ruiz', usuario: 'beto', correoElectronico: 'beto@example.com', rol: 'MIEMBRO', estado: 'ACTIVO', fechaIncorporacion: '2026-10-02T10:00:00', esVos: false },
       ]),
     });
     renderAt(`/app/grupo/${ID}/configuracion`);
     expect(await screen.findByText('Para salir, primero designá a otro integrante como administrador.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Abandonar grupo' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('option', { name: 'Beto Ruiz' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Beto Ruiz (beto@example.com)' })).toBeInTheDocument();
+  });
+
+  it('al transferir la propiedad, quien deja de administrar ve el aviso con el nombre y correo del nuevo administrador', async () => {
+    const me = { idGrupoUsuario: 'gu-me', nombre: 'Victoria', apellido: 'Cortés', rol: 'ADMINISTRADOR', estado: 'ACTIVO', fechaIncorporacion: '2026-10-01T10:00:00', esVos: true };
+    const beto = { idGrupoUsuario: 'gu-beto', nombre: 'Beto', apellido: 'Ruiz', usuario: 'beto', correoElectronico: 'beto@example.com', rol: 'MIEMBRO', estado: 'ACTIVO', fechaIncorporacion: '2026-10-02T10:00:00', esVos: false };
+    const { calls } = routes({
+      // Primera carga como administrador; después de transferir, como miembro.
+      [`GET ${BASE}`]: [
+        jsonResponse(200, group('ADMINISTRADOR', { cantidadIntegrantes: 2 })),
+        jsonResponse(200, group('MIEMBRO', { cantidadIntegrantes: 2 })),
+        jsonResponse(200, group('MIEMBRO', { cantidadIntegrantes: 2 })),
+      ],
+      [`GET ${BASE}/members`]: jsonResponse(200, [me, beto]),
+      [`POST ${BASE}/transfer`]: jsonResponse(200, group('MIEMBRO', { cantidadIntegrantes: 2 })),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/grupo/${ID}/configuracion`);
+    await user.selectOptions(await screen.findByLabelText('Nuevo administrador/a'), 'gu-beto');
+    await user.click(screen.getByRole('button', { name: 'Transferir administración' }));
+    expect(await screen.findByText('Transferiste la propiedad de «Familia Pérez» a Beto Ruiz (beto@example.com). Ahora sos miembro.')).toBeInTheDocument();
+    expect(calls.find((call) => call.key === `POST ${BASE}/transfer`).body).toEqual({ idGrupoUsuario: 'gu-beto' });
+    expect(screen.queryByRole('button', { name: 'Transferir administración' })).not.toBeInTheDocument();
   });
 
   it('eliminar exige escribir el nombre exacto', async () => {

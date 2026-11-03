@@ -175,6 +175,14 @@ def test_detalle_trae_el_semaforo_de_la_regla_elegida(db, mails, platform):
     assert reference.build(db, medicion(matriz, glucosa="117", condicion="AYUNO", edad=None)).semaforo is None
 
 
+def test_cada_regla_candidata_lleva_su_propio_semaforo(db, mails, platform):
+    matriz = activeMatrix(db, platform, rules=objetivosAda())
+    # Sin alimentación no se elige regla (no hay semáforo general), pero cada candidata compara el valor con su propio intervalo.
+    ref = reference.build(db, medicion(matriz, glucosa="150", condicion="NO_INFORMADA"))
+    assert ref.semaforo is None
+    assert {r.condicionComida: r.semaforo for r in ref.grupos[0].reglas} == {"AYUNO": "ROJO", "POSTPRANDIAL": "VERDE"}
+
+
 # --- Coherencia con el instalador SQL ------------------------------------------------------------------------------------------
 
 

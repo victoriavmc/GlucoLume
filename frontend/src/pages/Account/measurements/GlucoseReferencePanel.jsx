@@ -13,6 +13,7 @@ import { Badge } from '../../../components/Badge.jsx';
 import { TabPanel, Tabs } from '../../../components/Tabs.jsx';
 import { DemoBadge } from './DeviceReadout.jsx';
 import { MEALS, ORIGINS, SEXO } from './measurementFormat.js';
+import { Semaforo } from './Semaforo.jsx';
 
 const POSITIONS = {
   DENTRO: 'Dentro del intervalo configurado',
@@ -90,6 +91,7 @@ function Group({ group, value, demo }) {
             label={`${group.titulo}: intervalo ${rule.glucosaMinReferencia === null ? `hasta ${number(rule.glucosaMaxReferencia)}` : `${number(rule.glucosaMinReferencia)} a ${number(rule.glucosaMaxReferencia)}`} mg/dL`} />
           {group.posicion ? (
             <p className={`reference-position is-${group.posicion.toLowerCase()}`} role="status">
+              <Semaforo color={rule.semaforo} />
               <b>{POSITIONS[group.posicion]}</b>
               <small>{demo ? ' Comparación ilustrativa con un valor DEMO (sintético).' : ' Comparación matemática con la regla experimental, no una clasificación clínica.'}</small>
             </p>
@@ -100,7 +102,9 @@ function Group({ group, value, demo }) {
           <p className="field-hint">{group.motivoSinSeleccion}</p>
           {group.reglas.length > 0 && (
             <ul className="reference-rules" aria-label={`Reglas disponibles: ${group.titulo}`}>
-              {group.reglas.map((candidate) => <li key={candidate.idRegla}>{ruleText(candidate)}</li>)}
+              {group.reglas.map((candidate) => (
+                <li key={candidate.idRegla}>{ruleText(candidate)} <Semaforo color={candidate.semaforo} /></li>
+              ))}
             </ul>
           )}
         </>

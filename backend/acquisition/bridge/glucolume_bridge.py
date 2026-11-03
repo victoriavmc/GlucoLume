@@ -706,7 +706,7 @@ class SerialReader(threading.Thread):
                 if text and self.authenticator is not None:
                     verdict = self.authenticator.verify(text[:512])
                     text = verdict.payload or ""  # descartada: no llega al backend (se cuenta y se registra sin su contenido)
-                if text:
+                if text and not text.startswith("RAW,"):  # flujo RAW (10 ms): no se envía al backend
                     self.buffer.add(text[:512], now)
             elif now - lastData > self.silenceSeconds:
                 self._set("DESCONECTADO", 0, "El puerto está abierto pero no llegan datos: se reabre.", "SIN_DATOS")

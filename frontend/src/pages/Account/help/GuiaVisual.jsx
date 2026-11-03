@@ -39,12 +39,20 @@ function seccionDe(tipo, destino) {
     .sort((a, b) => b.to.length - a.to.length)[0];
 }
 
-// Captura de la barra lateral de ese tipo de cuenta, con la sección del paso marcada.
-export function PasoMenu({ tipo, destino }) {
+// Datos de la captura de la barra lateral de ese tipo de cuenta, con la sección del paso marcada (o null si no hay).
+export function menuDe(tipo, destino) {
   const seccion = seccionDe(tipo, destino);
   if (!seccion) return null;
-  const archivo = `${PREFIJO[tipo]}-menu-${seccion.to.replace('/app/', '')}.png`;
-  return <PasoImagen captura={archivo} alt={`Menú lateral con «${seccion.label}» marcado`} pie={`Menú lateral: tocá «${seccion.label}».`} />;
+  return {
+    captura: `${PREFIJO[tipo]}-menu-${seccion.to.replace('/app/', '')}.png`,
+    alt: `Menú lateral con «${seccion.label}» marcado`,
+    pie: `Menú lateral: tocá «${seccion.label}».`,
+  };
+}
+
+export function PasoMenu({ tipo, destino }) {
+  const menu = menuDe(tipo, destino);
+  return menu && <PasoImagen {...menu} />;
 }
 
 // Imagen de una pantalla de la app (`captura` es un archivo de public/ayuda/) con su pie. Al tocarla se abre ampliada

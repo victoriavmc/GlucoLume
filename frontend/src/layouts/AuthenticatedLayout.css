@@ -1911,6 +1911,7 @@ a.dash-card:hover { border-color: var(--red-600); }
 .md-details-title svg { color: var(--red-600); }
 .md-details-hint { margin-left: auto; color: var(--ink-500); font-size: 15px; }
 .md-details-body { display: grid; gap: 14px; padding: 4px 26px 24px; border-top: 1px solid var(--line); padding-top: 20px; }
+.md-details-body form > .form-grid + .form-actions { margin-top: 16px; }
 .measurement-detail .md-card > .data-list { padding: 0; border: 0; background: none; }
 @media (max-width: 1000px) { .ref-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .ref-facts { grid-template-columns: minmax(0, 1fr); } .md-page-head .detail-nav { margin-left: 0; } }

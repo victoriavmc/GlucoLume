@@ -12,7 +12,7 @@ import { SiteFooter } from '../../../components/SiteFooter.jsx';
 import { SkipLink } from '../../../components/SkipLink.jsx';
 import { TabPanel, Tabs } from '../../../components/Tabs.jsx';
 import { AYUDA_AVISO, AYUDA_CLIENTE, AYUDA_INSTITUCIONAL } from './helpContent.js';
-import { PasoBoton, PasoImagen, PasoMenu } from './GuiaVisual.jsx';
+import { PasoBoton, PasoImagen, menuDe } from './GuiaVisual.jsx';
 import './Help.css';
 
 const TAB_BASE = 'ayuda-tipo';
@@ -24,6 +24,9 @@ const PESTANAS = [
 function Tema({ prefijo, tipo, tema }) {
   const id = `${prefijo}-${tema.id}`;
   const headingId = `${id}-titulo`;
+  // Cada paso muestra una sola imagen: la pantalla donde se toca, o si no hay, el menú lateral. El menú de una sección
+  // se muestra una vez por tema, aunque varios pasos apunten a ella.
+  const menusMostrados = new Set();
   return (
     <section className="panel help-topic" id={id} aria-labelledby={headingId}>
       <h2 id={headingId}>{tema.titulo}</h2>
@@ -33,23 +36,29 @@ function Tema({ prefijo, tipo, tema }) {
         <>
           <h3>Cómo se usa</h3>
           <ol className="help-steps">
-            {tema.pasos.map(({ texto, ir, boton, captura, pie }, index) => (
-              <li key={`${index}-${texto}`}>
-                <div className={ir || boton || captura ? 'help-paso' : undefined}>
-                  <div>
-                    {texto}
-                    {ir && <Link to={ir.to} className="help-go">{ir.label} →</Link>}
-                  </div>
-                  {(ir || boton || captura) && (
-                    <div className="help-paso-visual">
-                      {ir && <PasoMenu tipo={tipo} destino={ir.to} />}
-                      {boton && <PasoBoton texto={boton} captura={captura} pie={pie} />}
-                      {captura && !boton && <PasoImagen captura={captura} pie={pie} alt={texto} />}
+            {tema.pasos.map(({ texto, ir, boton, captura, pie }, index) => {
+              const menu = !boton && !captura && ir ? menuDe(tipo, ir.to) : null;
+              const mostrarMenu = Boolean(menu) && !menusMostrados.has(menu.captura);
+              if (mostrarMenu) menusMostrados.add(menu.captura);
+              const conImagen = Boolean(boton || captura || mostrarMenu);
+              return (
+                <li key={`${index}-${texto}`}>
+                  <div className={conImagen ? 'help-paso' : undefined}>
+                    <div>
+                      {texto}
+                      {ir && <Link to={ir.to} className="help-go">{ir.label} →</Link>}
                     </div>
-                  )}
-                </div>
-              </li>
-            ))}
+                    {conImagen && (
+                      <div className="help-paso-visual">
+                        {boton && <PasoBoton texto={boton} captura={captura} pie={pie} />}
+                        {!boton && captura && <PasoImagen captura={captura} pie={pie} alt={texto} />}
+                        {mostrarMenu && <PasoImagen {...menu} />}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </>
       )}

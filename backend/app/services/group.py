@@ -94,8 +94,8 @@ ADMIN_INDEX = "UX_GrupoUsuario_administrador"
 
 ALREADY_IN_GROUP_MESSAGE = "Ya pertenecés a un grupo. Para crear otro, primero debés abandonar el grupo actual."
 NOT_FOUND_ACCOUNT_MESSAGE = (
-    "No existe una cuenta individual registrada con este correo. Podés enviarle una invitación por correo para que "
-    "cree su cuenta y se sume al grupo."
+    "No hay una cuenta individual activa con este correo. Si la persona ya se registró, pedile que verifique su correo "
+    "y volvé a intentar. Si todavía no tiene cuenta, podés enviarle una invitación por correo para que la cree y se sume al grupo."
 )
 INSTITUTIONAL_ACCOUNT_MESSAGE = (
     "El correo corresponde a una cuenta institucional: solo las cuentas individuales pueden formar parte de grupos "
@@ -301,7 +301,8 @@ def updateGroup(db: Session, actor: User, idGrupo: uuid.UUID, data: FamilyGroupU
 
 
 def listMembers(db: Session, actor: User, idGrupo: uuid.UUID) -> list[GroupMemberRead]:
-    requireMembership(db, actor, idGrupo)
+    membership = requireMembership(db, actor, idGrupo)
+    isAdmin = membership.relation.rolGrupo == ROL_ADMIN
     rows = db.execute(
         select(GroupUser, User)
         .join(User, User.idUsuario == GroupUser.idUsuario)
@@ -309,9 +310,13 @@ def listMembers(db: Session, actor: User, idGrupo: uuid.UUID) -> list[GroupMembe
         .order_by(GroupUser.rolGrupo.desc(), GroupUser.fechaIncorporacion)
     ).all()
     # Todos los integrantes activos ven qué decidió compartir cada uno (solo los permisos, nunca los datos).
+    # Usuario y correo: solo el administrador, para identificar a quien va a designar.
     return [
         GroupMemberRead(
-            idGrupoUsuario=relation.idGrupoUsuario, nombre=user.nombre, apellido=user.apellido, rol=_role(relation),
+            idGrupoUsuario=relation.idGrupoUsuario, nombre=user.nombre, apellido=user.apellido,
+            usuario=user.usuario if isAdmin else None,
+            correoElectronico=user.correoElectronico if isAdmin else None,
+            rol=_role(relation),
             estado=relation.estadoRelacion, fechaIncorporacion=relation.fechaIncorporacion,
             esVos=user.idUsuario == actor.idUsuario,
             **{field: bool(getattr(relation, field)) for field in SHARING_FIELDS},

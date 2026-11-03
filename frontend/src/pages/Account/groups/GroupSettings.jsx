@@ -8,7 +8,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 
 import * as groupsApi from '../../../api/groupsApi.js';
 import { Alert, SelectField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
-import { personName } from './groupFormat.js';
+import { memberOptionLabel } from './groupFormat.js';
 
 function EditGroup({ group, reload, handleOperationError }) {
   const [form, setForm] = useState({ nombre: group.nombre, descripcion: group.descripcion ?? '' });
@@ -61,6 +61,7 @@ function EditGroup({ group, reload, handleOperationError }) {
 }
 
 function TransferAdmin({ group, reload, handleOperationError }) {
+  const navigate = useNavigate();
   const [members, setMembers] = useState(null);
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
@@ -78,7 +79,13 @@ function TransferAdmin({ group, reload, handleOperationError }) {
     setError('');
     try {
       await groupsApi.transferAdmin(group.idGrupo, selected);
+      const newAdmin = members.find((member) => member.idGrupoUsuario === selected);
       await reload();
+      // Al dejar de ser administrador este formulario desaparece: el aviso viaja con la navegación y lo muestra el layout del grupo.
+      navigate(`/app/grupo/${group.idGrupo}/configuracion`, {
+        replace: true,
+        state: { notice: `Transferiste la propiedad de «${group.nombre}» a ${memberOptionLabel(newAdmin)}. Ahora sos miembro.` },
+      });
     } catch (transferError) {
       setError(handleOperationError(transferError));
       setSaving(false);
@@ -105,7 +112,7 @@ function TransferAdmin({ group, reload, handleOperationError }) {
         <SelectField label="Nuevo administrador/a" value={selected} onChange={(event) => setSelected(event.target.value)}>
           <option value="">Elegí un integrante</option>
           {members.map((member) => (
-            <option key={member.idGrupoUsuario} value={member.idGrupoUsuario}>{personName(member)}</option>
+            <option key={member.idGrupoUsuario} value={member.idGrupoUsuario}>{memberOptionLabel(member)}</option>
           ))}
         </SelectField>
       )}

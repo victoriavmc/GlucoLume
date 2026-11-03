@@ -316,6 +316,7 @@ class ReferenceRule(BaseModel):
     minutosComidaMax: int | None
     glucosaMinReferencia: float | None  # NULL = sin límite inferior (solo tope)
     glucosaMaxReferencia: float
+    semaforo: str | None = None  # semáforo del valor frente a ESTE intervalo (ROJO | AMARILLO | VERDE); null sin valor
 
 
 class ReferenceGroup(BaseModel):

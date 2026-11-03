@@ -137,6 +137,11 @@ def test_interpreta_la_linea_del_firmware():
     assert reading.usable and reading.asDict()["esDemo"] is True and reading.asDict()["unidadGlucosa"] == "mg/dL"
 
 
+def test_las_lineas_raw_del_firmware_se_ignoran_sin_contarlas_como_corruptas():
+    # RAW,<tick>,<ir>,<red>,<ac>,<dedo>: una por muestra (10 ms) con RAW,ON por USB. No es telemetría ni dato corrupto.
+    assert parseLine("RAW,12345,51234,40567,-12,1") is None
+
+
 def test_na_es_ausencia_de_valor_nunca_cero():
     reading = parseLine(line(glu="NA", origen="SIN_CALIBRAR", index="NA", valid=0))
     assert reading.glucosa is None and reading.indiceOptico is None and reading.origen == "SIN_CALIBRAR"

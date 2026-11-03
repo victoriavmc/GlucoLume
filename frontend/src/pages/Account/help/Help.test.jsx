@@ -100,6 +100,21 @@ describe('Ayuda: capturas ampliables', () => {
   });
 });
 
+describe('Ayuda: una imagen por paso', () => {
+  it('el menú de una sección aparece una sola vez por tema, y un paso con pantalla propia no repite el menú', async () => {
+    mockRoutes(ACCOUNT);
+    renderAt('/app/ayuda');
+    await screen.findByRole('heading', { name: 'Ayuda' });
+
+    const mediciones = document.getElementById('ayuda-cliente-mediciones');
+    expect(within(mediciones).getAllByRole('button', { name: /Ampliar imagen: Menú lateral con «Mediciones»/ })).toHaveLength(1);
+
+    const perfil = document.getElementById('ayuda-cliente-perfil');
+    expect(within(perfil).queryByRole('button', { name: /Ampliar imagen: Menú lateral/ })).toBeNull();
+    expect(within(perfil).getByRole('button', { name: /Ampliar imagen: Pantalla donde está el botón «Editar perfil»/ })).toBeInTheDocument();
+  });
+});
+
 describe('Ayuda: contenido', () => {
   it('cada tema tiene id único por guía y los enlaces apuntan al espacio privado', () => {
     for (const guia of [AYUDA_CLIENTE, AYUDA_INSTITUCIONAL]) {

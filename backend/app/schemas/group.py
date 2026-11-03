@@ -114,11 +114,14 @@ class MySharingRead(SharingSettings):
 
 
 class GroupMemberRead(BaseModel):
-    """Integrante: solo nombre visible, rol y fechas (sin correo ni datos de salud)."""
+    """Integrante: solo nombre visible, rol y fechas (sin datos de salud). Usuario y correo solo los ve el administrador."""
 
     idGrupoUsuario: uuid.UUID
     nombre: str | None
     apellido: str | None
+    # Para distinguir a quien el administrador va a designar: null para los demás integrantes.
+    usuario: str | None = None
+    correoElectronico: str | None = None
     rol: RolGrupoFamiliar
     estado: str
     fechaIncorporacion: datetime | None
