@@ -25,6 +25,7 @@ SEX_TITLES = {"FEMENINO": "Referencia femenina", "MASCULINO": "Referencia mascul
               SEXO_CUALQUIERA: "Referencia válida para cualquier sexo"}
 SEX_NOT_INFORMED = ("El sexo no fue informado. Se muestran ambas referencias únicamente para consulta. Ninguna se asigna automáticamente a tu "
                     "perfil ni se utiliza como resultado personalizado.")
+SEMAPHORE_EDGE = 0.10  # fracción del intervalo junto a cada límite que el semáforo considera «al borde»
 
 
 def _minutes(measurement: Measurement) -> int | None:
@@ -71,6 +72,22 @@ def position(rule: ReferenceRule | None, value: float | None) -> str | None:
     return "DENTRO"
 
 
+def semaphore(rule: ReferenceRule | None, value: float | None) -> str | None:
+    """Semáforo frente al intervalo recomendado: ROJO por encima del tope («muy alto»); AMARILLO por debajo del piso o al borde del
+    intervalo («revisar»); VERDE dentro y lejos de los bordes («está bien»). «Al borde» es el 10 % del intervalo junto a cada límite
+    (sin piso, el 10 % del tope). Sin regla o sin valor no hay semáforo. Es una comparación con el intervalo configurado, no una
+    clasificación clínica."""
+    if rule is None or value is None:
+        return None
+    if value > rule.glucosaMaxReferencia:
+        return "ROJO"
+    low = rule.glucosaMinReferencia
+    margin = SEMAPHORE_EDGE * (rule.glucosaMaxReferencia - (low or 0))
+    if value >= rule.glucosaMaxReferencia - margin or (low is not None and value <= low + margin):
+        return "AMARILLO"
+    return "VERDE"
+
+
 def build(db: Session, measurement: Measurement) -> GlucoseReference:
     estimated = measurement.glucosaEstimada is not None
     raw = measurement.glucosaEstimada if estimated else measurement.glucosaDispositivo
@@ -82,7 +99,7 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
                   edad=measurement.edadAlMomento, sexoModelo=measurement.sexoModelo)
     matrix = db.get(Matrix, measurement.idMatriz) if measurement.idMatriz else None
     if matrix is None:
-        return GlucoseReference(estado="SIN_MATRIZ", matriz=None, grupos=[], avisoSexo=None, **common)
+        return GlucoseReference(estado="SIN_MATRIZ", matriz=None, grupos=[], avisoSexo=None, semaforo=None, **common)
 
     rules = db.scalars(select(MatrixRule).where(MatrixRule.idMatriz == matrix.idMatriz)
                        .order_by(MatrixRule.sexoModelo, MatrixRule.edadDesde, MatrixRule.condicionComida, MatrixRule.codigoRegla)).all()
@@ -133,7 +150,10 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
             sexoModelo=sex, titulo=SEX_TITLES.get(sex, f"Referencia {sex}"), reglas=[_ruleRead(r) for r in candidates],
             reglaSeleccionada=read, posicion=position(read, value), motivoSinSeleccion=reason,
             aplicada=bool(selected is not None and estimated and appliedRule == selected.idReglaMatriz)))
+    # El semáforo sale de la regla aplicada si la hay; si no, de la única regla que quedó determinada.
+    chosen = next((g for g in groups if g.aplicada and g.reglaSeleccionada), None) or next((g for g in groups if g.reglaSeleccionada), None)
     return GlucoseReference(
         estado="APLICADA" if estimated else "REFERENCIA",
         matriz=MatrixSummary(idMatriz=matrix.idMatriz, nombre=matrix.nombre, version=matrix.version, ambito=matrix.ambito),
-        grupos=groups, avisoSexo=SEX_NOT_INFORMED if measurement.sexoModelo is None and not anySex else None, **common)
+        grupos=groups, avisoSexo=SEX_NOT_INFORMED if measurement.sexoModelo is None and not anySex else None,
+        semaforo=semaphore(chosen.reglaSeleccionada, value) if chosen else None, **common)

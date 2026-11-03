@@ -134,6 +134,47 @@ def test_posicion_sin_limite_inferior_solo_compara_el_tope():
     assert reference.position(tope, 180.0) == "POR_ENCIMA"
 
 
+def test_semaforo_con_intervalo_marca_el_borde_del_10_por_ciento():
+    ayuno = ReferenceRule(idRegla=uuid.uuid4(), codigo="R-001", sexoModelo="CUALQUIER_SEXO", edadDesde=18, edadHasta=130,
+                          condicionComida="AYUNO", minutosComidaMin=None, minutosComidaMax=None,
+                          glucosaMinReferencia=80.0, glucosaMaxReferencia=130.0)  # margen de 5 mg/dL junto a cada límite
+    assert reference.semaphore(ayuno, 100.0) == "VERDE"
+    assert reference.semaphore(ayuno, 124.0) == "VERDE"
+    assert reference.semaphore(ayuno, 126.0) == "AMARILLO"  # al borde del tope
+    assert reference.semaphore(ayuno, 130.0) == "AMARILLO"
+    assert reference.semaphore(ayuno, 86.0) == "VERDE"
+    assert reference.semaphore(ayuno, 84.0) == "AMARILLO"  # al borde del piso
+    assert reference.semaphore(ayuno, 70.0) == "AMARILLO"  # por debajo: revisar, no «muy alto»
+    assert reference.semaphore(ayuno, 131.0) == "ROJO"  # por encima del tope: muy alto
+
+
+def test_semaforo_sin_piso_compara_solo_el_tope():
+    tope = ReferenceRule(idRegla=uuid.uuid4(), codigo="R-002", sexoModelo="CUALQUIER_SEXO", edadDesde=18, edadHasta=130,
+                         condicionComida="POSTPRANDIAL", minutosComidaMin=60, minutosComidaMax=120,
+                         glucosaMinReferencia=None, glucosaMaxReferencia=180.0)  # margen de 18 mg/dL junto al tope
+    assert reference.semaphore(tope, 20.0) == "VERDE"  # sin piso: un valor bajo no se marca
+    assert reference.semaphore(tope, 161.0) == "VERDE"
+    assert reference.semaphore(tope, 162.0) == "AMARILLO"
+    assert reference.semaphore(tope, 180.0) == "AMARILLO"
+    assert reference.semaphore(tope, 181.0) == "ROJO"
+
+
+def test_semaforo_sin_regla_o_sin_valor_no_existe():
+    regla = ReferenceRule(idRegla=uuid.uuid4(), codigo="R-001", sexoModelo="CUALQUIER_SEXO", edadDesde=18, edadHasta=130,
+                          condicionComida="AYUNO", minutosComidaMin=None, minutosComidaMax=None,
+                          glucosaMinReferencia=80.0, glucosaMaxReferencia=130.0)
+    assert reference.semaphore(None, 100.0) is None
+    assert reference.semaphore(regla, None) is None
+
+
+def test_detalle_trae_el_semaforo_de_la_regla_elegida(db, mails, platform):
+    matriz = activeMatrix(db, platform, rules=objetivosAda())
+    assert reference.build(db, medicion(matriz, glucosa="200", condicion="POSTPRANDIAL", minutosDesdeComida=90)).semaforo == "ROJO"
+    assert reference.build(db, medicion(matriz, glucosa="117", condicion="AYUNO")).semaforo == "VERDE"
+    assert reference.build(db, medicion(matriz, glucosa="117", condicion="NO_INFORMADA")).semaforo is None  # ninguna regla elegida
+    assert reference.build(db, medicion(matriz, glucosa="117", condicion="AYUNO", edad=None)).semaforo is None
+
+
 # --- Coherencia con el instalador SQL ------------------------------------------------------------------------------------------
 
 

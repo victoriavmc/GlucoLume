@@ -653,6 +653,12 @@ def getMeasurement(db: Session, actor: User, idMedicion: uuid.UUID) -> Measureme
     return _detail(db, measurement, access)
 
 
+def _semaphoreOf(db: Session, measurement: Measurement) -> str | None:
+    if measurement.modoMedicion != GLUCOSA or measurement.estadoMedicion != COMPLETADA:
+        return None
+    return glucoseReference.build(db, measurement).semaforo
+
+
 def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None,
              estado: str | None, orden: str, pagina: int, tamanioPagina: int, origen: str | None = None,
              hideExpired: bool = False) -> MeasurementPage:
@@ -696,6 +702,7 @@ def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, ha
             dispositivo=codes.get(r.idDispositivo), origenGlucosa=r.origenGlucosa,
             glucosaDispositivo=r.glucosaDispositivo, indiceOptico=r.indiceOptico, esDemo=r.origenGlucosa == ORIGEN_DEMO,
             visibleHasta=visibleUntil(r) if hideExpired else None,
+            semaforo=_semaphoreOf(db, r),
         )
         for r in rows
     ]

@@ -202,6 +202,7 @@ class MeasurementListItem(BaseModel):
     glucosaDispositivo: Decimal | None = None
     indiceOptico: Decimal | None = None
     esDemo: bool = False
+    semaforo: str | None = None  # solo glucosa completada con regla determinada: ROJO | AMARILLO | VERDE
     # Una medición cancelada o inválida de la vista personal se oculta VISIBLE_MINUTES después de cerrarse; hasta cuándo se ve.
     visibleHasta: datetime | None = None
 
@@ -342,6 +343,7 @@ class GlucoseReference(BaseModel):
     minutosDesdeUltimaComida: int | None
     grupos: list[ReferenceGroup]
     avisoSexo: str | None
+    semaforo: str | None = None  # ROJO (muy alto) | AMARILLO (revisar: al borde o por debajo) | VERDE (está bien) | null sin regla
 
 
 class MeasurementDetail(BaseModel):

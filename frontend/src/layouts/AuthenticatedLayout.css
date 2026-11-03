@@ -1346,7 +1346,19 @@ a.summary-link {
 .range-limits span { position: absolute; transform: translateX(-50%); }
 .reference-position { margin: 0; display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #fff; }
 .reference-position.is-dentro { border-left: 4px solid #1faa59; }
-.reference-position.is-por_debajo, .reference-position.is-por_encima { border-left: 4px solid #d98200; }
+.reference-position.is-por_debajo { border-left: 4px solid #d98200; }
+.reference-position.is-por_encima { border-left: 4px solid #dc2626; }
+/* Semáforo de glucosa (Semaforo.jsx): tres luces verticales; solo se enciende la que corresponde. */
+.semaforo { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+.semaforo-luces { display: inline-flex; flex-direction: column; gap: 3px; padding: 4px; border-radius: 10px; background: #1f2330; }
+.semaforo-luz { display: block; width: 9px; height: 9px; border-radius: 50%; background: #4b5163; opacity: 0.45; }
+.semaforo-luz.is-on { opacity: 1; box-shadow: 0 0 6px currentColor; }
+.semaforo-luz.is-rojo.is-on { background: #dc2626; color: #dc2626; }
+.semaforo-luz.is-amarillo.is-on { background: #f59e0b; color: #f59e0b; }
+.semaforo-luz.is-verde.is-on { background: #16a34a; color: #16a34a; }
+.semaforo.is-rojo { color: #b91c1c; }
+.semaforo.is-amarillo { color: #a16207; }
+.semaforo.is-verde { color: #15803d; }
 @media (max-width: 760px) { .reference-groups { grid-template-columns: minmax(0, 1fr); } }
 
 /* --- Dashboard personal (cuenta individual) ------------------------------------------------------------------ */

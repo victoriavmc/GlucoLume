@@ -21,6 +21,7 @@ import { DeviceSession } from './DeviceSession.jsx';
 import {
   ACTIVE_STATES, DEMO_NOTICE, MEALS, MODES, ORIGINS, STATES, dateTimeForApi, formatDateTime, formatIndex, formatNumber,
 } from './measurementFormat.js';
+import { Semaforo } from './Semaforo.jsx';
 import { useDeviceStatus } from './useDeviceStatus.js';
 
 const POLL_MS = 3000;
@@ -342,12 +343,14 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
           </div>
           <ul className="result-grid" aria-label="Resultados">
             {(measurement.glucosaEstimada !== null || (glucose && !measurement.origenGlucosa)) && (
-              <ResultCard label="Glucosa estimada (experimental)" value={measurement.glucosaEstimada} unit="mg/dL" icon={Droplet} tone="rose" />
+              <ResultCard label="Glucosa estimada (experimental)" value={measurement.glucosaEstimada} unit="mg/dL" icon={Droplet} tone="rose"
+                badge={<Semaforo color={measurement.referenciaGlucosa?.semaforo} />} />
             )}
             {measurement.origenGlucosa && (
               <ResultCard label={measurement.esDemo ? 'Glucosa (valor DEMO, sintético)' : 'Glucosa experimental del dispositivo'}
                 value={measurement.glucosaDispositivo} unit={measurement.unidadGlucosa ?? 'mg/dL'}
-                empty="Sin dato (dispositivo sin calibrar)" badge={measurement.esDemo ? <DemoBadge /> : null} icon={Droplet} tone="rose"
+                empty="Sin dato (dispositivo sin calibrar)" icon={Droplet} tone="rose"
+                badge={<>{measurement.glucosaEstimada === null && <Semaforo color={measurement.referenciaGlucosa?.semaforo} />}{measurement.esDemo && <DemoBadge />}</>}
                 note={measurement.esDemo ? 'Simulación para verificar la comunicación: no es una glucemia real.' : null} />
             )}
             <ResultCard label="Frecuencia cardíaca" value={measurement.frecuenciaCardiaca} unit="lpm" icon={HeartPulse} tone="rose" />

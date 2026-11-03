@@ -14,6 +14,7 @@ import { useLatestRequest } from '../../../utils/useLatestRequest.js';
 import { DemoBadge } from './DeviceReadout.jsx';
 import { EvolutionPanel } from './EvolutionPanel.jsx';
 import { MEALS, MODES, ORIGINS, STATES, formatDateTime } from './measurementFormat.js';
+import { Semaforo } from './Semaforo.jsx';
 
 const PAGE_SIZE = 10;
 const EMPTY_FILTERS = { desde: '', hasta: '', modo: '', estado: '', origen: '', orden: 'desc' };
@@ -183,6 +184,7 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
                     )}
                   </span>
                   <span className="measurement-card-actions">
+                    <Semaforo color={measurement.semaforo} />
                     {measurement.esDemo && <DemoBadge />}{' '}
                     <Badge tone={measurement.estadoMedicion === 'COMPLETADA' ? 'success' : 'neutral'}>
                       {STATES[measurement.estadoMedicion] ?? measurement.estadoMedicion}
