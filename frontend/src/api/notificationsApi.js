@@ -2,12 +2,12 @@
 
 import { request } from './client.js';
 
-/** GET /notificaciones/preferencias -> { preferencias: [{ evento, categoria, enPagina, porCorreo, obligatoria }], recordatorio: { modo, intervaloHoras, horarios } } */
+/** GET /notificaciones/preferencias -> { preferencias: [{ evento, categoria, enPagina, porCorreo, correoDisponible }], recordatorio: { modo, intervaloHoras, horarios } } */
 export function getNotificationSettings() {
   return request('/notificaciones/preferencias', { auth: true });
 }
 
-/** PUT /notificaciones/preferencias/{evento} con `enPagina` y/o `porCorreo` (los omitidos no cambian). Las alertas obligatorias responden 409. */
+/** PUT /notificaciones/preferencias/{evento} con `enPagina` y/o `porCorreo` (los omitidos no cambian). */
 export function updateNotificationPreference(evento, changes) {
   return request(`/notificaciones/preferencias/${evento}`, { method: 'PUT', body: changes, auth: true });
 }

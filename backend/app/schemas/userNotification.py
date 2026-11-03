@@ -33,8 +33,6 @@ class NotificationPreferenceRead(BaseModel):
     categoria: CategoriaAviso
     enPagina: bool
     porCorreo: bool
-    # Alerta crítica de seguridad: se entrega siempre y la cuenta no puede apagarla.
-    obligatoria: bool = False
     # Falso cuando el aviso solo llega a la página: no ofrece el canal de correo.
     correoDisponible: bool = True
 

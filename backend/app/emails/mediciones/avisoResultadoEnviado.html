@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Estado del envío de tu resultado{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ mensaje }}</p>
+{{ m.boton(urlMediciones, "Ir a mis mediciones") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Este aviso no incluye el resultado de la medición. Podés elegir si querés recibir estos avisos por correo desde «Notificaciones» en GlucoLume.</p>
+{% endblock %}

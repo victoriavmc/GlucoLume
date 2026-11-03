@@ -51,7 +51,7 @@ check("cambio de contraseña responde 2xx", st in (200, 201, 204), st)
 t2 = None
 status, payload = call("POST", "/auth/login", body={"identificador": "ana", "password": "Nueva#Clave2026xy"}, ua=CHROME_WIN)
 t2 = payload["tokens"]["accessToken"]
-check("avisa CAMBIO_CONTRASENA en la página (obligatorio)", "CAMBIO_CONTRASENA" in eventos(t2), "")
+check("avisa CAMBIO_CONTRASENA en la página", "CAMBIO_CONTRASENA" in eventos(t2), "")
 time.sleep(2)
 new_mails = mails(SMTP)[before:]
 check("y sale el correo existente PASSWORD_CAMBIADA", any("ana.sintetica" in str(m["to"]) and "contraseña" in m["subject"].lower() for m in new_mails), [m["subject"] for m in new_mails])
@@ -80,7 +80,7 @@ check("el bloqueo genera UN aviso ACTIVIDAD_SOSPECHOSA (aunque se siga intentand
 
 # --- Preferencias reales en la base ---------------------------------------------------------------------------------------
 st, body = call("PUT", "/notificaciones/preferencias/CAMBIO_CONTRASENA", token=t, body={"enPagina": False})
-check("apagar una alerta obligatoria se rechaza (409)", st == 409 and body["codigo"] == "AVISO_OBLIGATORIO", f"{st} {body}")
+check("apagar una alerta de seguridad en la página responde 200", st == 200, f"{st} {body}")
 call("PUT", "/notificaciones/preferencias/INVITACION_GRUPO", token=t, body={"enPagina": True, "porCorreo": False}, expect=200)
 row = q("select enPagina, porCorreo from dbo.PreferenciaNotificacion where idUsuario=:u and evento='INVITACION_GRUPO'", u=ana_id)
 check("la preferencia queda guardada en SQL Server (no solo en el estado de React)", row == [(True, False)], row)

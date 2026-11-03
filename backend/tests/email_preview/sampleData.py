@@ -131,6 +131,11 @@ def sampleContexts() -> dict[E, dict]:
             "cuit": "30-71234567-1", "rol": "PROPIETARIO", "fechaEvento": now,
             "urlPanel": frontendUrl("/app/instituciones/ID_DE_EJEMPLO"),
         },
+        E.AVISO_INSTITUCION: {
+            **base, "descripcion": "Carlos Gómez se incorporó como operador de Institución de ejemplo.",
+            "nombreInstitucion": "Institución de ejemplo", "fechaEvento": now,
+            "urlInstitucion": frontendUrl("/app/instituciones/ID_DE_EJEMPLO"),
+        },
         E.INVITACION_INSTITUCION: {
             **base, "nombreInstitucion": "Institución de ejemplo", "rol": "OPERADOR", "nombreInvitante": "Carlos Gómez",
             "fechaExpiracion": now + timedelta(days=7),
@@ -234,6 +239,8 @@ def sampleContexts() -> dict[E, dict]:
             **base, "fechaMedicion": now, "dispositivo": "GL-DEMO-01", "urlMedicion": medicion, **detalle,
         },
         E.ERROR_MEDICION: {**base, "fechaEvento": now, "dispositivo": "GL-DEMO-01"},
+        E.AVISO_RESULTADO_ENVIADO: {**base, "mensaje": "Enviamos el resultado de la medición por correo electrónico.",
+                                    "urlMediciones": frontendUrl("/app/mediciones")},
         E.RECORDATORIO_MEDICION: {**base, "urlMediciones": frontendUrl("/app/mediciones")},
         E.INFORMACION_RETENCION_DATOS: {**base, "fechaEvento": now},
     }

@@ -134,7 +134,7 @@ def test_una_falla_de_smtp_no_cambia_la_respuesta_del_ingreso(db, mails, web, ad
 def test_un_codigo_de_recuperacion_incorrecto_de_un_administrador_avisa(db, mails, admin, minutos):
     minutos(60)
     challengeToken = authService.loginLocal(db, admin[0].correoElectronico, PASSWORD, acceso="PLATAFORMA").challengeToken
-    started = recovery.startRecovery(db, challengeToken, PASSWORD)
+    started = recovery.startRecovery(db, challengeToken, PASSWORD, "PLATAFORMA")
     code = emailedCode(mails)
     wrong = "000000" if code != "000000" else "111111"
 

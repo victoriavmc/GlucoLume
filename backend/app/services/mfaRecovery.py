@@ -3,7 +3,9 @@
 # Recuperación controlada (no es un atajo para desactivar MFA): parte del desafío MFA del login, es decir, de
 # un primer factor recién validado, y exige además un código enviado al correo registrado de la cuenta.
 #
-#   1. start(challengeToken, password?)
+#   1. start(challengeToken, password?, acceso)
+#        - el acceso debe ser el de la cuenta (GENERAL para clientes, PLATAFORMA para administración): una cuenta de
+#          administración no recupera por el acceso general y al revés (requireAccesoLogin, igual que el login);
 #        - cuenta con CredencialLocal: vuelve a validar la contraseña actual (mismo bloqueo que el login);
 #        - cuenta solo Google (sin CredencialLocal): el desafío debe venir de un ingreso con Google recién hecho;
 #        - genera un código de 6 dígitos, TokenCuenta RECUPERACION_MFA (10 min, un solo uso, solo su HMAC),
@@ -12,6 +14,7 @@
 #   (Desde Seguridad, con sesión: startAccountRecovery / completeAccountRecovery, mismo código y mismas reglas;
 #    se conserva la sesión actual y se revocan las demás.)
 #   2. verify(recoveryToken, codigo)
+#        - el token lleva el acceso del paso 1 y se vuelve a comprobar contra el tipo de cuenta;
 #        - los códigos incorrectos usan el contador y bloqueo de FactorMfa (5 intentos);
 #        - en una sola transacción: consume el token, borra FactorMfa y sus códigos de recuperación (no queda
 #          ningún secreto TOTP reutilizable) y revoca todas las sesiones anteriores;
@@ -84,6 +87,15 @@ def _decode(decoder, token: str) -> tuple[uuid.UUID, str]:
     try:
         claims = decoder(token)
         return uuid.UUID(claims["sub"]), claims.get("amr", [METHOD_PASSWORD])[0]
+    except (jwt.InvalidTokenError, ValueError, KeyError) as error:
+        raise _invalidFlow() from error
+
+
+def _decodeRecovery(token: str) -> tuple[uuid.UUID, str, str]:
+    """Token del paso 2: además del usuario y el método, el acceso con el que se inició (GENERAL o PLATAFORMA)."""
+    try:
+        claims = security.decodeMfaRecoveryToken(token)
+        return uuid.UUID(claims["sub"]), claims.get("amr", [METHOD_PASSWORD])[0], claims.get("acc", authService.ACCESO_GENERAL)
     except (jwt.InvalidTokenError, ValueError, KeyError) as error:
         raise _invalidFlow() from error
 
@@ -173,10 +185,16 @@ def _localCredential(db: Session, user: User) -> LocalCredential | None:
     return db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == user.idUsuario))
 
 
-def startRecovery(db: Session, challengeToken: str, password: str | None) -> RecoveryStart:
-    """Desde el paso MFA del login: revalida la identidad y envía el código al correo registrado."""
+def startRecovery(db: Session, challengeToken: str, password: str | None,
+                  acceso: str = authService.ACCESO_GENERAL) -> RecoveryStart:
+    """Desde el paso MFA del login: revalida la identidad y envía el código al correo registrado.
+
+    `acceso` es el del login donde se pide la recuperación. Cada cuenta recupera solo en su propio acceso: un
+    administrador no usa el de clientes y un cliente no usa el administrativo (se rechaza antes de enviar nada).
+    """
     idUsuario, method = _decode(security.decodeMfaChallengeToken, challengeToken)
     user, factor = _userWithMfa(db, idUsuario)
+    authService.requireAccesoLogin(db, user, acceso, "MFA_RECUPERACION_SOLICITADA")
     _requireNotLocked(factor)
 
     credential = _localCredential(db, user)
@@ -190,7 +208,8 @@ def startRecovery(db: Session, challengeToken: str, password: str | None) -> Rec
     masked = _issueAndSendCode(
         db, user, "PASSWORD" if credential is not None else "GOOGLE", EmailEventType.RECUPERACION_MFA_CODIGO
     )
-    return RecoveryStart(recoveryToken=security.createMfaRecoveryToken(user.idUsuario, method), correoEnmascarado=masked)
+    return RecoveryStart(recoveryToken=security.createMfaRecoveryToken(user.idUsuario, method, acceso),
+                         correoEnmascarado=masked)
 
 
 def startAccountRecovery(db: Session, user: User, password: str | None) -> tuple[str, int]:
@@ -295,12 +314,13 @@ def _verifyCodeAndUnlink(db: Session, user: User, factor: MfaFactor, codigo: str
         logger.error("No se pudo completar la recuperación de MFA de idUsuario=%s.", user.idUsuario)
         raise
 
-    emailService.sendEmailEventInBackground(
-        EmailEventType.MFA_DESACTIVADO,
-        user.correoElectronico,
-        {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad"),
-         "porRecuperacion": True},
-    )
+    if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_MFA):
+        emailService.sendEmailEventInBackground(
+            EmailEventType.MFA_DESACTIVADO,
+            user.correoElectronico,
+            {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad"),
+             "porRecuperacion": True},
+        )
     userNotifications.notifySecurity(
         db, user, userNotifications.CAMBIO_MFA, "Cambio en la verificación en dos pasos",
         "Se desactivó la verificación en dos pasos de tu cuenta con un código de recuperación. Si no fuiste vos, revisá tu seguridad.",
@@ -311,8 +331,10 @@ def verifyRecovery(
     db: Session, recoveryToken: str, codigo: str, clientInfo: ClientInfo | None = None
 ) -> LoginResponse:
     """Desde el login: valida el código, desvincula el MFA perdido y abre una sesión nueva."""
-    idUsuario, method = _decode(security.decodeMfaRecoveryToken, recoveryToken)
+    idUsuario, method, acceso = _decodeRecovery(recoveryToken)
     user, factor = _userWithMfa(db, idUsuario)
+    # Defensa en profundidad: el tipo de cuenta pudo cambiar entre el paso 1 y el 2.
+    authService.requireAccesoLogin(db, user, acceso, "MFA_RECUPERACION_CODIGO_INVALIDO")
     try:
         _verifyCodeAndUnlink(db, user, factor, codigo)
     except AuthError as error:

@@ -37,6 +37,7 @@ from app.models.institution import Institution
 from app.models.institutionUser import InstitutionUser
 from app.models.measurement import Measurement
 from app.models.measurementProfile import MeasurementProfile
+from app.models.notificationEvents import INSTITUCION_PACIENTE_A_CARGO
 from app.models.profileTransfer import ProfileTransfer
 from app.models.user import User
 from app.schemas.measurementProfile import (
@@ -52,7 +53,7 @@ from app.schemas.measurementProfile import (
 from app.emails.eventTypes import EmailEventType
 from app.services import email as emailService
 from app.services import institution as institutions
-from app.services import institutionNotifications, measurementRetention, patientAccess, reassignments, resultEmailStore
+from app.services import institutionNotifications, measurementRetention, patientAccess, reassignments, resultEmailStore, userNotifications
 from app.services.audit import registerEvent
 from app.services.csvExport import csvDate, csvText
 from app.services.tableExport import tableFile
@@ -258,6 +259,11 @@ def _fullName(user: User | None) -> str:
     return f"{user.nombre or ''} {user.apellido or ''}".strip() if user else "Operador"
 
 
+def _asignacionPorCorreo(db: Session, responsable: User | None) -> bool:
+    """¿El operador responsable quiere el correo de «Paciente a cargo»? Ese correo y el aviso en la bandeja comparten preferencia."""
+    return responsable is not None and userNotifications.correoActivo(db, responsable, INSTITUCION_PACIENTE_A_CARGO)
+
+
 def _notifyPatient(event: EmailEventType, to: User | None, institution: Institution, profile: MeasurementProfile,
                    who: str, now: datetime, *, toList: bool = False) -> None:
     """Aviso por correo (después del commit; un fallo de SMTP nunca revierte la operación). Sin datos personales del
@@ -407,7 +413,7 @@ def createPatient(db: Session, actor: User, idInstitucion: uuid.UUID, data: Pati
     # Quien registra recibe la confirmación; si lo dejó a cargo de otro operador, ese operador también se entera.
     _notifyPatient(EmailEventType.PACIENTE_REGISTRADO, actor, membership.institution, profile,
                    _fullName(responsibleUser), now)
-    if responsable.idUsuarioInvitado != actor.idUsuario:
+    if responsable.idUsuarioInvitado != actor.idUsuario and _asignacionPorCorreo(db, responsibleUser):
         _notifyPatient(EmailEventType.PACIENTE_ASIGNADO, responsibleUser, membership.institution, profile,
                        _fullName(actor), now)
     institutionNotifications.patientCreated(db, membership.institution, profile, {actor.idUsuario})
@@ -489,7 +495,8 @@ def notifyAssignment(db: Session, actor: User, institution: Institution, profile
     newUser = db.get(User, target.idUsuarioInvitado)
     previousRelation = db.get(InstitutionUser, previous)
     previousUser = db.get(User, previousRelation.idUsuarioInvitado) if previousRelation else None
-    _notifyPatient(EmailEventType.PACIENTE_ASIGNADO, newUser, institution, profile, _fullName(actor), now)
+    if _asignacionPorCorreo(db, newUser):
+        _notifyPatient(EmailEventType.PACIENTE_ASIGNADO, newUser, institution, profile, _fullName(actor), now)
     if previousRelation is not None and previousRelation.estadoRelacion == institutions.RELACION_ACTIVO:
         _notifyPatient(EmailEventType.PACIENTE_REASIGNADO, previousUser, institution, profile, _fullName(newUser), now, toList=True)
     notifyOwners(db, actor, institution, profile, target, now, proposal=False)

@@ -1,4 +1,4 @@
-import { Activity, Bell, Building2, ClipboardList, Cpu, House, Layers, Lightbulb, LogOut, PlugZap, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { Activity, Bell, Building2, CircleHelp, ClipboardList, Cpu, House, Layers, Lightbulb, LogOut, PlugZap, ShieldCheck, UserRound, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
@@ -23,6 +23,8 @@ const NAV_ITEMS = [
   { to: '/app/notificaciones', label: 'Notificaciones', icon: Bell },
   { to: '/app/perfil', label: 'Perfil', icon: UserRound },
   { to: '/app/seguridad', label: 'Seguridad', icon: ShieldCheck },
+  // Guía por tipo de cuenta: las cuentas de plataforma tienen su propio panel y no la ven.
+  { to: '/app/ayuda', label: 'Ayuda', icon: CircleHelp, accountType: ['CONSUMIDOR_FINAL', 'USUARIO_INSTITUCIONAL'] },
 ];
 
 export function displayName(user) {

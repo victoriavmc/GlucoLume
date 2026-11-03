@@ -6,19 +6,16 @@ import { useState } from 'react';
 import * as authApi from '../../../api/authApi.js';
 import { useAuth } from '../../../auth/AuthContext.jsx';
 import { friendlyError } from '../../../auth/errorMessages.js';
-import { Badge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 
 export function LoginNoticeSection({ account }) {
   const { updateAccount } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  // Las cuentas de la plataforma (administrador y moderador) reciben este aviso siempre (lo fija el backend en services/userNotifications.obligatorio).
-  const obligatorio = ['ADMINISTRADOR_PLATAFORMA', 'MODERADOR_PLATAFORMA'].includes(account.usuario?.tipoCuenta);
-  const enabled = obligatorio || account.notificarNuevoInicioSesion;
+  const enabled = account.notificarNuevoInicioSesion;
 
   async function toggle() {
-    if (saving || obligatorio) return;
+    if (saving) return;
     setSaving(true);
     setError('');
     try {
@@ -39,12 +36,11 @@ export function LoginNoticeSection({ account }) {
           </span>
           <div>
             <h2 id="seguridad-avisos">Avisos de inicio de sesión</h2>
-            <p>Recibí un correo cada vez que alguien inicia sesión en tu cuenta. Las alertas de actividad sospechosa se envían siempre.</p>
-            {obligatorio && <Badge tone="info" size="sm">Siempre activa</Badge>}
+            <p>Recibí un correo cada vez que alguien inicia sesión en tu cuenta.</p>
           </div>
         </div>
         <button type="button" role="switch" className="switch" aria-checked={enabled} aria-labelledby="seguridad-avisos"
-          onClick={toggle} disabled={saving || obligatorio} />
+          onClick={toggle} disabled={saving} />
       </div>
       {error && <Alert>{error}</Alert>}
     </section>

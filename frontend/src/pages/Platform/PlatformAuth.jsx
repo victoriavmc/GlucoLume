@@ -16,6 +16,7 @@ import { GoogleIcon } from '../Login/GoogleIcon.jsx';
 import { Logo } from '../../components/Logo.jsx';
 import { SkipLink } from '../../components/SkipLink.jsx';
 import { MfaForm } from '../Login/MfaForm.jsx';
+import { MfaRecoveryFlow } from '../Login/MfaRecoveryFlow.jsx';
 import { PasswordRules } from '../Register/RegisterForm.jsx';
 import '../Login/Login.css';
 import './PlatformAuth.css';
@@ -56,13 +57,18 @@ export async function enterPlatform({ logout, navigate, setError }) {
   return true;
 }
 
+// Tras recuperar el acceso el MFA queda desactivado y el panel lo exige: se lleva a Seguridad para volver a activarlo.
+export const PLATFORM_RECOVERED_NOTICE =
+  'Acceso recuperado. La verificación en dos pasos quedó desactivada: activala de nuevo para usar la administración.';
+
 export function PlatformLogin() {
-  const { login, completeMfa, logout } = useAuth();
+  const { login, completeMfa, completeMfaRecovery, logout } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ identificador: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [challengeToken, setChallengeToken] = useState(null);
+  const [recovering, setRecovering] = useState(false);
 
   function update(field) {
     return (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -105,6 +111,12 @@ export function PlatformLogin() {
     if (!(await enterPlatform({ logout, navigate, setError }))) setChallengeToken(null);
   }
 
+  async function handleRecovered(recoveryToken, codigo) {
+    const recovered = await completeMfaRecovery(recoveryToken, codigo, false);
+    if (recovered.transferring) return;
+    navigate('/plataforma/seguridad', { replace: true, state: { notice: PLATFORM_RECOVERED_NOTICE } });
+  }
+
   function handleGoogle() {
     startGoogleLogin(false, undefined, false, 'PLATAFORMA');
   }
@@ -112,10 +124,14 @@ export function PlatformLogin() {
   return (
     <PlatformShell>
       <h2 className="auth-title">Administración de GlucoLume</h2>
-      {challengeToken ? (
+      {challengeToken && recovering ? (
+        <MfaRecoveryFlow challengeToken={challengeToken} askPassword acceso="PLATAFORMA" onVerify={handleRecovered}
+          onCancel={() => setRecovering(false)} />
+      ) : challengeToken ? (
         <>
           {error && <Alert>{error}</Alert>}
-          <MfaForm onSubmit={handleMfa} onCancel={() => { setChallengeToken(null); setForm((c) => ({ ...c, password: '' })); }} />
+          <MfaForm onSubmit={handleMfa} onLostAuthenticator={() => setRecovering(true)}
+            onCancel={() => { setChallengeToken(null); setForm((c) => ({ ...c, password: '' })); }} />
         </>
       ) : (
         <>
@@ -304,6 +320,9 @@ export function PlatformForgot() {
           <TextField label="Correo electrónico" icon={Mail} autoComplete="email" maxLength={254} value={email}
             onChange={(event) => setEmail(event.target.value)} />
           <SubmitButton loading={loading} loadingLabel="Enviando…" disabled={loading}>Enviar enlace <ArrowRight size={18} aria-hidden="true" /></SubmitButton>
+          <p className="field-hint">
+            <ShieldCheck size={14} aria-hidden="true" /> ¿Perdiste también tu aplicación de verificación? Al ingresar, elegí «¿Perdiste acceso a tu aplicación autenticadora?» o usá un código de recuperación.
+          </p>
           <Link to="/plataforma/login" className="link-button">Volver al acceso</Link>
         </form>
       )}

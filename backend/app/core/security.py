@@ -222,10 +222,11 @@ def decodeMfaChallengeToken(token: str) -> dict:
     return _decodeJwt(token, TOKEN_TYPE_MFA_CHALLENGE)
 
 
-def createMfaRecoveryToken(idUsuario: uuid.UUID, primaryMethod: str) -> str:
+def createMfaRecoveryToken(idUsuario: uuid.UUID, primaryMethod: str, acceso: str) -> str:
     """Encadena la recuperación de MFA: se emite tras validar la identidad y solo sirve para verificar el
-    código enviado por correo. No da acceso a la API."""
-    claims = {"sub": str(idUsuario), "typ": TOKEN_TYPE_MFA_RECOVERY, "amr": [primaryMethod]}
+    código enviado por correo. `acceso` (GENERAL o PLATAFORMA) queda fijado: el paso 2 lo vuelve a comprobar
+    contra el tipo de cuenta. No da acceso a la API."""
+    claims = {"sub": str(idUsuario), "typ": TOKEN_TYPE_MFA_RECOVERY, "amr": [primaryMethod], "acc": acceso}
     return _encodeJwt(claims, timedelta(minutes=MFA_RECOVERY_FLOW_MINUTES))
 
 

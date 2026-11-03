@@ -1,0 +1,151 @@
+/* /app/ayuda: índice de temas, pasos numerados y tablas. Usa los tokens de global.css; la página se apila sola en pantallas angostas. */
+
+.help-page {
+  gap: 20px;
+}
+
+.help-tabpanel {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.help-tabpanel:focus-visible {
+  outline: 3px solid var(--red-600);
+  outline-offset: 4px;
+  border-radius: var(--radius-lg);
+}
+
+.help-tipo-descripcion {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.help-index h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.help-index ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-index a {
+  color: var(--red-600);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.help-index a:hover,
+.help-index a:focus-visible {
+  text-decoration: underline;
+}
+
+.help-topic {
+  scroll-margin-top: 24px;
+}
+
+.help-topic h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.help-topic h3 {
+  margin: 4px 0 -6px;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.help-intro {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.help-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.help-go {
+  margin-left: 8px;
+  font-weight: 600;
+  color: var(--red-600);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.help-go:hover,
+.help-go:focus-visible {
+  text-decoration: underline;
+}
+
+.help-defs {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.help-defs div {
+  display: grid;
+  gap: 2px;
+}
+
+.help-defs dt {
+  font-weight: 600;
+}
+
+.help-defs dd {
+  margin: 0;
+  color: var(--ink-500);
+}
+
+.help-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-soft);
+}
+
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.help-table th,
+.help-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.help-table thead th {
+  background: var(--red-100);
+  color: var(--ink-700, inherit);
+  font-size: 14px;
+}
+
+.help-table tbody tr:last-child th,
+.help-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.help-table tbody th[scope='row'] {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .help-table tbody th[scope='row'] {
+    white-space: normal;
+  }
+}

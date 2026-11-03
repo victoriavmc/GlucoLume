@@ -32,32 +32,33 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | Categoría | Aviso | Cuándo | Obligatorio | Correo |
 |---|---|---|---|---|
 | Seguridad | `INICIO_SESION` | Inicio de sesión desde un equipo nuevo (§6) | No | Su propio interruptor (`Usuario.notificarNuevoInicioSesion`), un correo por acceso |
-| Seguridad | `INTENTO_INGRESO` | Cada contraseña o código incorrecto contra la cuenta, también con la cuenta bloqueada | **Sí** (solo la página) | No: el correo del bloqueo sigue siendo `INTENTO_ACCESO_INUSUAL` |
-| Seguridad | `CAMBIO_CONTRASENA` | Se cambia, restablece o agrega la contraseña | **Sí** | `PASSWORD_CAMBIADA`, siempre (flujo existente) |
-| Seguridad | `CAMBIO_MFA` | Se activa o desactiva MFA (incluida la recuperación) | **Sí** | `MFA_ACTIVADO` / `MFA_DESACTIVADO`, siempre |
-| Seguridad | `ACTIVIDAD_SOSPECHOSA` | Bloqueo de la cuenta o del segundo factor por intentos fallidos | **Sí** | `INTENTO_ACCESO_INUSUAL`, siempre |
+| Seguridad | `INTENTO_INGRESO` | Cada contraseña o código incorrecto contra la cuenta, también con la cuenta bloqueada | No | No: cada intento queda solo en la página |
+| Seguridad | `CAMBIO_CONTRASENA` | Se cambia, restablece o agrega la contraseña | No | Sí, opcional (por omisión sí). `PASSWORD_CAMBIADA` sale por su flujo de seguridad |
+| Seguridad | `CAMBIO_MFA` | Se activa o desactiva MFA (incluida la recuperación) | No | Sí, opcional (por omisión sí). `MFA_ACTIVADO` / `MFA_DESACTIVADO` salen por su flujo de seguridad |
+| Seguridad | `ACTIVIDAD_SOSPECHOSA` | Bloqueo de la cuenta o del segundo factor por intentos fallidos | No | Sí, opcional (por omisión sí). `INTENTO_ACCESO_INUSUAL` sale por su flujo de seguridad |
 | Grupo familiar | `INVITACION_GRUPO` | Te invitan a un grupo | No | Preferencia (antes era incondicional) |
 | Grupo familiar | `AGREGADO_GRUPO` | Aceptás una invitación | No | Preferencia |
 | Grupo familiar | `NUEVA_ACCION_GRUPO` | Alguien se suma o abandona el grupo | No | Preferencia; el administrador ya recibe su propio correo |
 | Grupo familiar | `MEDICION_GRUPO` | Alguien se midió y activó «Aviso de medición» (quién y cuándo, nunca el valor) | No | Preferencia |
 | Recordatorios | `RECORDATORIO_MEDICION` | Vence un horario de medición | No | Preferencia (apagado por omisión) |
+| Mediciones | `RESULTADO_ENVIADO` | Sale, o no pudo salir, el correo con el resultado de una medición que pediste | No | Preferencia (apagado por omisión). El correo del aviso no incluye el resultado; el resultado lo envía el flujo de la medición |
 | Institución | `INSTITUCION_INVITACION` | Una institución invita a una cuenta institucional ya activa. Un reenvío no crea otro aviso | No | No (el correo de invitación ya lo envía su flujo) |
-| Institución | `INSTITUCION_OPERADOR_NUEVO` | Un operador acepta su invitación. Lo reciben propietarios y moderadores, menos quien lo invitó | No | No (el correo de ese hecho ya lo envía su flujo) |
-| Institución | `INSTITUCION_OPERADOR_BAJA` | Se da de baja a un operador. Propietarios y moderadores, menos quien lo hizo | No | No (idem) |
-| Institución | `INSTITUCION_MODERADOR_NUEVO` | Un moderador acepta su invitación. Propietarios y moderadores, menos quien lo invitó | No | No (idem) |
-| Institución | `INSTITUCION_MODERADOR_BAJA` | Se da de baja a un moderador. Propietarios y moderadores, menos quien lo hizo | No | No (idem) |
-| Institución | `INSTITUCION_PACIENTE_NUEVO` | Se registra un paciente. Propietarios y moderadores, menos quien lo registró | No | No (idem) |
-| Institución | `INSTITUCION_PACIENTE_A_CARGO` | Un paciente pasa a estar a cargo de un operador (alta, asignación, reasignación por desvinculación o transferencia aceptada). Solo ese operador, menos quien hizo el cambio | No | No (idem) |
-| Institución | `INSTITUCION_SOLICITUD_NUEVA` | Otro operador pide un paciente, o la gestión propone uno. Llega al operador destino | No | No (idem) |
-| Institución | `INSTITUCION_SOLICITUD_ACEPTADA` | El destino acepta la solicitud. Llega al operador de origen | No | No (idem) |
-| Institución | `INSTITUCION_SOLICITUD_RECHAZADA` | El destino rechaza la solicitud. Llega al operador de origen | No | No (idem) |
+| Institución | `INSTITUCION_OPERADOR_NUEVO` | Un operador acepta su invitación. Lo reciben propietarios y moderadores, menos quien lo invitó | No | Preferencia, encendido por omisión. Propietarios: el correo `OPERADOR_AGREGADO` del flujo. Moderadores: `AVISO_INSTITUCION` |
+| Institución | `INSTITUCION_OPERADOR_BAJA` | Se da de baja a un operador. Propietarios y moderadores, menos quien lo hizo | No | Preferencia, encendido por omisión. Propietarios: `OPERADOR_ELIMINADO` del flujo. Moderadores: `AVISO_INSTITUCION` |
+| Institución | `INSTITUCION_MODERADOR_NUEVO` | Un moderador acepta su invitación. Propietarios y moderadores, menos quien lo invitó | No | Preferencia, apagado por omisión, con `AVISO_INSTITUCION` |
+| Institución | `INSTITUCION_MODERADOR_BAJA` | Se da de baja a un moderador. Propietarios y moderadores, menos quien lo hizo | No | Preferencia, apagado por omisión, con `AVISO_INSTITUCION` |
+| Institución | `INSTITUCION_PACIENTE_NUEVO` | Se registra un paciente. Propietarios y moderadores, menos quien lo registró | No | Preferencia, apagado por omisión, con `AVISO_INSTITUCION` |
+| Institución | `INSTITUCION_PACIENTE_A_CARGO` | Un paciente pasa a estar a cargo de un operador (alta, asignación, reasignación por desvinculación o transferencia aceptada). Solo ese operador, menos quien hizo el cambio | No | Preferencia, encendido por omisión. Es el correo `PACIENTE_ASIGNADO` del flujo |
+| Institución | `INSTITUCION_SOLICITUD_NUEVA` | Otro operador pide un paciente, o la gestión propone uno. Llega al operador destino | No | Preferencia, encendido por omisión. Es el correo `TRANSFERENCIA_SOLICITADA` del flujo |
+| Institución | `INSTITUCION_SOLICITUD_ACEPTADA` | El destino acepta la solicitud. Llega al operador de origen | No | Preferencia, encendido por omisión. Es el correo `TRANSFERENCIA_ACEPTADA` del flujo |
+| Institución | `INSTITUCION_SOLICITUD_RECHAZADA` | El destino rechaza la solicitud. Llega al operador de origen | No | Preferencia, encendido por omisión. Es el correo `TRANSFERENCIA_RECHAZADA` del flujo |
 
-- **Institución (`services/institutionNotifications.py`):** se disparan después del commit del hecho, igual que su correo; el correo sigue saliendo por su flujo existente. Los avisos nunca incluyen datos del paciente, solo su identificador seudónimo. Hoy **no hay un flujo de cambio de propietario** en el sistema, así que no genera aviso alguno.
+- **Institución (`services/institutionNotifications.py`):** se disparan después del commit del hecho. Cada hecho sale por correo **una sola vez**, según la preferencia de la cuenta: si el flujo ya enviaba un correo a esa persona, ese correo es el que se rige por la preferencia (encendido por omisión, como antes); si no, el correo es `AVISO_INSTITUCION` (apagado por omisión). Excepción: los avisos de operador (alta y baja) comparten un mismo interruptor para propietarios y moderadores, así que los moderadores reciben `AVISO_INSTITUCION` con el interruptor encendido por omisión, aunque no tengan correo de flujo. Los avisos nunca incluyen datos del paciente, solo su identificador seudónimo. Hoy **no hay un flujo de cambio de propietario** en el sistema, así que no genera aviso alguno.
 - **Sin canal de correo propio** (`correo = false` en el catálogo): la preferencia lo informa con `correoDisponible = false`, la pantalla no ofrece el interruptor «Por correo» y `PUT /preferencias/{evento}` con `porCorreo = true` responde `409 CANAL_NO_DISPONIBLE`.
 
 - **Canales independientes (RN-NOT-07):** `enPagina` y `porCorreo` se guardan y se respetan por separado. Con la página apagada la fila queda con `visible = 0` (no aparece ni se puede marcar) y solo sirve de registro del correo.
-- **Obligatorios:** las alertas críticas se muestran siempre en la página; `PUT /preferencias/{evento}` responde `409 AVISO_OBLIGATORIO` y, aunque exista una fila de preferencia apagada, el servicio las entrega. El correo de esas alertas lo envía el flujo de seguridad que las origina (no depende de preferencias, como antes).
-- **Cuentas de la plataforma (`ADMINISTRADOR_PLATAFORMA` y `MODERADOR_PLATAFORMA`):** todos los avisos de Seguridad son obligatorios para su cuenta, también `INICIO_SESION`: le llegan siempre en la página y por correo, y su interruptor de «Avisos de inicio de sesión» (Cuenta › Seguridad) queda fijo. Los clientes siguen sus preferencias. La regla está en `services/userNotifications.obligatorio` y la usan el servicio, el inicio de sesión (`services/auth.py`) y la ruta de preferencias (`assertEditable`, que valida antes de tocar el correo de inicio de sesión).
+- **Ningún aviso es obligatorio:** todas las alertas de seguridad se pueden apagar en la página y, si tienen correo, también el correo. Por omisión el correo sale, como antes. `PUT /preferencias/{evento}` no responde `AVISO_OBLIGATORIO`. Los correos de seguridad los envía su flujo (`PASSWORD_CAMBIADA`, `MFA_ACTIVADO`, `MFA_DESACTIVADO`, `INTENTO_ACCESO_INUSUAL`) solo si `userNotifications.correoActivo` lo permite.
+- **Cuentas de la plataforma (`ADMINISTRADOR_PLATAFORMA` y `MODERADOR_PLATAFORMA`):** tienen las mismas preferencias que cualquier cuenta. Ningún aviso de seguridad es fijo para ellas.
 - **Mediciones del grupo:** antes compartían el aviso `NUEVA_ACCION_GRUPO`; ahora tienen el suyo. La migración copia la elección previa de cada cuenta. Siguen respetando el permiso individual `notificaMedicion` de cada integrante.
 
 ## 3. Reglas de negocio
@@ -122,8 +123,8 @@ Sigue igual: cada inicio de sesión (con o sin aviso) queda en `Auditoria` (`LOG
 | `POST /leer-todas` | **Modificado** | Responde `{noLeidas, marcadas}`; solo avisos de la sesión. |
 | `DELETE /{id}` | **Nuevo** | Quita un aviso propio de la bandeja (eliminación lógica). Responde `{noLeidas, eliminadas}`. Ajeno, inexistente o ya eliminado: `404 NOTIFICACION_NO_ENCONTRADA`, sin distinguirlos. |
 | `DELETE /?alcance=leidas\|todas` | **Nuevo** | Quita de la bandeja los avisos leídos, o todos, de la cuenta autenticada, en una transacción. `alcance` es **obligatorio** (sin él `422`: no hay un valor que vacíe la bandeja por omisión). Responde `{noLeidas, eliminadas}` y deja el evento de auditoría. |
-| `GET /preferencias` | **Modificado** | Cada preferencia suma `categoria`, `obligatoria` y `correoDisponible`; ahora son 18. |
-| `PUT /preferencias/{evento}` | **Modificado** | Admite los 18 avisos. Obligatorios: `409 AVISO_OBLIGATORIO`. Sin canal de correo: `409 CANAL_NO_DISPONIBLE`. |
+| `GET /preferencias` | **Modificado** | Cada preferencia suma `categoria` y `correoDisponible`; ahora son 18. |
+| `PUT /preferencias/{evento}` | **Modificado** | Admite los 18 avisos. Sin canal de correo: `409 CANAL_NO_DISPONIBLE`. |
 | `PUT /recordatorio` | Sin cambio | `NINGUNO` elimina la programación. |
 
 Comandos: `python -m app.jobs.reminders --loop | --health | ejecutar | depurar | previsualizar` (`depurar` es el mismo borrado que hace solo el servicio `notifications` cada hora, a demanda).

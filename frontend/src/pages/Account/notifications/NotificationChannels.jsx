@@ -1,18 +1,16 @@
 // Qué avisos recibir y por qué canal, de una categoría: en la aplicación, por correo o en ambos. Cada interruptor guarda al instante.
-// Las alertas críticas de seguridad son obligatorias: se muestran activas y no se pueden apagar.
 
 import { Bell, Building2, Clock, Droplet, ShieldCheck, Users } from 'lucide-react';
 
-import { Badge } from '../../../components/Badge.jsx';
 import { CATEGORIAS, EVENTOS } from './notificationsCopy.js';
 
 const CATEGORY_ICONS = { SEGURIDAD: ShieldCheck, GRUPO: Users, RECORDATORIO: Clock, INSTITUCION: Building2, MEDICION: Droplet };
 const CATEGORY_TEXT = {
-  SEGURIDAD: 'Las alertas críticas de seguridad se entregan siempre en la aplicación: no se pueden desactivar.',
+  SEGURIDAD: 'Elegí qué alertas de seguridad recibir, en la aplicación, por correo o en ambos. Cada canal se configura por separado.',
   GRUPO: 'Los avisos de mediciones respetan lo que cada integrante decidió compartir.',
   RECORDATORIO: 'Elegí por dónde recibir el recordatorio y, más abajo, cuándo.',
-  INSTITUCION: 'Avisos de la gestión de la institución. Llegan solo los que corresponden a tu rol.',
-  MEDICION: 'Avisos sobre el envío del resultado de tus mediciones. El correo ya se envía por su propio flujo.',
+  INSTITUCION: 'Avisos de la gestión de la institución. Llegan solo los que corresponden a tu rol. Podés recibirlos en la aplicación, por correo o en ambos.',
+  MEDICION: 'Avisos sobre el envío del resultado de tus mediciones. Elegí si querés recibirlos en la aplicación, por correo o en ambos.',
 };
 
 function ChannelSwitch({ canal, titulo, checked, disabled, onToggle }) {
@@ -48,15 +46,14 @@ export function NotificationChannels({ categoria, preferencias, savingEvent, onC
               <div className="notif-channel-text">
                 <b>{titulo}</b>
                 <span>{descripcion}</span>
-                {preferencia.obligatoria && <Badge tone="info" size="sm">Siempre activa</Badge>}
               </div>
               <div className="notif-channel-switches">
                 <ChannelSwitch canal="En la aplicación" titulo={titulo} checked={preferencia.enPagina}
-                  disabled={preferencia.obligatoria || busy}
+                  disabled={busy}
                   onToggle={() => onChange(preferencia.evento, { enPagina: !preferencia.enPagina })} />
                 {preferencia.correoDisponible !== false && (
                   <ChannelSwitch canal="Por correo" titulo={titulo} checked={preferencia.porCorreo}
-                    disabled={preferencia.obligatoria || busy}
+                    disabled={busy}
                     onToggle={() => onChange(preferencia.evento, { porCorreo: !preferencia.porCorreo })} />
                 )}
               </div>

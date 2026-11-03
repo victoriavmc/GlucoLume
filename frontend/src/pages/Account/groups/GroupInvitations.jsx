@@ -23,7 +23,6 @@ export function GroupInvitations() {
   const [pending, setPending] = useState(null);
   const [copied, setCopied] = useState(false);
   const [noAccount, setNoAccount] = useState(false); // el correo buscado no tiene cuenta: se ofrece invitarla por correo
-  const [newAccount, setNewAccount] = useState({ nombre: '', apellido: '' });
 
   const load = useCallback(async () => {
     try {
@@ -114,20 +113,13 @@ export function GroupInvitations() {
   async function sendSignupInvitation(event) {
     event.preventDefault();
     if (busy) return;
-    const nombre = newAccount.nombre.trim();
-    const apellido = newAccount.apellido.trim();
-    if (!nombre || !apellido) {
-      setError({ message: 'Ingresá nombre y apellido para crear su cuenta.' });
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      await groupsApi.invite(group.idGrupo, email.trim(), { nombre, apellido });
+      await groupsApi.invite(group.idGrupo, email.trim());
       setNotice(`Enviamos a ${email.trim()} un correo para que cree su cuenta y acepte la invitación al grupo. Tiene 7 días para hacerlo.`);
       setEmail('');
       setNoAccount(false);
-      setNewAccount({ nombre: '', apellido: '' });
       await load();
     } catch (inviteError) {
       setError({ message: handleOperationError(inviteError), codigo: inviteError.codigo });
@@ -176,10 +168,6 @@ export function GroupInvitations() {
             (elige su nombre de usuario y su contraseña) y después puede aceptar o rechazar la invitación. Tiene 7 días
             para hacerlo.
           </p>
-          <TextField label="Nombre" maxLength={100} value={newAccount.nombre}
-            onChange={(event) => setNewAccount({ ...newAccount, nombre: event.target.value })} />
-          <TextField label="Apellido" maxLength={100} value={newAccount.apellido}
-            onChange={(event) => setNewAccount({ ...newAccount, apellido: event.target.value })} />
           <div className="form-actions">
             <SubmitButton loading={busy} loadingLabel="Enviando…" className="btn btn-primary">
               <Send size={16} aria-hidden="true" /> Enviar invitación por correo

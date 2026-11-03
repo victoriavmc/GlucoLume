@@ -348,12 +348,13 @@ def mfaVerify(data: MfaVerifyRequest, request: Request, response: Response, db: 
         "`password` (la actual; mismo bloqueo que el login). Si la cuenta es solo Google, el desafío debe venir de "
         "un ingreso con Google. Envía un código de 6 dígitos al **correo registrado** (10 minutos, un solo uso) y "
         "devuelve el correo enmascarado y un `recoveryToken` para el paso 2. Máximo 1 código por minuto y 3 por hora. "
-        "No desactiva nada todavía."
+        "No desactiva nada todavía. `acceso` debe ser el de la cuenta: GENERAL para clientes e instituciones, "
+        "PLATAFORMA para administración y moderación (cualquier otro par se rechaza)."
     ),
 )
 def mfaRecoveryStart(data: MfaRecoveryStartRequest, db: DbSession):
     result = mfaRecoveryService.startRecovery(
-        db, data.challengeToken, data.password.get_secret_value() if data.password else None
+        db, data.challengeToken, data.password.get_secret_value() if data.password else None, data.acceso
     )
     return MfaRecoveryStartResponse(
         recoveryToken=result.recoveryToken,

@@ -1,0 +1,121 @@
+// /app/ayuda: guía de uso separada por tipo de cuenta (cliente e institucional). Abre en la pestaña de la cuenta vigente.
+// Los textos viven en helpContent.js; aquí solo se muestran.
+
+import { Building2, UserRound } from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+
+import { useAuth } from '../../../auth/AuthContext.jsx';
+import { PageHeader } from '../../../components/PageHeader.jsx';
+import { TabPanel, Tabs } from '../../../components/Tabs.jsx';
+import { AYUDA_AVISO, AYUDA_CLIENTE, AYUDA_INSTITUCIONAL } from './helpContent.js';
+import './Help.css';
+
+const TAB_BASE = 'ayuda-tipo';
+const PESTANAS = [
+  { key: 'CLIENTE', label: 'Cliente', icon: UserRound, temas: AYUDA_CLIENTE, descripcion: 'Para cuentas individuales: medir, ver tus mediciones, el grupo familiar y tu seguridad.' },
+  { key: 'INSTITUCIONAL', label: 'Institucional', icon: Building2, temas: AYUDA_INSTITUCIONAL, descripcion: 'Para cuentas de instituciones: equipo, pacientes, dispositivos y auditoría según tu rol.' },
+];
+
+function Tema({ prefijo, tema }) {
+  const id = `${prefijo}-${tema.id}`;
+  const headingId = `${id}-titulo`;
+  return (
+    <section className="panel help-topic" id={id} aria-labelledby={headingId}>
+      <h2 id={headingId}>{tema.titulo}</h2>
+      {tema.intro && <p className="help-intro">{tema.intro}</p>}
+
+      {tema.pasos && (
+        <>
+          <h3>Cómo se usa</h3>
+          <ol className="help-steps">
+            {tema.pasos.map(({ texto, ir }, index) => (
+              <li key={`${index}-${texto}`}>
+                {texto}
+                {ir && <Link to={ir.to} className="help-go">{ir.label} →</Link>}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+
+      {tema.detalles && (
+        <>
+          <h3>Qué es cada cosa</h3>
+          <dl className="help-defs">
+            {tema.detalles.map(({ titulo, texto }) => (
+              <div key={titulo}>
+                <dt>{titulo}</dt>
+                <dd>{texto}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+
+      {tema.casos && (
+        <>
+          <h3>Casos</h3>
+          <dl className="help-defs help-casos">
+            {tema.casos.map(({ titulo, texto }, index) => (
+              <div key={`${index}-${titulo}`}>
+                <dt>{titulo}</dt>
+                <dd>{texto}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+
+      {tema.tabla && (
+        <div className="help-table-wrap" role="region" aria-label={`Tabla: ${tema.titulo}`} tabIndex={0}>
+          <table className="help-table">
+            <thead>
+              <tr>{tema.tabla.encabezados.map((encabezado) => <th key={encabezado} scope="col">{encabezado}</th>)}</tr>
+            </thead>
+            <tbody>
+              {tema.tabla.filas.map((fila) => (
+                <tr key={fila[0]}>
+                  {fila.map((celda, index) => (index === 0 ? <th key={celda} scope="row">{celda}</th> : <td key={`${fila[0]}-${index}`}>{celda}</td>))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function HelpPage() {
+  const { account } = useAuth();
+  const cuentaInstitucional = account?.usuario?.tipoCuenta === 'USUARIO_INSTITUCIONAL';
+  const [eleccion, setEleccion] = useState(null);
+  const tipo = eleccion ?? (cuentaInstitucional ? 'INSTITUCIONAL' : 'CLIENTE');
+  const pestana = PESTANAS.find((item) => item.key === tipo) ?? PESTANAS[0];
+  const prefijo = `ayuda-${pestana.key.toLowerCase()}`;
+
+  return (
+    <div className="page help-page">
+      <PageHeader title="Ayuda" description={`${AYUDA_AVISO} Elegí la guía de tu tipo de cuenta.`} />
+
+      <Tabs label="Tipo de cuenta" idBase={TAB_BASE} variant="pill" value={pestana.key} onChange={setEleccion}
+        items={PESTANAS.map(({ key, label, icon }) => ({ key, label, icon }))} />
+
+      <TabPanel idBase={TAB_BASE} value={pestana.key} focusable className="help-tabpanel">
+        <p className="help-tipo-descripcion">{pestana.descripcion}</p>
+
+        <nav className="panel help-index" aria-label={`Temas de la guía ${pestana.label.toLowerCase()}`}>
+          <h2>Temas</h2>
+          <ol>
+            {pestana.temas.map((tema) => (
+              <li key={tema.id}><a href={`#${prefijo}-${tema.id}`}>{tema.titulo}</a></li>
+            ))}
+          </ol>
+        </nav>
+
+        {pestana.temas.map((tema) => <Tema key={tema.id} prefijo={prefijo} tema={tema} />)}
+      </TabPanel>
+    </div>
+  );
+}

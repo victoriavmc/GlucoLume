@@ -98,7 +98,7 @@ def _securityUrl() -> str:
 
 
 def _passwordNotice(db: Session, user: User, mensaje: str, when: datetime) -> None:
-    """Alerta crítica en la página (no se puede apagar); el correo PASSWORD_CAMBIADA ya salió por su propio flujo."""
+    """Aviso de seguridad en la página. El correo PASSWORD_CAMBIADA sale por su propio flujo, si la cuenta lo eligió."""
     userNotifications.notifySecurity(
         db, user, userNotifications.CAMBIO_CONTRASENA, "Cambio de contraseña",
         f"{mensaje} Si no fuiste vos, recuperá el acceso y revisá tu seguridad.", f"{when:%Y-%m-%dT%H:%M:%S.%f}")
@@ -717,11 +717,12 @@ def _loginLocal(
         db.commit()
         userNotifications.notifyRejectedAccess(db, user, now)
         if locked:
-            _notify(
-                EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
-                cantidadIntentos=credential.intentosFallidosConsecutivos,
-                bloqueadoHasta=credential.bloqueadoHasta, urlSeguridad=_securityUrl(),
-            )
+            if userNotifications.correoActivo(db, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
+                _notify(
+                    EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
+                    cantidadIntentos=credential.intentosFallidosConsecutivos,
+                    bloqueadoHasta=credential.bloqueadoHasta, urlSeguridad=_securityUrl(),
+                )
             userNotifications.notifySecurity(
                 db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
                 "Hubo varios intentos fallidos de entrar a tu cuenta y la bloqueamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
@@ -981,13 +982,12 @@ def _authenticatedResponse(
 ) -> LoginResponse:
     """Sesión definitiva más la indicación de perfil incompleto (no bloquea el acceso)."""
     tokens = _createSession(db, user)
-    avisoSiempre = userNotifications.obligatorio(user, userNotifications.INICIO_SESION)  # administrador de la plataforma: no lo puede apagar
-    if user.notificarNuevoInicioSesion or avisoSiempre:
+    if user.notificarNuevoInicioSesion:
         client = clientInfo or ClientInfo()
         _notify(
             EmailEventType.NUEVO_INICIO_SESION, user, fechaEvento=nowForDb(), metodo=methodLabel,
             navegador=client.navegador, sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo,
-            urlSeguridad=_securityUrl(), urlDesuscribir=None if avisoSiempre else _newLoginUnsubscribeUrl(user),
+            urlSeguridad=_securityUrl(), urlDesuscribir=_newLoginUnsubscribeUrl(user),
         )
     # El inicio de sesión ya quedó auditado (LOGIN_*). Aviso visible solo si viene de un equipo que la cuenta nunca había usado
     # (services/knownAccess.py); el correo sigue arriba, con su propio enlace de desuscripción.
@@ -1194,7 +1194,8 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     _revokeAllSessions(db, user.idUsuario, now)
     registerEvent(db, "PERMISO", "RESTABLECER_PASSWORD", True, user.idUsuario, "CredencialLocal", credential.idCredencialLocal)
     db.commit()
-    _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+    if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_CONTRASENA):
+        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
     _passwordNotice(db, user, "Se restableció la contraseña de tu cuenta.", now)
 
 
@@ -1247,7 +1248,8 @@ def setLocalPassword(db: Session, user: User, password: str) -> None:
     registerEvent(db, "PERMISO", "CREDENCIAL_LOCAL_AGREGADA", True, user.idUsuario, "CredencialLocal")
     db.commit()
     now = nowForDb()
-    _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+    if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_CONTRASENA):
+        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
     _passwordNotice(db, user, "Se agregó una contraseña a tu cuenta.", now)
 
 
@@ -1282,14 +1284,15 @@ def changeLocalPassword(db: Session, user: User, currentSession: UserSession, ac
         UserSession.fechaRevocacion.is_(None)).values(fechaRevocacion=now).execution_options(synchronize_session=False))
     registerEvent(db, "PERMISO", "CAMBIAR_PASSWORD", True, user.idUsuario, "CredencialLocal", credential.idCredencialLocal)
     db.commit()
-    _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+    if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_CONTRASENA):
+        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
     _passwordNotice(db, user, "Se cambió la contraseña de tu cuenta.", now)
 
 
 # --- Aviso de nuevo inicio de sesión ----------------------------------------------------
 #
-# Es el único aviso de seguridad que el titular puede desactivar (llega en cada acceso). Las alertas de
-# actividad sospechosa (INTENTO_ACCESO_INUSUAL) y de cambios en la cuenta se envían siempre.
+# Llega en cada acceso y la cuenta lo desactiva cuando quiere. Los correos de actividad sospechosa (INTENTO_ACCESO_INUSUAL) y de cambios
+# en la cuenta también son opcionales (userNotifications.correoActivo).
 
 ORIGEN_ENLACE_CORREO = "ENLACE_CORREO"
 ORIGEN_CUENTA = "CUENTA"
@@ -1302,8 +1305,6 @@ def _newLoginUnsubscribeUrl(user: User) -> str:
 
 def setNewLoginNotification(db: Session, user: User, habilitada: bool, origen: str = ORIGEN_CUENTA) -> bool:
     """Activa o desactiva el aviso NUEVO_INICIO_SESION. Devuelve True si cambió; sin cambio no se audita."""
-    if not habilitada and userNotifications.obligatorio(user, userNotifications.INICIO_SESION):
-        raise AuthError("AVISO_OBLIGATORIO", "El aviso de inicio de sesión es obligatorio para tu cuenta de la plataforma.")
     if user.notificarNuevoInicioSesion == habilitada:
         return False
     user.notificarNuevoInicioSesion = habilitada

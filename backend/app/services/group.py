@@ -67,7 +67,6 @@ from app.services import userNotifications
 from app.services.audit import registerEvent
 from app.services.rateLimiter import RateLimiter
 from app.services.measurementProfile import calculateAge
-from app.utils.normalizers import normalizeProperName
 from app.utils.timeZone import nowForDb
 
 TIPO_INDIVIDUAL = "CONSUMIDOR_FINAL"
@@ -387,19 +386,16 @@ def lookupCandidate(db: Session, actor: User, idGrupo: uuid.UUID, correoElectron
     return GroupCandidate(nombre=target.nombre, apellido=target.apellido)
 
 
-def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str, nombre: str | None = None,
-           apellido: str | None = None) -> GroupInvitationRead:
+def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str) -> GroupInvitationRead:
     """Registra la invitación PENDIENTE y avisa por correo. No incorpora a nadie hasta que acepte.
 
-    Si el correo no tiene cuenta, crea una cuenta PENDIENTE con nombre y apellido y envía un enlace de activación: la persona
+    Si el correo no tiene cuenta, crea una cuenta PENDIENTE solo con el correo y envía un enlace de activación: la persona
     elige su nombre de usuario y su contraseña allí y después acepta o rechaza el grupo, dentro del mismo plazo de 7 días."""
     membership = requireMembership(db, actor, idGrupo, admin=True)
     _limit(actor)
     now = nowForDb()
     try:
         target, kind = _eligibleTarget(db, idGrupo, correoElectronico, now)
-        if kind == ACCOUNT_KIND_NEW and not (nombre and apellido):
-            raise AuthError("DATOS_REQUERIDOS", "Ingresá nombre y apellido para crear la cuenta de la persona.")
     except AuthError as error:
         registerEvent(db, "PERMISO", "INVITAR_GRUPO", False, actor.idUsuario, "Grupo", idGrupo,
                       observacion=f"Motivo: {error.code}")
@@ -408,8 +404,7 @@ def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str,
     activationToken = None
     try:
         if kind == ACCOUNT_KIND_NEW:
-            target = User(nombre=normalizeProperName(nombre), apellido=normalizeProperName(apellido),
-                          correoElectronico=correoElectronico, tipoCuenta=TIPO_INDIVIDUAL, estado=ESTADO_CUENTA_PENDIENTE)
+            target = User(correoElectronico=correoElectronico, tipoCuenta=TIPO_INDIVIDUAL, estado=ESTADO_CUENTA_PENDIENTE)
             db.add(target)
             db.flush()
             registerEvent(db, "CRUD", "CREAR_CUENTA_INVITADA", True, actor.idUsuario, "Usuario", target.idUsuario,

@@ -32,6 +32,7 @@ from app.emails.eventTypes import EmailEventType
 from app.models.audit import Audit
 from app.models.institutionUser import InstitutionUser
 from app.models.measurementProfile import MeasurementProfile
+from app.models.notificationEvents import INSTITUCION_SOLICITUD_ACEPTADA, INSTITUCION_SOLICITUD_NUEVA, INSTITUCION_SOLICITUD_RECHAZADA
 from app.models.profileTransfer import ProfileTransfer
 from app.models.user import User
 from app.schemas.profileTransfer import (
@@ -49,7 +50,7 @@ from app.services import email as emailService
 from app.services import institution as institutions
 from app.services import institutionNotifications
 from app.services import institutionPatients as patients
-from app.services import patientAccess
+from app.services import patientAccess, userNotifications
 from app.services.audit import personName, registerEvent, sanitize
 from app.services.measurementProfile import calculateAge
 from app.utils.timeZone import nowForDb, withArgentinaZone
@@ -369,8 +370,11 @@ def _load(db: Session, membership: institutions.Membership, idInstitucion: uuid.
 
 
 def _notify(event: EmailEventType, to: User | None, institutionName: str, profile: MeasurementProfile,
-            counterpart: str, idInstitucion: uuid.UUID, now: datetime) -> None:
+            counterpart: str, idInstitucion: uuid.UUID, now: datetime, *, db: Session | None = None, aviso: str | None = None) -> None:
+    """Correo del flujo de traslados. Con `aviso`, sale solo si quien lo recibe tiene activo el correo de ese aviso (su preferencia)."""
     if to is None or not to.correoElectronico:
+        return
+    if aviso is not None and not userNotifications.correoActivo(db, to, aviso):
         return
     emailService.sendEmailEventInBackground(
         event, to.correoElectronico,
@@ -423,7 +427,7 @@ def requestTransfer(
         raise
 
     _notify(EmailEventType.TRANSFERENCIA_SOLICITADA, db.get(User, target.idUsuarioInvitado),
-            membership.institution.nombre, profile, _fullName(actor), idInstitucion, now)
+            membership.institution.nombre, profile, _fullName(actor), idInstitucion, now, db=db, aviso=INSTITUCION_SOLICITUD_NUEVA)
     institutionNotifications.transferRequested(db, membership.institution, profile, transfer.idTransferenciaPerfil, target, actor)
     return _item(_load(db, membership, idInstitucion, transfer.idTransferenciaPerfil), membership, now)
 
@@ -459,7 +463,7 @@ def proposeTransfer(db: Session, actor: User, membership: institutions.Membershi
             raise _error("TRANSFERENCIA_PENDIENTE", ALREADY_PENDING) from error
         raise
     _notify(EmailEventType.TRANSFERENCIA_SOLICITADA, db.get(User, target.idUsuarioInvitado), membership.institution.nombre, profile,
-            _fullName(actor), membership.institution.idInstitucion, now)
+            _fullName(actor), membership.institution.idInstitucion, now, db=db, aviso=INSTITUCION_SOLICITUD_NUEVA)
     institutionNotifications.transferRequested(db, membership.institution, profile, transfer.idTransferenciaPerfil, target, actor)
     return transfer
 
@@ -532,7 +536,7 @@ def acceptTransfer(db: Session, actor: User, idInstitucion: uuid.UUID, idTransfe
     db.expire_all()
     row = _load(db, membership, idInstitucion, idTransferencia)
     _notify(EmailEventType.TRANSFERENCIA_ACEPTADA, originUser, institutionName, row[1], _fullName(actor),
-            idInstitucion, now)
+            idInstitucion, now, db=db, aviso=INSTITUCION_SOLICITUD_ACEPTADA)
     institutionNotifications.transferAnswered(db, membership.institution, row[1], idTransferencia, originUser, actor, accepted=True)
     return _item(row, membership, now)
 
@@ -564,7 +568,7 @@ def rejectTransfer(db: Session, actor: User, idInstitucion: uuid.UUID, idTransfe
     db.expire_all()
     row = _load(db, membership, idInstitucion, idTransferencia)
     _notify(EmailEventType.TRANSFERENCIA_RECHAZADA, originUser, institutionName, row[1], _fullName(actor),
-            idInstitucion, now)
+            idInstitucion, now, db=db, aviso=INSTITUCION_SOLICITUD_RECHAZADA)
     institutionNotifications.transferAnswered(db, membership.institution, row[1], idTransferencia, originUser, actor, accepted=False)
     return _item(row, membership, now)
 

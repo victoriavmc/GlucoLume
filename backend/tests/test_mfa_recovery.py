@@ -417,3 +417,59 @@ def test_seguridad_sin_mfa_activo(db, mails):
     with pytest.raises(AuthError) as error:
         recovery.startAccountRecovery(db, user, PASSWORD)
     assert error.value.code == "MFA_NO_CONFIGURADO"
+
+
+# --- Cada cuenta recupera solo en su acceso (cliente: GENERAL; administración: PLATAFORMA) --------
+
+
+def challengeFor(db, acceso: str) -> str:
+    response = authService.loginLocal(db, EMAIL, PASSWORD, acceso=acceso)
+    assert response.estado == "MFA_REQUERIDO"
+    return response.challengeToken
+
+
+@pytest.fixture
+def platformUser(db, mails):
+    user = makeUser(db, tipoCuenta="ADMINISTRADOR_PLATAFORMA", usuario="administracion")
+    activate(db, user)
+    return user
+
+
+def test_administrador_recupera_por_el_acceso_administrativo(db, mails, platformUser):
+    started = recovery.startRecovery(db, challengeFor(db, "PLATAFORMA"), PASSWORD, "PLATAFORMA")
+    claims = security.decodeMfaRecoveryToken(started.recoveryToken)
+    assert claims["acc"] == "PLATAFORMA"
+    assert recovery.verifyRecovery(db, started.recoveryToken, emailedCode(mails)).estado == "AUTENTICADO"
+    assert db.scalar(select(MfaFactor)) is None
+
+
+def test_administrador_no_recupera_por_el_acceso_general(db, mails, platformUser):
+    with pytest.raises(AuthError) as error:
+        recovery.startRecovery(db, challengeFor(db, "PLATAFORMA"), PASSWORD, "GENERAL")
+    assert error.value.code == "ACCESO_PLATAFORMA_REQUERIDO"
+    assert tokens(db) == [] and not [m for m in mails if m["subject"] == SUBJECT]
+    assert db.scalar(select(MfaFactor)) is not None
+
+
+def test_cliente_no_recupera_por_el_acceso_administrativo(db, mails, mfaUser):
+    with pytest.raises(AuthError) as error:
+        recovery.startRecovery(db, challenge(db), PASSWORD, "PLATAFORMA")
+    assert error.value.code == "ACCESO_PLATAFORMA_DENEGADO"
+    assert tokens(db) == [] and not [m for m in mails if m["subject"] == SUBJECT]
+    assert db.scalar(select(MfaFactor)) is not None
+
+
+def test_cliente_recupera_por_el_acceso_general(db, mails, mfaUser):
+    started = recovery.startRecovery(db, challenge(db), PASSWORD, "GENERAL")
+    assert security.decodeMfaRecoveryToken(started.recoveryToken)["acc"] == "GENERAL"
+    assert recovery.verifyRecovery(db, started.recoveryToken, emailedCode(mails)).estado == "AUTENTICADO"
+
+
+def test_token_de_recuperacion_se_revalida_si_cambia_el_tipo_de_cuenta(db, mails, platformUser):
+    started = recovery.startRecovery(db, challengeFor(db, "PLATAFORMA"), PASSWORD, "PLATAFORMA")
+    platformUser.tipoCuenta = "CONSUMIDOR_FINAL"
+    db.commit()
+    with pytest.raises(AuthError) as error:
+        recovery.verifyRecovery(db, started.recoveryToken, emailedCode(mails))
+    assert error.value.code == "ACCESO_PLATAFORMA_DENEGADO"
+    assert db.scalar(select(MfaFactor)) is not None

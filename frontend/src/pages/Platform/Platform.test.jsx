@@ -723,10 +723,59 @@ describe('Activación y recuperación', () => {
     });
     const user = userEvent.setup();
     renderAt('/plataforma/recuperar');
+    expect(await screen.findByText(/Perdiste también tu aplicación de verificación/)).toBeInTheDocument();
     await user.type(await screen.findByLabelText('Correo electrónico'), 'nadie@example.com');
     await user.click(screen.getByRole('button', { name: /Enviar enlace/ }));
     expect(await screen.findByText(/Si el correo corresponde a una cuenta administrativa/)).toBeInTheDocument();
     expect(calls.find((call) => call.key === 'POST /platform/password/forgot').body).toEqual({ correoElectronico: 'nadie@example.com' });
+  });
+
+  it('el administrador tiene las dos salidas del paso MFA: código de recuperación y recuperación por correo', async () => {
+    clearTokens();
+    let loggedIn = false;
+    const { calls } = mockApi({
+      'POST /auth/login': jsonResponse(200, { estado: 'MFA_REQUERIDO', challengeToken: 'challenge-1', challengeExpiresIn: 300 }),
+      'POST /auth/mfa/verify': () => { loggedIn = true; return jsonResponse(200, { estado: 'AUTENTICADO', tokens: TOKENS, camposFaltantes: [] }); },
+      'GET /auth/me': () => (loggedIn ? jsonResponse(200, ADMIN_ACCOUNT) : jsonResponse(401, { codigo: 'TOKEN_INVALIDO', detail: 'x' })),
+      'GET /platform/me': jsonResponse(200, me()), 'GET /platform/dashboard': jsonResponse(200, DASHBOARD), 'GET /platform/system': jsonResponse(200, SYSTEM),
+    });
+    const user = userEvent.setup();
+    renderAt('/plataforma/login');
+    await user.type(await screen.findByLabelText('Correo electrónico o usuario'), 'victoria');
+    await user.type(screen.getByLabelText('Contraseña'), 'Clave#2026');
+    await user.click(screen.getByRole('button', { name: /^Continuar$/ }));
+    expect(await screen.findByRole('button', { name: '¿Perdiste acceso a tu aplicación autenticadora?' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Usar un código de recuperación' }));
+    await user.type(screen.getByLabelText('Código de recuperación'), 'ABCD-EFGH');
+    await user.click(screen.getByRole('button', { name: /^Verificar$/ }));
+    expect(await screen.findByRole('heading', { name: 'Dashboard general' })).toBeInTheDocument();
+    expect(calls.find((call) => call.key === 'POST /auth/mfa/verify').body).toEqual({ challengeToken: 'challenge-1', codigoRecuperacion: 'ABCD-EFGH' });
+  });
+
+  it('sin la aplicación de verificación, el administrador recupera el acceso con contraseña y el código del correo y debe volver a activar MFA', async () => {
+    clearTokens();
+    let recovered = false;
+    const { calls } = mockApi({
+      'POST /auth/login': jsonResponse(200, { estado: 'MFA_REQUERIDO', challengeToken: 'challenge-1', challengeExpiresIn: 300 }),
+      'POST /auth/mfa/recovery/start': jsonResponse(200, { recoveryToken: 'recovery-1', correoEnmascarado: 'vi***@example.com', vigenciaMinutos: 10 }),
+      'POST /auth/mfa/recovery/verify': () => { recovered = true; return jsonResponse(200, { estado: 'AUTENTICADO', tokens: TOKENS, camposFaltantes: [] }); },
+      'GET /auth/me': () => (recovered ? jsonResponse(200, { ...ADMIN_ACCOUNT, mfaHabilitado: false }) : jsonResponse(401, { codigo: 'TOKEN_INVALIDO', detail: 'x' })),
+      'GET /platform/me': jsonResponse(200, me({ mfaHabilitado: false, requiereConfigurarMfa: true })),
+    });
+    const user = userEvent.setup();
+    renderAt('/plataforma/login');
+    await user.type(await screen.findByLabelText('Correo electrónico o usuario'), 'victoria');
+    await user.type(screen.getByLabelText('Contraseña'), 'Clave#2026');
+    await user.click(screen.getByRole('button', { name: /^Continuar$/ }));
+    await user.click(await screen.findByRole('button', { name: '¿Perdiste acceso a tu aplicación autenticadora?' }));
+    await user.type(await screen.findByLabelText('Contraseña actual'), 'Clave#2026');
+    await user.click(screen.getByRole('button', { name: /^Continuar$/ }));
+    await user.type(await screen.findByLabelText('Código enviado a tu correo'), '123456');
+    await user.click(screen.getByRole('button', { name: /^Verificar$/ }));
+    expect(await screen.findByText(/Acceso recuperado\. La verificación en dos pasos quedó desactivada/)).toBeInTheDocument();
+    expect(calls.find((call) => call.key === 'POST /auth/mfa/recovery/start').body)
+      .toEqual({ challengeToken: 'challenge-1', password: 'Clave#2026', acceso: 'PLATAFORMA' });
+    expect(calls.find((call) => call.key === 'POST /auth/mfa/recovery/verify').body).toEqual({ recoveryToken: 'recovery-1', codigo: '123456' });
   });
 
   it('restablecer pide una contraseña que cumpla la política y confirma el cierre de sesiones', async () => {

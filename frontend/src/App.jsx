@@ -89,6 +89,7 @@ const PlatformForgot = lazyNamed(loadPlatformAuth, 'PlatformForgot');
 const PlatformLogin = lazyNamed(loadPlatformAuth, 'PlatformLogin');
 const PlatformReset = lazyNamed(loadPlatformAuth, 'PlatformReset');
 const SecurityPage = lazyNamed(() => import('./pages/Account/SecurityPage.jsx'));
+const HelpPage = lazyNamed(() => import('./pages/Account/help/HelpPage.jsx'), 'HelpPage');
 const NotificationsPage = lazyNamed(() => import('./pages/Account/notifications/NotificationsPage.jsx'));
 const NotificationPreferencesPage = lazyNamed(() => import('./pages/Account/notifications/NotificationPreferencesPage.jsx'));
 
@@ -261,6 +262,7 @@ export function AppRoutes() {
           <Route path="perfil" element={<ProfilePage />} />
           <Route path="conectar-dispositivo" element={<ConnectDevicePage />} />
           <Route path="seguridad" element={<SecurityPage />} />
+          <Route path="ayuda" element={<HelpPage />} />
           <Route path="notificaciones" element={<NotificationsPage />} />
           <Route path="notificaciones/preferencias" element={<NotificationPreferencesPage />} />
           <Route path="dispositivos" element={<GlobalDevicesPage />} />

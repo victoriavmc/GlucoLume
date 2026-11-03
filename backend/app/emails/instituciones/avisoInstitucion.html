@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Hubo novedades en tu institución{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ descripcion }}</p>
+{{ m.datos([("Institución", nombreInstitucion), ("Fecha", fechaEvento|fechaHora)]) }}
+{{ m.boton(urlInstitucion, "Ver en GlucoLume") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Recibís este correo porque elegiste avisarte por correo de la gestión de tu institución en «Notificaciones» de GlucoLume.</p>
+{% endblock %}

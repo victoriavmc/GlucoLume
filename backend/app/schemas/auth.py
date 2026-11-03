@@ -153,6 +153,8 @@ class MfaRecoveryStartRequest(BaseModel):
     challengeToken: Annotated[str, Field(min_length=1, max_length=2048)]
     # Obligatoria si la cuenta tiene contraseña local; una cuenta solo Google no la envía.
     password: Password | None = None
+    # Acceso desde el que se pide: cada cuenta solo recupera por el suyo (clientes: GENERAL; administración: PLATAFORMA).
+    acceso: AccesoLogin = Field(default="GENERAL", description="Mismo acceso que el login de esta cuenta.")
 
 
 class MfaRecoveryStartResponse(BaseModel):

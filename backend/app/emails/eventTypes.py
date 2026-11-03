@@ -83,12 +83,16 @@ class EmailEventType(StrEnum):
     ROL_INSTITUCIONAL_CAMBIADO = "ROL_INSTITUCIONAL_CAMBIADO"
     INSTITUCION_ELIMINADA = "INSTITUCION_ELIMINADA"
     INSTITUCION_ELIMINADA_ADMINISTRATIVAMENTE = "INSTITUCION_ELIMINADA_ADMINISTRATIVAMENTE"
+    # Aviso de gestión de la institución elegido por correo en «Notificaciones» (services/institutionNotifications.py); no incluye datos del paciente.
+    AVISO_INSTITUCION = "AVISO_INSTITUCION"
     # Mediciones
     MEDICION_REGISTRADA = "MEDICION_REGISTRADA"
     RESULTADO_MEDICION = "RESULTADO_MEDICION"
     CONFIRMAR_CORREO_RESULTADOS = "CONFIRMAR_CORREO_RESULTADOS"
     MEDICION_FUERA_UMBRAL = "MEDICION_FUERA_UMBRAL"
     ERROR_MEDICION = "ERROR_MEDICION"
+    # Aviso de si el correo con el resultado salió o no (services/userNotifications.py); no incluye datos de medición.
+    AVISO_RESULTADO_ENVIADO = "AVISO_RESULTADO_ENVIADO"
     # Recordatorio del horario de medición que eligió la cuenta (services/userNotifications.py); no incluye datos de medición.
     RECORDATORIO_MEDICION = "RECORDATORIO_MEDICION"
     # Privacidad
@@ -335,6 +339,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
         ("nombreInstitucion", "identificadorPseudonimo", "nombreOperador", "fechaEvento", "urlPaciente"),
         ("urlPaciente",),
     ),
+    _E.AVISO_INSTITUCION: EmailEventSpec(
+        "instituciones/avisoInstitucion.html", "Hubo novedades en tu institución", CATEGORIA_INSTITUCION,
+        ("descripcion", "nombreInstitucion", "fechaEvento", "urlInstitucion"), ("urlInstitucion",),
+    ),
     _E.TRANSFERENCIA_SOLICITADA: EmailEventSpec(
         "instituciones/transferenciaSolicitada.html", "Tenés una transferencia de paciente pendiente", CATEGORIA_INSTITUCION,
         ("nombreInstitucion", "identificadorPseudonimo", "nombreOperador", "fechaEvento", "urlTransferencias"),
@@ -411,6 +419,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     _E.ERROR_MEDICION: EmailEventSpec(
         "mediciones/errorMedicion.html", "No se pudo completar una medición", CATEGORIA_MEDICIONES,
         ("fechaEvento",), clinicalDisclaimer=True,
+    ),
+    _E.AVISO_RESULTADO_ENVIADO: EmailEventSpec(
+        "mediciones/avisoResultadoEnviado.html", "Estado del envío de tu resultado", CATEGORIA_CUENTA,
+        ("mensaje", "urlMediciones"), ("urlMediciones",),
     ),
     _E.RECORDATORIO_MEDICION: EmailEventSpec(
         "mediciones/recordatorioMedicion.html", "Es hora de medirte en GlucoLume", CATEGORIA_CUENTA,

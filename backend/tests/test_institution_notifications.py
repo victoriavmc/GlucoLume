@@ -23,6 +23,9 @@ from tests.test_institution_patients import addOperator, patientData
 from tests.test_institutions import institutional, relationOf, team  # noqa: F401 - fixtures
 
 
+AVISO_SUBJECT = "Hubo novedades en tu institución"  # asunto de AVISO_INSTITUCION (app/emails/eventTypes.py)
+
+
 def avisos(db, user, evento):
     return [n for n in service.inbox(db, user, limite=50).notificaciones if n.evento == evento]
 
@@ -131,18 +134,59 @@ def test_solicitud_de_paciente_llega_al_destino_y_su_respuesta_al_origen(db, mai
     assert avisos(db, segundoUser, events.INSTITUCION_SOLICITUD_RECHAZADA)
 
 
-def test_la_preferencia_apaga_el_aviso_de_institucion_y_no_ofrece_correo(db, mails, team):
-    preferencia = next(p for p in service.settings(db, team.owner).preferencias if p.evento == events.INSTITUCION_PACIENTE_NUEVO)
-    assert preferencia.categoria == "INSTITUCION" and preferencia.correoDisponible is False and preferencia.porCorreo is False
-
+def test_la_preferencia_apaga_el_aviso_de_institucion_en_la_pagina(db, mails, team):
     service.updatePreference(db, team.owner, events.INSTITUCION_PACIENTE_NUEVO, enPagina=False)
     crearPaciente(db, team.operator, team)
     assert events.INSTITUCION_PACIENTE_NUEVO not in eventosDe(db, team.owner)
 
 
-def test_no_se_puede_pedir_correo_para_un_aviso_que_solo_va_a_la_pagina(db, mails, team):
-    with pytest.raises(AuthError) as error:  # el aviso no tiene canal de correo
-        service.updatePreference(db, team.owner, events.INSTITUCION_PACIENTE_NUEVO, porCorreo=True)
+def test_el_correo_de_institucion_es_opcional_y_viene_apagado(db, mails, team):
+    preferencia = next(p for p in service.settings(db, team.owner).preferencias if p.evento == events.INSTITUCION_PACIENTE_NUEVO)
+    assert preferencia.categoria == "INSTITUCION" and preferencia.correoDisponible is True and preferencia.porCorreo is False
+
+    crearPaciente(db, team.operator, team)
+    assert not [m for m in mails if m["subject"] == AVISO_SUBJECT and m["to"] == team.owner.correoElectronico]
+
+
+def test_el_correo_de_institucion_sale_solo_si_la_cuenta_lo_elige(db, mails, team):
+    service.updatePreference(db, team.owner, events.INSTITUCION_PACIENTE_NUEVO, porCorreo=True)
+    crearPaciente(db, team.operator, team)
+
+    assert [m["to"] for m in mails if m["subject"] == AVISO_SUBJECT] == [team.owner.correoElectronico]
+
+
+def test_el_correo_de_paciente_a_cargo_sale_por_defecto_y_se_apaga_con_la_preferencia(db, mails, team):
+    responsable = relationOf(db, team, team.operator).idInstitucionUsuario
+    crearPaciente(db, team.moderator, team, idResponsable=responsable)
+    assert len([m for m in mails if m["to"] == team.operator.correoElectronico]) == 1  # el correo que ya enviaba el flujo, una vez
+
+
+def test_la_preferencia_apagada_silencia_el_correo_de_paciente_a_cargo_pero_no_la_bandeja(db, mails, team):
+    responsable = relationOf(db, team, team.operator).idInstitucionUsuario
+    service.updatePreference(db, team.operator, events.INSTITUCION_PACIENTE_A_CARGO, porCorreo=False)
+    crearPaciente(db, team.moderator, team, idResponsable=responsable)
+
+    assert not [m for m in mails if m["to"] == team.operator.correoElectronico]
+    assert avisos(db, team.operator, events.INSTITUCION_PACIENTE_A_CARGO)
+
+
+def test_la_preferencia_apagada_silencia_el_correo_de_solicitud_al_destino(db, mails, team):
+    responsable = relationOf(db, team, team.operator).idInstitucionUsuario
+    paciente = crearPaciente(db, team.moderator, team, idResponsable=responsable)
+    segundo = addOperator(db, team)
+    segundoUser = db.get(User, segundo.idUsuarioInvitado)
+    service.updatePreference(db, segundoUser, events.INSTITUCION_SOLICITUD_NUEVA, porCorreo=False)
+    mails.clear()
+
+    transfers.requestTransfer(db, team.operator, team.id, paciente.idPerfilMedicion, segundo.idInstitucionUsuario, None)
+
+    assert not [m for m in mails if m["to"] == segundoUser.correoElectronico]
+    assert avisos(db, segundoUser, events.INSTITUCION_SOLICITUD_NUEVA)
+
+
+def test_la_invitacion_solo_avisa_en_la_pagina_porque_su_correo_ya_sale(db, mails, team):
+    with pytest.raises(AuthError) as error:  # el correo de invitación lo envía institution.py
+        service.updatePreference(db, team.owner, events.INSTITUCION_INVITACION, porCorreo=True)
     assert error.value.code == "CANAL_NO_DISPONIBLE"
 
 

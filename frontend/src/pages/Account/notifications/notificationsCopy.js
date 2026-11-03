@@ -43,7 +43,7 @@ export const EVENTOS = {
   },
   INTENTO_INGRESO: {
     categoria: 'SEGURIDAD', icono: ShieldAlert, tono: 'alert', titulo: 'Intentos de ingreso',
-    descripcion: 'Cada contraseña o código incorrecto que se ingresa para entrar a tu cuenta. Siempre llega a la aplicación.',
+    descripcion: 'Cada contraseña o código incorrecto que se ingresa para entrar a tu cuenta.',
   },
   INVITACION_GRUPO: {
     categoria: 'GRUPO', icono: MailPlus, tono: 'group', titulo: 'Invitaciones a un grupo',
@@ -67,7 +67,7 @@ export const EVENTOS = {
   },
   RESULTADO_ENVIADO: {
     categoria: 'MEDICION', icono: MailCheck, tono: 'measurement', titulo: 'Envío del resultado',
-    descripcion: 'Cuando sale por correo el resultado de una medición que pediste, o cuando no pudo salir.',
+    descripcion: 'Cuando sale por correo el resultado de una medición que pediste, o cuando no pudo salir. El correo de este aviso no incluye el resultado.',
   },
   INSTITUCION_INVITACION: {
     categoria: 'INSTITUCION', icono: MailPlus, tono: 'institution', titulo: 'Invitaciones de instituciones',

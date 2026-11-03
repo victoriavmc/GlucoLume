@@ -142,7 +142,7 @@ export default function ActivateAccount() {
             <span className="success-icon">
               <UserCheck size={32} aria-hidden="true" />
             </span>
-            <h3>Hola, {state.info.nombre}</h3>
+            <h3>{state.info.nombre ? `Hola, ${state.info.nombre}` : 'Hola'}</h3>
             <p>Correo: {state.info.correoEnmascarado}</p>
           </div>
           {state.info.invitaciones.length > 0 && (

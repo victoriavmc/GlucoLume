@@ -195,7 +195,6 @@ def test_mensajes_de_invitacion(db, mails):
     group = create(db, ana)
     error = expectError("USUARIO_NO_ENCONTRADO", groups.lookupCandidate, db, ana, group.idGrupo, "nadie@example.com")
     assert error.message.startswith("No existe una cuenta individual registrada con este correo.")
-    expectError("DATOS_REQUERIDOS", groups.invite, db, ana, group.idGrupo, "nadie@example.com")
     pendiente = person(db, "pendiente")
     pendiente.estado = "PENDIENTE"  # correo sin verificar
     db.commit()
@@ -679,20 +678,12 @@ def nuevaCuenta(db) -> User:
     return db.scalar(select(User).where(User.correoElectronico == "nueva@example.com"))
 
 
-def test_sin_cuenta_exige_nombre_y_apellido_y_no_crea_nada(db, mails):
+def test_sin_cuenta_crea_cuenta_pendiente_solo_con_correo_y_envia_el_enlace(db, mails):
     ana = person(db, "ana")
     group = create(db, ana)
-    before = len(mails)
-    expectError("DATOS_REQUERIDOS", groups.invite, db, ana, group.idGrupo, "nueva@example.com")
-    assert nuevaCuenta(db) is None and len(mails) == before
-
-
-def test_sin_cuenta_crea_cuenta_pendiente_y_envia_el_enlace_con_el_usuario_del_invitante(db, mails):
-    ana = person(db, "ana")
-    group = create(db, ana)
-    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com", "lucía", "sosa")
+    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com")
     nueva = nuevaCuenta(db)
-    assert (nueva.estado, nueva.tipoCuenta, nueva.nombre, nueva.apellido) == ("PENDIENTE", "CONSUMIDOR_FINAL", "Lucía", "Sosa")
+    assert (nueva.estado, nueva.tipoCuenta, nueva.nombre, nueva.apellido) == ("PENDIENTE", "CONSUMIDOR_FINAL", None, None)
     assert db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == nueva.idUsuario)) is None  # sin contraseña
     mail = mails[-1]
     assert mail["to"] == "nueva@example.com" and "/activar-cuenta?token=" in mail["html"]
@@ -704,7 +695,7 @@ def test_sin_cuenta_crea_cuenta_pendiente_y_envia_el_enlace_con_el_usuario_del_i
 def test_la_persona_activa_su_cuenta_ve_la_invitacion_y_acepta(db, mails):
     ana = person(db, "ana")
     group = create(db, ana)
-    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com")
     token = tokenFrom(mails[-1])
     info = accountActivation.checkActivation(db, token)
     assert [grupo.nombreGrupo for grupo in info.gruposInvitaciones] == ["Familia Pérez"]
@@ -719,7 +710,7 @@ def test_la_persona_activa_su_cuenta_ve_la_invitacion_y_acepta(db, mails):
 def test_el_enlace_y_la_invitacion_vencen_a_los_7_dias(db, mails):
     ana = person(db, "ana")
     group = create(db, ana)
-    groups.invite(db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    groups.invite(db, ana, group.idGrupo, "nueva@example.com")
     token = tokenFrom(mails[-1])
     db.execute(update(AccountToken).values(fechaCreacion=nowForDb() - timedelta(days=8), fechaExpiracion=nowForDb() - timedelta(minutes=1)))
     db.commit()
@@ -733,12 +724,12 @@ def test_el_enlace_y_la_invitacion_vencen_a_los_7_dias(db, mails):
 def test_reinvitar_una_cuenta_sin_activar_reutiliza_la_cuenta_y_renueva_el_enlace(db, mails):
     ana = person(db, "ana")
     group = create(db, ana)
-    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
-    expectError("INVITACION_PENDIENTE", groups.invite, db, ana, group.idGrupo, "nueva@example.com", "Lucía", "Sosa")
+    invitation = groups.invite(db, ana, group.idGrupo, "nueva@example.com")
+    expectError("INVITACION_PENDIENTE", groups.invite, db, ana, group.idGrupo, "nueva@example.com")
     oldToken = tokenFrom(mails[-1])
     groups.cancelInvitation(db, ana, group.idGrupo, invitation.idGrupoUsuario)
     expectError("INVITACION_NO_VIGENTE", accountActivation.checkActivation, db, oldToken)
-    again = groups.invite(db, ana, group.idGrupo, "nueva@example.com")  # ya tiene nombre y apellido: no los vuelve a pedir
+    again = groups.invite(db, ana, group.idGrupo, "nueva@example.com")
     assert db.scalar(select(func.count()).select_from(User).where(User.correoElectronico == "nueva@example.com")) == 1
     newToken = tokenFrom(mails[-1])
     assert newToken != oldToken and accountActivation.checkActivation(db, newToken).gruposInvitaciones
@@ -754,4 +745,4 @@ def test_la_busqueda_no_revela_cuentas_sin_activar_de_otro_tipo(db, mails):
     pending = makeUser(db, email="registrada@example.com", usuario="registrada", local=True)
     pending.estado = "PENDIENTE"  # registrada, sin verificar: no es una cuenta invitada
     db.commit()
-    expectError("USUARIO_NO_ENCONTRADO", groups.invite, db, ana, group.idGrupo, "registrada@example.com", "Ana", "Sosa")
+    expectError("USUARIO_NO_ENCONTRADO", groups.invite, db, ana, group.idGrupo, "registrada@example.com")

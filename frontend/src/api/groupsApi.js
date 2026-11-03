@@ -63,8 +63,8 @@ export function lookupCandidate(idGrupo, correoElectronico) {
 }
 
 /** Sin cuenta: `{ nombre, apellido }` crea la cuenta pendiente y envía el correo para activarla. */
-export function invite(idGrupo, correoElectronico, { nombre, apellido } = {}) {
-  return request(`/groups/${idGrupo}/invitations`, { method: 'POST', body: { correoElectronico, nombre, apellido }, auth: true });
+export function invite(idGrupo, correoElectronico) {
+  return request(`/groups/${idGrupo}/invitations`, { method: 'POST', body: { correoElectronico }, auth: true });
 }
 
 export function resendInvitation(idGrupo, idGrupoUsuario) {

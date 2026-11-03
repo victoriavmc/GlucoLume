@@ -6,7 +6,9 @@
 #   - paciente a cargo: el operador responsable nuevo (menos quien hizo el cambio);
 #   - solicitud de paciente: el operador destino; su resultado (aceptada o rechazada), el operador de origen.
 # Nunca incluyen datos del paciente: solo su identificador seudónimo. Cada aviso lo guarda userNotifications.notify, que respeta las
-# preferencias de la cuenta y nunca propaga errores (el hecho que avisa ya está confirmado).
+# preferencias de la cuenta y nunca propaga errores (el hecho que avisa ya está confirmado). El correo de cada aviso sigue la preferencia
+# de su cuenta y sale una sola vez: por el correo que ya enviaba su flujo (operadores para propietarios, asignaciones, solicitudes) o,
+# si no había ninguno, por la plantilla AVISO_INSTITUCION.
 
 import uuid
 from datetime import datetime
@@ -14,6 +16,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.emails.eventTypes import EmailEventType
 from app.models.institution import Institution
 from app.models.institutionUser import InstitutionUser
 from app.models.measurementProfile import MeasurementProfile
@@ -29,7 +32,9 @@ from app.models.notificationEvents import (
     INSTITUCION_SOLICITUD_RECHAZADA,
 )
 from app.models.user import User
+from app.services import email as emailService
 from app.services import userNotifications
+from app.utils.timeZone import nowForDb
 
 ROL_PROPIETARIO = "PROPIETARIO"
 ROL_MODERADOR = "MODERADOR"
@@ -59,23 +64,33 @@ def _transfersUrl(idInstitucion: uuid.UUID) -> str:
     return f"{_institutionUrl(idInstitucion)}/transferencias"
 
 
-def _managers(db: Session, idInstitucion: uuid.UUID, exclude: set[uuid.UUID]) -> list[User]:
-    """Propietarios y moderadores activos de la institución, salvo quienes están en `exclude`."""
-    managers = db.scalars(
-        select(User).join(InstitutionUser, InstitutionUser.idUsuarioInvitado == User.idUsuario).where(
+def _email(texto: str, institution: Institution, url: str) -> tuple[EmailEventType, dict]:
+    """Correo del aviso con la plantilla genérica AVISO_INSTITUCION. Solo sale a quien eligió el correo de ese aviso."""
+    return EmailEventType.AVISO_INSTITUCION, {
+        "descripcion": texto, "nombreInstitucion": institution.nombre, "fechaEvento": nowForDb(),
+        "urlInstitucion": emailService.frontendUrl(url),
+    }
+
+
+def _managers(db: Session, idInstitucion: uuid.UUID, exclude: set[uuid.UUID]) -> list[tuple[User, str]]:
+    """Propietarios y moderadores activos de la institución (con su rol), salvo quienes están en `exclude`."""
+    rows = db.execute(
+        select(User, InstitutionUser.rolInstitucion).join(InstitutionUser, InstitutionUser.idUsuarioInvitado == User.idUsuario).where(
             InstitutionUser.idInstitucion == idInstitucion,
             InstitutionUser.rolInstitucion.in_(ROLES_GESTION),
             InstitutionUser.estadoRelacion == RELACION_ACTIVO,
             User.estado == userNotifications.ESTADO_ACTIVO,
         )
     ).all()
-    return [manager for manager in managers if manager.idUsuario not in exclude]
+    return [(manager, rol) for manager, rol in rows if manager.idUsuario not in exclude]
 
 
 def _notifyManagers(db: Session, institution: Institution, evento: str, titulo: str, mensaje: str, *, clave: str, url: str,
-                    exclude: set[uuid.UUID]) -> None:
-    for manager in _managers(db, institution.idInstitucion, exclude):
-        userNotifications.notify(db, manager, evento, titulo, mensaje, url=url, clave=clave)
+                    exclude: set[uuid.UUID], flowRol: str | None = None) -> None:
+    """Avisa a los gestores. Quien ya recibe el correo del flujo (`flowRol`) no recibe otro: su correo sale por el flujo, con su preferencia."""
+    for manager, rol in _managers(db, institution.idInstitucion, exclude):
+        email = None if rol == flowRol else _email(mensaje, institution, url)
+        userNotifications.notify(db, manager, evento, titulo, mensaje, url=url, clave=clave, email=email)
 
 
 def memberAdded(db: Session, institution: Institution, member: User, rol: str, idInstitucionUsuario: uuid.UUID,
@@ -88,7 +103,7 @@ def memberAdded(db: Session, institution: Institution, member: User, rol: str, i
     _notifyManagers(db, institution, evento, titulo,
                     f"{_name(member)} se incorporó como {ETIQUETA_ROL[rol]} de {institution.nombre}.",
                     clave=f"{evento}:{idInstitucionUsuario}", url=_institutionUrl(institution.idInstitucion),
-                    exclude={member.idUsuario, *exclude})
+                    exclude={member.idUsuario, *exclude}, flowRol=ROL_PROPIETARIO if rol == ROL_OPERADOR else None)
 
 
 def memberRemoved(db: Session, institution: Institution, member: User, rol: str, idInstitucionUsuario: uuid.UUID,
@@ -101,7 +116,7 @@ def memberRemoved(db: Session, institution: Institution, member: User, rol: str,
     _notifyManagers(db, institution, evento, titulo,
                     f"{_name(member)} ya no es {ETIQUETA_ROL[rol]} de {institution.nombre}.",
                     clave=f"{evento}:{idInstitucionUsuario}", url=_institutionUrl(institution.idInstitucion),
-                    exclude={member.idUsuario, *exclude})
+                    exclude={member.idUsuario, *exclude}, flowRol=ROL_PROPIETARIO if rol == ROL_OPERADOR else None)
 
 
 def invitation(db: Session, institution: Institution, target: User, idInstitucionUsuario: uuid.UUID) -> None:
@@ -129,10 +144,10 @@ def patientAssigned(db: Session, institution: Institution, profile: MeasurementP
     if user is None or user.idUsuario in exclude:
         return
     evento = INSTITUCION_PACIENTE_A_CARGO
+    mensaje = f"Ahora tenés a cargo el paciente {_patientId(profile)} en {institution.nombre}."
+    url = _patientUrl(institution.idInstitucion, profile.idPerfilMedicion)
     userNotifications.notify(
-        db, user, evento, "Paciente a cargo",
-        f"Ahora tenés a cargo el paciente {_patientId(profile)} en {institution.nombre}.",
-        url=_patientUrl(institution.idInstitucion, profile.idPerfilMedicion),
+        db, user, evento, "Paciente a cargo", mensaje, url=url,
         clave=f"{evento}:{profile.idPerfilMedicion}:{now:%Y%m%dT%H%M%S%f}",
     )
 
@@ -144,10 +159,11 @@ def transferRequested(db: Session, institution: Institution, profile: Measuremen
     if user is None:
         return
     evento = INSTITUCION_SOLICITUD_NUEVA
+    mensaje = f"{_name(actor)} te envió una solicitud por el paciente {_patientId(profile)} en {institution.nombre}."
+    url = _transfersUrl(institution.idInstitucion)
     userNotifications.notify(
-        db, user, evento, "Nueva solicitud de paciente",
-        f"{_name(actor)} te envió una solicitud por el paciente {_patientId(profile)} en {institution.nombre}.",
-        url=_transfersUrl(institution.idInstitucion), clave=f"{evento}:{idTransferencia}",
+        db, user, evento, "Nueva solicitud de paciente", mensaje, url=url,
+        clave=f"{evento}:{idTransferencia}",
     )
 
 
@@ -159,8 +175,9 @@ def transferAnswered(db: Session, institution: Institution, profile: Measurement
     evento = INSTITUCION_SOLICITUD_ACEPTADA if accepted else INSTITUCION_SOLICITUD_RECHAZADA
     titulo = "Solicitud aceptada" if accepted else "Solicitud rechazada"
     verbo = "aceptó" if accepted else "rechazó"
+    mensaje = f"{_name(actor)} {verbo} el paciente {_patientId(profile)} en {institution.nombre}."
+    url = _transfersUrl(institution.idInstitucion)
     userNotifications.notify(
-        db, origin, evento, titulo,
-        f"{_name(actor)} {verbo} el paciente {_patientId(profile)} en {institution.nombre}.",
-        url=_transfersUrl(institution.idInstitucion), clave=f"{evento}:{idTransferencia}",
+        db, origin, evento, titulo, mensaje, url=url,
+        clave=f"{evento}:{idTransferencia}",
     )

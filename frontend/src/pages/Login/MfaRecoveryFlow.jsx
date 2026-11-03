@@ -23,7 +23,8 @@ function recoveryError(error) {
   return BACKEND_MESSAGE_CODES.includes(error?.codigo) ? error.message : friendlyError(error);
 }
 
-export function MfaRecoveryFlow({ challengeToken, askPassword, onVerify, onCancel }) {
+// `acceso`: el del login donde se muestra (GENERAL en /login, PLATAFORMA en /plataforma/login). Cada cuenta solo recupera en el suyo.
+export function MfaRecoveryFlow({ challengeToken, askPassword, onVerify, onCancel, acceso = 'GENERAL' }) {
   const [step, setStep] = useState(askPassword ? 'password' : 'starting'); // password | starting | code
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -38,7 +39,7 @@ export function MfaRecoveryFlow({ challengeToken, askPassword, onVerify, onCance
     setBusy(true);
     setError('');
     try {
-      const result = await startMfaRecovery(challengeToken, withPassword || undefined);
+      const result = await startMfaRecovery(challengeToken, withPassword || undefined, acceso);
       setSent(result);
       setStep('code');
       return true;

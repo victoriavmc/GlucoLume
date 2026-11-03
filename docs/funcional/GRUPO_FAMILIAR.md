@@ -41,8 +41,8 @@ y grupo, un administrador por grupo.
 - Invitar: por **correo exacto**. Con una cuenta individual activa, la invitación queda PENDIENTE y se avisa en la aplicación y por correo.
   Se rechazan cuentas no individuales (`CUENTA_NO_INDIVIDUAL`), integrantes (`VINCULO_EXISTENTE`) e invitaciones pendientes
   (`INVITACION_PENDIENTE`); la búsqueda tiene límite (`DEMASIADAS_SOLICITUDES`).
-- Sin cuenta (`USUARIO_NO_ENCONTRADO` en la búsqueda): el administrador envía la invitación por correo indicando nombre y apellido
-  (`DATOS_REQUERIDOS` si faltan). Se crea una cuenta individual PENDIENTE sin contraseña y un enlace de activación de un solo uso. El correo
+- Sin cuenta (`USUARIO_NO_ENCONTRADO` en la búsqueda): el administrador envía la invitación por correo, solo con el correo (no se piden
+  nombre ni apellido). Se crea una cuenta individual PENDIENTE sin nombre, sin contraseña y con un enlace de activación de un solo uso. El correo
   informa el grupo y el usuario de quien invita, y el enlace lleva a activar la cuenta (elegir nombre de usuario y contraseña, como en el
   registro). Al activarla, la persona ve la invitación y puede aceptarla o rechazarla. Un correo sin verificar o una cuenta bloqueada o
   eliminada sigue respondiendo `USUARIO_NO_ENCONTRADO`.

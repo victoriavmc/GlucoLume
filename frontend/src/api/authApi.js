@@ -142,9 +142,13 @@ export function confirmAccountDeletion({ token, password, codigo, codigoRecupera
 
 // --- Recuperación de MFA ("perdí mi aplicación autenticadora") ---------------------------------
 
-/** POST /auth/mfa/recovery/start -> { recoveryToken, correoEnmascarado, vigenciaMinutos } */
-export function startMfaRecovery(challengeToken, password) {
-  const body = password ? { challengeToken, password } : { challengeToken };
+/**
+ * POST /auth/mfa/recovery/start -> { recoveryToken, correoEnmascarado, vigenciaMinutos }.
+ * `acceso` es el del login donde se pidió: 'PLATAFORMA' desde /plataforma/login; por omisión (GENERAL) no se envía.
+ * El backend rechaza el par que no corresponde al tipo de cuenta.
+ */
+export function startMfaRecovery(challengeToken, password, acceso = 'GENERAL') {
+  const body = { challengeToken, ...(password ? { password } : {}), ...(acceso === 'PLATAFORMA' ? { acceso } : {}) };
   return request('/auth/mfa/recovery/start', { method: 'POST', body });
 }
 

@@ -36,7 +36,7 @@ def _notify(eventType: EmailEventType, user: User, **context) -> None:
 
 
 def _mfaNotice(db: Session, user: User, mensaje: str, when) -> None:
-    """Alerta crítica en la página (no se puede apagar); el correo MFA_ACTIVADO / MFA_DESACTIVADO ya salió por su propio flujo."""
+    """Aviso de seguridad en la página. Los correos MFA_ACTIVADO / MFA_DESACTIVADO salen por su propio flujo, si la cuenta los eligió."""
     userNotifications.notifySecurity(
         db, user, userNotifications.CAMBIO_MFA, "Cambio en la verificación en dos pasos",
         f"{mensaje} Si no fuiste vos, revisá tu seguridad.", f"{when:%Y-%m-%dT%H:%M:%S.%f}")
@@ -94,7 +94,8 @@ def enable(db: Session, user: User, codigo: str) -> list[str]:
     codes = _replaceRecoveryCodes(db, factor)
     registerEvent(db, "PERMISO", "MFA_HABILITADO", True, user.idUsuario, "FactorMfa", factor.idFactorMfa)
     db.commit()
-    _notify(EmailEventType.MFA_ACTIVADO, user, fechaEvento=now, metodo=factor.tipo)
+    if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_MFA):
+        _notify(EmailEventType.MFA_ACTIVADO, user, fechaEvento=now, metodo=factor.tipo)
     _mfaNotice(db, user, "Activaste la verificación en dos pasos en tu cuenta.", now)
     return codes
 
@@ -113,7 +114,8 @@ def disable(db: Session, user: User, codigo: str | None, codigoRecuperacion: str
     registerEvent(db, "PERMISO", "MFA_DESHABILITADO", True, user.idUsuario, "FactorMfa", factor.idFactorMfa)
     db.commit()
     now = nowForDb()
-    _notify(EmailEventType.MFA_DESACTIVADO, user, fechaEvento=now)
+    if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_MFA):
+        _notify(EmailEventType.MFA_DESACTIVADO, user, fechaEvento=now)
     _mfaNotice(db, user, "Se desactivó la verificación en dos pasos de tu cuenta.", now)
 
 
@@ -225,11 +227,12 @@ def verifyFactor(db: Session, factor: MfaFactor, codigo: str | None, codigoRecup
         userNotifications.notifyRejectedAccess(db, user, now)
     if locked:
         if user is not None:
-            _notify(
-                EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
-                motivo="Se ingresaron varios códigos de verificación incorrectos al intentar acceder a tu cuenta.",
-                bloqueadoHasta=factor.bloqueadoHasta,
-            )
+            if userNotifications.correoActivo(db, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
+                _notify(
+                    EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
+                    motivo="Se ingresaron varios códigos de verificación incorrectos al intentar acceder a tu cuenta.",
+                    bloqueadoHasta=factor.bloqueadoHasta,
+                )
             userNotifications.notifySecurity(
                 db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Códigos de verificación incorrectos",
                 "Se ingresaron varios códigos de verificación incorrectos al intentar entrar a tu cuenta y la bloqueamos unos minutos. "

@@ -49,6 +49,7 @@ from app.models.institution import Institution
 from app.models.institutionUser import InstitutionUser
 from app.models.localCredential import LocalCredential
 from app.models.measurementProfile import MeasurementProfile
+from app.models.notificationEvents import INSTITUCION_OPERADOR_BAJA, INSTITUCION_OPERADOR_NUEVO
 from app.models.profileTransfer import ProfileTransfer
 from app.models.user import User
 from app.schemas.institution import (
@@ -70,7 +71,7 @@ from app.schemas.institution import (
 from app.services import accountGrace, reassignments
 from app.services import auth as authService
 from app.services import email as emailService
-from app.services import institutionNotifications, mfa
+from app.services import institutionNotifications, mfa, userNotifications
 from app.services import notifications
 from app.services import quota, schemaCompat
 from app.services.audit import registerEvent
@@ -1153,7 +1154,7 @@ def respondInvitation(db: Session, user: User, idInstitucionUsuario: uuid.UUID, 
     # El propietario se entera de los operadores que se suman (si no fue quien los invitó).
     if relation.rolInstitucion == ROL_OPERADOR:
         _notifyOwners(db, institution.idInstitucion, EmailEventType.OPERADOR_AGREGADO, institution.nombre,
-                      _fullName(user), now, {user.idUsuario, relation.idUsuarioInvitador})
+                      _fullName(user), now, {user.idUsuario, relation.idUsuarioInvitador}, aviso=INSTITUCION_OPERADOR_NUEVO)
     # Propietarios y moderadores ven el alta en la bandeja (quien invitó ya lo sabe).
     institutionNotifications.memberAdded(db, institution, user, relation.rolInstitucion, relation.idInstitucionUsuario,
                                          {relation.idUsuarioInvitador})
@@ -1161,8 +1162,11 @@ def respondInvitation(db: Session, user: User, idInstitucionUsuario: uuid.UUID, 
 
 
 def _notifyOwners(db: Session, idInstitucion: uuid.UUID, event: EmailEventType, institutionName: str,
-                  operatorName: str, now: datetime, exclude: set) -> None:
-    """Avisa a los propietarios activos (menos quien hizo el cambio) de una novedad en el equipo de operadores."""
+                  operatorName: str, now: datetime, exclude: set, *, aviso: str) -> None:
+    """Avisa a los propietarios activos (menos quien hizo el cambio) de una novedad en el equipo de operadores.
+
+    El correo sale solo si el propietario tiene activo el correo del aviso `aviso` (su preferencia; por omisión, como antes).
+    """
     owners = db.scalars(
         select(User).join(InstitutionUser, InstitutionUser.idUsuarioInvitado == User.idUsuario).where(
             InstitutionUser.idInstitucion == idInstitucion, InstitutionUser.rolInstitucion == ROL_PROPIETARIO,
@@ -1170,7 +1174,7 @@ def _notifyOwners(db: Session, idInstitucion: uuid.UUID, event: EmailEventType, 
         )
     ).all()
     for owner in owners:
-        if owner.idUsuario not in exclude and owner.correoElectronico:
+        if owner.idUsuario not in exclude and owner.correoElectronico and userNotifications.correoActivo(db, owner, aviso):
             emailService.sendEmailEventInBackground(
                 event, owner.correoElectronico,
                 {"nombre": owner.nombre, "nombreOperador": operatorName, "nombreInstitucion": institutionName,
@@ -1277,7 +1281,7 @@ def revokeMember(db: Session, actor: User, idInstitucion: uuid.UUID, rol: str, i
     member = relation.usuarioInvitado
     if wasActive and rol == ROL_OPERADOR:
         _notifyOwners(db, idInstitucion, EmailEventType.OPERADOR_ELIMINADO, membership.institution.nombre,
-                      _fullName(member), now, {actor.idUsuario})
+                      _fullName(member), now, {actor.idUsuario}, aviso=INSTITUCION_OPERADOR_BAJA)
     if wasActive and member.correoElectronico:
         emailService.sendEmailEventInBackground(
             EmailEventType.ELIMINADO_INSTITUCION,

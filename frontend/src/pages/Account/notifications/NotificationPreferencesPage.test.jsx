@@ -11,14 +11,15 @@ const PROFILE = {
   usuario: { ...ACCOUNT.usuario, fechaNacimiento: '1990-05-17', sexo: 'FEMENINO' },
 };
 
-const pref = (evento, categoria, enPagina, porCorreo, obligatoria = false) => ({ evento, categoria, enPagina, porCorreo, obligatoria });
+const pref = (evento, categoria, enPagina, porCorreo) => ({ evento, categoria, enPagina, porCorreo });
 
 const SETTINGS = {
   preferencias: [
     pref('INICIO_SESION', 'SEGURIDAD', true, true),
-    pref('CAMBIO_CONTRASENA', 'SEGURIDAD', true, true, true),
-    pref('CAMBIO_MFA', 'SEGURIDAD', true, true, true),
-    pref('ACTIVIDAD_SOSPECHOSA', 'SEGURIDAD', true, true, true),
+    pref('CAMBIO_CONTRASENA', 'SEGURIDAD', true, true),
+    pref('CAMBIO_MFA', 'SEGURIDAD', true, true),
+    pref('ACTIVIDAD_SOSPECHOSA', 'SEGURIDAD', true, true),
+    { ...pref('INTENTO_INGRESO', 'SEGURIDAD', true, false), correoDisponible: false },
     pref('INVITACION_GRUPO', 'GRUPO', true, true),
     pref('AGREGADO_GRUPO', 'GRUPO', true, true),
     pref('NUEVA_ACCION_GRUPO', 'GRUPO', true, true),
@@ -54,18 +55,25 @@ describe('Preferencias de notificaciones', () => {
     expect(aplicacion).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('las alertas críticas de seguridad se muestran activas y no se pueden apagar', async () => {
-    withPreferences();
+  it('las alertas de seguridad se pueden apagar en la aplicación y su correo también es opcional', async () => {
+    const { calls } = withPreferences({
+      'PUT /notificaciones/preferencias/CAMBIO_CONTRASENA': jsonResponse(200, {
+        ...SETTINGS,
+        preferencias: SETTINGS.preferencias.map((p) => (p.evento === 'CAMBIO_CONTRASENA' ? { ...p, porCorreo: false } : p)),
+      }),
+    });
+    const user = userEvent.setup();
     renderAt('/app/notificaciones/preferencias');
 
     const seguridad = await screen.findByRole('region', { name: 'Seguridad' });
-    for (const titulo of ['Cambios de contraseña', 'Cambios en la verificación en dos pasos', 'Actividad sospechosa']) {
-      const interruptor = within(seguridad).getByRole('switch', { name: `En la aplicación: ${titulo}` });
-      expect(interruptor).toBeDisabled();
-      expect(interruptor).toHaveAttribute('aria-checked', 'true');
-    }
-    expect(within(seguridad).getAllByText('Siempre activa')).toHaveLength(3);
-    expect(within(seguridad).getByRole('switch', { name: 'Por correo: Nuevos dispositivos o accesos desconocidos' })).toBeEnabled();
+    expect(within(seguridad).getByRole('switch', { name: 'En la aplicación: Cambios de contraseña' })).toBeEnabled();
+    expect(within(seguridad).queryByText('Siempre activa')).not.toBeInTheDocument();
+    const correo = within(seguridad).getByRole('switch', { name: 'Por correo: Cambios de contraseña' });
+    expect(correo).toHaveAttribute('aria-checked', 'true');
+    await user.click(correo);
+
+    await waitFor(() => expect(correo).toHaveAttribute('aria-checked', 'false'));
+    expect(calls.find((c) => c.key === 'PUT /notificaciones/preferencias/CAMBIO_CONTRASENA').body).toEqual({ porCorreo: false });
   });
 
   it('cambiar un canal guarda solo ese canal en el backend y no toca el otro', async () => {
@@ -108,12 +116,12 @@ describe('Preferencias de notificaciones', () => {
     expect(screen.queryByRole('region', { name: 'Horario para medirme' })).not.toBeInTheDocument();
   });
 
-  it('un aviso de institución solo ofrece el canal de la aplicación, porque el correo lo envía su propio flujo', async () => {
+  it('un aviso de institución ofrece el correo como opción, apagado por omisión', async () => {
     const institucional = { ...PROFILE, usuario: { ...PROFILE.usuario, tipoCuenta: 'USUARIO_INSTITUCIONAL' } };
     const conInstitucion = {
       preferencias: [...SETTINGS.preferencias, {
-        evento: 'INSTITUCION_PACIENTE_NUEVO', categoria: 'INSTITUCION', enPagina: true, porCorreo: false, obligatoria: false,
-        correoDisponible: false,
+        evento: 'INSTITUCION_PACIENTE_NUEVO', categoria: 'INSTITUCION', enPagina: true, porCorreo: false,
+        correoDisponible: true,
       }],
       recordatorio: SETTINGS.recordatorio,
     };
@@ -122,7 +130,32 @@ describe('Preferencias de notificaciones', () => {
 
     expect(await screen.findByRole('region', { name: 'Institución' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'En la aplicación: Pacientes nuevos' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.queryByRole('switch', { name: 'Por correo: Pacientes nuevos' })).not.toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Por correo: Pacientes nuevos' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('el envío del resultado ofrece el correo como opción: por omisión no llega y se guarda aparte', async () => {
+    const conResultado = {
+      preferencias: [...SETTINGS.preferencias, {
+        evento: 'RESULTADO_ENVIADO', categoria: 'MEDICION', enPagina: true, porCorreo: false, correoDisponible: true,
+      }],
+      recordatorio: SETTINGS.recordatorio,
+    };
+    const { calls } = withPreferences({
+      'GET /notificaciones/preferencias': jsonResponse(200, conResultado),
+      'PUT /notificaciones/preferencias/RESULTADO_ENVIADO': jsonResponse(200, {
+        ...conResultado,
+        preferencias: conResultado.preferencias.map((p) => (p.evento === 'RESULTADO_ENVIADO' ? { ...p, porCorreo: true } : p)),
+      }),
+    });
+    const user = userEvent.setup();
+    renderAt('/app/notificaciones/preferencias');
+
+    const toggle = await screen.findByRole('switch', { name: 'Por correo: Envío del resultado' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await user.click(toggle);
+
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    expect(calls.find((c) => c.key === 'PUT /notificaciones/preferencias/RESULTADO_ENVIADO').body).toEqual({ porCorreo: true });
   });
 
   it('muestra el error de carga', async () => {

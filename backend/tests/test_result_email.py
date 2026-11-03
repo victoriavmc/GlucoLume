@@ -14,6 +14,7 @@ from app.schemas.resultDelivery import ResultSendRequest
 from app.services import email as emailService
 from app.services import institutionPatients as patients
 from app.services import measurement as measurements
+from app.services import userNotifications as notificationService
 from tests.test_account_deletion import audits, db, engine, mails, reload  # noqa: F401
 from tests.test_dashboards import measure
 from tests.test_institution_patients import addOperator, patientData
@@ -154,3 +155,27 @@ def test_el_envio_sale_en_segundo_plano_y_la_medicion_avisa_cuando_termina(db, m
     assert aviso.titulo == "Resultado enviado"
     entry = audits(db, "ENVIAR_RESULTADO_MEDICION")[0]
     assert entry.resultado == "EXITO" and user.correoElectronico not in f"{entry.datosNuevos}{entry.observacion}"
+
+
+def test_el_aviso_del_envio_por_correo_es_optativo(db, mails, consumer):
+    user, profileId = consumer
+    pref = next(p for p in notificationService.settings(db, user).preferencias if p.evento == "RESULTADO_ENVIADO")
+    assert pref.correoDisponible and not pref.porCorreo  # la cuenta puede elegirlo; por omisión no llega
+    done = completeOximetry(db, user, profileId, device(db))
+    mails.clear()
+    measurements.sendResultByEmail(db, user, done.idMedicion, ResultSendRequest())
+    assert [m["subject"] for m in mails] == ["Tu medición está disponible"]  # solo el resultado
+
+    notificationService.updatePreference(db, user, "RESULTADO_ENVIADO", porCorreo=True)
+    second = completeOximetry(db, user, profileId, device(db))
+    mails.clear()
+    measurements.sendResultByEmail(db, user, second.idMedicion, ResultSendRequest())
+    assert [m["subject"] for m in mails] == ["Tu medición está disponible", "Estado del envío de tu resultado"]
+    assert mails[-1]["to"] == user.correoElectronico and "no incluye el resultado" in mails[-1]["html"]
+    assert len(avisos(db, user, "RESULTADO_ENVIADO")) == 2
+
+    notificationService.updatePreference(db, user, "RESULTADO_ENVIADO", porCorreo=False)
+    third = completeOximetry(db, user, profileId, device(db))
+    mails.clear()
+    measurements.sendResultByEmail(db, user, third.idMedicion, ResultSendRequest())
+    assert [m["subject"] for m in mails] == ["Tu medición está disponible"]

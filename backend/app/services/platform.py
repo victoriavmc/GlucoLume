@@ -515,8 +515,9 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     registerEvent(db, "PERMISO", "RESTABLECER_PASSWORD_PLATAFORMA", True, user.idUsuario, "CredencialLocal",
                   credential.idCredencialLocal, modulo=MODULE)
     db.commit()
-    emailService.sendEmailEventInBackground(EmailEventType.PASSWORD_CAMBIADA, user.correoElectronico,
-                                            {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
+    if userNotifications.correoActivo(db, user, avisos.CAMBIO_CONTRASENA):
+        emailService.sendEmailEventInBackground(EmailEventType.PASSWORD_CAMBIADA, user.correoElectronico,
+                                                {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
 
 
 def changeOwnPassword(db: Session, user: User, currentSession: UserSession, actual: str | None, new: str,
@@ -541,8 +542,9 @@ def changeOwnPassword(db: Session, user: User, currentSession: UserSession, actu
     registerEvent(db, "PERMISO", "CAMBIAR_PASSWORD_PLATAFORMA", True, user.idUsuario, "CredencialLocal",
                   credential.idCredencialLocal, modulo=MODULE)
     db.commit()
-    emailService.sendEmailEventInBackground(EmailEventType.PASSWORD_CAMBIADA, user.correoElectronico,
-                                            {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
+    if userNotifications.correoActivo(db, user, avisos.CAMBIO_CONTRASENA):
+        emailService.sendEmailEventInBackground(EmailEventType.PASSWORD_CAMBIADA, user.correoElectronico,
+                                                {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
 
 
 # --- Transferencia del control principal ----------------------------------------------------------------------

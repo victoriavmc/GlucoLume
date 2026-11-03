@@ -178,7 +178,7 @@ describe('Invitaciones (administrador)', () => {
     expect(screen.getByRole('link', { name: 'Registro de cuentas individuales' })).toHaveAttribute('href', '/registro?tipo=usuario');
   });
 
-  it('correo sin cuenta: envía la invitación por correo con nombre y apellido para que la persona cree su cuenta', async () => {
+  it('correo sin cuenta: envía la invitación por correo solo con el correo, sin pedir nombre ni apellido', async () => {
     const { calls } = routes({
       [`GET ${BASE}`]: jsonResponse(200, group()),
       [`GET ${BASE}/members`]: jsonResponse(200, []),
@@ -187,19 +187,18 @@ describe('Invitaciones (administrador)', () => {
         codigo: 'USUARIO_NO_ENCONTRADO',
         detail: 'No existe una cuenta individual registrada con este correo.',
       }),
-      [`POST ${BASE}/invitations`]: jsonResponse(201, { idGrupoUsuario: 'gu-lucia', nombre: 'Lucía', apellido: 'Sosa',
+      [`POST ${BASE}/invitations`]: jsonResponse(201, { idGrupoUsuario: 'gu-lucia', nombre: null, apellido: null,
         fechaInvitacion: '2026-10-08T10:00:00', fechaVencimiento: '2026-10-15T10:00:00', vencida: false }),
     });
     const user = userEvent.setup();
     renderAt(`/app/grupo/${ID}/integrantes`);
     await user.type(await screen.findByLabelText('Correo electrónico de la cuenta individual'), 'nueva@example.com');
     await user.click(screen.getByRole('button', { name: /Buscar/ }));
-    await user.type(await screen.findByLabelText('Nombre'), 'Lucía');
-    await user.type(screen.getByLabelText('Apellido'), 'Sosa');
-    await user.click(screen.getByRole('button', { name: /Enviar invitación por correo/ }));
+    expect(screen.queryByLabelText('Nombre')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Apellido')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /Enviar invitación por correo/ }));
     expect(await screen.findByText(/Enviamos a nueva@example.com un correo para que cree su cuenta/)).toBeInTheDocument();
-    expect(calls.find((call) => call.key === `POST ${BASE}/invitations`).body).toEqual({
-      correoElectronico: 'nueva@example.com', nombre: 'Lucía', apellido: 'Sosa' });
+    expect(calls.find((call) => call.key === `POST ${BASE}/invitations`).body).toEqual({ correoElectronico: 'nueva@example.com' });
   });
 
   it('invita, la invitación queda pendiente y se puede cancelar', async () => {

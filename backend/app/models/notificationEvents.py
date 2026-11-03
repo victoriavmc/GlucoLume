@@ -1,7 +1,7 @@
 # NotificationEvents - Catálogo de avisos de «Notificaciones» (compartido por los modelos, el servicio y los contratos)
 #
-# Cada aviso pertenece a una categoría (la bandeja filtra por ella) y puede ser obligatorio: las alertas críticas de seguridad se
-# entregan siempre en la página, sin depender de una preferencia opcional. El CHECK de la base se arma desde esta misma lista, así que
+# Cada aviso pertenece a una categoría (la bandeja filtra por ella). La cuenta elige por separado el canal de página y el de correo; un aviso
+# sin canal de correo propio (`correo = false`) solo llega a la página. El CHECK de la base se arma desde esta misma lista, así que
 # agregar un aviso es un cambio aquí más la migración database/reference/GlucoLume_notificaciones_v2.sql.
 
 from dataclasses import dataclass
@@ -29,7 +29,8 @@ INSTITUCION_PACIENTE_A_CARGO = "INSTITUCION_PACIENTE_A_CARGO"
 INSTITUCION_SOLICITUD_NUEVA = "INSTITUCION_SOLICITUD_NUEVA"
 INSTITUCION_SOLICITUD_ACEPTADA = "INSTITUCION_SOLICITUD_ACEPTADA"
 INSTITUCION_SOLICITUD_RECHAZADA = "INSTITUCION_SOLICITUD_RECHAZADA"
-# Envío del resultado de una medición por correo (lo manda el flujo de medición): el aviso de la bandeja llega cuando termina.
+# Envío del resultado de una medición por correo (lo manda el flujo de medición): el aviso llega a la bandeja cuando termina y, si la
+# cuenta lo elige, también por correo (sin datos de la medición).
 RESULTADO_ENVIADO = "RESULTADO_ENVIADO"
 # Administración de la plataforma (solo para cuentas ADMINISTRADOR_PLATAFORMA y MODERADOR_PLATAFORMA). Los correos de estos hechos ya los
 # envía services/platform.py: aquí solo se agrega la bandeja de la página.
@@ -51,33 +52,37 @@ class EventSpec:
     categoria: str
     enPagina: bool = True  # valor por omisión mientras la cuenta no elija otra cosa
     porCorreo: bool = True
-    obligatorio: bool = False  # alerta crítica: siempre en la página, la cuenta no puede apagarla
     correo: bool = True  # tiene canal de correo propio; si no, el aviso solo llega a la página
     plataforma: bool = False  # solo lo reciben las cuentas de la administración de la plataforma
 
 
 CATALOGO: dict[str, EventSpec] = {
     INICIO_SESION: EventSpec(CATEGORIA_SEGURIDAD),
-    CAMBIO_CONTRASENA: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True),
-    CAMBIO_MFA: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True),
-    ACTIVIDAD_SOSPECHOSA: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True),
-    INTENTO_INGRESO: EventSpec(CATEGORIA_SEGURIDAD, obligatorio=True, correo=False),
+    # Su correo sale por el flujo de seguridad que los origina (PASSWORD_CAMBIADA, MFA_ACTIVADO / MFA_DESACTIVADO, INTENTO_ACCESO_INUSUAL);
+    # la cuenta decide si lo recibe. Por omisión sí, como antes.
+    CAMBIO_CONTRASENA: EventSpec(CATEGORIA_SEGURIDAD),
+    CAMBIO_MFA: EventSpec(CATEGORIA_SEGURIDAD),
+    ACTIVIDAD_SOSPECHOSA: EventSpec(CATEGORIA_SEGURIDAD),
+    INTENTO_INGRESO: EventSpec(CATEGORIA_SEGURIDAD, correo=False),  # cada intento queda en la página; no hay correo de ese intento
     INVITACION_GRUPO: EventSpec(CATEGORIA_GRUPO),
     AGREGADO_GRUPO: EventSpec(CATEGORIA_GRUPO),
     NUEVA_ACCION_GRUPO: EventSpec(CATEGORIA_GRUPO),
     MEDICION_GRUPO: EventSpec(CATEGORIA_GRUPO),
     RECORDATORIO_MEDICION: EventSpec(CATEGORIA_RECORDATORIO, porCorreo=False),
+    # La invitación ya trae su correo (institution.py), así que solo tiene página.
+    # Los avisos de gestión que ya enviaban correo a alguien (operadores para propietarios, asignaciones y solicitudes) conservan ese correo
+    # por omisión: el flujo lo envía solo si la cuenta lo tiene activo. Los demás ofrecen correo con AVISO_INSTITUCION, apagado por omisión.
     INSTITUCION_INVITACION: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_OPERADOR_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_OPERADOR_BAJA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_MODERADOR_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_MODERADOR_BAJA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_PACIENTE_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_PACIENTE_A_CARGO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_SOLICITUD_NUEVA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_SOLICITUD_ACEPTADA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    INSTITUCION_SOLICITUD_RECHAZADA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False, correo=False),
-    RESULTADO_ENVIADO: EventSpec(CATEGORIA_MEDICION, porCorreo=False, correo=False),
+    INSTITUCION_OPERADOR_NUEVO: EventSpec(CATEGORIA_INSTITUCION),
+    INSTITUCION_OPERADOR_BAJA: EventSpec(CATEGORIA_INSTITUCION),
+    INSTITUCION_MODERADOR_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False),
+    INSTITUCION_MODERADOR_BAJA: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False),
+    INSTITUCION_PACIENTE_NUEVO: EventSpec(CATEGORIA_INSTITUCION, porCorreo=False),
+    INSTITUCION_PACIENTE_A_CARGO: EventSpec(CATEGORIA_INSTITUCION),
+    INSTITUCION_SOLICITUD_NUEVA: EventSpec(CATEGORIA_INSTITUCION),
+    INSTITUCION_SOLICITUD_ACEPTADA: EventSpec(CATEGORIA_INSTITUCION),
+    INSTITUCION_SOLICITUD_RECHAZADA: EventSpec(CATEGORIA_INSTITUCION),
+    RESULTADO_ENVIADO: EventSpec(CATEGORIA_MEDICION, porCorreo=False),
     PLATAFORMA_TRANSFERENCIA_SOLICITADA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
     PLATAFORMA_TRANSFERENCIA_RESPONDIDA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
     PLATAFORMA_MODERADOR_ACTIVO: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),

@@ -698,21 +698,52 @@ def test_un_aviso_oculto_por_la_preferencia_de_pagina_no_aparece_ni_se_puede_mar
     expectError("NOTIFICACION_NO_ENCONTRADA", service.markRead, db, user, hidden.idNotificacion)
 
 
-# --- Alertas de seguridad obligatorias ----------------------------------------------------------------------
+# --- Alertas de seguridad (opcionales en la página) ----------------------------------------------------
+
+
+ALERTAS_SEGURIDAD = ["CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"]
+
+
+@pytest.mark.parametrize("evento", ALERTAS_SEGURIDAD)
+def test_las_alertas_de_seguridad_se_pueden_apagar_en_la_pagina(db, evento):
+    user = makeUser(db)
+
+    service.updatePreference(db, user, evento, enPagina=False)
+    assert preferencia(service.settings(db, user), evento).enPagina is False
+    # Con la página apagada no se crea el aviso, aunque el hecho ocurra.
+    service.notify(db, user, evento, "t", "m", clave="hecho")
+    assert service.inbox(db, user).notificaciones == []
+    service.updatePreference(db, user, evento, enPagina=True)
+    service.notify(db, user, evento, "t", "m", clave="otro")
+    assert len(service.inbox(db, user).notificaciones) == 1
 
 
 @pytest.mark.parametrize("evento", ["CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA"])
-def test_las_alertas_criticas_no_se_pueden_apagar_y_se_entregan_siempre(db, evento):
+def test_el_correo_de_seguridad_es_opcional_y_sale_por_omision(db, evento):
     user = makeUser(db)
 
-    expectError("AVISO_OBLIGATORIO", service.updatePreference, db, user, evento, enPagina=False)
-    settings = service.settings(db, user)
-    assert (preferencia(settings, evento).enPagina, preferencia(settings, evento).obligatoria) == (True, True)
-    # Aun con una fila de preferencia apagada (datos viejos o manipulados), se entrega.
-    db.add(NotificationPreference(idUsuario=user.idUsuario, evento=evento, enPagina=False, porCorreo=False))
-    db.commit()
-    service.notifySecurity(db, user, evento, "t", "m", "hecho")
+    assert preferencia(service.settings(db, user), evento).correoDisponible is True
+    assert service.correoActivo(db, user, evento) is True  # por omisión sí, como antes
+    service.updatePreference(db, user, evento, porCorreo=False)
+    assert preferencia(service.settings(db, user), evento).porCorreo is False
+    assert service.correoActivo(db, user, evento) is False
+
+
+def test_el_intento_de_ingreso_solo_ofrece_la_pagina(db):
+    user = makeUser(db)
+
+    assert preferencia(service.settings(db, user), "INTENTO_INGRESO").correoDisponible is False
+    expectError("CANAL_NO_DISPONIBLE", service.updatePreference, db, user, "INTENTO_INGRESO", porCorreo=True)
+
+
+def test_con_el_correo_de_contrasena_apagado_el_aviso_de_pagina_sigue_creandose(db, mails):
+    user = makeUser(db, local=False, google=True)
+    service.updatePreference(db, user, "CAMBIO_CONTRASENA", porCorreo=False)
+
+    authService.setLocalPassword(db, user, "Glucolume#Nueva2026")
+
     assert len(service.inbox(db, user).notificaciones) == 1
+    assert mails == []  # el correo PASSWORD_CAMBIADA respeta la preferencia
 
 
 def test_agregar_la_contrasena_avisa_en_la_pagina_y_el_correo_existente_sigue_saliendo(db, mails):
@@ -753,6 +784,19 @@ def test_el_bloqueo_real_de_la_cuenta_por_intentos_fallidos_avisa_una_sola_vez(d
     # Cada intento rechazado deja su aviso, también el que llegó con la cuenta ya bloqueada.
     assert sum(aviso.evento == "INTENTO_INGRESO" for aviso in avisos) == limit + 1
     assert len(mails) == 1  # el correo de actividad de seguridad existente sigue saliendo, una vez
+
+
+def test_el_correo_de_bloqueo_se_apaga_y_el_aviso_de_pagina_sigue(db, mails):
+    from tests.test_account_deletion import EMAIL
+
+    user = makeUser(db)
+    service.updatePreference(db, user, "ACTIVIDAD_SOSPECHOSA", porCorreo=False)
+    for _ in range(authService.MAX_FAILED_LOGIN_ATTEMPTS):
+        with pytest.raises(AuthError):
+            authService.loginLocal(db, EMAIL, "OtraClave#2026")
+
+    assert mails == []
+    assert [a.evento for a in service.inbox(db, user).notificaciones if a.evento == "ACTIVIDAD_SOSPECHOSA"] == ["ACTIVIDAD_SOSPECHOSA"]
 
 
 def test_cada_contrasena_incorrecta_deja_un_aviso_de_intento_sin_correo(db, mails):
@@ -837,23 +881,16 @@ def test_el_correo_de_inicio_de_sesion_sigue_su_propio_interruptor(db, mails):
 
 
 @pytest.mark.parametrize("tipoCuenta", ["ADMINISTRADOR_PLATAFORMA", "MODERADOR_PLATAFORMA"])
-def test_la_cuenta_de_plataforma_recibe_el_aviso_de_inicio_de_sesion_aunque_lo_tenga_apagado(db, mails, tipoCuenta):
+def test_la_cuenta_de_plataforma_puede_apagar_sus_avisos_como_cualquier_cuenta(db, mails, tipoCuenta):
     admin = makeUser(db, tipoCuenta=tipoCuenta)
-    admin.notificarNuevoInicioSesion = False
-    db.commit()
 
-    inicio = preferencia(service.settings(db, admin), "INICIO_SESION")
-    assert (inicio.enPagina, inicio.porCorreo, inicio.obligatoria) == (True, True, True)
-    expectError("AVISO_OBLIGATORIO", service.updatePreference, db, admin, "INICIO_SESION", porCorreo=False)
-    expectError("AVISO_OBLIGATORIO", authService.setNewLoginNotification, db, admin, False)
-    assert admin.notificarNuevoInicioSesion is False  # el rechazo no cambia el interruptor de la cuenta
+    assert authService.setNewLoginNotification(db, admin, False) is True
+    for evento in ("INICIO_SESION", "CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"):
+        service.updatePreference(db, admin, evento, enPagina=False)
 
     login(db, admin, CHROME)
     login(db, admin, FIREFOX)
-
-    assert len(mails) == 2  # un correo por acceso, también con el interruptor apagado en la base
-    [aviso] = service.inbox(db, admin).notificaciones
-    assert aviso.evento == "INICIO_SESION"
+    assert mails == [] and service.inbox(db, admin).notificaciones == []
 
 
 def test_el_cliente_no_recibe_el_aviso_de_inicio_de_sesion_si_lo_apaga(db, mails):
@@ -865,17 +902,6 @@ def test_el_cliente_no_recibe_el_aviso_de_inicio_de_sesion_si_lo_apaga(db, mails
     login(db, user, FIREFOX)
 
     assert mails == [] and service.inbox(db, user).notificaciones == []
-    assert preferencia(service.settings(db, user), "INICIO_SESION").obligatoria is False
-
-
-@pytest.mark.parametrize("tipoCuenta", ["ADMINISTRADOR_PLATAFORMA", "MODERADOR_PLATAFORMA"])
-def test_la_cuenta_de_plataforma_no_puede_apagar_ningun_aviso_de_seguridad(db, tipoCuenta):
-    admin = makeUser(db, tipoCuenta=tipoCuenta)
-
-    for evento in ("INICIO_SESION", "CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA"):
-        expectError("AVISO_OBLIGATORIO", service.updatePreference, db, admin, evento, enPagina=False)
-    assert all(p.obligatoria for p in service.settings(db, admin).preferencias if p.categoria == "SEGURIDAD")
-    assert all(p.categoria != "GRUPO" or not p.obligatoria for p in service.settings(db, admin).preferencias)
 
 
 def test_sin_datos_del_cliente_no_se_registra_ni_se_avisa(db):
@@ -1138,7 +1164,6 @@ def test_los_contratos_conocen_exactamente_los_avisos_del_catalogo():
 
     assert set(get_args(EventoAviso)) == set(notificationEvents.EVENTOS) == set(service.EVENTOS)
     assert {spec.categoria for spec in notificationEvents.CATALOGO.values()} == set(notificationEvents.CATEGORIAS)
-    assert {e for e, spec in notificationEvents.CATALOGO.items() if spec.obligatorio} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"}
 
 
 ORIGINALES = (
@@ -1244,7 +1269,7 @@ def test_las_rutas_leen_y_guardan_las_preferencias_de_la_sesion(db, http):
 
     settings = client.get("/api/v1/notificaciones/preferencias").json()
     assert [p["evento"] for p in settings["preferencias"]] == EVENTOS_CUENTA_INDIVIDUAL
-    assert {p["evento"] for p in settings["preferencias"] if p["obligatoria"]} == {"CAMBIO_CONTRASENA", "CAMBIO_MFA", "ACTIVIDAD_SOSPECHOSA", "INTENTO_INGRESO"}
+    assert all("obligatoria" not in p for p in settings["preferencias"])
 
     response = client.put("/api/v1/notificaciones/preferencias/INICIO_SESION", json={"porCorreo": False})
     assert response.status_code == 200
@@ -1257,13 +1282,14 @@ def test_las_rutas_leen_y_guardan_las_preferencias_de_la_sesion(db, http):
     assert response.json()["recordatorio"] == {"modo": "HORARIOS", "intervaloHoras": None, "horarios": ["07:30", "21:00"]}
 
 
-def test_la_ruta_no_deja_apagar_una_alerta_obligatoria(db, http):
+def test_la_ruta_permite_apagar_una_alerta_de_seguridad_en_la_pagina(db, http):
     client, holder = http
     holder["user"] = makeUser(db)
 
     response = client.put("/api/v1/notificaciones/preferencias/CAMBIO_CONTRASENA", json={"enPagina": False})
 
-    assert response.status_code == 409 and response.json()["codigo"] == "AVISO_OBLIGATORIO"
+    assert response.status_code == 200
+    assert preferencia(service.settings(db, holder["user"]), "CAMBIO_CONTRASENA").enPagina is False
 
 
 def test_las_rutas_rechazan_avisos_y_horarios_invalidos(db, http):

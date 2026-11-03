@@ -1,7 +1,7 @@
 # UserNotifications - Avisos de la cuenta que la persona elige en «Notificaciones»
 #
 # Cada aviso tiene dos canales que se respetan por separado: la página (NotificacionUsuario, la bandeja de la sección) y el correo
-# (services/email.py). El catálogo de avisos, sus categorías y cuáles son obligatorios está en app/models/notificationEvents.py. El correo
+# (services/email.py). El catálogo de avisos y sus categorías están en app/models/notificationEvents.py. El correo
 # de inicio de sesión sigue en Usuario.notificarNuevoInicioSesion (lo cambia authService.setNewLoginNotification); aquí solo se decide la página.
 #
 # Unicidad (RN-NOT-01): todo aviso lleva una `clave` que identifica el hecho que lo origina para esa cuenta (p. ej.
@@ -37,7 +37,6 @@ from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexpo
     CAMBIO_CONTRASENA,
     CAMBIO_MFA,
     CATALOGO,
-    CATEGORIA_SEGURIDAD,
     CATEGORIAS,
     EVENTOS,
     INICIO_SESION,
@@ -127,12 +126,6 @@ def safeUrl(url: str | None) -> str | None:
 # --- Canales y preferencias ----------------------------------------------------------------------
 
 
-def obligatorio(user: User, evento: str) -> bool:
-    """¿La cuenta no puede apagar este aviso? Las alertas críticas, siempre. A las cuentas de la plataforma (administrador y moderador), también todas las de seguridad."""
-    spec = CATALOGO[evento]
-    return spec.obligatorio or (spec.categoria == CATEGORIA_SEGURIDAD and user.tipoCuenta in TIPOS_PLATAFORMA)
-
-
 def esPlataforma(user: User) -> bool:
     """¿La cuenta pertenece a la administración de la plataforma? Solo ella ve y puede elegir los avisos `plataforma` del catálogo."""
     return user.tipoCuenta in TIPOS_PLATAFORMA
@@ -140,8 +133,6 @@ def esPlataforma(user: User) -> bool:
 
 def _channels(user: User, row: NotificationPreference | None, evento: str) -> tuple[bool, bool]:
     spec = CATALOGO[evento]
-    if obligatorio(user, evento):
-        return True, True  # aviso obligatorio: la página siempre; el correo lo envía el flujo que lo origina (p. ej. el inicio de sesión)
     enPagina, porCorreo = spec.enPagina, spec.porCorreo
     if row is not None:
         enPagina, porCorreo = row.enPagina, row.porCorreo
@@ -155,6 +146,17 @@ def _channels(user: User, row: NotificationPreference | None, evento: str) -> tu
 def _preferenceRow(db: Session, user: User, evento: str) -> NotificationPreference | None:
     return db.scalar(select(NotificationPreference).where(
         NotificationPreference.idUsuario == user.idUsuario, NotificationPreference.evento == evento))
+
+
+def correoActivo(db: Session, user: User, evento: str) -> bool:
+    """¿La cuenta quiere el correo de este aviso? Lo consultan los flujos que ya enviaban su correo (seguridad, gestión de la institución),
+    así cada hecho sale por correo una sola vez y según la preferencia.
+
+    Sin el esquema nuevo no hay preferencias guardadas: el correo sale como antes.
+    """
+    if not ready(db):
+        return True
+    return _channels(user, _preferenceRow(db, user, evento), evento)[1]
 
 
 def settings(db: Session, user: User) -> NotificationSettingsRead:
@@ -172,7 +174,7 @@ def settings(db: Session, user: User) -> NotificationSettingsRead:
         enPagina, porCorreo = _channels(user, rows.get(evento), evento)
         preferencias.append(NotificationPreferenceRead(
             evento=evento, categoria=CATALOGO[evento].categoria, enPagina=enPagina, porCorreo=porCorreo,
-            obligatoria=obligatorio(user, evento), correoDisponible=CATALOGO[evento].correo))
+            correoDisponible=CATALOGO[evento].correo))
     return NotificationSettingsRead(preferencias=preferencias, recordatorio=_scheduleRead(schedule))
 
 
@@ -180,15 +182,13 @@ def assertEditable(user: User, evento: str) -> None:
     """Rechaza un aviso que no existe o que la cuenta no puede cambiar. La ruta lo llama antes de tocar nada más (p. ej. el correo de inicio de sesión)."""
     if evento not in CATALOGO or (CATALOGO[evento].plataforma and not esPlataforma(user)):
         raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
-    if obligatorio(user, evento):
-        raise AuthError("AVISO_OBLIGATORIO", "Es una alerta de seguridad: se entrega siempre y no se puede desactivar.")
 
 
 def updatePreference(db: Session, user: User, evento: str, *, enPagina: bool | None = None,
                      porCorreo: bool | None = None) -> None:
     """Cambia los canales de un aviso. El correo de INICIO_SESION lo guarda authService (ver api/v1/userNotifications.py).
 
-    Las alertas obligatorias no se pueden apagar (ver `obligatorio`). Sin cambio no se audita. Solo se registra qué canal cambió, no datos personales.
+    Sin cambio no se audita. Solo se registra qué canal cambió, no datos personales.
     """
     assertEditable(user, evento)
     if porCorreo and not CATALOGO[evento].correo:
@@ -375,7 +375,7 @@ def notify(db: Session, user: User, evento: str, titulo: str, mensaje: str, *, u
            email: tuple[EmailEventType, dict] | None = None, clave: str | None = None) -> bool:
     """Avisa a `user` por la página y/o por correo según sus preferencias. Devuelve True si encoló un correo.
 
-    `email` es (evento de correo, contexto); sin él el aviso es solo de la página (las alertas críticas ya envían su correo por su flujo).
+    `email` es (evento de correo, contexto); sin él el aviso es solo de la página (las alertas de seguridad envían su correo por su flujo).
     `clave` identifica el hecho de origen para esta cuenta: un segundo aviso con la misma clave no crea otra fila ni otro correo (solo,
     si el correo falló antes, lo reintenta). Sin clave el aviso se trata como un hecho único. Nunca propaga errores: el hecho que avisa
     ya está confirmado.
@@ -502,7 +502,7 @@ def markRead(db: Session, user: User, idNotificacion: uuid.UUID | None = None) -
 
 
 def notifySecurity(db: Session, user: User, evento: str, titulo: str, mensaje: str, hecho: str) -> bool:
-    """Alerta crítica de seguridad en la página (cambio de contraseña o de MFA, actividad sospechosa). No se puede apagar.
+    """Alerta de seguridad en la página (cambio de contraseña o de MFA, actividad sospechosa). La cuenta puede apagarla en la página.
 
     El correo de estas alertas lo envía el flujo que las origina; aquí solo se guarda el aviso. `hecho` identifica el suceso (p. ej. el
     instante del cambio o el fin del bloqueo): repetir el mismo suceso no crea otro aviso.
@@ -524,12 +524,14 @@ def notifyRejectedAccess(db: Session, user: User, instante: datetime) -> bool:
 
 
 def notifyResultSent(db: Session, user: User, idEnvio: uuid.UUID, sent: bool) -> bool:
-    """Avisa a quien pidió el envío del resultado cuando el correo salió (o no salió). El correo lo envió el flujo de la medición."""
+    """Avisa a quien pidió el envío del resultado cuando el correo salió (o no salió). El correo con el resultado lo envió el flujo de la medición; el de este aviso solo sale si la cuenta eligió recibirlo por correo."""
     if sent:
         titulo, mensaje = "Resultado enviado", "Enviamos el resultado de la medición por correo electrónico."
     else:
         titulo, mensaje = "No pudimos enviar el resultado", "El correo con el resultado no salió. Probá de nuevo desde la medición."
-    return notify(db, user, RESULTADO_ENVIADO, titulo, mensaje, url=URL_MEDICIONES, clave=f"{RESULTADO_ENVIADO}:{idEnvio}")
+    email = (EmailEventType.AVISO_RESULTADO_ENVIADO, {"mensaje": mensaje, "urlMediciones": emailService.frontendUrl(URL_MEDICIONES)})
+    return notify(db, user, RESULTADO_ENVIADO, titulo, mensaje, url=URL_MEDICIONES, email=email,
+                  clave=f"{RESULTADO_ENVIADO}:{idEnvio}")
 
 
 def deleteNotification(db: Session, user: User, idNotificacion: uuid.UUID) -> int:
