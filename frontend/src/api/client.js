@@ -12,6 +12,8 @@ import { API_BASE_URL, API_PREFIX } from '../config.js';
 import { clearTokens, getAccessToken, hasSessionHint, isRemembered, saveTokens } from '../auth/tokenStore.js';
 
 export const NETWORK_ERROR = 'ERROR_DE_RED';
+// Sin respuesta en este tiempo la petición se corta: un envío que no responde no deja el botón girando para siempre.
+export const REQUEST_TIMEOUT_MS = 30000;
 
 export class ApiError extends Error {
   constructor(status, codigo, message, fields = [], retryAfterSeconds = null) {
@@ -75,15 +77,23 @@ async function send(path, { method = 'GET', body, token, remember, file = false 
     if (remember) headers[REMEMBER_HEADER] = '1';
   }
   let response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     response = await fetch(apiUrl(path), {
       method,
       headers,
       credentials: usesCookie ? 'include' : 'same-origin',
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch {
+    if (controller.signal.aborted) {
+      throw new ApiError(0, NETWORK_ERROR, 'El servidor tardó demasiado en responder. Intentá de nuevo en unos minutos.');
+    }
     throw new ApiError(0, NETWORK_ERROR, 'No se pudo conectar con el servidor. Verificá tu conexión e intentá de nuevo.');
+  } finally {
+    clearTimeout(timer);
   }
   if (!response.ok) throw await parseError(response);
   if (file) return response; // archivo (p. ej. CSV): quien lo pide lee el cuerpo y el nombre

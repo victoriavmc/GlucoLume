@@ -99,6 +99,10 @@ def sampleContexts() -> dict[E, dict]:
             **base, "nombreGrupo": "Grupo de ejemplo", "nombreInvitante": "carlos.gomez", "fechaExpiracion": now + timedelta(days=7),
             "urlActivar": frontendUrl("/activar-cuenta?token=TOKEN_DE_EJEMPLO"),
         },
+        E.INVITACION_GRUPO_ENVIADA: {
+            **base, "nombreGrupo": "Grupo de ejemplo", "nombreInvitado": "Laura Díaz", "fechaEvento": now,
+            "fechaExpiracion": now + timedelta(days=7), "urlGrupo": frontendUrl("/app/grupo"),
+        },
         E.AGREGADO_GRUPO: {**base, "nombreGrupo": "Grupo de ejemplo", "fechaEvento": now, "rol": "MIEMBRO"},
         E.ELIMINADO_GRUPO: {**base, "nombreGrupo": "Grupo de ejemplo", "fechaEvento": now},
         E.MIEMBRO_ABANDONO_GRUPO: {

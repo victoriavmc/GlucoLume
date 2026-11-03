@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Invitaste a una persona a un grupo{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Enviaste una invitación a <strong>{{ nombreInvitado }}</strong> para sumarse al grupo <strong>«{{ nombreGrupo }}»</strong>.</p>
+{{ m.datos([
+  ("Grupo", nombreGrupo),
+  ("Invitado", nombreInvitado),
+  ("Enviada el", fechaEvento|fechaHora),
+  ("La invitación vence", fechaExpiracion|fechaHora),
+]) }}
+<p style="{{ m.P }}">La persona se suma al grupo solo si acepta la invitación desde su cuenta. Mientras tanto, la ves como pendiente en el grupo y podés reenviarla o cancelarla.</p>
+{{ m.boton(urlGrupo, "Ir al grupo") }}
+{% endblock %}

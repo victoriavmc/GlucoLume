@@ -58,10 +58,11 @@ function Tema({ prefijo, tipo, tema }) {
         <>
           <h3>Qué es cada cosa</h3>
           <dl className="help-defs">
-            {tema.detalles.map(({ titulo, texto }) => (
+            {tema.detalles.map(({ titulo, texto, captura }) => (
               <div key={titulo}>
                 <dt>{titulo}</dt>
                 <dd>{texto}</dd>
+                {captura && <PasoImagen captura={captura} alt={titulo} />}
               </div>
             ))}
           </dl>

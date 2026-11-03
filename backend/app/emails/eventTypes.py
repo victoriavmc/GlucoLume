@@ -40,6 +40,8 @@ class EmailEventType(StrEnum):
     INVITACION_GRUPO = "INVITACION_GRUPO"
     # Invitación a una persona sin cuenta: activa su cuenta (la crea) y después acepta o rechaza el grupo.
     INVITACION_GRUPO_NUEVA_CUENTA = "INVITACION_GRUPO_NUEVA_CUENTA"
+    # Confirmación a quien invita: le avisa que la invitación salió hacia esa persona.
+    INVITACION_GRUPO_ENVIADA = "INVITACION_GRUPO_ENVIADA"
     AGREGADO_GRUPO = "AGREGADO_GRUPO"
     ELIMINADO_GRUPO = "ELIMINADO_GRUPO"
     MIEMBRO_ABANDONO_GRUPO = "MIEMBRO_ABANDONO_GRUPO"
@@ -252,6 +254,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     _E.INVITACION_GRUPO_NUEVA_CUENTA: EmailEventSpec(
         "grupos/invitacionGrupoNuevaCuenta.html", "Activá tu cuenta para sumarte a un grupo de GlucoLume", CATEGORIA_GRUPO,
         ("nombreGrupo", "nombreInvitante", "fechaExpiracion", "urlActivar"), ("urlActivar",),
+    ),
+    _E.INVITACION_GRUPO_ENVIADA: EmailEventSpec(
+        "grupos/invitacionGrupoEnviada.html", "Invitaste a una persona a un grupo de GlucoLume", CATEGORIA_GRUPO,
+        ("nombreGrupo", "nombreInvitado", "fechaEvento", "fechaExpiracion", "urlGrupo"), ("urlGrupo",),
     ),
     _E.AGREGADO_GRUPO: EmailEventSpec(
         "grupos/agregadoGrupo.html", "Ahora formás parte de un grupo", CATEGORIA_GRUPO,

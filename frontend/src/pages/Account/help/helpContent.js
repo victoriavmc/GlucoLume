@@ -13,14 +13,15 @@ const TEMA_CONTRASENAS = {
   titulo: 'Contraseñas',
   intro: 'Una cuenta puede entrar con contraseña, con Google o con las dos. Esto cambia qué podés hacer si la olvidás.',
   detalles: [
-    { titulo: 'Contraseña propia', texto: 'De 8 a 128 caracteres, con mayúscula, minúscula, número y símbolo. No puede ser una contraseña común ni contener tu usuario, correo, nombre o apellido. Se guarda cifrada.' },
+    { titulo: 'Contraseña propia', texto: 'De 8 a 128 caracteres, con mayúscula, minúscula, número y símbolo. No puede ser una contraseña común ni contener tu usuario, correo, nombre o apellido. Se guarda cifrada. Se cambia en Seguridad, en el bloque Contraseña.', captura: 'contrasena-seguridad.png' },
     { titulo: 'Solo Google', texto: 'La cuenta no tiene contraseña. Para entrar también con correo o usuario, creala en Seguridad → Crear contraseña.' },
-    { titulo: 'Google y contraseña', texto: 'La cuenta tiene las dos formas de entrar. Cambiar la contraseña pide la actual.' },
+    { titulo: 'Google y contraseña', texto: 'La cuenta tiene las dos formas de entrar. Cambiar la contraseña pide la actual.', captura: 'contrasena-seguridad.png' },
   ],
   casos: [
-    { titulo: 'Contraseña nueva igual a la actual', texto: 'No se acepta: «La contraseña nueva tiene que ser distinta de la actual».' },
-    { titulo: 'Contraseña de las últimas 3', texto: 'Tampoco se acepta: «Es una contraseña vieja. Elegí una distinta».' },
-    { titulo: 'Contraseña que no cumple la política', texto: 'El sistema indica qué falta: mayúscula, minúscula, número, símbolo o longitud.' },
+    { titulo: 'Contraseña nueva igual a la actual', texto: 'No se acepta: «La contraseña nueva tiene que ser distinta de la actual».', captura: 'contrasena-igual-actual.png' },
+    { titulo: 'Confirmación distinta', texto: 'Aparece «Las contraseñas no coinciden». Escribí la misma contraseña nueva en los dos campos.', captura: 'contrasena-no-coinciden.png' },
+    { titulo: 'Contraseña de las últimas 3', texto: 'Tampoco se acepta: «Es una contraseña vieja. Elegí una distinta».', captura: 'contrasena-vieja-error.png' },
+    { titulo: 'Contraseña que no cumple la política', texto: 'El sistema indica qué falta: mayúscula, minúscula, número, símbolo o longitud.', captura: 'contrasena-errores.png' },
   ],
 };
 
@@ -30,8 +31,8 @@ const TEMA_INICIAR_SESION = {
   intro: 'Entrás con usuario o correo y contraseña, o con Google. Si tenés verificación en dos pasos, te pide un código más.',
   pasos: [
     { texto: 'Escribí tu usuario o correo y tu contraseña. Marcá Recordarme si querés seguir en este equipo.', boton: 'Iniciar sesión', captura: 'iniciar-sesion.png' },
-    { texto: 'Si tu cuenta tiene verificación en dos pasos, ingresá el código de 6 dígitos de tu app autenticadora.' },
-    { texto: 'Si no podés usar la app, tocá «Usar un código de recuperación» y escribí uno de los que guardaste.' },
+    { texto: 'Si tu cuenta tiene verificación en dos pasos, ingresá el código de 6 dígitos de tu app autenticadora.', captura: 'mfa-codigo-app.png' },
+    { texto: 'Si no podés usar la app, tocá «Usar un código de recuperación» y escribí uno de los que guardaste.', captura: 'mfa-codigo-recuperacion-ingreso.png' },
   ],
   casos: [
     { titulo: 'CASO 1 · Con usuario', texto: 'Escribís el nombre de usuario y la contraseña. Entrás si coinciden.' },
@@ -39,7 +40,11 @@ const TEMA_INICIAR_SESION = {
     { titulo: 'CASO 3 · Con Google', texto: 'Tocá Continuar con Google. Si ya tenés una cuenta con ese correo, entrás. Si no, te avisa que la cuenta no está registrada: primero registrate.' },
     { titulo: 'CASO 4 · Pide código MFA por seguridad', texto: 'Ingresás el código de 6 dígitos de tu app. Después de varios códigos incorrectos, la verificación se bloquea por un rato.' },
     { titulo: 'CASO 5 · Olvidaste los códigos de recuperación', texto: 'No los necesitás si tenés la app: usá el código de 6 dígitos. Si tampoco tenés la app, mirá el caso 6.' },
-    { titulo: 'CASO 6 · Perdiste la app y los códigos', texto: 'Tocá «Recuperar acceso de otra manera». Escribí tu contraseña actual y entrá con el código que llega al correo (vence en 10 minutos). Eso desactiva la verificación en dos pasos y cierra tus otras sesiones: podés volver a activarla en Seguridad.' },
+    { titulo: 'CASO 6 · Perdiste la app y los códigos', texto: 'Tocá «Recuperar acceso de otra manera». Escribí tu contraseña actual y entrá con el código que llega al correo (vence en 10 minutos). Eso desactiva la verificación en dos pasos y cierra tus otras sesiones: podés volver a activarla en Seguridad. Si además olvidaste la contraseña, primero tocá «¿Olvidaste tu contraseña?» en el ingreso y creá una nueva: no podés repetir ninguna de las últimas 3.', captura: 'mfa-recuperar-contrasena-actual.png' },
+    { titulo: 'Recuperar acceso: se envía el código', texto: 'Después de confirmar tu contraseña actual, la app te avisa a qué correo enviará el código, con el plazo para usarlo.', captura: 'mfa-recuperar-codigo-enviado.png' },
+    { titulo: 'Recuperar acceso: el código llega al correo', texto: 'El correo trae un código de 6 dígitos que vence en 10 minutos y sirve una sola vez. Escribilo en «Código enviado a tu correo».', captura: 'mfa-correo-codigo.png' },
+    { titulo: 'Recuperar acceso: esperá un minuto', texto: 'Si pedís otro código antes de un minuto, la app dice «Esperá un minuto antes de pedir un código nuevo».', captura: 'mfa-esperar-minuto.png' },
+    { titulo: 'Recuperar acceso: listo', texto: 'Al verificar el código se desactiva la verificación en dos pasos y la app confirma el acceso recuperado.', captura: 'acceso-recuperado.png' },
     { titulo: 'Contraseña incorrecta', texto: 'Con 3 intentos fallidos el acceso se bloquea 15 minutos.' },
     { titulo: 'Correo sin verificar', texto: 'La app no te deja entrar y muestra «Tenés que verificar tu correo electrónico antes de iniciar sesión». Abrí el correo de verificación, o tocá «Reenviar correo de verificación» en la misma pantalla. El reenvío no extiende el plazo de 24 horas.', captura: 'iniciar-sesion-sin-verificar.png' },
   ],
@@ -50,7 +55,7 @@ const TEMA_RECUPERAR = {
   titulo: 'Recuperar contraseña',
   intro: 'Si olvidaste la contraseña, la recuperás desde el correo. Solo sirve para cuentas que tienen contraseña.',
   pasos: [
-    { texto: 'En la pantalla de ingreso tocá «¿Olvidaste tu contraseña?» y escribí tu correo.', boton: '¿Olvidaste tu contraseña?', captura: 'olvide-contrasena.png' },
+    { texto: 'En la pantalla de ingreso tocá «¿Olvidaste tu contraseña?» y escribí tu correo.', boton: '¿Olvidaste tu contraseña?', captura: 'recuperar-contrasena-correo.png' },
     { texto: 'Abrí el enlace del correo. Vence en 30 minutos y se usa una sola vez.' },
     { texto: 'Escribí la nueva contraseña dos veces y confirmala.' },
   ],
@@ -69,16 +74,16 @@ const TEMA_PERFIL = {
   intro: 'Tus datos personales. La fecha de nacimiento y el sexo se usan para calcular la referencia de glucosa.',
   pasos: [
     { texto: 'Entrá a Perfil y tocá Editar perfil.', ir: { to: '/app/perfil', label: 'Abrir Perfil' }, boton: 'Editar perfil', captura: 'perfil-editar.png' },
-    { texto: 'Agregá los datos que falten: nombre, apellido, usuario, fecha de nacimiento y sexo (femenino o masculino).' },
-    { texto: 'Guardá los cambios. El correo electrónico no se edita desde acá.' },
+    { texto: 'Agregá los datos que falten: nombre, apellido, usuario, fecha de nacimiento y sexo (femenino o masculino).', captura: 'perfil-editar-formulario.png' },
+    { texto: 'Guardá los cambios. El correo electrónico no se edita desde acá.', captura: 'perfil-guardado.png' },
   ],
   detalles: [
     { titulo: 'Usuario', texto: 'Mínimo 4 caracteres, sin «@». Sirve para entrar junto con el correo. No puede estar usado por otra cuenta.' },
     { titulo: 'Perfil de medición', texto: 'Se crea solo la primera vez que hace falta. La edad se calcula al iniciar cada medición.' },
   ],
   casos: [
-    { titulo: 'CASO 1 · Agregar fecha de nacimiento y sexo por primera vez', texto: 'Se guardan. La regla de referencia se aplica a partir de la próxima medición.' },
-    { titulo: 'CASO 2 · Sin fecha de nacimiento o sexo', texto: 'No hay regla de referencia: la medición de glucosa no inicia. Podés medir en oximetría o completar edad y sexo solo para esa medición.' },
+    { titulo: 'CASO 1 · Agregar fecha de nacimiento y sexo por primera vez', texto: 'Se guardan. La regla de referencia se aplica a partir de la próxima medición.', captura: 'perfil-guardado.png' },
+    { titulo: 'CASO 2 · Sin fecha de nacimiento o sexo', texto: 'No hay regla de referencia: la medición de glucosa no inicia. Podés medir en oximetría o completar edad y sexo solo para esa medición.', captura: 'perfil-datos.png' },
     { titulo: 'CASO 3 · Cambiar los datos después de medir', texto: 'Las mediciones guardadas conservan la edad y el sexo que tenían en ese momento; no se recalculan.' },
   ],
 };
@@ -88,23 +93,23 @@ const TEMA_SEGURIDAD = {
   titulo: 'Seguridad',
   intro: 'Cómo entrás a tu cuenta y cómo la protegés. Conviene revisarla apenas creás la cuenta.',
   pasos: [
-    { texto: 'Activá la verificación en dos pasos: escaneá el QR con tu app autenticadora, ingresá el código de 6 dígitos y guardá los códigos de recuperación.', ir: { to: '/app/seguridad', label: 'Abrir Seguridad' } },
-    { texto: 'Descargá o copiá los códigos de recuperación y guardalos en un lugar seguro. Cada uno sirve una sola vez.' },
+    { texto: 'Activá la verificación en dos pasos: escaneá el QR con tu app autenticadora, ingresá el código de 6 dígitos y guardá los códigos de recuperación.', ir: { to: '/app/seguridad', label: 'Abrir Seguridad' }, captura: 'mfa-activar-qr.png' },
+    { texto: 'Descargá o copiá los códigos de recuperación y guardalos en un lugar seguro. Cada uno sirve una sola vez.', captura: 'mfa-codigos-recuperacion.png' },
     { texto: 'Dejá activado el aviso de nuevo inicio de sesión.' },
   ],
   detalles: [
-    { titulo: 'Cambiar contraseña', texto: 'Pide la actual, la nueva dos veces y, si tenés verificación en dos pasos, un código. Al cambiarla se cierran las otras sesiones.' },
+    { titulo: 'Cambiar contraseña', texto: 'Pide la actual, la nueva dos veces y, si tenés verificación en dos pasos, un código. Al cambiarla se cierran las otras sesiones.', captura: 'contrasena-cambiada.png' },
     { titulo: 'Verificación en dos pasos', texto: 'Pide un código de tu app cada vez que entrás. Los códigos de recuperación sirven si no tenés la app.' },
     { titulo: 'Avisos de inicio de sesión', texto: 'Podés activar o desactivar el correo que avisa de cada ingreso. Las alertas de actividad sospechosa llegan siempre.' },
     { titulo: 'Eliminar cuenta', texto: 'Se inicia desde un enlace que llega al correo (vence en 30 minutos) y pide reautenticarte. Tus datos se anonimizan y las mediciones quedan sin identificarte.' },
   ],
   casos: [
-    { titulo: 'CASO 1 · Descargar los códigos', texto: 'Se muestran solo al activar la verificación. Descargalos o copialos en ese momento. Para tener códigos nuevos, desactivá y volvé a activar la verificación.' },
+    { titulo: 'CASO 1 · Descargar los códigos', texto: 'Se muestran solo al activar la verificación. Descargalos o copialos en ese momento. Para tener códigos nuevos, desactivá y volvé a activar la verificación.', captura: 'mfa-codigos-recuperacion.png' },
     { titulo: 'CASO 2 · Olvidé la contraseña', texto: 'Desde Seguridad no se puede: usá «¿Olvidaste tu contraseña?» en la pantalla de ingreso.' },
     { titulo: 'CASO 3 · Entrar con verificación en dos pasos', texto: 'Ingresás el código de tu app o un código de recuperación. Ver Iniciar sesión.' },
     { titulo: 'CASO 4 · Perdiste la app y los códigos', texto: 'En el ingreso, «Recuperar acceso de otra manera»: contraseña actual y código por correo. Desactiva la verificación en dos pasos.' },
     { titulo: 'CASO 5 · Cuenta solo con Google', texto: 'Crear contraseña en Seguridad, para poder entrar también con correo o usuario.' },
-    { titulo: 'CASO 6 · Eliminar la cuenta con grupo a cargo', texto: 'Antes designá a otro administrador del grupo o eliminá el grupo. Si no, la eliminación se bloquea.' },
+    { titulo: 'CASO 6 · Eliminar la cuenta con grupo a cargo', texto: 'Antes designá a otro administrador del grupo o eliminá el grupo. Si no, la eliminación se bloquea.', captura: 'seguridad-zona-riesgo.png' },
   ],
 };
 
@@ -185,11 +190,11 @@ export const AYUDA_CLIENTE = [
     titulo: 'Notificaciones',
     intro: 'La bandeja reúne los avisos de tu cuenta, tu grupo y tus recordatorios. Está en el menú Notificaciones.',
     pasos: [
-      { texto: 'Abrí la bandeja y usá los filtros: todas, sin leer o por categoría.', ir: { to: '/app/notificaciones', label: 'Abrir Notificaciones' } },
+      { texto: 'Abrí la bandeja y usá los filtros: todas, sin leer o por categoría.', ir: { to: '/app/notificaciones', label: 'Abrir Notificaciones' }, captura: 'notificaciones-lista.png' },
       { texto: 'Marcá como leída una notificación tocándola, o todas juntas con «Marcar todas como leídas».', boton: 'Marcar todas como leídas', captura: 'notificaciones-marcar-leidas.png' },
       { texto: 'Para borrar, usá «Eliminar…»: podés borrar solo las leídas o vaciar la bandeja (pide confirmación y no se puede deshacer).', boton: 'Eliminar…', captura: 'eliminar-notificaciones.png' },
-      { texto: 'En Preferencias elegí, por categoría, si querés el aviso en la aplicación, por correo o en ambos.', ir: { to: '/app/notificaciones/preferencias', label: 'Abrir Preferencias' } },
-      { texto: 'En Horario para medirme elegí no recibir recordatorios, uno cada cierto tiempo o a horas específicas.' },
+      { texto: 'En Preferencias elegí, por categoría, si querés el aviso en la aplicación, por correo o en ambos.', ir: { to: '/app/notificaciones/preferencias', label: 'Abrir Preferencias' }, captura: 'notificaciones-preferencias.png' },
+      { texto: 'En Horario para medirme elegí no recibir recordatorios, uno cada cierto tiempo o a horas específicas.', captura: 'notificaciones-preferencias-horario.png' },
     ],
     detalles: [
       { titulo: 'Seguridad', texto: 'Inicios de sesión desde equipos nuevos, cambios de contraseña o de verificación en dos pasos, y actividad sospechosa.' },
@@ -199,6 +204,7 @@ export const AYUDA_CLIENTE = [
     ],
     casos: [
       { titulo: 'CASO 1 · Marcar leídos', texto: 'Al leer una notificación baja el contador del menú. Las sin leer aparecen con su número en el menú.' },
+      { titulo: 'Bandeja vacía', texto: 'Si no hay avisos, la bandeja muestra «No tenés notificaciones». Los avisos nuevos aparecen acá.', captura: 'notificaciones-vacia.png' },
       { titulo: 'CASO 2 · Borrar', texto: 'Podés borrar una notificación, las leídas o toda la bandeja. Vaciarla quita también las que no leíste.' },
       { titulo: 'CASO 3 · Preferencias', texto: 'Si apagás un aviso en la aplicación y en el correo, no te llega. Las alertas de actividad sospechosa y los intentos de ingreso siempre llegan a la aplicación.' },
     ],
@@ -211,7 +217,7 @@ export const AYUDA_CLIENTE = [
       { texto: 'Instalá el puente en la computadora Windows donde conectás el Arduino: acquisition\\bridge\\Instalar-Puente.bat.' },
       { texto: 'En Conectar dispositivo elegí el medio: Bluetooth HC-05/HC-06 (9600 baudios) o USB (115200).', ir: { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' } },
       { texto: 'Mirá el estado de la conexión y resolvé lo que indique antes de medir.' },
-      { texto: 'Tocá Usar dispositivo para tomar el control del puente.', boton: 'Usar dispositivo', captura: 'conectar-pantalla.png', pie: 'Pantalla de Conectar dispositivo. Con el puente en marcha aparece el botón «Usar dispositivo».' },
+      { texto: 'Tocá Usar dispositivo para tomar el control del puente.', boton: 'Usar dispositivo', captura: 'conectar-usar-pantalla.png', pie: 'Pantalla de Conectar dispositivo: tocá «Usar dispositivo» en el bloque «Configuración del puente».' },
       { texto: 'Al terminar, tocá Dejar de usar para liberarlo.', boton: 'Dejar de usar', captura: 'conectar-pantalla.png', pie: 'Pantalla de Conectar dispositivo. Mientras lo usás, el botón «Dejar de usar» aparece aquí.' },
     ],
     detalles: [
@@ -242,6 +248,7 @@ export const AYUDA_CLIENTE = [
     ],
     casos: [
       { titulo: 'CASO 1 · Medición permitida', texto: 'Autorización vigente, perfil con regla, dispositivo conectado, operativo y libre. Al guardar, la medición queda completada y entra en tus estadísticas.' },
+    { titulo: 'CASO 2 · Falta la autorización', texto: 'Aparece «Para medir necesitamos tu autorización para almacenar mediciones experimentales». Otorgala en Configuración de perfil o en Nueva medición.', captura: 'mediciones-sin-autorizacion.png' },
     ],
     tabla: {
       encabezados: ['Qué ves', 'Qué hacer'],
@@ -263,10 +270,12 @@ export const AYUDA_CLIENTE = [
     intro: 'Compartí, si querés, información de tus mediciones con las personas de tu grupo. Ser administrador/a no da acceso a los datos de los demás.',
     pasos: [
       { texto: 'Creá un grupo (nombre obligatorio, descripción opcional) o aceptá una invitación. Solo podés tener un grupo a la vez.', ir: { to: '/app/grupo', label: 'Abrir Grupo' }, boton: 'Crear grupo', captura: 'grupo-crear.png' },
-      { texto: 'Como administrador/a, invitá por correo exacto a una cuenta individual.' },
-      { texto: 'En Mi privacidad elegí qué ven los demás: Perfil, Última medición, Historial (con gráficos y estadísticas) y Aviso de medición (solo fecha y hora). Todo arranca apagado.' },
+      { texto: 'Si el nombre tiene menos de 2 caracteres, la app lo marca: «Ingresá el nombre del grupo (al menos 2 caracteres)».', captura: 'grupo-error-nombre.png' },
+      { texto: 'Al crear el grupo quedás como administrador/a y ves su panel. El grupo no comparte ninguno de tus datos.', captura: 'grupo-creado.png' },
+      { texto: 'Como administrador/a, invitá por correo exacto a una cuenta individual.', captura: 'grupo-invitar-sin-cuenta.png' },
+      { texto: 'En Mi privacidad elegí qué ven los demás: Perfil, Última medición, Historial (con gráficos y estadísticas) y Aviso de medición (solo fecha y hora). Todo arranca apagado.', captura: 'grupo-privacidad.png' },
       { texto: 'En Datos compartidos revisá lo que cada persona habilitó.' },
-      { texto: 'Para cambiar de administrador, en Configuración designá a la otra persona.' },
+      { texto: 'Para cambiar de administrador, en Configuración designá a la otra persona.', captura: 'grupo-configuracion.png' },
       { texto: 'Para abandonar, en Configuración tocá Abandonar. Si sos administrador/a, antes designá a otra persona.' },
     ],
     detalles: [
@@ -280,6 +289,9 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 2 · Invitar a un correo sin cuenta', texto: 'Solo hace falta el correo. Se le envía una invitación con un enlace para activar la cuenta: elige usuario y contraseña, y después ve la invitación para aceptarla o rechazarla. Vence en 7 días.' },
       { titulo: 'CASO 3 · Aceptar', texto: 'Pasás a ser integrante, con todo lo que compartís apagado. Si ya tenés grupo, no podés aceptar otra invitación.' },
       { titulo: 'CASO 4 · Rechazar', texto: 'La invitación se cierra y el administrador puede volver a invitarte.' },
+      { titulo: 'CASO 5 · Eliminar sin escribir el nombre', texto: 'El botón «Eliminar definitivamente» no se puede usar hasta escribir el nombre del grupo para confirmar.', captura: 'grupo-eliminar-sin-nombre.png' },
+      { titulo: 'CASO 6 · Eliminar con un nombre incorrecto', texto: 'Si el texto no coincide con el nombre del grupo, «Eliminar definitivamente» queda deshabilitado.', captura: 'grupo-eliminar-nombre-incorrecto.png' },
+      { titulo: 'CASO 7 · Eliminar con el nombre exacto', texto: 'Al escribir «Grupo de prueba» tal cual, el botón se habilita. Al confirmar, el grupo deja de existir para todos.', captura: 'grupo-eliminar-nombre-exacto.png' },
     ],
     tabla: {
       encabezados: ['Qué ves', 'Qué significa'],

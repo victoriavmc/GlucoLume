@@ -168,7 +168,7 @@ def test_codigo_incorrecto_rechazado_y_bloqueo_por_intentos(db, mails, mfaUser):
     for _ in range(4):
         with pytest.raises(AuthError) as error:
             recovery.verifyRecovery(db, started.recoveryToken, wrong)
-        assert error.value.code == "CODIGO_INVALIDO" and error.value.message.startswith("El código ingresado no es válido")
+        assert error.value.code == "CODIGO_INVALIDO" and error.value.message.startswith("El código es incorrecto")
     with pytest.raises(AuthError) as locked:
         recovery.verifyRecovery(db, started.recoveryToken, wrong)
     assert locked.value.code == "MFA_BLOQUEADO"

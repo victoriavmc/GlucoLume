@@ -426,6 +426,13 @@ def invite(db: Session, actor: User, idGrupo: uuid.UUID, correoElectronico: str)
             # Carrera: otra solicitud creó la cuenta de este correo en paralelo.
             raise AuthError("INVITACION_PENDIENTE", "Otra solicitud acaba de registrar este correo. Volvé a intentarlo.") from error
         raise
+    # Antes de la invitación: el último correo que sale es el de quien fue invitado.
+    emailService.sendEmailEventInBackground(
+        EmailEventType.INVITACION_GRUPO_ENVIADA, actor.correoElectronico,
+        {"nombreGrupo": membership.group.nombre, "nombreInvitado": _fullName(target) or target.correoElectronico,
+         "fechaEvento": now, "fechaExpiracion": _expiry(relation),
+         "urlGrupo": emailService.frontendUrl("grupoFamiliar")},
+    )
     _sendInvitation(db, actor, membership.group, target, relation, now, activationToken,
                     f"{userNotifications.INVITACION_GRUPO}:{relation.idGrupoUsuario}")
     return GroupInvitationRead(idGrupoUsuario=relation.idGrupoUsuario, nombre=target.nombre, apellido=target.apellido,

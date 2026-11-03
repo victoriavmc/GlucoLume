@@ -19,7 +19,8 @@ export function GroupInvitations() {
   const [fieldError, setFieldError] = useState('');
   const [error, setError] = useState(null); // { message, codigo }
   const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [acting, setActing] = useState(false);
   const [pending, setPending] = useState(null);
   const [copied, setCopied] = useState(false);
   const [noAccount, setNoAccount] = useState(false); // el correo buscado no tiene cuenta: se ofrece invitarla por correo
@@ -41,7 +42,7 @@ export function GroupInvitations() {
 
   async function search(event) {
     event.preventDefault();
-    if (busy) return;
+    if (searching) return;
     if (!EMAIL_PATTERN.test(email.trim())) {
       setFieldError('Ingresá un correo electrónico válido.');
       return;
@@ -51,19 +52,19 @@ export function GroupInvitations() {
     setCandidate(null);
     setNoAccount(false);
     setNotice('');
-    setBusy(true);
+    setSearching(true);
     try {
       setCandidate(await groupsApi.lookupCandidate(group.idGrupo, email.trim()));
     } catch (lookupError) {
       setError({ message: handleOperationError(lookupError), codigo: lookupError.codigo });
       setNoAccount(lookupError.codigo === 'USUARIO_NO_ENCONTRADO');
     } finally {
-      setBusy(false);
+      setSearching(false);
     }
   }
 
   async function sendInvitation() {
-    setBusy(true);
+    setActing(true);
     setError(null);
     try {
       const invited = await groupsApi.invite(group.idGrupo, email.trim());
@@ -74,12 +75,12 @@ export function GroupInvitations() {
     } catch (inviteError) {
       setError({ message: handleOperationError(inviteError), codigo: inviteError.codigo });
     } finally {
-      setBusy(false);
+      setActing(false);
     }
   }
 
   async function resend(invitation) {
-    setBusy(true);
+    setActing(true);
     setError(null);
     try {
       await groupsApi.resendInvitation(group.idGrupo, invitation.idGrupoUsuario);
@@ -88,12 +89,12 @@ export function GroupInvitations() {
     } catch (resendError) {
       setError({ message: handleOperationError(resendError) });
     } finally {
-      setBusy(false);
+      setActing(false);
     }
   }
 
   async function cancel(invitation) {
-    setBusy(true);
+    setActing(true);
     setError(null);
     try {
       await groupsApi.cancelInvitation(group.idGrupo, invitation.idGrupoUsuario);
@@ -102,7 +103,7 @@ export function GroupInvitations() {
     } catch (cancelError) {
       setError({ message: handleOperationError(cancelError) });
     } finally {
-      setBusy(false);
+      setActing(false);
     }
   }
 
@@ -112,8 +113,8 @@ export function GroupInvitations() {
 
   async function sendSignupInvitation(event) {
     event.preventDefault();
-    if (busy) return;
-    setBusy(true);
+    if (acting) return;
+    setActing(true);
     setError(null);
     try {
       await groupsApi.invite(group.idGrupo, email.trim());
@@ -124,7 +125,7 @@ export function GroupInvitations() {
     } catch (inviteError) {
       setError({ message: handleOperationError(inviteError), codigo: inviteError.codigo });
     } finally {
-      setBusy(false);
+      setActing(false);
     }
   }
 
@@ -144,7 +145,7 @@ export function GroupInvitations() {
         <TextField label="Correo electrónico de la cuenta individual" icon={Mail} type="email" autoComplete="off"
           maxLength={254} value={email} error={fieldError}
           onChange={(event) => { setEmail(event.target.value); setCandidate(null); setError(null); setNoAccount(false); setCopied(false); }} />
-        <SubmitButton loading={busy && !candidate} loadingLabel="Buscando…" className="btn btn-primary">
+        <SubmitButton loading={searching} loadingLabel="Buscando…" className="btn btn-primary">
           <Search size={16} aria-hidden="true" /> Buscar
         </SubmitButton>
       </form>
@@ -169,7 +170,7 @@ export function GroupInvitations() {
             para hacerlo.
           </p>
           <div className="form-actions">
-            <SubmitButton loading={busy} loadingLabel="Enviando…" className="btn btn-primary">
+            <SubmitButton loading={acting} loadingLabel="Enviando…" className="btn btn-primary">
               <Send size={16} aria-hidden="true" /> Enviar invitación por correo
             </SubmitButton>
           </div>
@@ -182,11 +183,11 @@ export function GroupInvitations() {
             dato: cada persona decide qué compartir.
           </p>
           <div className="form-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => setCandidate(null)} disabled={busy}>
+            <button type="button" className="btn btn-ghost" onClick={() => setCandidate(null)} disabled={acting}>
               Cancelar
             </button>
-            <button type="button" className="btn btn-primary" onClick={sendInvitation} disabled={busy}>
-              {busy && <span className="spinner" aria-hidden="true" />} Enviar invitación
+            <button type="button" className="btn btn-primary" onClick={sendInvitation} disabled={acting}>
+              {acting && <span className="spinner" aria-hidden="true" />} Enviar invitación
             </button>
           </div>
         </div>
@@ -210,11 +211,11 @@ export function GroupInvitations() {
                 </Badge>
               </span>
               <div className="form-actions">
-                <button type="button" className="btn btn-outline" disabled={busy} onClick={() => resend(invitation)}
+                <button type="button" className="btn btn-outline" disabled={acting} onClick={() => resend(invitation)}
                   aria-label={`Reenviar invitación de ${personName(invitation)}`}>
                   <Send size={16} aria-hidden="true" /> Reenviar
                 </button>
-                <button type="button" className="btn btn-outline" disabled={busy} onClick={() => cancel(invitation)}
+                <button type="button" className="btn btn-outline" disabled={acting} onClick={() => cancel(invitation)}
                   aria-label={`Cancelar invitación de ${personName(invitation)}`}>
                   <X size={16} aria-hidden="true" /> Cancelar invitación
                 </button>

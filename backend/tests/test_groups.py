@@ -746,3 +746,14 @@ def test_la_busqueda_no_revela_cuentas_sin_activar_de_otro_tipo(db, mails):
     pending.estado = "PENDIENTE"  # registrada, sin verificar: no es una cuenta invitada
     db.commit()
     expectError("USUARIO_NO_ENCONTRADO", groups.invite, db, ana, group.idGrupo, "registrada@example.com")
+
+
+def test_quien_invita_recibe_confirmacion_y_el_invitado_el_aviso(db, mails):
+    ana, beto = person(db, "ana"), person(db, "beto")
+    group = create(db, ana)
+    mails.clear()
+    groups.invite(db, ana, group.idGrupo, "beto@example.com")
+    # Primero la confirmación a quien invita; después la invitación a quien fue invitado.
+    assert [m["to"] for m in mails] == [ana.correoElectronico, "beto@example.com"]
+    assert "Invitaste a una persona" in mails[0]["subject"] and "Victoria Cortés" in mails[0]["html"]
+    assert "Te invitaron" in mails[1]["subject"]

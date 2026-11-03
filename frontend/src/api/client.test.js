@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearTokens, getAccessToken, hasSessionHint, saveTokens } from '../auth/tokenStore.js';
 import { jsonResponse, mockApi } from '../test/helpers.js';
-import { ApiError, NETWORK_ERROR, request } from './client.js';
+import { ApiError, NETWORK_ERROR, REQUEST_TIMEOUT_MS, request } from './client.js';
 
 describe('cliente HTTP', () => {
   beforeEach(() => clearTokens());
@@ -120,5 +120,21 @@ describe('cliente HTTP', () => {
     const { calls } = mockApi({ 'POST /auth/login': jsonResponse(200, { estado: 'AUTENTICADO' }) });
     await request('/auth/login', { method: 'POST', body: {} });
     expect(calls[0].options.headers['X-GlucoLume-Recordarme']).toBeUndefined();
+  });
+  it('corta una petición sin respuesta y avisa que el servidor tardó', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', (url, options) => new Promise((_, reject) => {
+      options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    try {
+      const pending = request('/groups/1/invitations', { method: 'POST', body: {}, auth: false }).catch((e) => e);
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1);
+      const error = await pending;
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ codigo: NETWORK_ERROR, message: 'El servidor tardó demasiado en responder. Intentá de nuevo en unos minutos.' });
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 });

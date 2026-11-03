@@ -257,7 +257,7 @@ def _registerWrongCode(db: Session, factor: MfaFactor, now: datetime) -> AuthErr
     db.commit()
     if locked:
         return AuthError("MFA_BLOQUEADO", "Demasiados códigos inválidos. Intentá más tarde.")
-    return AuthError("CODIGO_INVALIDO", "El código ingresado no es válido.")
+    return AuthError("CODIGO_INVALIDO", "El código es incorrecto. Revisá el que te llegó al correo y volvé a intentar.")
 
 
 def _verifyCodeAndUnlink(db: Session, user: User, factor: MfaFactor, codigo: str, keepSessionId=None) -> None:
