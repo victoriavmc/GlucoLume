@@ -198,13 +198,70 @@
   border-radius: var(--radius-md);
 }
 
-/* Imagen dentro del visor: ocupa el ancho del modal y entra completa en la pantalla. */
+/* Imagen dentro del visor: ocupa casi toda la altura de la pantalla (se agranda para verla bien) y entra completa. */
+.help-visor-cuerpo {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
 .help-visor-img {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: calc(100vh - 110px);
+  width: auto;
+  max-width: 100%;
+  height: calc(100vh - 150px);
+  margin: 0 auto;
   object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .help-visor-img {
+    width: 100%;
+    height: auto;
+    max-height: calc(100vh - 170px);
+  }
+}
+
+/* Flechas para pasar de una captura a otra: van a los costados de la imagen. */
+.help-visor-flecha {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 999px;
+  background: var(--red-600);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+.help-visor-flecha.is-anterior {
+  left: 8px;
+}
+
+.help-visor-flecha.is-siguiente {
+  right: 8px;
+}
+
+.help-visor-flecha:hover {
+  background: var(--red-700);
+}
+
+.help-visor-flecha:focus-visible {
+  outline: 3px solid var(--ink-900, #0f1730);
+  outline-offset: 2px;
+}
+
+.help-visor-contador {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-500);
 }
 
 /* Las capturas de los casos van debajo del texto, con un ancho razonable. */

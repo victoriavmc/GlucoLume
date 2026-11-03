@@ -1,7 +1,8 @@
 // Capturas reales de dónde tocar, junto a cada paso de la guía (public/ayuda/). El texto del paso ya describe la acción,
 // por eso la imagen va con texto alternativo corto y el pie repite solo dónde está.
 
-import { useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Modal } from '../../../components/Modal.jsx';
 
@@ -56,22 +57,59 @@ export function PasoMenu({ tipo, destino }) {
 }
 
 // Imagen de una pantalla de la app (`captura` es un archivo de public/ayuda/) con su pie. Al tocarla se abre ampliada
-// en el modal de la app (Escape o clic afuera la cierran).
+// en el modal de la app (Escape o clic afuera la cierran). El visor recorre todas las capturas de la guía que están en
+// pantalla, en orden, con las flechas (o las teclas ← y →).
 export function PasoImagen({ captura, alt, pie }) {
-  const [ampliada, setAmpliada] = useState(false);
+  const [visor, setVisor] = useState(null);
+  const figuraRef = useRef(null);
   const src = `/ayuda/${captura}`;
+
+  function abrir() {
+    const figuras = [...document.querySelectorAll('figure.help-captura')];
+    const lista = figuras.map((figura) => ({ src: figura.dataset.src, alt: figura.dataset.alt, titulo: figura.dataset.titulo }));
+    setVisor({ lista, indice: Math.max(0, figuras.indexOf(figuraRef.current)) });
+  }
+
   return (
-    <figure className="help-captura">
-      <button type="button" className="help-captura-boton" aria-label={`Ampliar imagen: ${alt}`} onClick={() => setAmpliada(true)}>
+    <figure className="help-captura" ref={figuraRef} data-src={src} data-alt={alt} data-titulo={pie ?? alt}>
+      <button type="button" className="help-captura-boton" aria-label={`Ampliar imagen: ${alt}`} onClick={abrir}>
         <img src={src} alt="" loading="lazy" />
       </button>
       {pie && <figcaption>{pie}</figcaption>}
-      {ampliada && (
-        <Modal role="dialog" visor title={pie ?? alt} onClose={() => setAmpliada(false)}>
-          <img className="help-visor-img" src={src} alt={alt} />
-        </Modal>
-      )}
+      {visor && <VisorCapturas lista={visor.lista} indice={visor.indice} onCambiar={(indice) => setVisor({ ...visor, indice })} onClose={() => setVisor(null)} />}
     </figure>
+  );
+}
+
+// Ventana grande con una captura y flechas para pasar a la anterior o a la siguiente (dan la vuelta al llegar al final).
+function VisorCapturas({ lista, indice, onCambiar, onClose }) {
+  const total = lista.length;
+  const actual = lista[indice];
+
+  useEffect(() => {
+    const anterior = () => onCambiar((indice - 1 + total) % total);
+    const siguiente = () => onCambiar((indice + 1) % total);
+    function onKeyDown(event) {
+      if (event.key === 'ArrowLeft') anterior();
+      else if (event.key === 'ArrowRight') siguiente();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [indice, total, onCambiar]);
+
+  return (
+    <Modal role="dialog" visor title={actual.titulo} onClose={onClose}>
+      <div className="help-visor-cuerpo">
+        <img className="help-visor-img" src={actual.src} alt={actual.alt} />
+        <button type="button" className="help-visor-flecha is-anterior" aria-label="Captura anterior" onClick={() => onCambiar((indice - 1 + total) % total)}>
+          <ChevronLeft size={28} aria-hidden="true" />
+        </button>
+        <button type="button" className="help-visor-flecha is-siguiente" aria-label="Captura siguiente" onClick={() => onCambiar((indice + 1) % total)}>
+          <ChevronRight size={28} aria-hidden="true" />
+        </button>
+      </div>
+      {total > 1 && <p className="help-visor-contador">{indice + 1} de {total}</p>}
+    </Modal>
   );
 }
 

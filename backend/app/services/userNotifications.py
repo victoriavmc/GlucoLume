@@ -411,11 +411,13 @@ def notify(db: Session, user: User, evento: str, titulo: str, mensaje: str, *, u
         return False
 
 
-def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: str, context: dict, origen: str) -> None:
+def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: str, context: dict, origen: str,
+                    *, emailAdministrador: tuple[EmailEventType, dict] | None = None) -> None:
     """Novedad del grupo para los demás integrantes ACTIVOS (página y correo según sus preferencias).
 
     `origen` identifica el hecho (p. ej. el idGrupoUsuario de quien se sumó o salió): junto con cada destinatario forma la clave de unicidad.
-    El administrador ya recibe el correo de MIEMBRO_AGREGADO / MIEMBRO_ABANDONO_GRUPO: a él solo se le avisa en la página.
+    `emailAdministrador` es el correo propio del administrador (MIEMBRO_AGREGADO / MIEMBRO_ABANDONO_GRUPO); sale solo si el administrador
+    tiene activo el correo de «Incorporaciones y salidas del grupo». Sin él, el administrador recibe la novedad como cualquier integrante.
     """
     idAdministrador = db.scalar(select(GroupUser.idUsuario).where(
         GroupUser.idGrupo == idGrupo, GroupUser.rolGrupo == ROL_PROPIETARIO,
@@ -426,8 +428,10 @@ def notifyGroupNews(db: Session, idGrupo: uuid.UUID, idActor: uuid.UUID, texto: 
             User.idUsuario != idActor, User.estado == ESTADO_ACTIVO)
     ).all()
     for member in members:
-        email = None if member.idUsuario == idAdministrador else (EmailEventType.NOVEDAD_GRUPO,
-                                                                 {"descripcion": texto, **context})
+        if member.idUsuario == idAdministrador and emailAdministrador is not None:
+            email = emailAdministrador
+        else:
+            email = (EmailEventType.NOVEDAD_GRUPO, {"descripcion": texto, **context})
         notify(db, member, NUEVA_ACCION_GRUPO, "Novedad en tu grupo", texto, url=URL_GRUPO, email=email,
                clave=f"{NUEVA_ACCION_GRUPO}:{origen}")
 

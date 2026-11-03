@@ -178,6 +178,7 @@ export const AYUDA_CLIENTE = [
     detalles: [
       { titulo: 'Accesos rápidos', texto: 'Atajos a Mis mediciones, Nueva medición, Grupo, Perfil y Seguridad.' },
       { titulo: 'Evolución reciente', texto: 'Gráficos de tus últimos valores. Si no hay datos en el período, cambiá el período o hacé una medición.', captura: 'dashboard-medicion-demo.png' },
+      { titulo: 'Vista general', texto: 'Muestra a la vez la frecuencia cardíaca, la saturación de oxígeno, la glucosa estimada y el índice óptico de tus mediciones guardadas. Las DEMO se identifican aparte. Debajo está Mediciones recientes, con cada medición y su detalle.', captura: 'dashboard-vista-general.png' },
     ],
   },
   TEMA_CONTRASENAS,
@@ -199,7 +200,7 @@ export const AYUDA_CLIENTE = [
     detalles: [
       { titulo: 'Seguridad', texto: 'Inicios de sesión desde equipos nuevos, cambios de contraseña o de verificación en dos pasos, y actividad sospechosa.' },
       { titulo: 'Grupo familiar', texto: 'Invitaciones, incorporaciones o salidas del grupo, y mediciones del grupo cuando alguien elige avisar.' },
-      { titulo: 'Recordatorios de medición', texto: 'El aviso para medirte en el horario que configuraste.' },
+      { titulo: 'Recordatorios de medición', texto: 'El aviso para medirte en el horario que configuraste.', captura: 'aviso-hora-de-medirte.png' },
       { titulo: 'Mediciones', texto: 'Cuando sale por correo el resultado de una medición que pediste, o cuando no pudo salir.' },
     ],
     casos: [
@@ -208,6 +209,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 2 · Borrar', texto: 'Podés borrar una notificación, las leídas o toda la bandeja. Vaciarla quita también las que no leíste.' },
       { titulo: 'CASO 3 · Preferencias', texto: 'Si apagás un aviso en la aplicación y en el correo, no te llega. Las alertas de actividad sospechosa y los intentos de ingreso siempre llegan a la aplicación.' },
       { titulo: 'CASO 4 · Cambio en la verificación en dos pasos', texto: 'Cada vez que activás o desactivás la verificación en dos pasos llega un aviso. Si no fuiste vos, revisá tu seguridad enseguida.', captura: 'notificaciones-cambio-2fa.png' },
+      { titulo: 'CASO 5 · Novedades del grupo', texto: 'Si elegiste avisarte de las novedades, llega un correo cuando alguien se suma al grupo. Quien administra recibe un correo cuando alguien se va.', captura: 'grupo-correo-novedades.png' },
     ],
   },
   {
@@ -242,7 +244,8 @@ export const AYUDA_CLIENTE = [
     ],
     detalles: [
       { titulo: 'Semáforo', texto: 'Compara una glucosa con el intervalo recomendado de tu regla: «Está bien», «Revisar» o «Muy alto». Es una comparación, no un diagnóstico.', captura: 'medicion-matriz-semaforo.png' },
-      { titulo: 'Matriz de referencia', texto: 'Se ve en el detalle de cada medición. Permite registrar una referencia capilar de tu glucómetro.', captura: 'medicion-detalle-matriz.png' },
+      { titulo: 'Oximetría y glucosa', texto: 'Son dos modos de medición. La glucosa se compara con la matriz de referencia de tu perfil y muestra el semáforo. La oximetría no se compara con la matriz: en su detalle no aparece esa sección.', captura: 'medicion-detalle-oximetria.png' },
+      { titulo: 'Matriz de referencia', texto: 'Se ve en el detalle de cada medición de glucosa: la oximetría no se compara con ninguna matriz. Permite registrar una referencia capilar de tu glucómetro.', captura: 'medicion-detalle-matriz.png' },
       { titulo: 'Autorización', texto: 'Podés revocarla cuando quieras: frena nuevas mediciones, pero no borra lo medido.' },
       { titulo: 'DEMO', texto: 'Valor sintético para probar el equipo. No es una glucemia y no entra en tus estadísticas. Solo se puede eliminar lo DEMO.', captura: 'medicion-detalle-demo.png' },
       { titulo: 'Cómo realizar una medición', texto: 'Los diez pasos de la pantalla de Conectar dispositivo: perfil, dispositivo, conexión, dedo sobre el sensor, lectura estable y guardado.', captura: 'medicion-como-realizar.png' },
@@ -258,6 +261,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 7 · Esperando el dedo', texto: 'Al iniciar, aparece «Esperando dedo» hasta que el sensor detecta el dedo. Sin señal válida no se puede guardar.', captura: 'medicion-esperando-dedo.png' },
       { titulo: 'CASO 8 · Señal estable', texto: 'Con 8 lecturas válidas seguidas y parecidas aparece «Señal estable» y se habilita «Guardar medición».', captura: 'medicion-senal-estable.png' },
       { titulo: 'CASO 9 · Medición guardada', texto: 'Queda asociada a tu perfil y figura en tu dashboard e historial. Si es DEMO, no suma a tus indicadores experimentales.', captura: 'medicion-guardada.png' },
+      { titulo: 'CASO 10 · Resultado dentro del intervalo', texto: 'El semáforo muestra «Está bien» cuando el valor cae dentro del intervalo de tu matriz. Es una comparación, no un diagnóstico.', captura: 'medicion-resultado-semaforo.png' },
     ],
     tabla: {
       encabezados: ['Qué ves', 'Qué hacer'],
@@ -291,6 +295,7 @@ export const AYUDA_CLIENTE = [
     ],
     detalles: [
       { titulo: 'Desvincular', texto: 'El administrador puede desvincular a un integrante. No se tocan sus mediciones.' },
+      { titulo: 'Designar administrador/a', texto: 'En Configuración elegís a un integrante de la lista. Antes de abandonar el grupo, si hay otros integrantes, tenés que designar a otra persona.', captura: 'grupo-designar-administrador.png' },
       { titulo: 'Eliminar el grupo', texto: 'Desde Configuración, escribiendo su nombre exacto. Quedan canceladas las invitaciones y los permisos de compartir.', captura: 'grupo-eliminado.png' },
       { titulo: 'Panel y evolución', texto: 'Resumen del grupo y evolución por persona de 7, 30 o 90 días. Las estadísticas grupales necesitan al menos 2 integrantes que compartan su historial.', captura: 'grupo-panel.png' },
       { titulo: 'Actividad compartida reciente', texto: 'Las últimas mediciones que los integrantes compartieron, con su origen (DEMO o experimental).', captura: 'grupo-panel-actividad.png' },
@@ -310,6 +315,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 9 · Eliminar con el nombre exacto', texto: 'Al escribir «Grupo de prueba» tal cual, el botón se habilita. Al confirmar, el grupo deja de existir para todos.', captura: 'grupo-eliminar-nombre-exacto.png' },
       { titulo: 'CASO 10 · Confirmación al eliminar', texto: 'Quien elimina el grupo recibe «Eliminaste el grupo con éxito», con la cantidad de integrantes avisados.', captura: 'grupo-correo-eliminaste.png' },
       { titulo: 'CASO 11 · Aviso a los integrantes', texto: 'Cada integrante recibe «El grupo fue eliminado». Sus mediciones no se borran: cada persona conserva su historial.', captura: 'grupo-correo-eliminado-integrantes.png' },
+      { titulo: 'CASO 19 · Un integrante abandona el grupo', texto: 'Quien administra recibe «Un integrante abandonó el grupo», con el nombre del integrante y la fecha.', captura: 'grupo-correo-abandono.png' },
       { titulo: 'CASO 12 · Solo datos básicos compartidos', texto: 'El grupo ve edad y sexo. La última medición, el historial y el aviso figuran como «No compartido».', captura: 'grupo-compartido-datos-basicos.png' },
       { titulo: 'CASO 13 · Solo la última medición compartida', texto: 'El grupo ve la última medición, con su detalle. El historial y la evolución no se muestran.', captura: 'grupo-compartido-ultima-medicion.png' },
       { titulo: 'CASO 14 · Solo el aviso de medición', texto: 'El grupo recibe un aviso de que la persona midió, con día y hora, pero no el resultado.', captura: 'grupo-compartido-aviso.png' },

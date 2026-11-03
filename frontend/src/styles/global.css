@@ -578,7 +578,7 @@ main[tabindex='-1']:focus {
 /* Visor de imágenes: ventana grande, título arriba a la izquierda y X de cerrar arriba a la derecha. */
 .modal-visor {
   position: relative;
-  width: min(1040px, 100%);
+  width: min(1400px, 100%);
   max-height: calc(100vh - 32px);
   padding: 16px 16px 16px;
   overflow: auto;
@@ -601,15 +601,15 @@ main[tabindex='-1']:focus {
   height: 40px;
   border: 0;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink-700);
+  background: var(--red-600);
+  color: #fff;
   box-shadow: var(--shadow-soft);
   cursor: pointer;
 }
 
 .modal-cerrar:hover {
-  background: var(--red-50);
-  color: var(--red-700);
+  background: var(--red-700);
+  color: #fff;
 }
 
 .modal-cerrar:focus-visible {

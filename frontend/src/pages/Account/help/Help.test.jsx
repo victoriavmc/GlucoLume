@@ -98,6 +98,23 @@ describe('Ayuda: capturas ampliables', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('las flechas del visor pasan a la captura siguiente y anterior de la guía', async () => {
+    mockRoutes(ACCOUNT);
+    const user = userEvent.setup();
+    renderAt('/app/ayuda');
+
+    await user.click((await screen.findAllByRole('button', { name: /Ampliar imagen: Menú lateral con «Perfil»/ }))[0]);
+    const ampliada = await screen.findByRole('dialog', { name: 'Menú lateral: tocá «Perfil».' });
+    const contador = () => within(ampliada).getByText(/^\d+ de \d+$/);
+    const [, inicio, total] = contador().textContent.match(/^(\d+) de (\d+)$/).map(Number);
+
+    await user.click(within(ampliada).getByRole('button', { name: 'Captura siguiente' }));
+    expect(contador()).toHaveTextContent(`${(inicio % total) + 1} de ${total}`);
+
+    await user.click(within(ampliada).getByRole('button', { name: 'Captura anterior' }));
+    expect(contador()).toHaveTextContent(`${inicio} de ${total}`);
+  });
 });
 
 describe('Ayuda: una imagen por paso', () => {

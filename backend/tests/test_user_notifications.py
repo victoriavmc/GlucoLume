@@ -291,6 +291,7 @@ def test_unirse_al_grupo_avisa_al_nuevo_integrante_y_a_los_demas(db, mails):
     subjects_carla = [m["subject"] for m in mails if m["to"] == carla.correoElectronico]
     assert "Hubo novedades en tu grupo" in subjects_carla
     subjects_ana = [m["subject"] for m in mails if m["to"] == ana.correoElectronico]
+    assert subjects_ana.count("Se agregó un integrante al grupo") == 1  # el administrador recibe su correo propio, no la novedad genérica
     assert "Hubo novedades en tu grupo" not in subjects_ana
 
 
@@ -298,11 +299,26 @@ def test_salir_del_grupo_avisa_a_los_demas_integrantes_en_la_pagina(db, mails):
     ana, beto, carla, group = _group(db)
     join(db, ana, group.idGrupo, carla)
     join(db, ana, group.idGrupo, beto)
+    mails.clear()
 
     groups.leaveGroup(db, beto, group.idGrupo)
 
     textos = [n.mensaje for n in service.inbox(db, carla).notificaciones if n.evento == "NUEVA_ACCION_GRUPO"]
     assert any("abandonó el grupo" in texto for texto in textos)
+    subjects_ana = [m["subject"] for m in mails if m["to"] == ana.correoElectronico]
+    assert subjects_ana == ["Un integrante abandonó el grupo"]
+
+
+def test_el_administrador_recibe_el_correo_de_incorporaciones_solo_si_lo_tiene_activo(db, mails):
+    ana, beto, carla, group = _group(db)
+    service.updatePreference(db, ana, "NUEVA_ACCION_GRUPO", porCorreo=False)
+    mails.clear()
+
+    join(db, ana, group.idGrupo, beto)
+
+    subjects_ana = [m["subject"] for m in mails if m["to"] == ana.correoElectronico]
+    assert "Se agregó un integrante al grupo" not in subjects_ana
+    assert any(n.evento == "NUEVA_ACCION_GRUPO" for n in service.inbox(db, ana).notificaciones)  # la página sigue avisando
 
 
 def test_el_correo_de_novedades_respeta_la_preferencia_apagada(db, mails):
