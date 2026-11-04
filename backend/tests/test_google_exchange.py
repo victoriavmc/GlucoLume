@@ -364,7 +364,10 @@ def test_registro_institucional_con_google_conserva_el_tipo(db, mails, googleEnv
 def test_google_login_guarda_la_intencion_y_la_conserva_al_redirigir(googleEnv, monkeypatch):
     from app.api.v1 import auth as authRoutes
 
-    async def fakeRedirect(request):
+    pedidos = []
+
+    async def fakeRedirect(request, datosPersonales=False):
+        pedidos.append(datosPersonales)
         return "redirigido"
 
     monkeypatch.setattr(authRoutes.googleOAuth, "authorizeRedirect", fakeRedirect)
@@ -374,10 +377,12 @@ def test_google_login_guarda_la_intencion_y_la_conserva_al_redirigir(googleEnv, 
                        "server": ("localhost", 8000), "session": session})
     assert asyncio.run(authRoutes.googleLogin(request, "institucion", False, True)) == "redirigido"
     assert session == {"glucolume_registro": "institucion", "glucolume_politica": True, "glucolume_acceso": "GENERAL"}
+    assert pedidos == [True], "Al registrarse se piden sexo y fecha de nacimiento."
 
-    # Iniciar sesión (sin registro) descarta una intención anterior.
+    # Iniciar sesión (sin registro) descarta una intención anterior y no pide esos datos.
     assert asyncio.run(authRoutes.googleLogin(request, None)) == "redirigido"
     assert session == {"glucolume_acceso": "GENERAL"}
+    assert pedidos == [True, False]
 
     other = Request({"type": "http", "method": "GET", "path": "/api/v1/auth/google/login", "headers": [],
                      "query_string": b"registro=institucion&acepta=true", "scheme": "http",

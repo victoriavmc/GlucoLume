@@ -290,7 +290,7 @@ def test_intento_con_sesion_revocada_tras_la_baja_no_genera_alerta_de_reutilizac
 
 def test_version_de_la_politica_coincide_entre_backend_y_frontend():
     frontend = re.search(r"export const POLICY_VERSION = '([0-9.]+)';", POLICY.read_text(encoding="utf-8")).group(1)
-    assert frontend == consentService.POLICY_VERSION == "1.2"
+    assert frontend == consentService.POLICY_VERSION == "1.3"
 
 
 def test_la_politica_informa_los_90_dias_y_la_extension_por_baja():

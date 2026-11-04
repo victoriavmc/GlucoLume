@@ -29,7 +29,8 @@ from app.models.consent import Consent, EstadoConsentimiento, TipoConsentimiento
 from app.models.user import User
 from app.utils.timeZone import nowForDb
 
-POLICY_VERSION = "1.2"  # 1.2: IP y navegador anulados a 90 días desde el evento; extensión de hasta 90 días desde la eliminación (seguridad)
+POLICY_VERSION = "1.3"  # 1.3: al registrarse con Google se piden sexo y fecha de nacimiento (permisos opcionales).
+# 1.2: IP y navegador anulados a 90 días desde el evento; extensión de hasta 90 días desde la eliminación (seguridad).
 # 1.1 (19/10/2026): la auditoría guarda IP y navegador 90 días (GL-23).
 EXPERIMENTAL_VERSION = "1.0"
 CURRENT_VERSIONS = {

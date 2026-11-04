@@ -232,5 +232,5 @@ def test_extension_de_baja_solo_con_la_version_vigente_aceptada_en_sql_server(db
     db.expire_all()
     assert db.get(AuditContext, rowAceptada.idAuditoria).ipOrigen is not None  # protegida por la baja reciente (aceptó la vigente)
     assert db.get(AuditContext, rowAntigua.idAuditoria).ipOrigen is None  # sin aceptación de la versión vigente: sin extensión
-    assert POLICY_VERSION == "1.2"
+    assert POLICY_VERSION == "1.3"
 

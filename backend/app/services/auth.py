@@ -14,6 +14,7 @@
 
 import logging
 import math
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import get_args
@@ -43,7 +44,7 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenPair,
 )
-from app.schemas.user import TipoCuentaPublica, UserRead
+from app.schemas.user import USERNAME_MIN_LENGTH, TipoCuentaPublica, UserRead
 from app.services import email as emailService
 from app.models.consent import TipoConsentimiento
 from app.services import accountGrace
@@ -895,6 +896,29 @@ def _rechazarRegistroConCuentaExistente(db: Session, user: User, tipoCuenta: str
     raise AuthError(code, message)
 
 
+GOOGLE_USERNAME_FALLBACK = "usuario"
+USERNAME_MAX_LENGTH = 50
+
+
+def _usernameFromGoogleEmail(db: Session, email: str) -> str:
+    """Nombre de usuario sugerido al registrarse con Google: la parte del correo antes del "@" (sin etiqueta "+...").
+
+    Si otra cuenta ya lo usa, se agrega un número (juanp2, juanp22, ...). La persona puede cambiarlo después desde su
+    perfil, siempre que no coincida con el de otra cuenta.
+    """
+    local = email.split("@", 1)[0].split("+", 1)[0]
+    base = re.sub(r"[^\w.-]", "", local)[:USERNAME_MAX_LENGTH]
+    if len(base) < USERNAME_MIN_LENGTH:
+        base = GOOGLE_USERNAME_FALLBACK
+    candidate = base
+    number = 2
+    while userService.findUserByUsername(db, candidate) is not None:
+        suffix = str(number)
+        candidate = f"{base[:USERNAME_MAX_LENGTH - len(suffix)]}{suffix}"
+        number += 1
+    return candidate
+
+
 def _linkOrCreateGoogleUser(
     db: Session, identity: GoogleIdentity, now, tipoCuenta: str | None, aceptaPolitica: bool = False
 ) -> tuple[User, str]:
@@ -954,8 +978,12 @@ def _linkOrCreateGoogleUser(
             nombre=normalizeProperName(identity.givenName[:100]) if identity.givenName else None,
             apellido=normalizeProperName(identity.familyName[:100]) if identity.familyName else None,
             correoElectronico=email,
+            usuario=_usernameFromGoogleEmail(db, email),
             tipoCuenta=tipoCuenta,
             estado=ESTADO_ACTIVO,
+            # Datos que Google informa al registrarse (None si no los entregó o la persona no los compartió).
+            sexo=identity.sexo,
+            fechaNacimiento=identity.fechaNacimiento,
         )
         db.add(user)
         db.flush()

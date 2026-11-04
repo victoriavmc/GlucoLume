@@ -13,8 +13,8 @@ import { SkipLink } from '../../components/SkipLink.jsx';
 import { usePageMeta } from '../../utils/usePageMeta.js';
 import './PrivacyPolicy.css';
 
-export const POLICY_VERSION = '1.2';
-export const POLICY_DATE = '19 de octubre de 2026';
+export const POLICY_VERSION = '1.3';
+export const POLICY_DATE = '3 de noviembre de 2026';
 
 const CONTENTS = [
   { id: 'p-alcance', label: '1. Qué es GlucoLume y alcance de esta política' },
@@ -91,7 +91,8 @@ export default function PrivacyPolicy() {
                 documento (opcional), fecha de nacimiento o edad y sexo.
               </li>
               <li>
-                <strong>Acceso con Google (opcional):</strong> identificador de tu cuenta de Google, correo y nombre.
+                <strong>Acceso con Google (opcional):</strong> identificador de tu cuenta de Google, correo y nombre. Si te registrás
+                con Google y concedés el permiso correspondiente, también sexo y fecha de nacimiento; podés quitarlos desde tu perfil.
               </li>
               <li>
                 <strong>Seguridad y sesiones:</strong> tus sesiones abiertas y un registro de auditoría de acciones relevantes
@@ -195,7 +196,9 @@ export default function PrivacyPolicy() {
             <ul>
               <li>
                 <strong>Google (inicio de sesión con Google):</strong> solo si elegís ese método. Google recibe tu pedido de
-                autenticación y nos entrega tu identificador, correo y nombre. GlucoLume no recibe tu contraseña de Google.
+                autenticación y nos entrega tu identificador, correo y nombre. Solo al registrarte, y si concedés esos permisos,
+                también nos entrega tu sexo y tu fecha de nacimiento; no los pedimos al iniciar sesión. GlucoLume no recibe tu
+                contraseña de Google.
               </li>
               <li>
                 <strong>Proveedor de correo (SMTP):</strong> envía los correos del sistema (verificación, recuperación de

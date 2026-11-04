@@ -28,6 +28,7 @@ El consentimiento de los **pacientes institucionales** es responsabilidad de la 
 | El formulario de contacto no se guarda | `services/contact.py` solo envía correos | Coincide |
 | Sin analítica ni píxeles | `frontend/index.html` y `src/` no cargan scripts ni fuentes de terceros | Coincide |
 | Servicios externos: Google OAuth y SMTP | `integrations/google`, `integrations/email` | Coincide |
+| Google entrega identificador, correo y nombre; al registrarse, también sexo y fecha de nacimiento si la persona concede esos permisos (se pueden quitar desde el perfil) | `integrations/google/oauth.py` (`_fetchPersonalData`, solo con `datosPersonales` en el registro), `services/auth.py` (`_linkOrCreateGoogleUser`), `services/user.py` (`updateProfile` con null) | Coincide (pedido de permisos sensibles pendiente de verificación de Google para público general) |
 | La administración ve agregados, no mediciones individuales | `services/platformDashboard.py` | Coincide |
 | Eliminar la cuenta borra/anonimiza datos personales y conserva mediciones desidentificadas | `services/accountDeletion.py` | Coincide |
 | Una cuenta sin verificar se elimina a las 24 h | `services/unverifiedAccounts.py` (`EMAIL_VERIFICATION_EXPIRE_HOURS`) | Coincide |

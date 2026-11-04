@@ -45,20 +45,23 @@ PROFILE_FIELDS = ("nombre", "apellido", "usuario", "fechaNacimiento", "sexo")
 
 COMPLETADO = "COMPLETADO"  # antes NULL, ahora con valor
 ACTUALIZADO = "ACTUALIZADO"  # tenía valor y se reemplazó por otro distinto
+BORRADO = "BORRADO"  # tenía valor y la persona lo quitó (solo fechaNacimiento y sexo)
 MANTENIDO = "MANTENIDO"  # se envió, pero el valor final es igual al existente
-REAL_CHANGES = (COMPLETADO, ACTUALIZADO)
+REAL_CHANGES = (COMPLETADO, ACTUALIZADO, BORRADO)
 
 
 def _fieldState(previous, new) -> str:
     if new == previous:
         return MANTENIDO
+    if new is None:
+        return BORRADO
     return COMPLETADO if previous is None else ACTUALIZADO
 
 
 def _auditObservation(states: dict[str, str]) -> str:
     """Texto legible con los campos que cambiaron realmente; sin valores personales."""
     parts = []
-    for state, verb in ((ACTUALIZADO, "actualizaron"), (COMPLETADO, "completaron")):
+    for state, verb in ((ACTUALIZADO, "actualizaron"), (COMPLETADO, "completaron"), (BORRADO, "quitaron")):
         fields = [field for field, fieldState in states.items() if fieldState == state]
         if fields:
             parts.append(f"Se {verb} los campos: {', '.join(fields)}.")

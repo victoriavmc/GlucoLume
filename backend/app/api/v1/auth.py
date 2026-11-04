@@ -212,7 +212,8 @@ async def googleLogin(
     if acepta:
         request.session[GOOGLE_POLICY_KEY] = True
     request.session[GOOGLE_ACCESO_KEY] = acceso
-    return await googleOAuth.authorizeRedirect(request)
+    # Sexo y fecha de nacimiento solo se piden al registrarse: iniciar sesión no cambia los permisos de la cuenta.
+    return await googleOAuth.authorizeRedirect(request, datosPersonales=registro is not None)
 
 
 @router.get(

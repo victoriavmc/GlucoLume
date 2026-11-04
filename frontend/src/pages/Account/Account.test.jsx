@@ -142,6 +142,27 @@ describe('Perfil', () => {
     expect(within(sidebar()).getByText('@vicky_2026')).toBeInTheDocument();
   });
 
+  it('quitar la fecha de nacimiento y el sexo envía null', async () => {
+    const updated = {
+      ...PROFILE,
+      usuario: { ...PROFILE.usuario, fechaNacimiento: null, sexo: null },
+      actualizado: true,
+      detail: 'Se registraron los cambios.',
+    };
+    const { calls } = withSession(PROFILE, { 'PATCH /auth/me/profile': jsonResponse(200, updated) });
+    const user = userEvent.setup();
+    renderAt('/app/perfil');
+    await user.click(await screen.findByRole('button', { name: 'Editar perfil' }));
+
+    await user.clear(screen.getByLabelText('Fecha de nacimiento'));
+    await user.selectOptions(screen.getByLabelText('Sexo'), '');
+    await user.click(screen.getByRole('button', { name: /Guardar cambios/ }));
+
+    expect(await screen.findByText('Se registraron los cambios.')).toBeInTheDocument();
+    const patch = calls.find((c) => c.key === 'PATCH /auth/me/profile');
+    expect(patch.body).toEqual({ fechaNacimiento: null, sexo: null });
+  });
+
   it('cancelar restaura los valores y no llama al backend', async () => {
     const { calls } = withSession();
     const user = userEvent.setup();
@@ -188,13 +209,13 @@ describe('Perfil', () => {
     expect(calls.some((c) => c.key === 'PATCH /auth/me/profile')).toBe(false);
   });
 
-  it('el sexo solo ofrece los valores admitidos por la base', async () => {
+  it('el sexo solo ofrece los valores admitidos por la base, más "No informar" para quitarlo', async () => {
     withSession();
     const user = userEvent.setup();
     renderAt('/app/perfil');
     await user.click(await screen.findByRole('button', { name: 'Editar perfil' }));
     const options = [...screen.getByLabelText('Sexo').options].map((option) => option.value);
-    expect(options).toEqual(['FEMENINO', 'MASCULINO']);
+    expect(options).toEqual(['', 'FEMENINO', 'MASCULINO']);
   });
 
   it('cuenta de Google sin usuario: no hay aviso obligatorio y, al editar el perfil, se pide el usuario', async () => {

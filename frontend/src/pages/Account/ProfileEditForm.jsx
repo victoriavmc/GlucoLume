@@ -1,8 +1,8 @@
 // Edición del perfil con PATCH /auth/me/profile.
 //
 // Editables (UserProfileUpdate): nombre, apellido, usuario, fechaNacimiento, sexo. Solo se envían los
-// campos que cambiaron. Ninguno admite null en el backend: un dato ya completado no puede vaciarse.
-// El correo no es editable: el backend no tiene endpoint para cambiarlo.
+// campos que cambiaron. Nombre, apellido y usuario no admiten vacío; fecha de nacimiento y sexo son opcionales y
+// se quitan enviando null. El correo no es editable: el backend no tiene endpoint para cambiarlo.
 
 import { AtSign, CalendarDays, Mail, Save, User, X } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -15,6 +15,8 @@ import { usernameError } from '../../utils/validation.js';
 import { SEXO_OPTIONS, ageFrom, todayIso } from './accountFormat.js';
 
 const FIELDS = ['nombre', 'apellido', 'usuario', 'fechaNacimiento', 'sexo'];
+// Opcionales: la persona puede quitarlos (se envían como null).
+const OPTIONAL_FIELDS = ['fechaNacimiento', 'sexo'];
 const MAX_AGE = 130; // EDAD_MAXIMA del backend
 
 function initialForm(user) {
@@ -24,8 +26,10 @@ function initialForm(user) {
 function validate(form, user) {
   const errors = {};
   for (const field of FIELDS) {
-    // Un dato que ya tenía valor no puede quedar vacío (el backend no admite null).
-    if (user[field] && !String(form[field]).trim()) errors[field] = 'Este dato no puede quedar vacío.';
+    // Un dato obligatorio que ya tenía valor no puede quedar vacío (el backend no admite null).
+    if (!OPTIONAL_FIELDS.includes(field) && user[field] && !String(form[field]).trim()) {
+      errors[field] = 'Este dato no puede quedar vacío.';
+    }
   }
   if (form.usuario.trim() || user.usuario === null) {
     const error = usernameError(form.usuario);
@@ -42,7 +46,13 @@ function changedFields(form, user) {
   const changes = {};
   for (const field of FIELDS) {
     const value = typeof form[field] === 'string' ? form[field].trim() : form[field];
-    if (value && value !== (user[field] ?? '')) changes[field] = value;
+    if (OPTIONAL_FIELDS.includes(field)) {
+      // Campo vacío = quitar el dato (null), solo si antes tenía valor.
+      const next = value || null;
+      if (next !== (user[field] ?? null)) changes[field] = next;
+    } else if (value && value !== (user[field] ?? '')) {
+      changes[field] = value;
+    }
   }
   return changes;
 }
@@ -139,7 +149,7 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
           </label>
           <select id={ids.sexo} className="field-input field-select" value={form.sexo} onChange={update('sexo')}
             aria-invalid={fieldErrors.sexo ? 'true' : undefined}>
-            {!user.sexo && <option value="">Seleccioná una opción</option>}
+            <option value="">No informar</option>
             {SEXO_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>
                 {label}
@@ -151,7 +161,7 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
       </div>
       <p className="field-hint">
         La fecha de nacimiento y el sexo son opcionales. Se recomiendan porque ayudan a que la estimación experimental sea más
-        precisa, pero no hacen falta para medir.
+        precisa, pero no hacen falta para medir. Si ya los informaste y querés quitarlos, dejá el campo vacío y guardá.
       </p>
       <p className="field-hint" id={`${ids.fecha}-correo`}>
         El correo electrónico no puede modificarse desde aquí.

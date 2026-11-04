@@ -106,7 +106,8 @@ class UserRead(UserBase):
 class UserProfileUpdate(BaseModel):
     """Completar o actualizar los datos personales base del Usuario autenticado.
 
-    Los campos omitidos no se modifican. Ninguno admite null: una vez completados no se borran.
+    Los campos omitidos no se modifican. Nombre, apellido y usuario no admiten null: una vez completados no se borran.
+    La fecha de nacimiento y el sexo son opcionales: enviar null los quita (la persona puede dejar de informarlos).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -118,7 +119,7 @@ class UserProfileUpdate(BaseModel):
     fechaNacimiento: date | None = None
     sexo: Sexo | None = None
 
-    @field_validator("nombre", "apellido", "usuario", "fechaNacimiento", "sexo", mode="before")
+    @field_validator("nombre", "apellido", "usuario", mode="before")
     @classmethod
     def rechazarNulo(cls, value):
         if value is None:
