@@ -88,6 +88,16 @@ def getRetentionSessionFactory() -> sessionmaker[Session]:
 
 
 @lru_cache
+def getDemoSessionFactory() -> sessionmaker[Session]:
+    """Sesiones de la limpieza de datos DEMO (DB_DEMO_USER). Sin esa cuenta no hay fallback: la API no puede borrar instituciones ni perfiles."""
+    settings = getSettings()
+    if settings.DB_DEMO_USER is None or settings.DB_DEMO_PASSWORD is None:
+        raise RuntimeError("Falta DB_DEMO_USER y DB_DEMO_PASSWORD: la limpieza de datos demo no se ejecuta sin su cuenta propia.")
+    return sessionmaker(bind=_createEngine(settings.DB_DEMO_USER, settings.DB_DEMO_PASSWORD.get_secret_value()),
+                        autoflush=False, expire_on_commit=False)
+
+
+@lru_cache
 def getSessionFactory() -> sessionmaker[Session]:
     return sessionmaker(bind=getEngine(), autoflush=False, expire_on_commit=False)
 

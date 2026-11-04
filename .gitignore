@@ -126,3 +126,8 @@ build/
 
 
 graphify-out/
+
+# Demo: credenciales de demostración (contienen contraseñas). Nunca al repositorio, a commits ni a imágenes Docker.
+**/credenciales-demo*
+**/GlucoLumeDemo/
+**/*demo-secrets*

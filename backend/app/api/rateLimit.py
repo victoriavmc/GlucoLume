@@ -27,6 +27,7 @@ LIMITS: dict[str, tuple[int, int]] = {
     "resend": (5, 15 * 60),
     "passwordForgot": (5, 15 * 60),
     "passwordReset": (10, 15 * 60),
+    "passwordCode": (10, 15 * 60),  # código por correo para cambiar la contraseña (cuenta administrativa sin MFA); además, 1/min y 3/h por cuenta
     "mfa": (30, 10 * 60),
     "mfaRecovery": (10, 15 * 60),
     "googleExchange": (30, 10 * 60),

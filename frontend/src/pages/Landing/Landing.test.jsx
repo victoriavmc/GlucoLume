@@ -90,8 +90,16 @@ describe("Landing: estructura", () => {
         /manteniendo el control sobre la información personal/,
       ),
     ).toBeInTheDocument();
-    for (const role of ["Propietario/a", "Moderador/a", "Integrante"])
+    for (const role of ["Administrador/a", "Miembro"])
       expect(within(group).getByText(role)).toBeInTheDocument();
+    for (const permission of [
+      "Datos básicos del perfil",
+      "Última medición",
+      "Historial de mediciones",
+      "Aviso de medición",
+    ])
+      expect(within(group).getByText(permission)).toBeInTheDocument();
+    expect(within(group).queryByText("Moderador/a")).not.toBeInTheDocument();
     expect(
       within(group).getByText(/no da acceso automático/),
     ).toBeInTheDocument();

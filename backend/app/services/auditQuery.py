@@ -334,7 +334,7 @@ ACTION_LABELS = {
     "CONSULTAR_AUDITORIA": "Consulta de la auditoría", "CONSULTAR_MEDICIONES_PACIENTE": "Consulta de las mediciones de un paciente", "CONSULTAR_AUDITORIA_GLOBAL": "Consulta de la auditoría general",
     "INICIALIZAR_ADMINISTRADOR": "Inicialización del administrador", "INVITAR_MODERADOR_PLATAFORMA": "Invitación a moderación de plataforma",
     "REENVIAR_INVITACION_PLATAFORMA": "Reenvío de invitación a la plataforma", "REVOCAR_MODERADOR_PLATAFORMA": "Baja de moderación de plataforma",
-    "ACTIVAR_CUENTA_PLATAFORMA": "Activación de cuenta de plataforma", "CAMBIAR_PASSWORD_PLATAFORMA": "Cambio de contraseña de plataforma",
+    "ACTIVAR_CUENTA_PLATAFORMA": "Activación de cuenta de plataforma", "CAMBIAR_PASSWORD_PLATAFORMA": "Cambio de contraseña de plataforma", "CODIGO_CAMBIO_PASSWORD_SOLICITADO": "Código para cambiar la contraseña solicitado",
     "RESTABLECER_PASSWORD_PLATAFORMA": "Restablecimiento de contraseña de plataforma", "RESTABLECER_PASSWORD_MODERADOR": "Restablecimiento de contraseña de moderación",
     "ACCESO_PLATAFORMA_DENEGADO": "Acceso a la plataforma denegado", "OPERACION_PLATAFORMA_DENEGADA": "Operación de plataforma denegada",
     "REAUTENTICACION_FALLIDA": "Reautenticación fallida",

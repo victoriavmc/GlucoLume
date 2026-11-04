@@ -813,6 +813,43 @@ describe('Cuenta', () => {
     });
   });
 
+  it('sin MFA activo pide el código al correo registrado antes de cambiar la contraseña', async () => {
+    const { calls } = panel(me({ mfaHabilitado: false, requiereConfigurarMfa: true }), { ...ADMIN_ACCOUNT, mfaHabilitado: false }, {
+      'POST /platform/password/code': jsonResponse(200, { correoEnmascarado: 'ad***@example.com', vigenciaMinutos: 10 }),
+      'POST /platform/password/change': jsonResponse(200, { mensaje: 'Cambiaste tu contraseña. Cerramos tus otras sesiones.' }),
+    });
+    const user = userEvent.setup();
+    renderAt('/plataforma/cambiar-contrasena');
+    await user.type(await screen.findByLabelText('Contraseña actual'), 'Clave#2026');
+    await user.click(screen.getByRole('button', { name: 'Enviar código por correo' }));
+    expect(await screen.findByText(/Te enviamos el código a ad\*\*\*@example\.com/)).toBeInTheDocument();
+    expect(calls.find((call) => call.key === 'POST /platform/password/code').body).toEqual({ passwordActual: 'Clave#2026' });
+    await user.type(screen.getByLabelText('Contraseña nueva'), 'Zorro#Lento-2027');
+    await user.type(screen.getByLabelText('Confirmar contraseña nueva'), 'Zorro#Lento-2027');
+    await user.type(screen.getByLabelText('Código que te enviamos por correo (6 dígitos)'), '482913');
+    await user.click(screen.getByRole('button', { name: 'Cambiar contraseña' }));
+    expect(await screen.findByText('Cambiaste tu contraseña. Cerramos tus otras sesiones.')).toBeInTheDocument();
+    expect(calls.find((call) => call.key === 'POST /platform/password/change').body).toEqual({
+      passwordActual: 'Clave#2026', passwordNueva: 'Zorro#Lento-2027', confirmacion: 'Zorro#Lento-2027', codigoCorreo: '482913',
+    });
+  });
+
+  it('sin MFA y sin ser obligatorio, cambia la contraseña sin pedir código', async () => {
+    const { calls } = panel(me({ mfaHabilitado: false, mfaRequerida: false, requiereConfigurarMfa: false }), { ...ADMIN_ACCOUNT, mfaHabilitado: false },
+      { 'POST /platform/password/change': jsonResponse(200, { mensaje: 'Cambiaste tu contraseña. Cerramos tus otras sesiones.' }) });
+    const user = userEvent.setup();
+    renderAt('/plataforma/cambiar-contrasena');
+    expect(screen.queryByLabelText(/Código/)).not.toBeInTheDocument();
+    await user.type(await screen.findByLabelText('Contraseña actual'), 'Clave#2026');
+    await user.type(screen.getByLabelText('Contraseña nueva'), 'Zorro#Lento-2027');
+    await user.type(screen.getByLabelText('Confirmar contraseña nueva'), 'Zorro#Lento-2027');
+    await user.click(screen.getByRole('button', { name: 'Cambiar contraseña' }));
+    expect(await screen.findByText('Cambiaste tu contraseña. Cerramos tus otras sesiones.')).toBeInTheDocument();
+    expect(calls.find((call) => call.key === 'POST /platform/password/change').body).toEqual({
+      passwordActual: 'Clave#2026', passwordNueva: 'Zorro#Lento-2027', confirmacion: 'Zorro#Lento-2027',
+    });
+  });
+
   it('una cuenta solo Google puede crear una contraseña local desde el panel', async () => {
     const google = me({ tieneCredencialLocal: false, tieneGoogle: true });
     const { calls } = panel(google, ADMIN_ACCOUNT, {

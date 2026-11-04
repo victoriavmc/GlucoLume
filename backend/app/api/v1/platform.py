@@ -31,6 +31,8 @@ from app.schemas.platform import (
     ModeratorInvite,
     ModeratorRead,
     PasswordChange,
+    PasswordCodeRequest,
+    PasswordCodeSent,
     PlatformDashboard,
     PlatformMe,
     ReauthenticatedAction,
@@ -41,7 +43,7 @@ from app.schemas.platform import (
     TransferStart,
 )
 from app.services import platform as platformService
-from app.services import platformDashboard, platformInstitutions
+from app.services import passwordChangeCode, platformDashboard, platformInstitutions
 from app.utils.userAgent import ClientInfo, describeClient
 
 router = APIRouter(prefix="/platform", tags=["platform"])
@@ -222,12 +224,23 @@ def rejectTransfer(data: ReauthenticatedAction, auth: PlatformSecure, db: DbSess
 # --- Contraseña propia ----------------------------------------------------------------------------------------------
 
 
+@router.post("/password/code", dependencies=[rateLimit("passwordCode")], response_model=PasswordCodeSent,
+             summary="Pedir el código por correo para cambiar la contraseña",
+             description="Solo cuentas administrativas sin MFA activo. Exige la contraseña actual y envía un código de 6 dígitos "
+             "al correo registrado: vence en 10 minutos, es de un solo uso y se pide como máximo una vez por minuto.")
+def requestPasswordCode(data: PasswordCodeRequest, auth: PlatformAccess, db: DbSession):
+    masked = platformService.requestPasswordChangeCode(db, auth.user, data.passwordActual.get_secret_value())
+    return PasswordCodeSent(correoEnmascarado=masked, vigenciaMinutos=passwordChangeCode.CODE_VALIDITY_MINUTES)
+
+
 @router.post("/password/change", response_model=MessageResponse, summary="Cambiar la propia contraseña",
-             description="Contraseña actual (si hay credencial local), nueva con confirmación y código MFA. Cierra las demás sesiones.")
+             description="Contraseña actual (si hay credencial local), nueva con confirmación y código MFA; sin MFA activo, el código "
+             "que llegó al correo (POST /platform/password/code). Cierra las demás sesiones.")
 def changePassword(data: PasswordChange, auth: PlatformAccess, db: DbSession):
     platformService.changeOwnPassword(
         db, auth.user, auth.session, data.passwordActual.get_secret_value() if data.passwordActual else None,
-        data.passwordNueva.get_secret_value(), data.confirmacion.get_secret_value(), data.codigo, data.codigoRecuperacion)
+        data.passwordNueva.get_secret_value(), data.confirmacion.get_secret_value(), data.codigo, data.codigoRecuperacion,
+        codigoCorreo=data.codigoCorreo)
     return MessageResponse(mensaje="Cambiaste tu contraseña. Cerramos tus otras sesiones.")
 
 

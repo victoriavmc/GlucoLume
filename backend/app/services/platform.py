@@ -47,7 +47,7 @@ from app.schemas.platform import (
 from app.models import notificationEvents as avisos
 from app.services import auth as authService
 from app.services import email as emailService
-from app.services import mfa
+from app.services import mfa, passwordChangeCode
 from app.services import userNotifications
 from app.services.audit import registerEvent
 from app.utils.timeZone import nowForDb
@@ -122,8 +122,12 @@ def requirePermission(db: Session, user: User, permission: str) -> None:
         raise _error("PERMISO_INSUFICIENTE", "Tu rol no permite esta operación.")
 
 
-def reauthenticate(db: Session, user: User, data: Reauthentication, action: str) -> None:
-    """Reautenticación reforzada: contraseña (si hay credencial local) y código MFA. Cualquier fallo se registra."""
+def reauthenticate(db: Session, user: User, data: Reauthentication, action: str, *, correoPermitido: bool = False,
+                   codigoCorreo: str | None = None) -> None:
+    """Reautenticación reforzada: contraseña (si hay credencial local) y código MFA. Cualquier fallo se registra.
+
+    `correoPermitido`: solo el cambio de contraseña admite, sin MFA activo, el código que llegó al correo registrado.
+    """
     credential = db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == user.idUsuario))
     ok = True
     if credential is not None:
@@ -141,7 +145,12 @@ def reauthenticate(db: Session, user: User, data: Reauthentication, action: str)
                     ok = False
                     raise
         elif mfaRequired():
-            raise _error("MFA_REQUERIDA_PLATAFORMA", "Activá la verificación en dos pasos para confirmar esta acción.")
+            if not correoPermitido:
+                raise _error("MFA_REQUERIDA_PLATAFORMA", "Activá la verificación en dos pasos para confirmar esta acción.")
+            if not codigoCorreo:
+                raise _error("CODIGO_CORREO_REQUERIDO", "Pedí el código que te enviamos por correo para confirmar el cambio.")
+            # Se consume aquí; un código incorrecto queda invalidado y no reabre el intento.
+            passwordChangeCode.verifyCode(db, user, codigoCorreo)
     if not ok:
         registerEvent(db, "PERMISO", "REAUTENTICACION_FALLIDA", False, user.idUsuario, "Usuario", user.idUsuario,
                       modulo=MODULE, observacion=action, motivo="REAUTENTICACION_INVALIDA")
@@ -520,16 +529,27 @@ def resetPassword(db: Session, token: str, password: str) -> None:
                                                 {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
 
 
+def requestPasswordChangeCode(db: Session, user: User, actual: str) -> str:
+    """Cuenta administrativa sin MFA activo: envía al correo registrado el código para cambiar la contraseña."""
+    requirePlatformAccount(db, user)
+    if not mfaRequired() or mfa.isEnabled(db, user):
+        raise _error("CODIGO_CORREO_NO_APLICA", "El código por correo es solo para cambiar la contraseña sin MFA activo. Usá el código de tu aplicación.")
+    return passwordChangeCode.requestCode(db, user, actual)
+
+
 def changeOwnPassword(db: Session, user: User, currentSession: UserSession, actual: str | None, new: str,
-                      confirmation: str, codigo: str | None, codigoRecuperacion: str | None) -> None:
-    """Cambia la propia contraseña: contraseña actual + MFA. Cierra las demás sesiones y conserva la actual."""
+                      confirmation: str, codigo: str | None, codigoRecuperacion: str | None,
+                      codigoCorreo: str | None = None) -> None:
+    """Cambia la propia contraseña: contraseña actual + MFA (o, sin MFA activo, el código del correo). Cierra las demás
+    sesiones y conserva la actual."""
     requirePlatformAccount(db, user)
     if new != confirmation:
         raise _error("CONFIRMACION_INVALIDA", "La confirmación no coincide con la nueva contraseña.")
     credential = db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == user.idUsuario))
     if credential is None:
         raise _error("CUENTA_SOLO_GOOGLE", "Tu cuenta ingresa con Google y no tiene contraseña local.")
-    reauthenticate(db, user, Reauthentication(password=actual, codigo=codigo, codigoRecuperacion=codigoRecuperacion), "CAMBIAR_PASSWORD")
+    reauthenticate(db, user, Reauthentication(password=actual, codigo=codigo, codigoRecuperacion=codigoRecuperacion), "CAMBIAR_PASSWORD",
+                   correoPermitido=True, codigoCorreo=codigoCorreo)
     authService._requirePasswordPolicy(new, user.usuario, user.correoElectronico, user.nombre, user.apellido)
     if (error := authService.previousPasswordError(db, credential, new)) is not None:
         raise error

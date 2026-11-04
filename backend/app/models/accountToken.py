@@ -26,6 +26,7 @@ class TipoTokenCuenta(StrEnum):
     INTERCAMBIO_GOOGLE = "INTERCAMBIO_GOOGLE"  # 006_intercambio_google.sql
     RECUPERACION_MFA = "RECUPERACION_MFA"  # 007_recuperacion_mfa.sql
     ACTIVACION_CUENTA = "ACTIVACION_CUENTA"  # 011_activacion_cuenta_invitada.sql
+    CODIGO_CAMBIO_PASSWORD = "CODIGO_CAMBIO_PASSWORD"  # services/passwordChangeCode.py; migración GlucoLume_migracion_codigo_cambio_password.sql
 
 
 TOKEN_TYPE_CHECK_NAME = "CK_TokenCuenta_tipo"

@@ -56,15 +56,19 @@ def auditAppendOnly():
     assert not violations, "La aplicación modificó o borró auditoría fuera de auditRetention.py (GL-03): " + "; ".join(violations)
 
 
-def _grantedDeletes() -> dict[str, set[str]]:
-    """Tablas con GRANT DELETE por rol en database/reference/GlucoLume_permisos.sql (lectura del script, nunca de una base)."""
+def _grantedDeletes(includeDemo: bool = False) -> dict[str, set[str]]:
+    """Tablas con GRANT DELETE por rol en database/reference/GlucoLume_permisos.sql (lectura del script, nunca de una base).
+    `includeDemo` suma el rol propio de la limpieza de datos DEMO (GlucoLume_demo_permisos.sql), solo para la guarda de borrados."""
     import re
     from pathlib import Path
 
-    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_permisos.sql").read_text(encoding="utf-8")
     granted: dict[str, set[str]] = {}
-    for table, role in re.findall(r"^GRANT DELETE ON OBJECT::dbo\.(\w+) TO (\w+);", script, re.M):
-        granted.setdefault(role, set()).add(table)
+    reference = Path(__file__).resolve().parents[2] / "database" / "reference"
+    scripts = ("GlucoLume_permisos.sql", "GlucoLume_demo_permisos.sql") if includeDemo else ("GlucoLume_permisos.sql",)
+    for script in scripts:
+        text = (reference / script).read_text(encoding="utf-8")
+        for table, role in re.findall(r"^GRANT DELETE ON OBJECT::dbo\.(\w+) TO (\w+);", text, re.M):
+            granted.setdefault(role, set()).add(table)
     return granted
 
 
@@ -95,13 +99,15 @@ def deleteGrants():
             if "/backend/app/" in path:
                 retentionFiles = ("/app/services/auditRetention.py", "/app/services/notificationRetention.py")
                 role = "rol_glucolume_retencion" if path.endswith(retentionFiles) else "rol_glucolume_api"
+                if path.endswith("/app/demo/limpieza.py"):
+                    role = "rol_glucolume_demo_limpieza"
                 found.append((match.group(1), role, f"{path.split('/backend/', 1)[1]}:{frame.lineno}"))
                 return
 
     event.listen(Engine, "before_cursor_execute", check)
     yield
     event.remove(Engine, "before_cursor_execute", check)
-    granted = _grantedDeletes()
+    granted = _grantedDeletes(includeDemo=True)
     missing = [f"{origin}: DELETE sobre {table} sin GRANT para {role}" for table, role, origin in found if table not in granted.get(role, set())]
     assert not missing, "El codigo borra tablas sin permiso en GlucoLume_permisos.sql (H-02): " + "; ".join(sorted(set(missing)))
 

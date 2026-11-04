@@ -19,6 +19,8 @@ class EmailEventType(StrEnum):
     # Contraseña (nombres de evento, no secretos: falsos positivos de bandit B105)
     RECUPERACION_PASSWORD = "RECUPERACION_PASSWORD"  # nosec B105
     PASSWORD_CAMBIADA = "PASSWORD_CAMBIADA"  # nosec B105
+    # Código para confirmar el cambio de contraseña de una cuenta administrativa que todavía no tiene MFA.
+    CODIGO_CAMBIO_PASSWORD = "CODIGO_CAMBIO_PASSWORD"  # nosec B105
     # Seguridad
     NUEVO_INICIO_SESION = "NUEVO_INICIO_SESION"
     INTENTO_ACCESO_INUSUAL = "INTENTO_ACCESO_INUSUAL"
@@ -222,6 +224,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     _E.RECUPERACION_MFA_DESVINCULAR: EmailEventSpec(
         "mfa/recuperacionMfa.html", "Código para recuperar la verificación en dos pasos - GlucoLume", CATEGORIA_MFA,
         ("codigoSeguridad", "minutosValidez", "urlSeguridad"), ("urlSeguridad",), securityNotice=True, highPriority=True,
+    ),
+    _E.CODIGO_CAMBIO_PASSWORD: EmailEventSpec(
+        "mfa/codigoCambioPassword.html", "Tu código para cambiar la contraseña - GlucoLume", CATEGORIA_MFA,
+        ("codigoSeguridad", "minutosValidez"), securityNotice=True, highPriority=True,
     ),
     _E.CODIGO_MFA_EMAIL: EmailEventSpec(
         "mfa/codigoMfaEmail.html", "Tu código de verificación de GlucoLume", CATEGORIA_MFA,

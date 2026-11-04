@@ -78,6 +78,7 @@ def sampleContexts() -> dict[E, dict]:
         E.MFA_ACTIVADO: {**base, "fechaEvento": now, "metodo": "TOTP", "urlSeguridad": security},
         E.MFA_DESACTIVADO: {**base, "fechaEvento": now, "urlSeguridad": security},
         E.CODIGO_MFA_EMAIL: {**base, "codigoMfa": "000000", "minutosValidez": 5},
+        E.CODIGO_CAMBIO_PASSWORD: {**base, "codigoSeguridad": "482913", "minutosValidez": 10, "urlSeguridad": security},
         E.METODO_MFA_CAMBIADO: {
             **base, "metodoAnterior": "EMAIL", "metodoNuevo": "TOTP", "fechaEvento": now, "urlSeguridad": security,
         },

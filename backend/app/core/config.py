@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # no corre: no hay fallback a una cuenta con más permisos.
     DB_RETENCION_USER: str | None = None
     DB_RETENCION_PASSWORD: SecretStr | None = None
+    # Cuenta de la limpieza de datos DEMO (app/demo/limpieza.py, rol rol_glucolume_demo_limpieza, database/reference/
+    # GlucoLume_demo_permisos.sql). Opcional: sin ella, la limpieza demo no se ejecuta. Nunca es la cuenta de la API.
+    DB_DEMO_USER: str | None = None
+    DB_DEMO_PASSWORD: SecretStr | None = None
 
     # JWT de acceso
     JWT_SECRET: SecretStr
@@ -477,6 +481,14 @@ class Settings(BaseSettings):
         if self.API_ENV == "production" and self.DB_TRUST_SERVER_CERTIFICATE:
             raise ValueError("DB_TRUST_SERVER_CERTIFICATE=true no se admite en producción: configurar un certificado confiable o "
                              "fijarlo con DB_SERVER_CERTIFICATE.")
+        return self
+
+    @model_validator(mode="after")
+    def validarCuentaDeLimpiezaDemo(self) -> "Settings":
+        if (self.DB_DEMO_USER is None) != (self.DB_DEMO_PASSWORD is None):
+            raise ValueError("DB_DEMO_USER y DB_DEMO_PASSWORD se definen juntas (o ninguna).")
+        if self.DB_DEMO_USER is not None and self.DB_DEMO_USER == self.DB_USER:
+            raise ValueError("DB_DEMO_USER debe ser una cuenta distinta de DB_USER: la de la API no borra datos.")
         return self
 
     @model_validator(mode="after")

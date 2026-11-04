@@ -82,6 +82,19 @@ class PasswordChange(BaseModel):
     confirmacion: Annotated[SecretStr, Field(min_length=1, max_length=256)]
     codigo: Annotated[str, Field(min_length=6, max_length=10)] | None = None
     codigoRecuperacion: Annotated[str, Field(min_length=4, max_length=40)] | None = None
+    # Solo cuentas administrativas sin MFA: el código de 6 dígitos que llegó al correo (POST /platform/password/code).
+    codigoCorreo: Annotated[str, Field(min_length=6, max_length=6, pattern=r"^\d{6}$")] | None = None
+
+
+class PasswordCodeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    passwordActual: Annotated[SecretStr, Field(min_length=1, max_length=256)]
+
+
+class PasswordCodeSent(BaseModel):
+    correoEnmascarado: str
+    vigenciaMinutos: int
 
 
 class ForgotPassword(BaseModel):

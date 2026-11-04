@@ -17,3 +17,8 @@ requirements-dev.txt
 *.md
 Dockerfile
 .dockerignore
+
+# Demo: archivo privado de credenciales de demostración (contraseñas).
+**/credenciales-demo*
+**/GlucoLumeDemo/
+**/*demo-secrets*

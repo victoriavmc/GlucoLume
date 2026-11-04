@@ -45,6 +45,8 @@ export const rejectTransfer = (reautenticacion) => post('/transfer/reject', { re
 
 // Contraseña propia.
 export const changePassword = (data) => post('/password/change', data);
+/** Cuenta sin MFA: envía al correo registrado el código para cambiar la contraseña (exige la actual). */
+export const requestPasswordCode = (passwordActual) => post('/password/code', { passwordActual });
 
 // Sin sesión: invitación y recuperación.
 /** Activación con el código de un solo uso + los datos de la invitación. El rol NO viaja: lo fija la invitación en el servidor. */

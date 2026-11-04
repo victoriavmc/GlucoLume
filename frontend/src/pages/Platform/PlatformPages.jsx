@@ -436,7 +436,30 @@ export function PlatformPasswordPage() {
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
   const [busy, setBusy] = useState(false);
+  const [codeSentTo, setCodeSentTo] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
   const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  // Con MFA, el código es el de la aplicación. Sin MFA, la política lo exige igual y llega por correo al registrado.
+  const porCorreo = !me.mfaHabilitado && me.mfaRequerida;
+  const usaCodigo = me.mfaHabilitado || porCorreo;
+  const campoCodigo = me.mfaHabilitado ? 'codigo' : 'codigoCorreo';
+
+  async function requestCode() {
+    if (!form.actual) {
+      setErrors({ actual: 'Ingresá tu contraseña actual.' });
+      return;
+    }
+    setSendingCode(true);
+    setError('');
+    try {
+      const sent = await platformApi.requestPasswordCode(form.actual);
+      setCodeSentTo(sent.correoEnmascarado);
+    } catch (requestError) {
+      setError(friendlyError(requestError));
+    } finally {
+      setSendingCode(false);
+    }
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -445,16 +468,18 @@ export function PlatformPasswordPage() {
     if (me.tieneCredencialLocal && !form.actual) next.actual = 'Ingresá tu contraseña actual.';
     if (!passwordMeetsPolicy(form.nueva)) next.nueva = 'La contraseña no cumple todos los requisitos.';
     if (form.confirmacion !== form.nueva) next.confirmacion = 'Las contraseñas no coinciden.';
-    if (!/^\d{6}$/.test(form.codigo.trim())) next.codigo = 'Ingresá el código de 6 dígitos.';
+    if (usaCodigo && !/^\d{6}$/.test(form.codigo.trim())) next.codigo = 'Ingresá el código de 6 dígitos.';
     setErrors(next);
     if (Object.keys(next).length) return;
     setBusy(true);
     setError('');
     try {
       const result = await platformApi.changePassword({
-        ...(me.tieneCredencialLocal ? { passwordActual: form.actual } : {}), passwordNueva: form.nueva, confirmacion: form.confirmacion, codigo: form.codigo.trim(),
+        ...(me.tieneCredencialLocal ? { passwordActual: form.actual } : {}), passwordNueva: form.nueva, confirmacion: form.confirmacion,
+        ...(usaCodigo ? { [campoCodigo]: form.codigo.trim() } : {}),
       });
       setDone(result.mensaje);
+      setCodeSentTo('');
       setForm({ actual: '', nueva: '', confirmacion: '', codigo: '' });
     } catch (changeError) {
       setError(friendlyError(changeError));
@@ -487,8 +512,25 @@ export function PlatformPasswordPage() {
           <TextField label="Contraseña nueva" revealable autoComplete="new-password" maxLength={128} value={form.nueva} onChange={update('nueva')} error={errors.nueva} aria-describedby={rulesId} />
           <PasswordRules value={form.nueva} id={rulesId} />
           <TextField label="Confirmar contraseña nueva" revealable autoComplete="new-password" maxLength={128} value={form.confirmacion} onChange={update('confirmacion')} error={errors.confirmacion} />
-          <TextField label="Código de verificación (6 dígitos)" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={form.codigo}
-            onChange={(event) => setForm((current) => ({ ...current, codigo: event.target.value.replace(/\D/g, '') }))} error={errors.codigo} />
+          {porCorreo && (
+            <>
+              <p className="field-hint">
+                Tu cuenta todavía no tiene verificación en dos pasos (MFA). Para confirmar el cambio te enviamos un código de 6 dígitos al correo registrado.
+                {' '}<Link to="/plataforma/seguridad">Activá MFA</Link> para usar tu aplicación.
+              </p>
+              {codeSentTo && <Alert kind="success">Te enviamos el código a {codeSentTo}. Vence en 10 minutos.</Alert>}
+              <div className="form-actions">
+                <button type="button" className="btn btn-outline" onClick={requestCode} disabled={sendingCode}>
+                  {sendingCode ? 'Enviando…' : codeSentTo ? 'Reenviar código por correo' : 'Enviar código por correo'}
+                </button>
+              </div>
+            </>
+          )}
+          {usaCodigo && (
+            <TextField label={me.mfaHabilitado ? 'Código de verificación (6 dígitos)' : 'Código que te enviamos por correo (6 dígitos)'}
+              inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={form.codigo}
+              onChange={(event) => setForm((current) => ({ ...current, codigo: event.target.value.replace(/\D/g, '') }))} error={errors.codigo} />
+          )}
           <div className="form-actions"><SubmitButton loading={busy} loadingLabel="Guardando…">Cambiar contraseña</SubmitButton></div>
         </form>
       )}

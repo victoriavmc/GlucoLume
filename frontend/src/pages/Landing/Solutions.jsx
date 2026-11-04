@@ -1,8 +1,9 @@
 // Soluciones: para quién está pensada GlucoLume.
 //
 // Los roles corresponden al modelo existente (backend/app/models):
-//   GrupoUsuario.rolGrupo:            PROPIETARIO | MODERADOR | MIEMBRO
-//   GrupoUsuario.nivelComparticion:   NINGUNA (por defecto) | SOLO_MOMENTO | MEDICION_COMPLETA
+//   GrupoUsuario.rolGrupo:             PROPIETARIO (Administrador/a) | MIEMBRO. Sin moderador en grupos familiares.
+//   GrupoUsuario: compartePerfil, comparteUltimaMedicion, comparteHistorial, notificaMedicion (cuatro permisos
+//                 independientes, todos en 0 al incorporarse).
 //   InstitucionUsuario.rolInstitucion: PROPIETARIO | MODERADOR | OPERADOR
 // Las etiquetas visibles son las mismas que usan los correos (app/emails/formatting.py: ROLE_LABELS).
 
@@ -38,22 +39,23 @@ const INDIVIDUAL_FEATURES = [
 const GROUP_ROLES = [
   {
     icon: UserCog,
-    name: 'Propietario/a',
-    text: 'Crea el grupo y lo administra: invita o quita integrantes y asigna roles.',
+    name: 'Administrador/a',
+    text: 'Crea el grupo y lo administra: invita o quita integrantes y puede transferir la administración.',
   },
-  { icon: Users, name: 'Moderador/a', text: 'Colabora con la administración del grupo según los permisos asignados.' },
-  { icon: User, name: 'Integrante', text: 'Participa del grupo y decide qué comparte con los demás.' },
+  { icon: User, name: 'Miembro', text: 'Participa del grupo y decide qué comparte con los demás.' },
 ];
 
-const SHARING_LEVELS = [
-  { name: 'Nada', text: 'opción inicial al incorporarte' },
-  { name: 'Solo el momento', text: 'cuándo se realizó la medición' },
-  { name: 'Medición completa', text: 'incluye los valores registrados' },
+const SHARING_PERMISSIONS = [
+  { name: 'Datos básicos del perfil', text: 'edad y sexo para el modelo de medición; nunca documento ni fecha de nacimiento' },
+  { name: 'Última medición', text: 'solo tu medición más reciente' },
+  { name: 'Historial de mediciones', text: 'tus mediciones y los gráficos o estadísticas calculados con ellas' },
+  { name: 'Aviso de medición', text: 'día y hora de cada medición, nunca el valor' },
 ];
 
 const GROUP_FACTS = [
   { icon: EyeOff, text: 'Pertenecer a un grupo no da acceso automático a tu información privada.' },
-  { icon: KeyRound, text: 'Lo que cada integrante ve o administra depende de los permisos otorgados.' },
+  { icon: KeyRound, text: 'Cada permiso se activa por separado y todos empiezan desactivados.' },
+  { icon: UserCog, text: 'Ser administrador no da acceso a los datos de los demás integrantes.' },
   { icon: ShieldCheck, text: 'Siempre podés consultar tus propios datos, estés o no en un grupo.' },
   { icon: History, text: 'Si abandonás un grupo, tu historial personal de mediciones se conserva.' },
 ];
@@ -186,7 +188,7 @@ export function Solutions() {
               <div className="solution-col">
                 <h4>Cada integrante elige qué compartir</h4>
                 <ol className="levels">
-                  {SHARING_LEVELS.map(({ name, text }) => (
+                  {SHARING_PERMISSIONS.map(({ name, text }) => (
                     <li key={name}>
                       <b>{name}</b>
                       <small>{text}</small>
