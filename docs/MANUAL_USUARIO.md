@@ -39,7 +39,9 @@ experimental**: sus resultados no reemplazan una medición clínica ni un consej
 
 ### Conectar el dispositivo
 
-1. Instalá el puente en la computadora Windows donde conectás el Arduino: `acquisition\bridge\Instalar-Puente.bat` (puerto, medio y servidor).
+1. Conectá el Arduino. Con **Chrome o Edge en una computadora** no se instala nada: en **Conectar dispositivo** tocá «Conectar Arduino» y elegí el puerto
+   (USB, o el puerto del HC-05/HC-06 ya emparejado). En otro navegador o en un celular hace falta el puente de Windows en la computadora donde está el
+   Arduino: `backend\acquisition\bridge\Instalar-Puente.bat` (puerto, medio y servidor).
 2. En GlucoLume abrí **Conectar dispositivo** y elegí el medio (Bluetooth HC-05/HC-06 a 9600 baudios; USB a 115200).
 3. Mirá **Estado de la conexión**: *Puente serie detenido* (iniciá `Puente-GlucoLume.bat`), *Bluetooth desconectado* (encendé el Arduino y
    revisá el emparejamiento), *Conectado, sin datos* (el Arduino todavía no envía) o *Conectado*.

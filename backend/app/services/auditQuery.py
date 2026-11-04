@@ -317,7 +317,7 @@ ACTION_LABELS = {
     "INICIAR_ADQUISICION": "Inicio de adquisición", "ERROR_COMUNICACION_DISPOSITIVO": "Error de comunicación con el dispositivo",
     "ACCEDER_INVENTARIO_DISPOSITIVOS": "Acceso al inventario de dispositivos", "CONSULTAR_DISPOSITIVO": "Consulta de dispositivo",
     "CONSULTAR_INVENTARIO_DISPOSITIVOS": "Consulta del inventario de dispositivos", "ORDEN_PUENTE_SERIE": "Orden al puente serie",
-    "TOMAR_CONTROL_DISPOSITIVO": "Toma del control temporal del dispositivo", "SOLTAR_CONTROL_DISPOSITIVO": "Liberación del control del dispositivo",
+    "TOMAR_CONTROL_DISPOSITIVO": "Toma del control temporal del dispositivo", "CONECTAR_DISPOSITIVO_NAVEGADOR": "Conexión del dispositivo desde el navegador", "SOLTAR_CONTROL_DISPOSITIVO": "Liberación del control del dispositivo",
     # Matrices
     "CREAR_MATRIZ": "Creación de matriz", "CREAR_VERSION_MATRIZ": "Nueva versión de matriz", "MODIFICAR_MATRIZ": "Modificación de matriz",
     "ACTIVAR_MATRIZ": "Activación de matriz", "DESACTIVAR_MATRIZ": "Desactivación de matriz", "ARCHIVAR_MATRIZ": "Archivo de matriz",

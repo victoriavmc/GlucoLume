@@ -8,6 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import * as authApi from '../api/authApi.js';
 import { onSessionExpired } from '../api/client.js';
+import { browserLink } from '../utils/browserSerialLink.js';
 import { goToApp, isOnLoginOrigin } from './originGuard.js';
 import { clearTokens, hasSessionHint, saveTokens } from './tokenStore.js';
 
@@ -121,6 +122,11 @@ export function AuthProvider({ children }) {
   );
 
   const logout = useCallback(async () => {
+    try {
+      await browserLink.disconnect(); // cierra el puerto del Arduino y avisa al backend mientras la sesión todavía vale
+    } catch {
+      // nada que cerrar
+    }
     try {
       await authApi.logout();
     } catch {

@@ -243,7 +243,9 @@ columna; si no, el vigente). Los eventos anteriores se infieren: solo cambian de
    captura el emparejamiento; (b) *PIN débil*: cambiarlo por uno aleatorio por unidad exige conectarse físicamente al módulo y enviar comandos AT (varían
    por modelo y firmware del módulo: no se hizo ni se presupone) y aun así 4 dígitos son pocos; (c) *disponibilidad*: quien esté al alcance puede ocupar la
    conexión o interferir; (d) *retraso*: líneas auténticas capturadas y bloqueadas pueden entregarse tarde, una vez y en orden; (e) *clave en claro* en la
-   EEPROM del Arduino (cualquiera con el USB la lee) y en `bridge.env`; (f) el firmware original (`GlucoLume_MAX30100`, 84 % de RAM) no tiene firma. Hasta que
+   EEPROM del Arduino (cualquiera con el USB la lee) y en `bridge.env`; (f) el firmware original (`GlucoLume_MAX30100`, 84 % de RAM) no tiene firma; (g) **lectura desde el navegador (Web Serial)**: el navegador no puede guardar la clave de
+   dispositivo, así que el servidor quita el sufijo de firma **sin verificarlo**; la falsificación o repetición de líneas por Bluetooth queda sin cubrir en ese modo
+   (lo que sí se conserva: sesión de la cuenta, enlace atado a su dueña, ninguna orden al navegador, un solo lector, auditoría). Quien necesite la firma usa el puente. Hasta que
    la persona responsable del proyecto decida cómo tratarlo (p. ej. migrar a BLE con emparejamiento seguro, o aceptarlo formalmente para un prototipo), este
    riesgo figura como **abierto**.
 10. **Refresh token en cookie `HttpOnly` (H-09).** Diseño: la cookie `glucolume_refresh` (`Path=/api/v1/auth`, `SameSite=Strict`, `HttpOnly`, `Secure` en producción o con

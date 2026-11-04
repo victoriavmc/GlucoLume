@@ -111,5 +111,10 @@ export const confirmConnectedDevice = ({ idInstitucion, idDispositivo }) => post
  * { accion: CONFIGURAR | PAUSAR | REANUDAR | DETENER | REINICIAR, puerto?, medio? }. Devuelve el estado actualizado.
  */
 export const sendBridgeCommand = (data) => post('/bridge/command', data);
+/**
+ * Lecturas del Arduino leído desde el NAVEGADOR (Web Serial), sin puente instalado: las mismas líneas del firmware, con la sesión de la cuenta.
+ * { idEnlace, medio, baudios, estadoEnlace, nombrePuerto, lineas: [{seq, edadMs, texto}], detenido?, error? }. Lo usa utils/browserSerialLink.js.
+ */
+export const sendBrowserIngest = (data) => post('/browser/ingest', data);
 /** Estado completo cada vez que llega una lectura o cambia la conexión (evento `estado`). */
 export const openTelemetryStream = (handlers) => openSse('/acquisition/telemetry/stream', handlers);
