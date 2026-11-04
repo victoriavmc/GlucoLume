@@ -68,10 +68,40 @@ function rangeText(rule) {
   return `${number(rule.glucosaMinReferencia)}–${number(rule.glucosaMaxReferencia)} mg/dL`;
 }
 
-function ruleText(rule) {
-  const minutes = rule.minutosComidaMin !== null || rule.minutosComidaMax !== null
+/** Qué supone cada referencia posible: «Si la medición es en ayunas», «Si la medición es después de comer (60–120 min)». */
+function alternativeLabel(rule) {
+  const meal = MEALS[rule.condicionComida] ?? rule.condicionComida;
+  const window = rule.minutosComidaMin !== null || rule.minutosComidaMax !== null
     ? ` (${rule.minutosComidaMin ?? 0}–${rule.minutosComidaMax ?? '∞'} min desde la comida)` : '';
-  return `${ageText(rule)} · ${MEALS[rule.condicionComida] ?? rule.condicionComida}${minutes} · ${rangeText(rule)}`;
+  return `Si la medición es ${meal.toLowerCase()}${window}`;
+}
+
+/** Sin una referencia elegida (falta algún dato o no hay coincidencia): se muestran las reglas que podrían corresponder, cada una con su
+ * semáforo, y se marcan como estimado. Con una sola, la etiqueta dice que es orientativa; con dos o más, se titulan «Referencias válidas». */
+function Alternatives({ group }) {
+  const single = group.reglas.length === 1;
+  return (
+    <div className="reference-alternatives">
+      {group.reglas.length > 0 && (
+        <p className="reference-alt-title">
+          <Badge tone="warning">Estimado · orientativo</Badge>
+          {!single && <> <b>Referencias válidas</b></>}
+        </p>
+      )}
+      {group.motivoSinSeleccion && <p className="field-hint">{group.motivoSinSeleccion}</p>}
+      {group.reglas.length > 0 && (
+        <ul className="reference-alt-list" aria-label={`Reglas disponibles: ${group.titulo}`}>
+          {group.reglas.map((candidate) => (
+            <li key={candidate.idRegla} className="reference-alt-item">
+              <span className="reference-alt-label">{alternativeLabel(candidate)}</span>
+              <span className="reference-alt-range">{ageText(candidate)} · {rangeText(candidate)}</span>
+              <Semaforo color={candidate.semaforo} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function Group({ group, value, demo }) {
@@ -98,16 +128,7 @@ function Group({ group, value, demo }) {
           ) : <p className="field-hint">Sin valor de glucosa para comparar.</p>}
         </>
       ) : (
-        <>
-          <p className="field-hint">{group.motivoSinSeleccion}</p>
-          {group.reglas.length > 0 && (
-            <ul className="reference-rules" aria-label={`Reglas disponibles: ${group.titulo}`}>
-              {group.reglas.map((candidate) => (
-                <li key={candidate.idRegla}>{ruleText(candidate)} <Semaforo color={candidate.semaforo} /></li>
-              ))}
-            </ul>
-          )}
-        </>
+        <Alternatives group={group} />
       )}
     </article>
   );

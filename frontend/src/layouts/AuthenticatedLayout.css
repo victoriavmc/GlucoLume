@@ -1336,6 +1336,12 @@ a.summary-link {
 .reference-group { display: grid; gap: 10px; align-content: start; padding: 16px; border-radius: 12px; background: var(--red-50); border: 1px solid #f6d5d9; min-width: 0; }
 .reference-group h4 { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .reference-rules { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+.reference-alternatives { display: grid; gap: 8px; }
+.reference-alt-title { margin: 0; }
+.reference-alt-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.reference-alt-item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 10px; border-radius: 8px; background: #fff; font-size: 14px; }
+.reference-alt-label { font-weight: 600; }
+.reference-alt-range { font-size: 13px; }
 .range-scale { padding: 22px 8px 26px; }
 .range-track { position: relative; height: 10px; border-radius: 999px; background: #e6e8ee; }
 .range-band { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: #1faa59; opacity: 0.75; }

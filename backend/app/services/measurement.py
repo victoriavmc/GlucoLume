@@ -265,6 +265,10 @@ def matrixPreview(db: Session, actor: User, idPerfilMedicion: uuid.UUID) -> Matr
 
 # --- Iniciar -------------------------------------------------------------------------------------------------
 
+# «Después de comer» supone una comida reciente: si la hora de la última comida es más vieja que esto, la condición no es válida.
+# La hora de la última comida sigue siendo opcional; esto solo aplica cuando la persona declara «después de comer».
+MAX_MINUTOS_DESPUES_DE_COMER = 6 * 60
+
 
 def startMeasurement(db: Session, actor: User, data: MeasurementStart, deviceSession: bool = False) -> MeasurementDetail:
     access = _access(db, actor, db.get(MeasurementProfile, data.idPerfilMedicion), "PERFIL_NO_ENCONTRADO", PROFILE_NOT_FOUND)
@@ -286,6 +290,9 @@ def startMeasurement(db: Session, actor: User, data: MeasurementStart, deviceSes
         if data.fechaHoraUltimaComida > now:
             raise _error("FECHA_INVALIDA", "La hora de la última comida no puede ser futura.")
         minutes = int((now - data.fechaHoraUltimaComida).total_seconds() // 60)
+        if data.condicionComida == "POSTPRANDIAL" and minutes > MAX_MINUTOS_DESPUES_DE_COMER:
+            raise _error("COMIDA_FUERA_DE_RANGO", "Si la medición es después de comer, la última comida no puede ser de hace más de 6 horas. "
+                                                 "Corregí la hora o indicá otra condición de alimentación.")
     matrix = None
     rule = None
     if data.modoMedicion == GLUCOSA and deviceSession:

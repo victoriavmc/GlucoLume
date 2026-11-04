@@ -275,6 +275,26 @@ def test_despues_de_comer_fuera_de_la_ventana_explica_el_motivo(db, mails, consu
     assert [r.condicionComida for r in group.reglas] == ["POSTPRANDIAL"] and group.reglas[0].semaforo is not None
 
 
+def test_despues_de_comer_con_la_ultima_comida_de_mas_de_6_horas_se_rechaza(db, mails, consumer, bridge, clock):
+    # La hora de la última comida es opcional, pero si la persona dice «después de comer» la comida no puede ser de hace más de 6 horas.
+    user, profileId = consumer
+    dev = device(db, codigo=CODE)
+    bridge.seconds(1, glu="115.0", origen="EXPERIMENTAL")
+    with pytest.raises(AuthError) as error:
+        startFor(db, user, profileId, dev, modoMedicion=GLUCOSE, condicionComida="POSTPRANDIAL",
+                 fechaHoraUltimaComida=nowForDb() - timedelta(hours=7))
+    assert error.value.code == "COMIDA_FUERA_DE_RANGO"
+
+
+def test_en_ayunas_la_hora_de_la_ultima_comida_no_tiene_ese_limite(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    dev = device(db, codigo=CODE)
+    bridge.seconds(1, glu="115.0", origen="EXPERIMENTAL")
+    started = startFor(db, user, profileId, dev, modoMedicion=GLUCOSE, condicionComida="AYUNO",
+                       fechaHoraUltimaComida=nowForDb() - timedelta(hours=7))
+    assert stored(db, started.idMedicion).condicionComida == "AYUNO"
+
+
 def test_9_sin_regla_aplicable_no_se_elige_una_arbitraria(db, mails, consumer, bridge, clock):
     user, matrix, started, saved = measureWithMatrix(db, consumer, bridge, glu="90.0", origen="EXPERIMENTAL")
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=10, condicion="AYUNO")  # fuera del rango 18–80
@@ -285,6 +305,71 @@ def test_9_sin_regla_aplicable_no_se_elige_una_arbitraria(db, mails, consumer, b
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=40, condicion="NO_INFORMADA")
     group = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos[0]
     assert group.reglaSeleccionada is None and "alimentación" in group.motivoSinSeleccion
+
+
+def test_sin_regla_de_la_condicion_informada_lista_las_disponibles_de_su_sexo_y_edad(db, mails, consumer, bridge, clock):
+    # Sexo y edad conocidos, pero la matriz no tiene regla para «después de comer»: no se elige ninguna y se listan las reglas disponibles
+    # para su sexo y edad (no las del otro sexo ni las de otra edad) para ver con cuál se adapta mejor.
+    user, matrix, started, saved = measureWithMatrix(db, consumer, bridge, glu="90.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo="FEMENINO", edad=40, condicion="POSTPRANDIAL")
+    grupos = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos
+    assert len(grupos) == 1 and grupos[0].reglaSeleccionada is None and grupos[0].posicion is None
+    assert [r.sexoModelo for r in grupos[0].reglas] == ["FEMENINO"]
+    assert [r.condicionComida for r in grupos[0].reglas] == ["AYUNO"]
+    assert "No hay una regla que coincida" in grupos[0].motivoSinSeleccion
+
+
+def femaleRangesMatrix(db):
+    # Mujer con rangos de edad: dos franjas de ayunas y una regla posprandial que cubre ambas.
+    matrix = addMatrix(db, rule=False)
+    addRule(db, matrix, "FEMENINO", "F-AY-18-40", edad=(18, 40), condicion="AYUNO", low="70", high="110")
+    addRule(db, matrix, "FEMENINO", "F-AY-41-64", edad=(41, 64), condicion="AYUNO", low="75", high="115")
+    addRule(db, matrix, "FEMENINO", "F-PP-18-64", edad=(18, 64), condicion="POSTPRANDIAL", minutos=(60, 120), low="70", high="140")
+    return matrix
+
+
+def gruposDe(db, user, idMedicion):
+    return measurements.getMeasurement(db, user, idMedicion).referenciaGlucosa.grupos
+
+
+def test_sexo_conocido_sin_edad_lista_las_franjas_de_la_condicion_como_estimado(db, mails, consumer, bridge, clock):
+    # Se conoce el sexo y la comida, pero no la edad: cada franja de edad que corresponde se lista; no se elige ninguna.
+    user, profileId = consumer
+    femaleRangesMatrix(db)
+    _, saved = measureAndSave(db, user, profileId, bridge, GLUCOSE, glu="90.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo="FEMENINO", edad=None, condicion="AYUNO")
+    [group] = gruposDe(db, user, saved.idMedicion)
+    assert group.reglaSeleccionada is None and group.motivoSinSeleccion.startswith("La edad no fue informada")
+    assert sorted(r.codigo for r in group.reglas) == ["F-AY-18-40", "F-AY-41-64"]
+
+
+def test_sexo_y_comida_no_informada_con_edad_conocida_dan_las_dos_condiciones(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    femaleRangesMatrix(db)
+    _, saved = measureAndSave(db, user, profileId, bridge, GLUCOSE, glu="90.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo="FEMENINO", edad=30, condicion="NO_INFORMADA")
+    [group] = gruposDe(db, user, saved.idMedicion)
+    assert group.reglaSeleccionada is None  # ayunas o después de comer: no se sabe cuál
+    assert sorted(r.codigo for r in group.reglas) == ["F-AY-18-40", "F-PP-18-64"]
+
+
+def test_sin_sexo_ni_edad_ni_comida_se_listan_todas_las_reglas_que_podrian_corresponder(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    femaleRangesMatrix(db)
+    _, saved = measureAndSave(db, user, profileId, bridge, GLUCOSE, glu="90.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo=None, edad=None, condicion="NO_INFORMADA")
+    grupos = gruposDe(db, user, saved.idMedicion)
+    femenino = next(g for g in grupos if g.sexoModelo == "FEMENINO")
+    assert sorted(r.codigo for r in femenino.reglas) == ["F-AY-18-40", "F-AY-41-64", "F-PP-18-64"]
+
+
+def test_con_edad_y_condicion_conocidas_se_elige_la_franja_que_corresponde(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    femaleRangesMatrix(db)
+    _, saved = measureAndSave(db, user, profileId, bridge, GLUCOSE, glu="90.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo="FEMENINO", edad=50, condicion="AYUNO")
+    [group] = gruposDe(db, user, saved.idMedicion)
+    assert group.reglaSeleccionada.codigo == "F-AY-41-64" and group.motivoSinSeleccion is None
 
 
 def test_una_medicion_sin_matriz_vigente_muestra_sin_matriz(db, mails, consumer, bridge, clock):

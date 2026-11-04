@@ -146,10 +146,16 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
             # con su semáforo y se avisa la diferencia; no se elige como referencia personalizada.
             outside = [r for r in rules if r.sexoModelo == sex and r.condicionComida == condition and (age is None or _inAge(r, age))] \
                 if condition == "POSTPRANDIAL" and minutes is not None else []
+            # Sin regla que coincida con la condición informada: se muestran TODAS las reglas disponibles para su sexo y edad (de cualquier
+            # condición) para ver con cuál se adapta mejor. Ninguna se elige, y cada una lleva su semáforo orientativo.
+            available = [r for r in rules if r.sexoModelo == sex and (age is None or _inAge(r, age))]
+            listed = available
             if outside:
-                listed = outside
                 reason = (f"Fuera de la ventana: la medición se inició a {minutes} min del inicio de la comida y la regla posprandial "
                           f"vale {_windowText(outside[0])}. El semáforo es solo orientativo.")
+            elif available:
+                reason = ("No hay una regla que coincida con la condición de alimentación informada. Se muestran las reglas disponibles "
+                          "para tu sexo y edad, para comparar: ninguna se elige.")
         elif age is None:
             ageless = [r for r in candidates if _ageless(r)]
             if len(ageless) == 1 and foodExact:

@@ -932,7 +932,9 @@ describe('Detalle de glucosa experimental: matriz de referencia', () => {
     const panel = within(await screen.findByRole('region', { name: 'Matriz de referencia de glucosa' }));
     const femaleGroup = within(panel.getByRole('article', { name: 'Referencia femenina' }));
     expect(femaleGroup.getByText(/no puede seleccionarse una referencia personalizada/)).toBeInTheDocument();
-    expect(femaleGroup.getByRole('list', { name: /Reglas disponibles/ })).toHaveTextContent('18–80 años · En ayunas · 70–105 mg/dL');
+    expect(femaleGroup.getByText('Estimado · orientativo')).toBeInTheDocument(); // una sola regla posible: se marca como orientativa
+    expect(femaleGroup.getByRole('list', { name: /Reglas disponibles/ })).toHaveTextContent('Si la medición es en ayunas');
+    expect(femaleGroup.getByText('18–80 años · 70–105 mg/dL')).toBeInTheDocument();
     expect(femaleGroup.queryByRole('status')).not.toBeInTheDocument(); // sin posición
     expect(panel.getByText('No informada')).toBeInTheDocument();
   });
@@ -944,7 +946,10 @@ describe('Detalle de glucosa experimental: matriz de referencia', () => {
     routes({ [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, glucoseDetail(perRule)) });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     const panel = within(await screen.findByRole('region', { name: 'Matriz de referencia de glucosa' }));
-    const list = within(panel.getByRole('article', { name: 'Referencia femenina' })).getByRole('list', { name: /Reglas disponibles/ });
+    const group = within(panel.getByRole('article', { name: 'Referencia femenina' }));
+    expect(group.getByText('Referencias válidas')).toBeInTheDocument(); // dos referencias posibles: se muestran las dos, sin elegir una
+    expect(group.getByText('Estimado · orientativo')).toBeInTheDocument(); // falta algún dato: son estimaciones, no una regla elegida
+    const list = group.getByRole('list', { name: /Reglas disponibles/ });
     expect(list).toHaveTextContent('Está bien');
     expect(list).toHaveTextContent('Muy alto');
     expect(list.querySelectorAll('.semaforo-luz.is-on')).toHaveLength(2);

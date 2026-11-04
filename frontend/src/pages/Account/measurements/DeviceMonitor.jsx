@@ -26,6 +26,9 @@ const FOCUS_MODES = {
   GLUCOSA_EXPERIMENTAL: 'Glucosa experimental',
 };
 
+// «Después de comer» supone una comida reciente: más de 6 horas desde la última comida no es válido (ver MAX_MINUTOS_DESPUES_DE_COMER en el backend).
+const MAX_MEAL_AGE_MS = 6 * 60 * 60 * 1000;
+
 function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, extraOptions, focus, onFocus, handleOperationError, onStarted }) {
   const [devices, setDevices] = useState(null);
   const [selected, setSelected] = useState('');
@@ -80,6 +83,10 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
     }
     setContextError('');
     setMealError(''); // «Última comida» es opcional en todos los modos: vacío nunca bloquea (ni con «Después de comer»)
+    if (glucoseMode && condicionComida === 'POSTPRANDIAL' && lastMeal && Date.now() - new Date(lastMeal).getTime() > MAX_MEAL_AGE_MS) {
+      setMealError('Si la medición es después de comer, la última comida no puede ser de hace más de 6 horas. Corregí la hora o elegí otra alimentación.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -135,7 +142,9 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                 <TextField label="Inicio de la última comida (opcional)" type="datetime-local" value={lastMeal} error={mealError || undefined}
                   hint={condicionComida === 'POSTPRANDIAL' && !lastMeal
                     ? 'Sin la hora de la última comida no se puede comparar con la matriz «después de comer»; se miden igual SpO₂, frecuencia cardíaca y glucosa.'
-                    : 'Si la dejás vacía se guarda como «Sin informar».'}
+                    : condicionComida === 'POSTPRANDIAL'
+                      ? 'Después de comer: la última comida debe ser de hace como máximo 6 horas.'
+                      : 'Si la dejás vacía se guarda como «Sin informar».'}
                   onChange={(event) => { setLastMeal(event.target.value); setMealError(''); }} />
               )}
             </div>
