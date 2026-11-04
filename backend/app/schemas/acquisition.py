@@ -172,6 +172,27 @@ class BridgeIngest(BaseModel):
         return normalizeUpper(value)
 
 
+class BrowserIngest(BaseModel):
+    """Lo que el NAVEGADOR de una cuenta (Web Serial) entrega al backend: las mismas líneas del firmware que lee el puente, pero autenticado con la
+    sesión de la cuenta y sin token, código de dispositivo ni órdenes. La identidad del Arduino la informa su propia línea `GLUCOLUME,ID=...`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    idEnlace: uuid.UUID  # identifica esta conexión del navegador (lo genera la pestaña y cambia al reconectar)
+    medio: Medio
+    baudios: Annotated[int, Field(ge=1200, le=921600)] | None = None
+    estadoEnlace: EstadoEnlace
+    nombrePuerto: Annotated[str, Field(max_length=100)] | None = None  # etiqueta que el navegador le conoce al puerto (p. ej. «USB 2341:0043»)
+    error: Annotated[str, Field(max_length=200)] | None = None
+    detenido: bool = False  # la persona cerró la conexión: libera el lugar de inmediato
+    lineas: Annotated[list[BridgeLine], Field(max_length=200)] = []
+
+    @field_validator("medio", mode="before")
+    @classmethod
+    def normalizarMedio(cls, value):
+        return normalizeUpper(value)
+
+
 class BridgeIngestRead(BaseModel):
     aceptadas: int
     duplicadas: int
@@ -221,6 +242,8 @@ class TelemetryBridge(BaseModel):
     ultimoError: str | None
     codigoError: str | None = None
     versionPuente: str | None = None
+    origen: Literal["PUENTE", "NAVEGADOR"] = "PUENTE"  # quién lee el Arduino: el puente instalado o el navegador de una cuenta (Web Serial)
+    propio: bool = False  # enlace del navegador de quien consulta
     puertosDisponibles: list[BridgePort] | None = None
     comandoPendiente: str | None = None  # acción esperando que el puente la tome
     ultimoComando: BridgeCommandResult | None = None

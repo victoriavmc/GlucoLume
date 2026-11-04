@@ -1,8 +1,8 @@
 // /app/conectar-dispositivo (cuentas individuales) y /app/instituciones/:id/conectar-dispositivo (operadores) — conexión guiada del
 // Arduino UNO (MAX30100) por Bluetooth (HC-05/HC-06, 9600) o USB (115200).
 //
-// El Arduino lo lee el PUENTE de GlucoLume (programa de Windows con pySerial) y lo entrega al backend; el navegador nunca toca
-// un puerto COM ni ejecuta programas locales. Esta página PREPARA y COMPRUEBA la conexión con datos reales (estado en vivo y
+// El Arduino lo lee el NAVEGADOR (Web Serial, Chrome/Edge de escritorio, sin instalar nada) o, como alternativa, el PUENTE de GlucoLume (programa de
+// Windows con pySerial); ambos lo entregan al backend y la pantalla nunca ejecuta programas locales. Esta página PREPARA y COMPRUEBA la conexión con datos reales (estado en vivo y
 // diagnóstico del backend): el puerto, la telemetría, la identidad, el registro y la asociación. Medir se hace en «Mis mediciones»
 // (o en el paciente, para un operador) y el guardado en «Guardar medición»; el historial recupera lo guardado. No se duplican esas pantallas.
 //
@@ -19,12 +19,14 @@ import { friendlyError } from '../../../auth/errorMessages.js';
 import { Alert } from '../../../components/FormControls.jsx';
 import { PageHeader } from '../../../components/PageHeader.jsx';
 import { useDeviceStatus } from '../measurements/useDeviceStatus.js';
+import { webSerialSupported } from '../../../utils/browserSerialLink.js';
 import { BridgeSettings } from './BridgeSettings.jsx';
+import { BrowserConnection } from './BrowserConnection.jsx';
 import { ConnectionGuide } from './ConnectionGuide.jsx';
 import { ConnectionStatusPanel } from './ConnectionStatusPanel.jsx';
 import { DeviceIdentification } from './DeviceIdentification.jsx';
 import { MeasurementGuide } from './MeasurementGuide.jsx';
-import { MEDIA, nextAction } from './connectModel.js';
+import { MEDIA, bridgeRunning, nextAction } from './connectModel.js';
 import { useDeviceReadiness } from './useDeviceReadiness.js';
 import './ConnectDevice.css';
 
@@ -51,7 +53,9 @@ export function ConnectDeviceView({ institution }) {
   // mientras el puente busca el GlucoLume en modo AUTO, muestra Bluetooth como antes de saber cuál usa.
   const chosenMedium = medium ?? status?.puente?.medio ?? 'BLUETOOTH';
   const guideMedium = MEDIA[chosenMedium] ? chosenMedium : 'BLUETOOTH';
-  const action = nextAction(status, readiness, guideMedium);
+  // Con Web Serial (Chrome/Edge de escritorio) el Arduino se lee desde el navegador, sin puente: solo cede ante un puente instalado que ya esté activo.
+  const browserMode = webSerialSupported() && (!bridgeRunning(status) || status.puente.origen === 'NAVEGADOR');
+  const action = nextAction(status, readiness, guideMedium, webSerialSupported());
   const error = statusError || readinessError || profileError;
   const refreshAll = () => { refresh(); refreshReadiness(); };
 
@@ -74,7 +78,9 @@ export function ConnectDeviceView({ institution }) {
       <ConnectionStatusPanel status={status} readiness={readiness} medium={guideMedium} onRetry={refreshAll} institutional={!individual} />
       {institution && <DeviceIdentification identification={readiness?.identificacion} onChanged={refreshAll} />}
       <div className="connect-cols">
-        <BridgeSettings status={status} medium={chosenMedium} onMediumChange={setMedium} onChanged={refreshAll} authority={readiness?.ordenesPuente} />
+        {browserMode
+          ? <BrowserConnection status={status} medium={guideMedium} />
+          : <BridgeSettings status={status} medium={chosenMedium} onMediumChange={setMedium} onChanged={refreshAll} authority={readiness?.ordenesPuente} />}
         <ConnectionGuide medium={guideMedium} onMediumChange={setMedium} status={status} readiness={readiness} institutional={!individual} />
       </div>
       <MeasurementGuide ready={Boolean(readiness?.listo)} individual={individual} blockedBy={readiness?.listo ? null : `${action.title}.`}

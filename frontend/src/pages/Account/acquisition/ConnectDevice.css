@@ -374,3 +374,8 @@
   margin-top: 4px;
   flex: none;
 }
+
+/* «¿Preferís instalar el puente?»: alternativa plegada bajo la conexión desde el navegador. */
+.connect-alt { margin-top: 1rem; }
+.connect-alt > summary { cursor: pointer; font-weight: 600; }
+.connect-alt[open] > summary { margin-bottom: 0.75rem; }

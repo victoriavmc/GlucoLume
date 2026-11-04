@@ -43,7 +43,7 @@ export const DEMO_NOTICE = 'Datos de prueba (DEMO): la glucosa es un valor sint�
 
 /** Estado del dispositivo que informa el backend (GET /acquisition/telemetry/status). */
 export const DEVICE_STATES = {
-  SIN_PUENTE: { label: 'Puente serie detenido', tone: 'is-off', hint: 'El programa que lee el Bluetooth no está en ejecución en el equipo del dispositivo.' },
+  SIN_PUENTE: { label: 'Puente serie detenido', tone: 'is-off', hint: 'Nadie está leyendo el Arduino: conectalo desde «Conectar dispositivo» (con Chrome o Edge, sin instalar nada) o iniciá el puente instalado.' },
   PUERTO_DESCONECTADO: { label: 'Bluetooth desconectado', tone: 'is-off', hint: 'Encendé el Arduino y revisá que el HC-05/HC-06 esté emparejado: el puente reintenta solo.' },
   SIN_DATOS: { label: 'Conectado, sin datos', tone: 'is-off', hint: 'El enlace está abierto pero el Arduino todavía no envía lecturas.' },
   CONECTADO: { label: 'Conectado', tone: 'is-on', hint: '' },

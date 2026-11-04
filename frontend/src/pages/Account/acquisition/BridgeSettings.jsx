@@ -11,6 +11,7 @@ import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
 import { Alert, RadioField } from '../../../components/FormControls.jsx';
 import { copyText } from '../../../utils/clipboard.js';
+import { webSerialSupported } from '../../../utils/browserSerialLink.js';
 import { LOCAL_COMMANDS, MEDIA, bridgeRunning, portsOf } from './connectModel.js';
 
 const AUTO_MEDIUM = 'AUTO'; // modo automático: el puente busca el GlucoLume por USB y Bluetooth (sin puerto)
@@ -29,6 +30,23 @@ function Command({ text }) {
   );
 }
 
+/** Cómo instalar y arrancar el puente en el equipo del Arduino (alternativa a conectar desde el navegador). */
+export function BridgeInstallSteps() {
+  return (
+    <>
+      <ol className="plain-steps">
+        <li><b>Primera vez (instalación guiada):</b> hacé doble clic en <code>{LOCAL_COMMANDS.install}</code> (carpeta <code>backend\acquisition\bridge</code>).
+          Te pregunta si usás Bluetooth o USB, te deja elegir el puerto COM y comprueba el servidor y el dispositivo.</li>
+        <li><b>Después:</b> abrí <code>{LOCAL_COMMANDS.menu}</code> y elegí «Iniciar el puente», o activá allí el inicio automático al abrir sesión.
+          El puente se ejecuta sin ventana.</li>
+        <li><b>Por línea de comandos</b> (alternativa):</li>
+      </ol>
+      <Command text={LOCAL_COMMANDS.start} />
+      <p className="field-hint">Para detenerlo en cualquier momento: opción «Detener el puente» del mismo menú, o el botón de esta pantalla cuando esté ejecutándose.</p>
+    </>
+  );
+}
+
 function describePort(port) {
   const tags = [port.esBluetooth && 'Bluetooth', port.esArduino && 'Arduino/USB'].filter(Boolean).join(', ');
   const warning = port.estadoWindows && port.estadoWindows !== 'OK' ? ` ⚠ Windows: ${port.estadoWindows}` : '';
@@ -37,6 +55,7 @@ function describePort(port) {
 
 export function BridgeSettings({ status, medium, onMediumChange, onChanged, authority }) {
   const running = bridgeRunning(status);
+  const browserHint = webSerialSupported() ? 'conectalo con el botón de arriba' : 'usá Chrome o Edge en una computadora para conectarlo sin instalar nada';
   const bridge = status?.puente;
   const ports = portsOf(status);
   const [port, setPort] = useState('');
@@ -93,18 +112,10 @@ export function BridgeSettings({ status, medium, onMediumChange, onChanged, auth
           </div>
         </div>
         <Alert kind="info">
-          El puente no está ejecutándose. El navegador no puede iniciar programas de tu computadora, por eso este paso se hace
+          El puente no está ejecutándose. Este navegador no puede leer el Arduino por sí solo ({browserHint}), así que este paso se hace
           en el equipo, una sola vez.
         </Alert>
-        <ol className="plain-steps">
-          <li><b>Primera vez (instalación guiada):</b> hacé doble clic en <code>{LOCAL_COMMANDS.install}</code> (carpeta <code>acquisition\bridge</code>).
-            Te pregunta si usás Bluetooth o USB, te deja elegir el puerto COM y comprueba el servidor y el dispositivo.</li>
-          <li><b>Después:</b> abrí <code>{LOCAL_COMMANDS.menu}</code> y elegí «Iniciar el puente», o activá allí el inicio automático al abrir sesión.
-            El puente se ejecuta sin ventana.</li>
-          <li><b>Por línea de comandos</b> (alternativa):</li>
-        </ol>
-        <Command text={LOCAL_COMMANDS.start} />
-        <p className="field-hint">Para detenerlo en cualquier momento: opción «Detener el puente» del mismo menú, o el botón de esta pantalla cuando esté ejecutándose.</p>
+        <BridgeInstallSteps />
       </section>
     );
   }

@@ -7,6 +7,8 @@
 //   telemetría recibida      -> llegan lecturas recientes del firmware
 //   disponible para medir    -> además está registrado, operativo y asociado al perfil (diagnóstico del backend)
 
+import { webSerialSupported } from '../../../utils/browserSerialLink.js';
+
 export const MEDIA = {
   BLUETOOTH: { label: 'Bluetooth', device: 'Arduino UNO + HC-05/HC-06', baud: 9600 },
   USB: { label: 'USB', device: 'Arduino UNO por cable USB', baud: 115200 },
@@ -16,12 +18,15 @@ export const MEDIA = {
 export const LOCAL_COMMANDS = {
   install: 'Instalar-Puente.bat',
   menu: 'Puente-GlucoLume.bat',
-  start: 'python acquisition\\bridge\\bridge_ctl.py start',
-  status: 'python acquisition\\bridge\\bridge_ctl.py status',
-  doctor: 'python acquisition\\bridge\\bridge_ctl.py doctor',
+  start: 'python backend\\acquisition\\bridge\\bridge_ctl.py start',
+  status: 'python backend\\acquisition\\bridge\\bridge_ctl.py status',
+  doctor: 'python backend\\acquisition\\bridge\\bridge_ctl.py doctor',
 };
 
 const STATE = { OK: 'OK', PENDING: 'PENDIENTE', ERROR: 'ERROR', MANUAL: 'MANUAL' };
+
+/** La conexión activa la abrió un navegador (Web Serial), no un puente instalado. */
+export const fromBrowser = (status) => status?.puente?.origen === 'NAVEGADOR';
 
 export const bridgeRunning = (status) => Boolean(status) && status.estado !== 'SIN_PUENTE' && Boolean(status.puente);
 
@@ -39,6 +44,7 @@ export function readinessStep(readiness, id) {
 
 /** Windows muestra el puerto seleccionado: Bluetooth emparejado (puerto saliente) o adaptador USB reconocido. */
 export function recognized(status, medium) {
+  if (fromBrowser(status)) return status.puente.estadoEnlace === 'CONECTADO'; // el navegador eligió el puerto: no hay lista de Windows que comparar
   const configured = status?.puente?.puerto;
   if (!configured) return false;
   const port = portsOf(status).find((item) => item.puerto.toLowerCase() === configured.toLowerCase());
@@ -66,7 +72,8 @@ export function pipeline(status, readiness, medium) {
       title: medium === 'BLUETOOTH' ? 'Bluetooth emparejado' : 'USB reconocido',
       state: !running ? STATE.PENDING : recognized(status, medium) ? STATE.OK : STATE.ERROR,
       hint: !running ? 'Se comprueba cuando el puente esté en ejecución.'
-        : recognized(status, medium) ? `Windows muestra ${status.puente.puerto}.`
+        : fromBrowser(status) ? (recognized(status, medium) ? `El navegador abrió el puerto (${status.puente.puerto}).` : 'El navegador perdió el puerto: volvé a conectar el Arduino.')
+          : recognized(status, medium) ? `Windows muestra ${status.puente.puerto}.`
           : medium === 'BLUETOOTH' ? 'Windows no muestra el puerto seleccionado: Bluetooth no emparejado o puerto equivocado.'
             : 'Windows no muestra el puerto seleccionado: revisá el cable, el controlador y el puerto.',
     },
@@ -86,7 +93,7 @@ export function indicators(status, readiness, institutional = false) {
   const age = status?.lectura?.edadSegundos ?? status?.edadUltimaLectura;  // sin el control solo llega la antigüedad, sin valores
   return [
     { id: 'PUENTE', label: 'Servicio puente', state: running ? (bridge.estadoEnlace === 'CONECTADO' ? STATE.OK : STATE.PENDING) : STATE.ERROR,
-      value: running ? `Ejecutándose${bridge.versionPuente ? ` (v${bridge.versionPuente})` : ''}` : 'Detenido' },
+      value: running ? (fromBrowser(status) ? 'Navegador (Web Serial)' : `Ejecutándose${bridge.versionPuente ? ` (v${bridge.versionPuente})` : ''}`) : 'Detenido' },
     { id: 'MEDIO', label: 'Medio de conexión', state: running ? STATE.OK : STATE.PENDING, value: running ? (MEDIA[bridge.medio]?.label ?? bridge.medio) : '—' },
     { id: 'PUERTO_SEL', label: 'Puerto seleccionado', state: running && bridge.puerto ? STATE.OK : STATE.PENDING, value: running ? (bridge.puerto ?? '—') : '—' },
     { id: 'VELOCIDAD', label: 'Velocidad', state: !running || !bridge.baudios ? STATE.PENDING : baudMatches ? STATE.OK : STATE.ERROR,
@@ -103,8 +110,12 @@ export function indicators(status, readiness, institutional = false) {
 }
 
 /** Qué hacer ahora: el primer paso que no está bien, con su explicación y su solución. */
-export function nextAction(status, readiness, medium) {
+export function nextAction(status, readiness, medium, browserSupported = webSerialSupported()) {
   if (readiness?.listo) return { kind: 'success', title: 'Dispositivo listo para medir', detail: 'Todo está comprobado: podés ir a «Mis mediciones».', solution: null };
+  if (!bridgeRunning(status) && browserSupported) {
+    return { kind: 'error', title: 'El Arduino todavía no está conectado', detail: 'Este navegador puede leerlo directamente, sin instalar nada.',
+      solution: `Tocá «Conectar Arduino» y elegí el puerto. (Alternativa: iniciar el puente instalado con ${LOCAL_COMMANDS.menu}.)` };
+  }
   if (!bridgeRunning(status)) {
     return { kind: 'error', title: 'El puente de GlucoLume no está ejecutándose', detail: 'El navegador no puede iniciarlo: es un programa de esta computadora.',
       solution: `Iniciá el puente con el acceso directo (${LOCAL_COMMANDS.menu}) o con «${LOCAL_COMMANDS.start}». La primera vez ejecutá ${LOCAL_COMMANDS.install}.` };
@@ -158,7 +169,9 @@ export function guideSteps(medium, status, readiness, institutional = false) {
   const speedOk = running && bridge.baudios ? bridge.baudios === baud && bridge.medio === medium : null;
   const busy = bridge?.codigoError === 'PUERTO_OCUPADO';
   const common = {
-    bridge: { titulo: 'Verificá que el servicio puente esté ejecutándose', detalle: running ? 'El puente informa actividad.' : 'No hay latidos del puente.', estado: running ? STATE.OK : STATE.ERROR },
+    bridge: fromBrowser(status)
+      ? { titulo: 'Verificá que el navegador esté leyendo el Arduino', detalle: 'Esta conexión se mantiene mientras la pestaña de GlucoLume esté abierta.', estado: STATE.OK }
+      : { titulo: 'Verificá que el servicio puente esté ejecutándose', detalle: running ? 'El puente informa actividad.' : 'No hay latidos del puente.', estado: running ? STATE.OK : STATE.ERROR },
     reception: { titulo: 'Comprobá la recepción de datos', detalle: step('TELEMETRIA')?.detalle ?? 'Sin datos todavía.', estado: step('TELEMETRIA')?.estado ?? STATE.PENDING },
     link: institutional ? institutionLink(readiness) : { titulo: 'Vinculá el dispositivo registrado con el perfil autorizado',
       detalle: step('ASOCIADO')?.estado === 'OK' ? 'El perfil puede usar este dispositivo.' : (step('ASOCIADO')?.detalle ?? step('REGISTRADO')?.detalle ?? 'Se comprueba cuando llegue telemetría.'),

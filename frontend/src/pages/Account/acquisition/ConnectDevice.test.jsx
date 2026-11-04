@@ -7,7 +7,7 @@
 
 import { configure, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearTokens, saveTokens } from '../../../auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../../test/helpers.js';
@@ -78,12 +78,18 @@ describe('Conectar dispositivo: estado real', () => {
     expect(await screen.findByText('El puente de GlucoLume no está ejecutándose')).toBeInTheDocument();
     expect(screen.getByText(/El navegador no puede iniciarlo/)).toBeInTheDocument();
     expect(screen.getAllByText('Instalar-Puente.bat', { exact: false }).length).toBeGreaterThan(0);
-    expect(screen.getByText('python acquisition\\bridge\\bridge_ctl.py start')).toBeInTheDocument();
+    expect(screen.getByText('python backend\\acquisition\\bridge\\bridge_ctl.py start')).toBeInTheDocument();
     // Nada de botones de control ni de configurar puerto: no hay a quién dárselos.
     for (const name of [/Detener puente/, /Reiniciar puente/, /Pausar lectura/, /Aplicar puerto/]) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(screen.getByRole('button', { name: 'Medir todavía no está disponible' })).toBeDisabled();
+  });
+
+  it('sin Web Serial (Firefox, Safari, celular) explica que hace falta el puente y sugiere Chrome o Edge para evitar instalarlo', async () => {
+    open(STOPPED, readiness({ PUENTE: step('PUENTE', 'Servicio puente', 'ERROR', 'El puente de GlucoLume no está ejecutándose.') }));
+    expect(await screen.findByText(/usá Chrome o Edge en una computadora para conectarlo sin instalar nada/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Conectar Arduino/ })).not.toBeInTheDocument();
   });
 
   it('distingue Bluetooth emparejado, puerto abierto, telemetría recibida y disponible; con todo bien, ofrece medir', async () => {
@@ -313,5 +319,46 @@ describe('Conectar dispositivo: modelo', () => {
     expect(nextAction(status(), READY, 'BLUETOOTH').kind).toBe('success');
     const pending = readiness({ TELEMETRIA: step('TELEMETRIA', 'Telemetría reciente', 'PENDIENTE', 'Sin lecturas.') });
     expect(nextAction(status(), pending, 'BLUETOOTH')).toMatchObject({ kind: 'info', title: 'Telemetría reciente' });
+  });
+});
+
+
+describe('Conectar dispositivo: desde el navegador (Web Serial)', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'serial', { value: { requestPort: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn() }, configurable: true });
+  });
+  afterEach(() => {
+    delete navigator.serial;
+  });
+
+  it('sin puente ofrece conectar el Arduino desde el navegador, sin pedir instalar nada, y deja el puente como alternativa', async () => {
+    open(STOPPED, readiness({ PUENTE: step('PUENTE', 'Servicio puente', 'ERROR', 'El puente de GlucoLume no está ejecutándose.') }));
+    expect(await screen.findByRole('heading', { name: '2. Conectar el Arduino desde este navegador' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Conectar Arduino por Bluetooth/ })).toBeEnabled();
+    expect(await screen.findByText('El Arduino todavía no está conectado')).toBeInTheDocument();
+    expect(screen.getByText('¿Preferís instalar el puente en la computadora?')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Detener puente/ })).not.toBeInTheDocument();
+  });
+
+  it('con otra cuenta conectada desde su navegador avisa y no deja competir; no ofrece órdenes de puente', async () => {
+    open(status({ puente: { ...BRIDGE, origen: 'NAVEGADOR', propio: false, puertosDisponibles: null, puerto: 'USB 2341:0043' }, controlPropio: false, ocupado: false }), READY);
+    expect(await screen.findByText(/Otra cuenta tiene el dispositivo conectado desde su navegador/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Conectar Arduino/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Pausar lectura/ })).not.toBeInTheDocument();
+  });
+
+  it('con un puente instalado activo sigue mostrando su configuración (el navegador no compite)', async () => {
+    open(status({ puente: { ...BRIDGE, origen: 'PUENTE', propio: false } }), READY);
+    expect(await screen.findByRole('heading', { name: '2. Configuración del puente' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Conectar Arduino/ })).not.toBeInTheDocument();
+  });
+
+  it('la conexión del navegador no se marca como un puerto que Windows no ve', () => {
+    const browserStatus = status({ puente: { ...BRIDGE, origen: 'NAVEGADOR', propio: true, puertosDisponibles: null, puerto: 'USB 2341:0043', medio: 'USB', baudios: 115200 } });
+    const stages = pipeline(browserStatus, READY, 'USB');
+    expect(stages[0].state).toBe('OK');
+    expect(stages[0].hint).toMatch(/El navegador abrió el puerto/);
+    expect(indicators(browserStatus, READY).find((item) => item.id === 'PUENTE').value).toBe('Navegador (Web Serial)');
+    expect(nextAction(STOPPED, undefined, 'USB', true).title).toBe('El Arduino todavía no está conectado');
   });
 });

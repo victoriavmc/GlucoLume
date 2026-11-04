@@ -32,6 +32,7 @@ from app.schemas.acquisition import (
     BridgeCommandRequest,
     BridgeIngest,
     BridgeIngestRead,
+    BrowserIngest,
     DeviceConnectConfirm,
     DeviceConnectLink,
     DeviceConnectRegister,
@@ -83,6 +84,15 @@ def requireBridge(request: Request, db: DbSession, token: Annotated[str | None, 
 def ingest(data: BridgeIngest, db: DbSession, bridge: Annotated[BridgeIdentity, Depends(requireBridge)]):
     bridgeCredentials.enforceScope(db, bridge, data.codigoDispositivo)
     return telemetryService.ingest(db, data)
+
+
+@router.post("/browser/ingest", response_model=BridgeIngestRead, summary="Lecturas del Arduino leído desde el navegador (Web Serial)",
+             description="Con la sesión del usuario (Bearer, cuentas que pueden medir). Latido y líneas del firmware tal como las lee el navegador "
+             "por Web Serial (hasta 200 por pedido), sin instalar el puente. Mismo flujo que `/bridge/ingest`: idempotente por `seq`, y el dispositivo "
+             "se identifica solo con su ID propio. El enlace queda atado a la cuenta que lo abrió: solo ella toma el control y mide con él, y no recibe "
+             "órdenes del servidor. 409 `PUENTE_DUPLICADO` si otro puente o navegador ya atiende el dispositivo.")
+def ingestFromBrowser(data: BrowserIngest, auth: CurrentAuth, db: DbSession):
+    return telemetryService.ingestBrowser(db, auth.user, data)
 
 
 @router.post("/bridge/check", response_model=BridgeCheckRead, summary="Comprobar un código de dispositivo (instalación del puente)",

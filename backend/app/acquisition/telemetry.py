@@ -317,6 +317,9 @@ def evaluateStability(readings: list[Reading], now: float, requireGlucose: bool 
 
 
 BUSY_MESSAGE = "Dispositivo temporalmente ocupado: otra cuenta está midiendo ahora. Reintentá en unos instantes."
+BROWSER_OWNER_MESSAGE = ("El dispositivo está conectado desde el navegador de otra cuenta: solo quien lo conectó puede usarlo. "
+                         "Cuando termine, el dispositivo vuelve a quedar libre.")
+BROWSER_COMMAND_MESSAGE = "El dispositivo está conectado desde el navegador: el puerto se maneja desde ese navegador, no con órdenes al puente."
 CONTROL_REQUIRED_MESSAGE = "Tomá el control del dispositivo («Usar dispositivo») antes de darle órdenes al puente."
 
 
@@ -348,6 +351,9 @@ class BridgeInfo:
     hardwareAt: float = 0.0
     idSeen: bool = False  # este puente ya vio al menos un ID propio: su firmware lo informa, así que el código configurado no es la identidad
     connectedAt: float = 0.0  # desde cuándo está estable la conexión actual (puerto, medio y velocidad sin cambios)
+    # Cuenta que lee el Arduino DESDE SU NAVEGADOR (Web Serial). None = un puente instalado, autenticado por su token. Un enlace del navegador solo
+    # lo usa su dueña (no puede dar lecturas a la sesión de otra cuenta) y no recibe órdenes del servidor: el puerto lo maneja el navegador.
+    ownerId: Any = None
 
 
 class CommandRejected(Exception):
@@ -517,8 +523,8 @@ class TelemetryHub:
     def ingest(self, bridgeId: str, deviceCode: str, port: str | None, medium: str, baud: int | None, linkState: str,
                attempt: int, error: str | None, lines: list[tuple[int, int, str]], stopped: bool = False,
                errorCode: str | None = None, ports: list[dict] | None = None, version: str | None = None,
-               commandResult: dict | None = None) -> IngestResult:
-        """Latido y líneas del puente. `lines`: (seq, edad en ms al enviar, texto). Idempotente: un seq ya recibido se ignora.
+               commandResult: dict | None = None, ownerId: Any = None) -> IngestResult:
+        """Latido y líneas del puente (o del navegador de `ownerId`, que lee el Arduino por Web Serial). `lines`: (seq, edad en ms al enviar, texto). Idempotente: un seq ya recibido se ignora.
         `stopped`: el puente se está cerrando a propósito; libera su lugar para que otro (o el mismo, reiniciado) tome el relevo.
         `commandResult`: resultado de la última orden que el puente recibió (cierra la orden pendiente)."""
         result = IngestResult()
@@ -528,9 +534,11 @@ class TelemetryHub:
             current = self.bridge
             if current is not None and current.bridgeId != bridgeId and now - current.lastBeat <= BRIDGE_STALE_SECONDS:
                 raise BridgeConflict("Ya hay otro puente serie activo para este dispositivo.")
+            if current is not None and current.bridgeId == bridgeId and current.ownerId != ownerId:
+                raise BridgeConflict("Ese enlace pertenece a otra conexión.")  # nadie toma el identificador de un enlace ajeno
             if current is None or current.bridgeId != bridgeId:
                 previous = current
-                current = self.bridge = BridgeInfo(bridgeId, deviceCode, port, medium, baud, connectedAt=now)
+                current = self.bridge = BridgeInfo(bridgeId, deviceCode, port, medium, baud, connectedAt=now, ownerId=ownerId)
                 self.latest = self.notice = None
                 self.confirmation = None
                 if previous is not None and previous.pending and previous.pending.get("accion") == "REINICIAR":
@@ -618,6 +626,8 @@ class TelemetryHub:
                 raise CommandRejected("COMANDO_INVALIDO", "Acción no permitida.")
             if bridge is None or self.deviceState() == "SIN_PUENTE":
                 raise CommandRejected("PUENTE_NO_ACTIVO", "El puente de GlucoLume no está ejecutándose: no hay a quién enviarle la orden.")
+            if bridge.ownerId is not None:
+                raise CommandRejected("ORDEN_NO_APLICABLE", BROWSER_COMMAND_MESSAGE)
             if self.session is None:
                 raise CommandRejected("CONTROL_REQUERIDO", CONTROL_REQUIRED_MESSAGE)
             if self.session.userId != userId:
@@ -684,6 +694,9 @@ class TelemetryHub:
         """Reserva el dispositivo para `userId` (aún sin medición). Idempotente para el mismo usuario."""
         with self.lock:
             self.expireSession()
+            bridge = self.bridge
+            if bridge is not None and bridge.ownerId is not None and bridge.ownerId != userId and self.deviceState() != "SIN_PUENTE":
+                raise PermissionError(BROWSER_OWNER_MESSAGE)
             if self.session is not None:
                 if self.session.userId != userId:
                     raise PermissionError(BUSY_MESSAGE)
@@ -752,6 +765,8 @@ class TelemetryHub:
                     "estadoEnlace": bridge.linkState, "reintento": bridge.attempt,
                     "ultimoError": None if busy else bridge.error, "codigoError": None if busy else bridge.errorCode,
                     "versionPuente": bridge.version,
+                    "origen": "NAVEGADOR" if bridge.ownerId is not None else "PUENTE",
+                    "propio": bridge.ownerId is not None and bridge.ownerId == viewerId,
                     "puertosDisponibles": None if busy else bridge.ports,
                     "comandoPendiente": None if busy or bridge.pending is None else bridge.pending["accion"],
                     "ultimoComando": None if busy else bridge.lastResult},

@@ -223,16 +223,16 @@ export const AYUDA_CLIENTE = [
   {
     id: 'conectar-dispositivo',
     titulo: 'Conectar dispositivo',
-    intro: 'Es el puente entre el Arduino y GlucoLume. El equipo es compartido: una cuenta lo controla a la vez.',
+    intro: 'Acá conectás el Arduino con GlucoLume. El equipo es compartido: una cuenta lo controla a la vez.',
     pasos: [
-      { texto: 'Instalá el puente en la computadora Windows donde conectás el Arduino: acquisition\\bridge\\Instalar-Puente.bat.' },
+      { texto: 'Con Chrome o Edge en una computadora no hace falta instalar nada: tocá «Conectar Arduino» y elegí el puerto. En otro navegador o en un celular, instalá el puente en la computadora donde conectás el Arduino: backend\\acquisition\\bridge\\Instalar-Puente.bat.' },
       { texto: 'En Conectar dispositivo elegí el medio: Bluetooth HC-05/HC-06 (9600 baudios) o USB (115200).', ir: { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' } },
       { texto: 'Mirá el estado de la conexión y resolvé lo que indique antes de medir.', captura: 'conectar-sin-bluetooth.png', pie: 'Con el Bluetooth sin emparejar, la pantalla indica cómo resolverlo.' },
       { texto: 'Tocá Usar dispositivo para tomar el control del puente.', boton: 'Usar dispositivo', captura: 'conectar-usar-pantalla.png', pie: 'Pantalla de Conectar dispositivo: tocá «Usar dispositivo» en el bloque «Configuración del puente».' },
       { texto: 'Al terminar, tocá Dejar de usar para liberarlo.', boton: 'Dejar de usar', captura: 'conectar-pantalla.png', pie: 'Pantalla de Conectar dispositivo. Mientras lo usás, el botón «Dejar de usar» aparece aquí.' },
     ],
     detalles: [
-      { titulo: 'Puente serie detenido', texto: 'Iniciá Puente-GlucoLume.bat en la computadora.' },
+      { titulo: 'Puente serie detenido', texto: 'Nadie está leyendo el Arduino: tocá «Conectar Arduino» en Conectar dispositivo (Chrome o Edge) o iniciá Puente-GlucoLume.bat en la computadora.' },
       { titulo: 'Bluetooth desconectado', texto: 'Encendé el Arduino y revisá el emparejamiento.' },
       { titulo: 'Conectado, sin datos', texto: 'El Arduino todavía no envía datos: esperá o revisá el equipo.' },
       { titulo: 'Conectado', texto: 'Ya podés medir.', captura: 'conectar-compartido-disponible.png' },
@@ -275,7 +275,7 @@ export const AYUDA_CLIENTE = [
       encabezados: ['Qué ves', 'Qué hacer'],
       filas: [
         ['Falta la autorización', 'Autorizala en Configuración de perfil con «Autorizo el almacenamiento».'],
-        ['No hay comunicación con el Arduino', 'Iniciá el puente y revisá el Bluetooth o el cable USB.'],
+        ['No hay comunicación con el Arduino', 'Conectalo desde Conectar dispositivo (o iniciá el puente) y revisá el Bluetooth o el cable USB.'],
         ['El dispositivo está siendo usado por otra cuenta', 'Esperá a que termine. Si queda sin uso, se libera solo a los 5 minutos.'],
         ['El dispositivo no está operativo', 'No se puede medir hasta que vuelva a estar operativo.'],
         ['No hay regla de referencia para tu perfil', 'Completá fecha de nacimiento y sexo en Perfil, o edad y sexo en la medición.'],

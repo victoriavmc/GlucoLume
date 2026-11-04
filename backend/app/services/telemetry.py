@@ -18,6 +18,7 @@
 # versionAlgoritmo = FIRMWARE_ALGORITHM. Este servicio no escribe nunca en el Arduino (ni DEMO,ON/OFF ni CAL).
 
 import logging
+import re
 from decimal import Decimal
 
 from sqlalchemy import func, or_, select, update
@@ -39,6 +40,7 @@ from app.schemas.acquisition import (
     BridgeCommandRequest,
     BridgeIngest,
     BridgeIngestRead,
+    BrowserIngest,
     TelemetrySessionStart,
 )
 from app.schemas.measurement import MeasurementDetail, MeasurementStart
@@ -82,13 +84,45 @@ def ingest(db: Session, data: BridgeIngest) -> BridgeIngestRead:
                             commandResult=None if data.comando is None else data.comando.model_dump())
     except BridgeConflict as error:
         raise AuthError("PUENTE_DUPLICADO", str(error)) from error
-    if result.invalid:  # ruido o manipulación del enlace: se cuenta por puente y deja una sola alerta por ventana (sin el contenido)
-        securityMonitor.recordBridgeLines(str(data.idPuente), result.invalid)
     if hub.identity()["nivel"] == "DECLARADA" and hub.registrationAllowed():
         # Firmware sin ID propio (anterior): el código configurado en el puente se da de alta solo, sin institución, pero SOLO con telemetría
         # llegando y pasado el margen sin ID (nunca con un Arduino que no responde). Con ID propio NO: el alta la hace un operador desde su
         # conexión (queda en su institución) o la cuenta individual al verificar.
         _ensureRegistered(db, data.codigoDispositivo.strip())
+    return _afterIngest(db, str(data.idPuente), result)
+
+
+# El navegador no tiene un código de dispositivo configurado: el Arduino se identifica SOLO con su ID propio (línea GLUCOLUME,ID=...). Este marcador
+# nunca se da de alta en el inventario ni coincide con un dispositivo real.
+BROWSER_DEVICE_CODE = "NAVEGADOR"
+BROWSER_PORT_LABEL = "Navegador (Web Serial)"
+# Sufijo de autenticación de línea del firmware (`*<arranque>.<contador>.<etiqueta>`, ver acquisition/bridge/linkauth.py). El puente la verifica con
+# su clave de dispositivo y la quita; el navegador no puede guardar esa clave, así que el servidor solo la quita (ver docs/SEGURIDAD.md, modo navegador).
+_LINE_SIGNATURE = re.compile(r"\*\d{1,10}\.\d{1,10}\.[0-9a-f]{16}$")
+
+
+def ingestBrowser(db: Session, actor: User, data: BrowserIngest) -> BridgeIngestRead:
+    """Latido y líneas del NAVEGADOR de `actor` (Web Serial): el mismo flujo que el puente, con la sesión de la cuenta como credencial. Solo
+    cuentas que pueden medir. El enlace queda atado a esa cuenta (hub.BridgeInfo.ownerId): solo ella puede tomar el control y medir con él, y el
+    servidor no le envía órdenes. Un puente instalado (u otro navegador) que ya esté activo gana: 409 PUENTE_DUPLICADO."""
+    _requireMeasurer(db, actor)
+    previous = hub.bridge
+    lines = [(l.seq, l.edadMs, _LINE_SIGNATURE.sub("", l.texto)) for l in data.lineas]
+    try:
+        result = hub.ingest(str(data.idEnlace), BROWSER_DEVICE_CODE, data.nombrePuerto or BROWSER_PORT_LABEL, data.medio, data.baudios,
+                            data.estadoEnlace, 0, data.error, lines, stopped=data.detenido, ownerId=actor.idUsuario)
+    except BridgeConflict as error:
+        raise AuthError("PUENTE_DUPLICADO", str(error)) from error
+    if previous is None or previous.bridgeId != str(data.idEnlace):
+        registerEvent(db, "ACCESO", "CONECTAR_DISPOSITIVO_NAVEGADOR", True, actor.idUsuario,
+                      observacion=f"Conexión del Arduino desde el navegador ({data.medio}).")
+        db.commit()
+    return _afterIngest(db, str(data.idEnlace), result)
+
+
+def _afterIngest(db: Session, linkId: str, result) -> BridgeIngestRead:
+    if result.invalid:  # ruido o manipulación del enlace: se cuenta por conexión y deja una sola alerta por ventana (sin el contenido)
+        securityMonitor.recordBridgeLines(linkId, result.invalid)
     if result.linkLostDuringSession:
         session = hub.session
         if session is not None and session.idMedicion is not None:

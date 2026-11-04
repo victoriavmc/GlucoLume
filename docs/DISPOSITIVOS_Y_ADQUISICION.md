@@ -25,7 +25,8 @@ Puente local (acquisition/bridge) ──HTTP + X-Bridge-Token──▶ backend F
 | React | Muestra conexión, diagnóstico y lecturas; pide órdenes y guardado al backend |
 | SQL Server | Guarda solo las mediciones confirmadas |
 
-Docker Desktop no puede pasar un COM a un contenedor Linux: por eso existe el puente en Windows. Alternativa (Linux con el Arduino en el
+Docker Desktop no puede pasar un COM a un contenedor Linux: por eso existe el puente en Windows. **Alternativa sin instalar nada:** Chrome o Edge de
+escritorio pueden leer el Arduino por **Web Serial** y entregarlo al backend con la sesión de la cuenta (sección 3.1). Alternativa (Linux con el Arduino en el
 host): `compose.serial.yaml` pasa `/dev/ttyACM0` al backend (protocolo de muestras crudas, sección 5). Nunca hay dos lectores sobre el mismo
 puerto: Windows no abre un COM dos veces, el puente tiene un candado de instancia única y el backend rechaza un segundo puente (`409 PUENTE_DUPLICADO`).
 
@@ -98,7 +99,7 @@ control al iniciarla. Constantes: `RESERVATION_SECONDS`, `PREVIEW_MAX_SECONDS`, 
 ## 3. Puente serie de Windows
 
 **Instalación (una vez):** `BRIDGE_TOKEN` (≥ 32 caracteres) en el `.env` del proyecto y backend en marcha; luego doble clic en
-`acquisition\bridge\Instalar-Puente.bat`. El asistente crea el entorno Python (pyserial con hashes), pregunta USB o Bluetooth y el puerto
+`backend\acquisition\bridge\Instalar-Puente.bat`. El asistente crea el entorno Python (pyserial con hashes), pregunta USB o Bluetooth y el puerto
 (no asume ningún COM), valida el backend y el token, escribe `bridge.env` con acceso solo para el usuario y ofrece el inicio automático
 (tarea programada de usuario, sin permisos de administrador; alternativa: clave `Run`). Automatizable: `bridge_ctl.py install --yes …`.
 
@@ -114,7 +115,7 @@ control al iniciarla. Constantes: `RESERVATION_SECONDS`, `PREVIEW_MAX_SECONDS`, 
 `BRIDGE_API_URL`, `BRIDGE_TOKEN` (igual al del backend), `BRIDGE_DEVICE_CODE` (respaldo para firmware sin ID; no prueba identidad),
 `BRIDGE_LOCK_PORT`.
 
-**Administración:** el servicio corre sin ventana (`pythonw`); `Puente-GlucoLume.bat` (menú) o `python acquisition\bridge\bridge_ctl.py status|ports|doctor|logs|start|stop|restart|setup|autostart|uninstall`;
+**Administración:** el servicio corre sin ventana (`pythonw`); `Puente-GlucoLume.bat` (menú) o `python backend\acquisition\bridge\bridge_ctl.py status|ports|doctor|logs|start|stop|restart|setup|autostart|uninstall`;
 `run_bridge.bat` con consola para depurar. Registro rotativo sin secretos y `status.json` en `%LOCALAPPDATA%\GlucoLume\bridge\`.
 
 | Incidencia | Respuesta |
@@ -128,6 +129,32 @@ control al iniciarla. Constantes: `RESERVATION_SECONDS`, `PREVIEW_MAX_SECONDS`, 
 Seguridad: el token viaja en `X-Bridge-Token` (comparación en tiempo constante), nunca llega a React, a respuestas de la API, al registro ni a
 `status.json`; el puente rechaza `http://` hacia otra máquina. El backend nunca ejecuta comandos locales: deja una orden de una lista cerrada
 que el puente toma en su próximo latido.
+
+### 3.1 Lectura desde el navegador (Web Serial), sin puente
+
+```text
+Arduino ──USB / Bluetooth emparejado (puerto COM)──▶ Chrome o Edge (Web Serial, solo lectura)
+        ──POST /acquisition/browser/ingest (sesión de la cuenta)──▶ backend (mismo `hub` que el puente)
+```
+
+Es la opción principal de «Conectar dispositivo» cuando el navegador la admite (`navigator.serial`, HTTPS o localhost). La persona toca **Conectar Arduino**,
+elige el puerto en el selector del navegador y el navegador abre el puerto (115200 baudios USB, 9600 Bluetooth) **sin escribir nunca en el Arduino**. Las líneas
+del firmware viajan igual que las del puente (`seq` para no duplicar, `edadMs`, latido cada 3 s sin líneas, cola de hasta 1000 líneas si el servidor no responde).
+Código: `frontend/src/utils/browserSerialLink.js` (un único módulo: la conexión sigue viva al ir a «Mis mediciones»; se cierra al recargar o cerrar la pestaña,
+y al cerrar sesión) y `POST /acquisition/browser/ingest` (`services/telemetry.ingestBrowser`).
+
+| Aspecto | Puente instalado | Navegador (Web Serial) |
+|---|---|---|
+| Credencial | `X-Bridge-Token` (individual o compartido) | Sesión de la cuenta; solo cuentas que pueden medir |
+| Identidad del Arduino | `GLUCOLUME,ID=` o código configurado | Solo `GLUCOLUME,ID=` del firmware; el marcador `NAVEGADOR` nunca se da de alta en el inventario |
+| Quién lo usa | DEC-01: cualquier cuenta habilitada, con control temporal | Solo la cuenta que abrió el enlace (`BridgeInfo.ownerId`): `hub.reserve` rechaza a las demás con `DISPOSITIVO_EN_USO` |
+| Órdenes del servidor (pausar, reiniciar, puerto) | Sí, con el control temporal | No: `ORDEN_NO_APLICABLE`; el puerto lo maneja el navegador |
+| Firma de líneas (H-05) | Verificada con `BRIDGE_DEVICE_KEY` y quitada | **No se verifica**: el servidor solo quita el sufijo `*arranque.contador.etiqueta`; la clave no puede vivir en el navegador (ver SEGURIDAD §4.9) |
+| Dos lectores a la vez | `409 PUENTE_DUPLICADO` | Igual: un puente activo gana; un segundo navegador recibe el 409 |
+| Auditoría | — | `CONECTAR_DISPOSITIVO_NAVEGADOR` al abrir cada enlace |
+
+Navegadores sin Web Serial (Firefox, Safari, iPhone y la mayoría de los celulares) siguen necesitando el puente. El HC-05/HC-06 es Bluetooth **clásico**: no
+funciona con Web Bluetooth (solo BLE); en Chrome/Edge de escritorio se usa como puerto COM saliente ya emparejado en el sistema.
 
 ## 4. Telemetría procesada (`GlucoLume_MAX30100`)
 
