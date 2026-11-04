@@ -269,8 +269,10 @@ def test_despues_de_comer_fuera_de_la_ventana_explica_el_motivo(db, mails, consu
     db.commit()
     group = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos[0]
     assert group.reglaSeleccionada is None and group.posicion is None
-    assert group.motivoSinSeleccion == ("Referencia no disponible: la medición se inició a 20 min del inicio de la comida y la regla "
-                                        "posprandial vale entre 60 y 120 min.")
+    assert group.motivoSinSeleccion == ("Fuera de la ventana: la medición se inició a 20 min del inicio de la comida y la regla "
+                                        "posprandial vale entre 60 y 120 min. El semáforo es solo orientativo.")
+    # La regla fuera de ventana se muestra igual, con su semáforo (no se elige como referencia).
+    assert [r.condicionComida for r in group.reglas] == ["POSTPRANDIAL"] and group.reglas[0].semaforo is not None
 
 
 def test_9_sin_regla_aplicable_no_se_elige_una_arbitraria(db, mails, consumer, bridge, clock):
