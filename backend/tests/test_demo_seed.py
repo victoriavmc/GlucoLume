@@ -8,20 +8,23 @@
 
 import smtplib
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.core import security
 from app.core.exceptions import AuthError
 from app.demo import catalog as C
 from app.demo import inventory, limpieza, seeder
+from app.models.audit import Audit
 from app.models.localCredential import LocalCredential
 from app.models.measurement import Measurement
+from app.models.measurementProfile import MeasurementProfile
+from app.models.profileTransfer import ProfileTransfer
 from app.models.user import User
 from app.services import auth
 from app.services import group as groups
@@ -58,6 +61,17 @@ def seeded(db):
 
 def countRows(db, model) -> int:
     return db.scalar(select(func.count()).select_from(model))
+
+
+def startAudits(db) -> list[Audit]:
+    return list(db.scalars(select(Audit).where(Audit.tablaAfectada == "Medicion", Audit.accion == "INICIAR_MEDICION")).all())
+
+
+def purgeStartAudits(db) -> None:
+    """Simula la purga que haría el DBA (GL-03): la limpieza de datos demo no borra auditoría. Estas pruebas de limpieza quitan antes
+    todas las filas que tienen como autor una cuenta demo (la carga las agrega), para probar la limpieza en sí."""
+    db.execute(delete(Audit).where(Audit.idUsuario.in_([a.id for a in C.ACCOUNTS])))
+    db.commit()
 
 
 # --- Dry-run, aplicación e idempotencia ----------------------------------------------------------------------------------
@@ -248,6 +262,58 @@ def test_cada_paciente_tiene_un_unico_operador_y_los_documentos_son_unicos(db, s
     assert len(documents) == len(set(documents))
 
 
+def test_cada_medicion_de_paciente_queda_atribuida_a_su_operador(db, seeded):
+    audits = {row.idRegistro: row for row in startAudits(db)}
+    assert len(audits) == C.expectedCounts()["mediciones_pacientes"]  # solo las de pacientes: las individuales no tienen operador
+    for patient, specs in C.patientMeasurements():
+        for spec in specs:
+            row = audits[spec.id]
+            # Antes de la transferencia, la medición es del operador de origen; después, del responsable actual.
+            authorKey = patient.origen if patient.alta == C.TRANSFERENCIA and spec.start(ANCHOR) < ANCHOR - timedelta(days=C.CAMBIO_DIAS) \
+                else patient.operator
+            assert row.idUsuario == account(authorKey).id
+            assert row.idRelacionado == C.demoId("vinculo-institucional", f"{patient.institution}:{authorKey}")
+            assert row.fechaHora == spec.start(ANCHOR)
+    # Como cualquier auditoría de la demo, bloquea la limpieza automática (riesgo K2 de la guía).
+    assert limpieza.plan(db).bloqueada
+
+
+def test_pacientes_llegaron_a_su_operador_por_alta_asignacion_o_transferencia(db, seeded):
+    creations = {row.idRegistro: row for row in db.scalars(select(Audit).where(Audit.accion == "CREAR_PACIENTE")).all()}
+    assert len(creations) == len(C.PATIENTS)
+    transfers = db.scalars(select(ProfileTransfer)).all()
+    assert len(transfers) == sum(1 for p in C.PATIENTS if p.alta == C.TRANSFERENCIA)
+    for transfer in transfers:
+        assert transfer.estado == "ACEPTADA" and transfer.fechaTransferencia is not None
+    for patient in C.PATIENTS:
+        creation = creations[patient.id]
+        assert creation.idUsuario == account(patient.registrante).id
+        if patient.alta == C.ALTA_MODERADOR:
+            assert creation.datosNuevos and '"rolRegistrante": "MODERADOR"' in creation.datosNuevos
+        profile = db.get(MeasurementProfile, patient.id)
+        assert profile.idInstitucionUsuarioResponsable == C.demoId("vinculo-institucional", patient.relationKey)
+
+
+def test_moderadores_incorporan_a_dos_operadores_cada_uno(db, seeded):
+    invitedBy = {}
+    for link in C.STAFF:
+        if link.rol == C.ROL_OPERADOR:
+            invitedBy.setdefault(link.invitadoPor, []).append(link.account)
+    for inst in C.MAIN_INSTITUTIONS:
+        assert sorted(invitedBy[f"moderador-{inst}-1"]) == [f"operador-{inst}-1", f"operador-{inst}-2"]
+        assert sorted(invitedBy[f"moderador-{inst}-2"]) == [f"operador-{inst}-3", f"operador-{inst}-4"]
+
+
+def test_auditoria_de_inicio_se_completa_en_una_segunda_carga(db, seeded):
+    purgeStartAudits(db)  # carga anterior a esta versión: mediciones y altas sin auditoría
+    passwords = allPasswords()
+    plan = seeder.buildPlan(db, anchor=ANCHOR, passwords=passwords)
+    assert plan.conteo()["AuditoriaInicio"] == {"CREAR": 1}
+    seeder.apply(db, plan)
+    assert len(startAudits(db)) == C.expectedCounts()["mediciones_pacientes"]
+    assert seeder.buildPlan(db, anchor=ANCHOR, passwords=passwords).conteo()["AuditoriaInicio"] == {"YA_EXISTE": 1}
+
+
 # --- Administrador existente, limpieza y auditoría ----------------------------------------------------------------------
 
 
@@ -270,6 +336,7 @@ def test_administrador_existente_no_cambia_con_la_carga_ni_con_la_limpieza(db, e
     seeded = allPasswords()
     seeder.apply(db, seeder.buildPlan(db, anchor=ANCHOR, passwords=seeded))
     assert _snapshot(db.get(User, admin.idUsuario)) == before
+    purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
     cleanup = limpieza.plan(db)
     assert not cleanup.bloqueada
     limpieza.execute(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
@@ -285,6 +352,7 @@ def test_limpieza_elimina_solo_lo_demo_y_conserva_datos_reales(db, engine):
     db.commit()
     seeder.apply(db, seeder.buildPlan(db, anchor=ANCHOR, passwords=allPasswords()))
     assert db.get(User, real_user.idUsuario) is not None
+    purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
     cleanup = limpieza.plan(db)
     assert not cleanup.bloqueada, cleanup.bloqueos
     assert set(cleanup.resumen()) >= {"Usuario", "Institucion", "Medicion", "PerfilMedicion", "Dispositivo", "Grupo"}
@@ -370,6 +438,7 @@ def test_cli_limpieza_dry_run_no_borra(db, engine, tmp_path, monkeypatch):
     monkeypatch.setattr("app.db.session.getSessionFactory", lambda: sessionmaker(bind=engine, autoflush=False,
                                                                                  expire_on_commit=False))
     seeder.apply(db, seeder.buildPlan(db, anchor=ANCHOR, passwords=allPasswords()))
+    purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
     lines: list[str] = []
     assert demoSeed.run(["--limpiar"], out=lines.append) == 0
     assert countRows(db, User) == len(C.ACCOUNTS)

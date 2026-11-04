@@ -207,7 +207,9 @@ def _staff() -> tuple[StaffLink, ...]:
             links.append(StaffLink(inst, f"moderador-{inst}-{n}", ROL_MODERADOR, owner))
         functions = ("OPERADOR", "ENFERMERO", "MEDICO", "OPERADOR")
         for n in (1, 2, 3, 4):
-            links.append(StaffLink(inst, f"operador-{inst}-{n}", ROL_OPERADOR, f"moderador-{inst}-1",
+            # Cada moderador incorpora a dos operadores: el 1 a los operadores 1 y 2, el 2 a los operadores 3 y 4.
+            invitedBy = f"moderador-{inst}-{1 if n <= 2 else 2}"
+            links.append(StaffLink(inst, f"operador-{inst}-{n}", ROL_OPERADOR, invitedBy,
                                    funcionProfesional=functions[n - 1], legajo=f"DEMO-LEG-{inst.upper()}{n}",
                                    matricula=f"DEMO-MAT-{inst.upper()}{n}" if functions[n - 1] != "OPERADOR" else None))
     return tuple(links)
@@ -248,8 +250,16 @@ def deviceKeyForIndividual(accountKey: str) -> str:
 
 # Pacientes por operador (en el orden operador-x-1 … operador-x-4): entre 3 y 5 por operador, 32 en total.
 PATIENTS_PER_OPERATOR = {"a": (3, 5, 4, 4), "b": (4, 3, 5, 4)}
-# Cantidad de mediciones por paciente (ciclo): 0, 1 y 2 para pacientes con poca historia; 9 y 12 para los más activos.
-PATIENT_MEASUREMENT_CYCLE = (0, 1, 2, 4, 6, 9, 12, 3)
+# Cantidad de mediciones por paciente (ciclo): entre 1 y 4, como en el seguimiento real de un paciente asignado.
+PATIENT_MEASUREMENT_CYCLE = (1, 2, 3, 4, 2, 1, 4, 3)
+# Cómo llegó cada paciente a su operador actual (ciclo por número de paciente dentro de la institución). Cada caso deja el rastro que
+# deja la aplicación: el alta del operador, el alta de un moderador con asignación, o una transferencia entre operadores aceptada.
+ALTA_OPERADOR = "ALTA_OPERADOR"
+ALTA_MODERADOR = "ALTA_MODERADOR"
+TRANSFERENCIA = "TRANSFERENCIA"
+ALTA_CYCLE = (ALTA_OPERADOR, ALTA_MODERADOR, TRANSFERENCIA)
+# Hace cuántos días se aceptó la transferencia. Las mediciones anteriores a esa fecha son del operador de origen (historial).
+CAMBIO_DIAS = 25
 FIRST_NAMES = ("Lucía", "Mateo", "Valentina", "Joaquín", "Renata", "Benjamín", "Agustina", "Santiago", "Victoria", "Lautaro",
                "Florencia", "Facundo", "Milagros", "Tobías", "Pilar", "Bruno", "Abril", "Thiago", "Catalina", "Ignacio")
 LAST_NAMES = ("Quiroga", "Ferreyra", "Molina", "Aguirre", "Palacios", "Gómez", "Barrios", "Cabrera", "Figueroa", "Ibarra",
@@ -267,6 +277,9 @@ class Patient:
     fechaNacimiento: date | None
     sexoModelo: str | None
     mediciones: int
+    alta: str  # ALTA_OPERADOR | ALTA_MODERADOR | TRANSFERENCIA
+    registrante: str  # clave de la cuenta que dio de alta al paciente (operador o moderador de la institución)
+    origen: str | None  # solo en TRANSFERENCIA: operador que lo tuvo antes (y que lo solicitó transferir)
 
     @property
     def key(self) -> str:
@@ -293,10 +306,21 @@ def _patients() -> tuple[Patient, ...]:
         for position, count in enumerate(PATIENTS_PER_OPERATOR[inst], start=1):
             for _ in range(count):
                 seq += 1
+                operator = f"operador-{inst}-{position}"
+                alta = ALTA_CYCLE[(seq - 1) % len(ALTA_CYCLE)]
+                if alta == ALTA_OPERADOR:
+                    registrante, origen = operator, None
+                elif alta == ALTA_MODERADOR:
+                    registrante, origen = f"moderador-{inst}-{1 if position <= 2 else 2}", None
+                else:  # lo dio de alta el operador anterior (el siguiente en la institución) y luego se transfirió
+                    registrante = origen = f"operador-{inst}-{position % 4 + 1}"
                 out.append(Patient(
                     institution=inst,
-                    operator=f"operador-{inst}-{position}",
+                    operator=operator,
                     seq=seq,
+                    alta=alta,
+                    registrante=registrante,
+                    origen=origen,
                     nombre=FIRST_NAMES[(seq * 5) % len(FIRST_NAMES)],
                     apellido=LAST_NAMES[(seq * 3 + (1 if inst == "b" else 0)) % len(LAST_NAMES)],
                     # Documento sintético: prefijo DEMO, solo A-Z0-9 (CK_PerfilMedicion_dniNormalizado). Sin documento en algunos.

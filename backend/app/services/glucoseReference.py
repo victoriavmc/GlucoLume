@@ -53,6 +53,13 @@ def _ageless(rule: MatrixRule) -> bool:
     return rule.edadDesde is None and rule.edadHasta is None
 
 
+def _windowText(rule: MatrixRule) -> str:
+    low, high = rule.minutosComidaMin, rule.minutosComidaMax
+    if high is None:
+        return f"desde {low or 0} min"
+    return f"entre {low or 0} y {high} min"
+
+
 def _foodMatches(rule: MatrixRule, condition: str, minutes: int | None) -> bool:
     if condition == "NO_INFORMADA":
         return True  # sin dato de alimentación no se descarta ninguna regla (luego se prefieren las previstas para ese caso)
@@ -134,6 +141,12 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
         reason = None
         if not candidates:
             reason = "Referencia no disponible."
+            # Posprandial fuera de la ventana (p. ej. medido a los 20 min del inicio de la comida y la regla vale 60–120): se dice por qué.
+            outside = [r for r in rules if r.sexoModelo == sex and r.condicionComida == condition and (age is None or _inAge(r, age))] \
+                if condition == "POSTPRANDIAL" and minutes is not None else []
+            if outside:
+                reason = (f"Referencia no disponible: la medición se inició a {minutes} min del inicio de la comida y la regla posprandial "
+                          f"vale {_windowText(outside[0])}.")
         elif age is None:
             ageless = [r for r in candidates if _ageless(r)]
             if len(ageless) == 1 and foodExact:

@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from app.core import security
 from app.core.config import getSettings
 from app.demo import catalog as C
+from app.models.audit import Audit
 from app.models.consent import TipoConsentimiento
 from app.models.device import Device
 from app.models.group import Group
@@ -39,11 +40,14 @@ from app.models.localCredential import LocalCredential
 from app.models.measurement import Measurement
 from app.models.measurementProfile import MeasurementProfile
 from app.models.mfaFactor import MfaFactor
+from app.models.profileTransfer import ProfileTransfer
 from app.models.user import User
 from app.schemas.institution import normalizeLegalId
 from app.services import consent as consentService
+from app.services import institution as institutions
 from app.services import matrix as matrixService
 from app.services import measurementRetention
+from app.services.audit import registerEvent
 from app.services.measurementProfile import calculateAge
 from app.utils.timeZone import nowForDb
 
@@ -66,6 +70,20 @@ class PlanItem:
 
 
 @dataclass
+class AuditEntry:
+    """Evento que la aplicación registra al hacer la acción. En la carga histórica, la fecha es la del hecho, no la de la carga."""
+    accion: str
+    actor: uuid.UUID  # usuario que hizo la acción
+    tabla: str
+    idRegistro: uuid.UUID
+    fecha: datetime
+    datosNuevos: dict | None = None
+    datosPrevios: dict | None = None
+    tablaRelacionada: str | None = None
+    idRelacionado: uuid.UUID | None = None
+
+
+@dataclass
 class Plan:
     anchor: datetime
     items: list[PlanItem] = field(default_factory=list)
@@ -73,6 +91,7 @@ class Plan:
     advertencias: list[str] = field(default_factory=list)
     etapas: list[list[object]] = field(default_factory=lambda: [[] for _ in range(ETAPAS)])
     pacientesAFijarInstitucion: list[tuple[uuid.UUID, uuid.UUID]] = field(default_factory=list)
+    auditorias: list[AuditEntry] = field(default_factory=list)
     cuentasACrear: list[str] = field(default_factory=list)
     cuentasARegenerar: list[str] = field(default_factory=list)
 
@@ -345,7 +364,7 @@ def _profilesAndMeasurements(db: Session, plan: Plan, building: bool, now: datet
             idPerfilMedicion=pid, tipoPerfil=C.PERFIL_INSTITUCIONAL,
             idInstitucionUsuarioResponsable=C.demoId("vinculo-institucional", patient.relationKey),
             identificadorPseudonimo=patient.pseudonimo, nombre=patient.nombre, apellido=patient.apellido, dni=patient.dni,
-            fechaNacimiento=patient.fechaNacimiento, sexoModelo=patient.sexoModelo, fechaCreacion=now - timedelta(days=50),
+            fechaNacimiento=patient.fechaNacimiento, sexoModelo=patient.sexoModelo, fechaCreacion=_altaFecha(plan.anchor),
             fechaUltimaMedicion=_lastCompletedEnd(s, plan.anchor)))
         if created and building:
             # Índice de documento único por institución: se fija después de insertar el perfil (ver apply).
@@ -353,6 +372,102 @@ def _profilesAndMeasurements(db: Session, plan: Plan, building: bool, now: datet
         matrix = matrixByInstitution[patient.institution] or globalMatrix
         _measurements(plan, building, specs, profileId, patient.key, patient.fechaNacimiento, patient.sexoModelo,
                       existingMeasurements, C.patientDeviceKey(patient), matrix.idMatriz if matrix else None)
+    _planProvenance(db, plan, patients, accounts, building)
+
+
+def _altaFecha(anchor: datetime) -> datetime:
+    """Alta de los pacientes: antes de la primera medición del historial."""
+    return anchor - timedelta(days=C.HISTORY_DAYS + 1)
+
+
+def _relation(institution: str, account: str) -> uuid.UUID:
+    return C.demoId("vinculo-institucional", f"{institution}:{account}")
+
+
+def _auditedPairs(db: Session, acciones: set[str], ids: list[uuid.UUID]) -> set[tuple[str, uuid.UUID]]:
+    """Pares (acción, registro) que ya tienen auditoría: la carga solo agrega lo que falte."""
+    found: set[tuple[str, uuid.UUID]] = set()
+    for start in range(0, len(ids), 500):
+        rows = db.execute(select(Audit.accion, Audit.idRegistro).where(
+            Audit.accion.in_(acciones), Audit.idRegistro.in_(ids[start:start + 500]))).all()
+        found.update((accion, registro) for accion, registro in rows)
+    return found
+
+
+def _planProvenance(db: Session, plan: Plan, patients, accounts, building: bool) -> None:
+    """Rastro de cada paciente, como lo registra la aplicación:
+      - alta (CREAR_PACIENTE): quién lo registró y a qué operador quedó asignado. Si lo dio de alta un moderador, el responsable es el
+        operador que él designó;
+      - transferencia aceptada entre operadores (TransferenciaPerfil ACEPTADA, con SOLICITAR, ACEPTAR y CAMBIAR_RESPONSABLE);
+      - autoría de cada medición (INICIAR_MEDICION). Las anteriores a la transferencia son del operador de origen.
+    Idempotente: solo agrega lo que falte, también en bases cargadas antes de esta versión."""
+    everything = [(patient, spec) for patient, specs in patients for spec in specs]
+    profileIds = [patient.id for patient, _ in patients]
+    transferIds = [C.demoId("transferencia", patient.key) for patient, _ in patients if patient.alta == C.TRANSFERENCIA]
+    measurementIds = [spec.id for _, spec in everything]
+    done = _auditedPairs(db, {"CREAR_PACIENTE", "SOLICITAR_TRANSFERENCIA_PERFIL", "ACEPTAR_TRANSFERENCIA_PERFIL",
+                              "CAMBIAR_RESPONSABLE_PERFIL", "INICIAR_MEDICION"}, profileIds + transferIds + measurementIds)
+    changeDate = plan.anchor - timedelta(days=C.CAMBIO_DIAS)
+    pendingAlta = pendingTransfer = pendingMeasure = 0
+
+    for patient, specs in patients:
+        inst = patient.institution
+        current = _relation(inst, patient.operator)
+        origin = _relation(inst, patient.origen) if patient.origen else None
+        altaResponsable = origin if origin is not None else current  # quien registra un paciente transferido es el origen
+        registrante = _relation(inst, patient.registrante)
+        if ("CREAR_PACIENTE", patient.id) not in done:
+            pendingAlta += 1
+            plan.auditorias.append(AuditEntry(
+                "CREAR_PACIENTE", accounts[patient.registrante].id, "PerfilMedicion", patient.id, _altaFecha(plan.anchor),
+                datosNuevos={"idInstitucion": str(C.INSTITUTIONS_BY_KEY[inst].id),
+                             "idInstitucionUsuarioResponsable": str(altaResponsable),
+                             "idInstitucionUsuarioRegistrante": str(registrante),
+                             "rolRegistrante": institutions.ROL_MODERADOR if patient.alta == C.ALTA_MODERADOR
+                             else institutions.ROL_OPERADOR}))
+
+        if patient.alta == C.TRANSFERENCIA:
+            transferId = C.demoId("transferencia", patient.key)
+            requested = changeDate - timedelta(days=2)
+            if building and not _exists(db, ProfileTransfer, transferId):
+                plan.etapas[4].append(ProfileTransfer(
+                    idTransferenciaPerfil=transferId, idPerfilMedicion=patient.id, idOperadorDestino=current,
+                    estado="ACEPTADA", fechaPeticion=requested, fechaTransferencia=changeDate,
+                    observacion="Transferencia entre operadores de la institución (demo)."))
+            if ("SOLICITAR_TRANSFERENCIA_PERFIL", transferId) not in done:
+                pendingTransfer += 1
+                plan.auditorias.append(AuditEntry(
+                    "SOLICITAR_TRANSFERENCIA_PERFIL", accounts[patient.origen].id, "TransferenciaPerfil", transferId, requested,
+                    datosNuevos={"idPerfilMedicion": str(patient.id), "idOperadorDestino": str(current)},
+                    tablaRelacionada="InstitucionUsuario", idRelacionado=origin))
+            if ("ACEPTAR_TRANSFERENCIA_PERFIL", transferId) not in done:
+                plan.auditorias.append(AuditEntry(
+                    "ACEPTAR_TRANSFERENCIA_PERFIL", accounts[patient.operator].id, "TransferenciaPerfil", transferId, changeDate,
+                    datosNuevos={"idPerfilMedicion": str(patient.id), "idOperadorDestino": str(current), "estado": "ACEPTADA"},
+                    tablaRelacionada="InstitucionUsuario", idRelacionado=origin))
+            if ("CAMBIAR_RESPONSABLE_PERFIL", patient.id) not in done:
+                plan.auditorias.append(AuditEntry(
+                    "CAMBIAR_RESPONSABLE_PERFIL", accounts[patient.operator].id, "PerfilMedicion", patient.id, changeDate,
+                    datosPrevios={"idInstitucionUsuarioResponsable": str(origin)},
+                    datosNuevos={"idInstitucionUsuarioResponsable": str(current), "idTransferenciaPerfil": str(transferId)}))
+
+        for spec in specs:
+            if ("INICIAR_MEDICION", spec.id) in done:
+                continue
+            pendingMeasure += 1
+            start = spec.start(plan.anchor)
+            # Antes de la transferencia la medición es del operador de origen; después, del responsable actual.
+            authorKey = patient.origen if patient.alta == C.TRANSFERENCIA and start < changeDate else patient.operator
+            plan.auditorias.append(AuditEntry(
+                "INICIAR_MEDICION", accounts[authorKey].id, "Medicion", spec.id, start,
+                datosNuevos={"modoMedicion": spec.modo, "tipoPerfil": C.PERFIL_INSTITUCIONAL, "idPerfilMedicion": str(patient.id)},
+                tablaRelacionada="InstitucionUsuario", idRelacionado=_relation(inst, authorKey)))
+
+    plan.items.append(PlanItem("AuditoriaAlta", "pacientes", "CREAR" if pendingAlta else "YA_EXISTE", f"{pendingAlta} de {len(patients)}"))
+    plan.items.append(PlanItem("Transferencia", "pacientes", "CREAR" if pendingTransfer else "YA_EXISTE",
+                               f"{pendingTransfer} de {sum(1 for p, _ in patients if p.alta == C.TRANSFERENCIA)}"))
+    plan.items.append(PlanItem("AuditoriaInicio", "mediciones", "CREAR" if pendingMeasure else "YA_EXISTE",
+                               f"{pendingMeasure} de {len(everything)}"))
 
 
 def _profileItem(db: Session, plan: Plan, building: bool, key: str, profileId: uuid.UUID, factory) -> bool:
@@ -421,6 +536,8 @@ def apply(db: Session, plan: Plan) -> dict[str, int]:
                 for profileId, institutionId in plan.pacientesAFijarInstitucion:
                     measurementRetention.stampInstitution(db, profileId, institutionId)
                 db.flush()
+        _writeAudits(db, plan)  # perfiles, mediciones y transferencias ya insertados: la auditoría resuelve la institución desde ellos
+        db.flush()
         db.commit()
     except Exception:
         db.rollback()
@@ -430,6 +547,20 @@ def apply(db: Session, plan: Plan) -> dict[str, int]:
         if item.accion == "CREAR":
             created[item.entidad] = created.get(item.entidad, 0) + 1
     return created
+
+
+def _writeAudits(db: Session, plan: Plan) -> None:
+    """Escribe las auditorías con el servicio real. La fecha del evento es la del hecho (carga histórica), no la de la carga."""
+    for entry in plan.auditorias:
+        registerEvent(
+            db, "CRUD", entry.accion, True, entry.actor, entry.tabla, entry.idRegistro,
+            datosPrevios=entry.datosPrevios, datosNuevos=entry.datosNuevos,
+            tablaRelacionada=entry.tablaRelacionada, idRelacionado=entry.idRelacionado,
+        )
+        # registerEvent deja la fila pendiente en la sesión (sin consultas posteriores): ahí se fija la fecha del evento.
+        for row in db.new:
+            if isinstance(row, Audit) and row.idRegistro == entry.idRegistro and row.accion == entry.accion and row.fechaHora is None:
+                row.fechaHora = entry.fecha
 
 
 def _consents(db: Session, plan: Plan) -> None:

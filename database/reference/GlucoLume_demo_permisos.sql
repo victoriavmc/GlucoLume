@@ -22,6 +22,7 @@ GO
 
 -- DELETE, una tabla por vez, solo para registros demo y sus dependientes directos.
 GRANT DELETE ON OBJECT::dbo.Medicion TO rol_glucolume_demo_limpieza;
+GRANT DELETE ON OBJECT::dbo.TransferenciaPerfil TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.MedicionReferenciaCapilar TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.MuestraSensor TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.EnvioResultado TO rol_glucolume_demo_limpieza;

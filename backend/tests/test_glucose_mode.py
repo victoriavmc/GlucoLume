@@ -257,6 +257,22 @@ def test_despues_de_comer_sin_hora_de_ultima_comida_igual_elige_la_regla_postpra
     assert group.reglaSeleccionada.codigo == "R1" and group.posicion == "POR_ENCIMA" and group.motivoSinSeleccion is None  # 115 > 110
 
 
+def test_despues_de_comer_fuera_de_la_ventana_explica_el_motivo(db, mails, consumer, bridge, clock):
+    # Posprandial medido a 20 min del inicio de la comida: la regla (60–120 min) no aplica y el motivo lo dice (no un «no disponible» mudo).
+    user, profileId = consumer
+    addMatrix(db, condicion="POSTPRANDIAL", edad=(18, 64), minutos=(60, 120))
+    _, saved = measureAndSave(db, user, profileId, bridge, GLUCOSE, glu="115.0", origen="EXPERIMENTAL")
+    setSex(db, saved.idMedicion, sexo="FEMENINO", edad=24, condicion="POSTPRANDIAL")
+    started = stored(db, saved.idMedicion).fechaHoraInicio
+    db.execute(update(Measurement).where(Measurement.idMedicion == saved.idMedicion)
+               .values(fechaHoraUltimaComida=started - timedelta(minutes=20)))
+    db.commit()
+    group = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos[0]
+    assert group.reglaSeleccionada is None and group.posicion is None
+    assert group.motivoSinSeleccion == ("Referencia no disponible: la medición se inició a 20 min del inicio de la comida y la regla "
+                                        "posprandial vale entre 60 y 120 min.")
+
+
 def test_9_sin_regla_aplicable_no_se_elige_una_arbitraria(db, mails, consumer, bridge, clock):
     user, matrix, started, saved = measureWithMatrix(db, consumer, bridge, glu="90.0", origen="EXPERIMENTAL")
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=10, condicion="AYUNO")  # fuera del rango 18–80

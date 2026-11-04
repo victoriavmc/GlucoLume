@@ -25,7 +25,7 @@ TABLAS_PERMITIDAS = frozenset({
     "Medicion", "MedicionReferenciaCapilar", "MuestraSensor", "EnvioResultado", "AuditoriaTecnicaMedicion",
     "NotificacionUsuario", "SesionUsuario", "TokenCuenta", "ConsentimientoUsuario", "CredencialLocal",
     "CredencialLocalHistorial", "FactorMfa", "CodigoRecuperacionMfa", "IdentidadExterna", "PerfilMedicion", "Dispositivo",
-    "GrupoUsuario", "Grupo", "InstitucionUsuario", "Institucion", "Usuario",
+    "GrupoUsuario", "Grupo", "InstitucionUsuario", "Institucion", "Usuario", "TransferenciaPerfil",
 })
 
 

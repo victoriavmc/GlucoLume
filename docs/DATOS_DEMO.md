@@ -65,13 +65,14 @@ Antes de implementar se revisaron los modelos SQLAlchemy (`backend/app/models/`)
 | Credenciales locales | 21 | una por cuenta, con hash |
 | Consentimientos | 14 | política y datos experimentales de las 7 cuentas individuales |
 | Instituciones | 3 | A (consultorio), B (clínica), C (consultorio, del propietario A) |
-| Vínculos institucionales | 15 | 3 propietarios, 4 moderadores, 8 operadores |
+| Vínculos institucionales | 15 | 3 propietarios, 4 moderadores, 8 operadores (cada moderador incorpora a dos: el 1 a los operadores 1 y 2, el 2 a los 3 y 4) |
 | Grupo familiar | 1 | administrador + 5 integrantes (6 vínculos) |
 | Dispositivos | 6 | 2 individuales, 2 en A, 2 en B |
 | Perfiles de medición | 39 | 7 individuales + 32 pacientes |
 | Pacientes asignados | 32 | A: 16 (3/5/4/4 por operador) · B: 16 (4/3/5/4) |
+| Cómo llegó cada paciente | 32 | 12 dados de alta por el propio operador · 10 dados de alta por un moderador y asignados a un operador · 10 transferidos entre operadores (transferencia aceptada) |
 | Mediciones individuales | 82 | cuenta A: 14 · administrador: 9 · integrantes: 4, 11, 16, 6, 22 |
-| Mediciones de pacientes | 148 | de 0 a 12 por paciente, según un ciclo fijo |
+| Mediciones de pacientes | 80 | de 1 a 4 por paciente, según un ciclo fijo |
 
 ---
 
@@ -146,7 +147,12 @@ Conviene que las conozcas antes de la defensa:
 
 1. **Última medición de los perfiles seeded.** La aplicación no actualiza `PerfilMedicion.fechaUltimaMedicion` con mediciones `DEMO`. La carga **sí** la fija con la última medición completada de cada perfil, para que la pantalla de última medición muestre datos. Es una desviación deliberada y acotada a los datos demo.
 2. **Glucosa solo `DEMO`.** No se usa `EXPERIMENTAL` para no mezclar valores que parezcan reales con los indicadores clínicos. Por la regla de la aplicación, las mediciones `DEMO` no entran en indicadores, así que los indicadores institucionales muestran las oximetrías (origen `NULL`, identificadas por observación).
-3. **Sin auditoría de la carga.** La carga no escribe filas de `Auditoria`: si lo hiciera, la limpieza quedaría bloqueada por la regla GL-03. La carga queda registrada en el resultado de la CLI y en el archivo privado (fecha de ancla y contraseñas). Los inicios de sesión **de la demo** sí generan auditoría, como cualquier login real (riesgo K2).
+3. **Rastro de los pacientes, como lo registra la aplicación.** La carga escribe filas `Auditoria` con el servicio real de auditoría, con la fecha del hecho y no la de la carga:
+   - **Alta** (`CREAR_PACIENTE`): 12 pacientes los dio de alta su propio operador; 10 los dio de alta un moderador y los asignó a un operador.
+   - **Transferencia** (`SOLICITAR_TRANSFERENCIA_PERFIL`, `ACEPTAR_TRANSFERENCIA_PERFIL`, `CAMBIAR_RESPONSABLE_PERFIL`, y una fila `TransferenciaPerfil` aceptada): 10 pacientes pasaron de un operador a otro de la misma institución.
+   - **Autor de cada medición** (`INICIAR_MEDICION`, 80 en total): el operador que la inició. Las anteriores a la transferencia son del operador de origen (historial); las posteriores, del responsable actual.
+
+   Es lo que usa el panel institucional para contar mediciones por operador y la actividad (`services/dashboard.py`). Las mediciones individuales no tienen operador y no reciben esta auditoría. Los inicios de sesión **de la demo** también generan auditoría, como cualquier login real. Todas estas filas tienen como autor una cuenta demo y **bloquean la limpieza** (riesgo K2): ver [§8.9](#89-reset-de-la-demo-cuando-cambia-su-forma).
 4. **Contraseñas aleatorias, no reproducibles.** Se generan con `secrets` y se guardan solo en el archivo privado. Para reproducir las cuentas basta con reejecutar la carga: los IDs y los datos son los mismos. Para cambiar contraseñas, `--regenerar-contrasenas`.
 
 ---
@@ -156,7 +162,7 @@ Conviene que las conozcas antes de la defensa:
 | # | Riesgo | Mitigación | Estado |
 |---|---|---|---|
 | K1 | Una colisión con un dato real (correo, CUIT, código de dispositivo, documento) | Detección previa con bloqueo total | Cubierto y probado |
-| K2 | Auditoría generada por los inicios de sesión de la demo que referencia cuentas demo. La limpieza no puede borrarla (GL-03). | La limpieza **se bloquea** y no borra nada. Para eliminar esos registros hace falta una decisión explícita (retención de auditoría vencida o purga por el DBA). **Decisión pendiente del responsable.** | Limitación conocida |
+| K2 | Auditoría generada por la demo que referencia cuentas demo: los inicios de sesión y las `INICIAR_MEDICION` de los pacientes. La limpieza no puede borrarla (GL-03). | La limpieza **se bloquea** y no borra nada. Para eliminar esos registros hace falta una decisión explícita (retención de auditoría vencida o purga por el DBA). **Decisión pendiente del responsable.** | Limitación conocida |
 | K3 | Carga parcial | Una transacción por etapas con rollback | Cubierto y probado |
 | K4 | Carga en producción por error | Bloqueada salvo `--autorizar-produccion` **y** `--confirmar-base <nombre exacto>` | Cubierto y probado |
 | K5 | Las contraseñas aparecen en logs, consola o repositorio | La consola nunca las imprime; el archivo queda fuera del repositorio y de la imagen; permisos restrictivos | Cubierto y probado (salvo permisos en Windows, ver §8.4) |
@@ -243,6 +249,22 @@ python -m app.cli.demoSeed --limpiar --aplicar
 ```
 
 El primer comando muestra cuántos registros se eliminarían. El segundo borra solo esos registros, en una transacción, con la cuenta `DB_DEMO_USER`. Si hay auditoría que referencia cuentas demo, **se bloquea y no borra nada** (riesgo K2).
+
+### 8.9 Reset de la demo (cuando cambia su forma)
+
+Si los datos cargados ya no coinciden con la versión actual (por ejemplo, cambian las cantidades de mediciones o las altas y transferencias), hay que limpiar y volver a cargar. La limpieza no borra auditoría (GL-03), así que el reset requiere al DBA:
+
+1. Copia de seguridad completa de la base.
+2. El DBA ejecuta `database/reference/GlucoLume_demo_reset_auditoria.sql` (bloque de verificación primero). Ese script no fue probado en SQL Server.
+3. El DBA vuelve a ejecutar `database/reference/GlucoLume_demo_permisos.sql` para dar permiso de borrado sobre `TransferenciaPerfil` al rol de limpieza.
+4. Limpieza y carga desde `backend/`:
+
+```bash
+python -m app.cli.demoSeed --limpiar --aplicar
+python -m app.cli.demoSeed --aplicar --fecha-ancla 2026-11-04 --credenciales "$HOME/GlucoLumeDemo/credenciales-demo.txt"
+```
+
+La carga nueva genera contraseñas nuevas para las cuentas recreadas: el archivo privado se reescribe.
 
 ### 8.8 Producción
 
