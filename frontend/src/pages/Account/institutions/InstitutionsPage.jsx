@@ -20,7 +20,7 @@ import { PausedInstitutionNotice } from './PausedSupport.jsx';
 import './InstitutionsList.css';
 
 export default function InstitutionsPage() {
-  const { account } = useAuth();
+  const { account, refreshAccount } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
@@ -37,11 +37,18 @@ export default function InstitutionsPage() {
   // Solo las cuentas institucionales trabajan con instituciones.
   if (!institutional) return <Navigate to="/app/inicio" replace />;
 
+  // Crear o aceptar una invitación cancela el período de gracia: se recarga /auth/me para que el aviso de la cuenta
+  // desaparezca sin esperar a un refresco manual. Si falla, el aviso se corrige en la próxima carga de la sesión.
+  function refreshGrace() {
+    refreshAccount().catch(() => {});
+  }
+
   function handleCreated(result) {
     const notice = result.operacion === 'REABIERTA'
       ? `Reabriste «${result.nombre}» (reapertura n.º ${result.cantidadReaperturas}). Designá moderadores para el nuevo período.`
       : `Creaste «${result.nombre}». Ya podés designar moderadores.`;
     invalidateQuery('institutions:mine'); // al volver, la lista no debe mostrar la versión anterior (vacía o sin la institución nueva)
+    refreshGrace();
     navigate(`/app/instituciones/${result.idInstitucion}`, { state: { notice } });
   }
 
@@ -63,7 +70,7 @@ export default function InstitutionsPage() {
       {notice && <Alert kind="success">{notice}</Alert>}
       {sent && <Alert kind="success">{sent}</Alert>}
 
-      <InvitationsSection onAccepted={load} />
+      <InvitationsSection onAccepted={() => { load(); refreshGrace(); }} />
 
       {items === null && (
         <div className="auth-status" role="status">

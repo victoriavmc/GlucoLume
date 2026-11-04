@@ -129,6 +129,12 @@ const TEMA_PROBLEMAS_COMUNES = {
   },
 };
 
+// Pantalla de Google al registrarse con Google (correo y datos personales). Se usa en los dos tipos de cuenta.
+const CASO_GOOGLE_DATOS_PERSONALES = {
+  titulo: 'Google pide ver tu género y tu fecha de nacimiento',
+  texto: 'Al registrarte con Google puede aparecer «requiere acceso adicional a tu Cuenta de Google», con dos casillas: ver tu género y ver y descargar tu fecha de nacimiento exacta. Es normal y el registro funciona igual: GlucoLume usa esos datos solo para completar el sexo y la fecha de nacimiento de tu perfil, que se necesitan para la referencia de glucosa. Marcá las dos casillas y tocá Continuar para que se completen solos. Si las dejás sin marcar, la cuenta se crea igual, pero esos datos quedan sin completar: podés cargarlos en Perfil.',
+};
+
 // --- Cliente --------------------------------------------------------------------------------------------------------------
 
 export const AYUDA_CLIENTE = [
@@ -169,6 +175,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 8 · Con Google, el correo tiene una cuenta de otro tipo', texto: 'Aparece «Ese correo ya está registrado con otro tipo de cuenta». Entrá con tu cuenta existente.', captura: 'google-otro-tipo.png' },
       { titulo: 'CASO 9 · Correo sin verificar: no podés iniciar sesión', texto: 'Si creaste la cuenta con correo y no lo verificaste, la app te avisa: «Tenés que verificar tu correo electrónico antes de iniciar sesión». Abrí el correo de verificación (vence en 24 horas) o tocá «Reenviar correo de verificación»: el reenvío no extiende el plazo.' },
       { titulo: 'CASO 10 · Google sin cuenta previa', texto: 'Entrar con Google no crea cuentas: si no estás registrado, el sistema te lo indica y tenés que registrarte.' },
+      CASO_GOOGLE_DATOS_PERSONALES,
     ],
   },
   {
@@ -210,6 +217,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'CASO 3 · Preferencias', texto: 'Si apagás un aviso en la aplicación y en el correo, no te llega. Las alertas de actividad sospechosa y los intentos de ingreso siempre llegan a la aplicación.' },
       { titulo: 'CASO 4 · Cambio en la verificación en dos pasos', texto: 'Cada vez que activás o desactivás la verificación en dos pasos llega un aviso. Si no fuiste vos, revisá tu seguridad enseguida.', captura: 'notificaciones-cambio-2fa.png' },
       { titulo: 'CASO 5 · Novedades del grupo', texto: 'Si elegiste avisarte de las novedades, llega un correo cuando alguien se suma al grupo. Quien administra recibe un correo cuando alguien se va.', captura: 'grupo-correo-novedades.png' },
+      { titulo: 'CASO 6 · Correo «Es hora de medirte»', texto: 'Si elegiste recibir el recordatorio por correo, a la hora que configuraste llega «Es hora de medirte en GlucoLume», con el botón «Ir a mis mediciones». El correo no incluye datos de salud. Para no recibirlo, apagá el correo de este aviso en Preferencias, o cambiá o apagá el horario en Horario para medirme.' },
     ],
   },
   {
@@ -361,7 +369,7 @@ export const AYUDA_INSTITUCIONAL = [
       { texto: 'Completá tu perfil y activá la verificación en dos pasos.', ir: { to: '/app/perfil', label: 'Abrir Perfil' } },
     ],
     detalles: [
-      { titulo: 'Sin institución', texto: 'Si tu cuenta queda sin ninguna institución, tenés 30 días. Vencido ese plazo, la cuenta se elimina. Crear una institución o aceptar una invitación lo cancela.' },
+      { titulo: 'Sin institución', texto: 'Si tu cuenta queda sin ninguna institución, tenés 30 días. Vencido ese plazo, la cuenta se elimina y tus datos personales se anonimizan. Un aviso amarillo en Inicio muestra la fecha límite y los días que quedan, con los botones «Crear una institución o ver mis invitaciones» y «Eliminar mi cuenta». Crear una institución o aceptar una invitación lo cancela. Iniciar sesión no reinicia el plazo.' },
       { titulo: 'Institución pausada', texto: 'Si la plataforma la pausó, el personal no opera en ella. El propietario puede escribir al soporte desde la tarjeta de la institución.' },
     ],
   },
@@ -383,6 +391,7 @@ export const AYUDA_INSTITUCIONAL = [
       { titulo: 'CASO 4 · Correo de una cuenta individual', texto: 'No sirve para una cuenta institucional: la app dice «Este correo ya está registrado». Registrate con otro correo.', captura: 'registro-correo-existe-institucional.png' },
       { titulo: 'CASO 5 · Con Google, el correo tiene una cuenta de otro tipo', texto: 'Aparece «Ese correo ya está registrado con otro tipo de cuenta». Entrá con tu cuenta existente o usá otro correo.', captura: 'google-otro-tipo.png' },
       { titulo: 'CASO 6 · Enlace de activación', texto: 'Es de un solo uso y vence con la invitación (7 días). Si la invitación fue cancelada o rechazada, el enlace no activa la cuenta.' },
+      CASO_GOOGLE_DATOS_PERSONALES,
     ],
   },
   TEMA_CONTRASENAS,
@@ -417,6 +426,11 @@ export const AYUDA_INSTITUCIONAL = [
       { texto: 'Al escribir el CUIT el sistema lo valida: tiene que tener 11 dígitos con dígito verificador. Después te informa si ya existe.' },
       { texto: 'Confirmá la creación. El CUIT no se puede modificar después.' },
     ],
+    detalles: [
+      { titulo: 'Nombre y CUIT', texto: 'El nombre puede repetirse entre instituciones. El CUIT la identifica: es único y no se puede modificar.' },
+      { titulo: 'Responsabilidad', texto: 'La institución debe informar a sus pacientes y obtener su consentimiento antes de registrarlos y medirlos. Si un paciente se da de baja o la institución se cierra, sus datos se conservan 12 meses sin acceso y luego se desidentifican.' },
+      { titulo: 'Sin institución todavía', texto: 'Podés crear una institución y quedar como propietario/a, o esperar a que una institución te invite. La invitación llega a tu correo y aparece en Instituciones para que la aceptes.' },
+    ],
     casos: [
       { titulo: 'CASO 1 · CUIT disponible', texto: 'Se crea la institución y quedás como propietario/a.' },
       { titulo: 'CASO 2 · CUIT de una institución activa', texto: 'Se rechaza: «Ya existe una institución activa registrada con este CUIT».' },
@@ -434,7 +448,8 @@ export const AYUDA_INSTITUCIONAL = [
       { texto: 'Revisá Auditoría: resumen, filtros y el detalle de cada registro, con los cambios antes y después. Es de solo lectura y solo la ve el propietario.' },
     ],
     detalles: [
-      { titulo: 'Eliminar institución', texto: 'Pide nombre, contraseña y código. Queda cerrada, los vínculos pasan a baja y los datos de los pacientes se conservan 12 meses sin acceso antes de anonimizarse.' },
+      { titulo: 'Eliminar institución', texto: 'Solo la puede eliminar el propietario y no se puede deshacer desde GlucoLume. Para confirmarlo hay que escribir el nombre exacto de la institución y verificar tu identidad con la contraseña y, si lo tenés activado, el código de verificación en dos pasos. La institución queda cerrada, los vínculos pasan a baja y los datos de los pacientes se conservan 12 meses sin acceso antes de anonimizarse.' },
+      { titulo: 'Eliminar con cuenta solo Google', texto: 'Si tu cuenta usa Google y no tiene contraseña, la app avisa que primero tenés que activar la verificación en dos pasos en Seguridad. Sin ella no se puede confirmar la eliminación.' },
       { titulo: 'Reabrir', texto: 'Solo el último propietario o propietaria de una institución cerrada puede reabrirla, con contraseña y código.' },
     ],
   },
@@ -452,6 +467,9 @@ export const AYUDA_INSTITUCIONAL = [
       { titulo: 'Dar de baja', texto: 'El propietario da de baja a moderadores y operadores; el moderador, a operadores. Un operador con pacientes primero los reasigna, en el mismo paso.' },
       { titulo: 'Cupos', texto: 'Si no hay lugar, la invitación espera hasta que se libere un cupo.' },
       { titulo: 'Eliminar datos históricos', texto: 'Desde el perfil de una persona ya desvinculada. Es irreversible.' },
+      { titulo: 'Datos en la institución', texto: 'El nombre y apellido profesionales quedan registrados en este vínculo. Si la persona ya tiene una cuenta, sus datos personales no cambian.' },
+      { titulo: 'Rol institucional', texto: 'Es la función profesional de la persona (opcional). No cambia sus permisos en la institución: los define el rol de moderador u operador.' },
+      { titulo: 'Cuenta pendiente de activación', texto: 'Si la invitación creó una cuenta nueva, la persona figura como «Cuenta pendiente de activación» hasta que activa la cuenta y acepta la invitación. Recién entonces figura como activa.' },
     ],
     casos: [
       { titulo: 'CASO 1 · Correo de una cuenta individual', texto: 'No se puede agregar: es una cuenta personal, no incorporable al equipo.' },
@@ -477,12 +495,51 @@ export const AYUDA_INSTITUCIONAL = [
       { titulo: 'Datos de salud', texto: 'Mediciones, gráficos y estadísticas: solo el operador responsable vigente. Los demás ven los datos administrativos.' },
       { titulo: 'Documento', texto: 'No puede repetirse dentro de la misma institución.' },
       { titulo: 'Dar de baja', texto: 'Propietario y moderador. El paciente queda en solo lectura.' },
+      { titulo: 'Ficha del paciente', texto: '«Operador responsable» es quien puede medirlo hoy. «Registrado por» es quien lo cargó y no cambia. Los datos que no se completaron dicen «Sin informar».' },
+      { titulo: 'Listado y filtros', texto: 'Buscá por nombre, apellido o documento, y filtrá por estado, por Ver y por operador responsable. Ver detalle abre la ficha. El botón Medir solo aparece para el operador responsable.' },
     ],
     casos: [
       { titulo: 'CASO 1 · Agregar paciente', texto: 'Aparece en el listado de la institución con su responsable.' },
       { titulo: 'CASO 2 · Enviar solicitud de paciente', texto: 'Se envía al operador destino. Mientras no la acepte, el responsable actual sigue igual. Solo puede haber una solicitud pendiente por paciente.' },
       { titulo: 'CASO 3 · Transferir cargo', texto: 'El nuevo responsable pasa a tener los datos de salud cuando acepta. Hasta entonces, la transferencia se puede cancelar.' },
       { titulo: 'CASO 4 · Medir a un paciente', texto: 'Solo el operador responsable vigente. Los demás no ven el botón Medir.' },
+      { titulo: 'CASO 5 · Transferir sin otros operadores', texto: 'Si no hay otro operador activo en la institución, no hay destino: la app dice «No hay otros operadores activos en la institución para recibir al paciente». El paciente sigue a tu cargo.' },
+    ],
+  },
+  {
+    id: 'analisis-pacientes',
+    titulo: 'Análisis de pacientes',
+    intro: 'En Pacientes, la pestaña Análisis resume las mediciones de los pacientes que tenés a cargo hoy. Los datos DEMO son sintéticos y se muestran aparte.',
+    pasos: [
+      { texto: 'Elegí el período, el paciente, el origen de los datos, el modo de medición y la variable a analizar. Los filtros se combinan entre sí.' },
+      { texto: 'Para ver más opciones tocá Más filtros. Limpiar filtros vuelve a los valores por defecto.' },
+    ],
+    detalles: [
+      { titulo: 'Alcance', texto: 'Usa las mediciones de los pacientes que tenés asignados hoy, las hayas hecho vos o otro operador. Solo llega a pacientes activos.' },
+      { titulo: 'Diferencia con el panel', texto: 'El panel de tu trabajo cuenta las mediciones que vos iniciaste en el período, incluso de pacientes que transferiste. Por eso los totales de ambos pueden diferir.' },
+      { titulo: 'Experimentales y DEMO', texto: 'Se muestran separadas y nunca se promedian juntas. Las DEMO son datos sintéticos, no mediciones reales. Las experimentales no incluyen las DEMO ni las que no tienen resultado.' },
+      { titulo: 'Tarjetas', texto: 'Pacientes en el alcance, pacientes con mediciones, mediciones completadas, oximetría, glucosa experimental y con señal válida (completadas con lecturas estabilizadas).' },
+      { titulo: 'Pacientes por sexo', texto: 'Es el sexo biológico que usa el modelo experimental. «Sin informar» cuenta como una categoría y no se completa por suposición.' },
+      { titulo: 'Pacientes por edad', texto: 'Cuenta pacientes únicos. La edad sale de la fecha de nacimiento, o de la edad declarada si no hay fecha.' },
+      { titulo: 'Datos faltantes', texto: 'Muestra qué le falta a las mediciones completadas con los filtros elegidos.' },
+    ],
+    casos: [
+      { titulo: 'CASO 1 · Sin datos en el período', texto: 'Las tarjetas y gráficos dicen «Sin datos disponibles» o «No hay mediciones con estos filtros». Ampliá el período o quitá filtros.' },
+      { titulo: 'CASO 2 · Calidad de señal sin datos', texto: 'Si ninguna medición de tus pacientes la informa, el gráfico lo dice: no se inventa.' },
+    ],
+  },
+  {
+    id: 'transferencias',
+    titulo: 'Transferencias de pacientes',
+    intro: 'El responsable de un paciente cambia solo cuando el operador destinatario acepta. Hasta entonces, el paciente sigue a tu cargo.',
+    pasos: [
+      { texto: 'En Pacientes, abrí la pestaña Transferencias.', ir: { to: '/app/instituciones', label: 'Abrir Instituciones' } },
+      { texto: 'Recibidas: las solicitudes que te envían para un paciente. Podés aceptarlas o rechazarlas.' },
+      { texto: 'Enviadas: las solicitudes que enviaste.' },
+      { texto: 'Historial: el registro de las transferencias.' },
+    ],
+    casos: [
+      { titulo: 'CASO 1 · Sin transferencias', texto: 'Cada sección dice «No hay transferencias en esta sección».' },
     ],
   },
   {
@@ -533,6 +590,9 @@ export const AYUDA_INSTITUCIONAL = [
     intro: 'Indicadores y registros de lo que pasa en la institución.',
     detalles: [
       { titulo: 'Panel', texto: 'Indicadores de la institución. No muestra grupos de menos de 5 pacientes.' },
+      { titulo: 'Cupos institucionales', texto: 'Muestra la capacidad máxima (la administra el sistema), las cuentas activas, los lugares disponibles y la utilización. Si no hay lugar, las invitaciones esperan.' },
+      { titulo: 'Mi dashboard de trabajo', texto: 'El operador ve sus mediciones y sus pacientes a cargo en el período elegido. Los datos DEMO son sintéticos y se muestran aparte.' },
+      { titulo: 'Calidad de señal', texto: 'Solo muestra valores que guardaron las mediciones de tus pacientes. Si ninguna la informa (equipos que no la envían, experimentales o DEMO), la tarjeta lo dice: no se completa ni se inventa.' },
       { titulo: 'Actividad', texto: 'Qué hizo el equipo. Lo ven propietario y moderador.' },
       { titulo: 'Auditoría', texto: 'Resumen, filtros y detalle de cada registro. Solo la ve el propietario, es de solo lectura y no muestra IP.' },
     ],
