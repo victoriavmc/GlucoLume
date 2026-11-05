@@ -52,8 +52,7 @@ def setResultEmail(db: Session, actor: User, idInstitucion: uuid.UUID, idPerfilM
     membership, row = _responsible(db, actor, idInstitucion, idPerfilMedicion)
     if not data.pacienteAutoriza:
         raise AuthError("AUTORIZACION_PACIENTE_REQUERIDA", "Confirmá que el paciente autorizó recibir sus resultados por correo.")
-    if not confirmation.requestConfirmation(db, actor, idInstitucion, idPerfilMedicion, data.correo, keep=True):
-        raise AuthError("ENVIO_CORREO_FALLIDO", "No pudimos enviar el correo de confirmación al paciente. Probá de nuevo en unos minutos.")
+    confirmation.requestConfirmation(db, actor, idInstitucion, idPerfilMedicion, data.correo, keep=True)  # sale en segundo plano
     read = withResultEmail(db, patients._read(membership, *patients._load(db, idInstitucion, idPerfilMedicion), nowForDb()))
     return read.model_copy(update={"correoResultadosPendiente": maskEmail(data.correo)})
 

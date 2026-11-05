@@ -14,6 +14,7 @@ from app.models.measurement import Measurement
 from app.models.resultDelivery import ResultDelivery
 from app.schemas.measurementProfile import PatientResultEmailRequest
 from app.schemas.resultDelivery import ResultSendRequest
+from app.services import email as emailService
 from app.services import institutionPatients as patients
 from app.services import measurement as measurements
 from app.services import patientResultEmail as resultEmail
@@ -68,7 +69,7 @@ def test_cargar_el_correo_exige_autorizacion_y_la_confirmacion_del_paciente_y_ve
     token = confirmationToken(mails, MAIL)
     expectError("ENLACE_INVALIDO", confirmation.confirm, db, token[:-4] + "abcd")  # un enlace alterado no confirma nada
     result = confirmation.confirm(db, token)
-    assert result["confirmado"] and result["correoGuardado"] and not result["resultadoEnviado"]
+    assert result["confirmado"] and result["correoGuardado"] and result["resultadoEnCamino"] is False
     found = resultEmailStore.stored(db, patient.idPerfilMedicion, nowForDb())
     expected = nowForDb() + timedelta(days=365)
     assert found[0] == MAIL and abs((found[1] - expected).total_seconds()) < 3 * 86400
@@ -109,7 +110,7 @@ def test_al_guardar_una_medicion_real_se_envia_sola_con_el_lugar_y_los_valores(d
     loadEmail(db, mails, team, patient.idPerfilMedicion)
     mails.clear()
     done = measure(db, team.operator, patient.idPerfilMedicion, device(db, institucion=team.id), "96", 70)
-    assert done.envioAutomatico == "ENVIADO"  # al finalizar la medición ya se envió, sin llamar a nada más
+    assert done.envioAutomatico == "PENDIENTE"  # el correo sale en segundo plano: la medición no espera al servidor de correo
     [sent] = mails
     assert sent["to"] == MAIL and "SpO₂" in sent["html"] and "Lugar de la medición" in sent["html"]
     [row] = deliveries(db, done.idMedicion)
@@ -164,7 +165,7 @@ def test_las_pruebas_demo_tambien_se_envian_identificadas_como_simuladas(db, mai
     done = measure(db, team.operator, patient.idPerfilMedicion, device(db, institucion=team.id), "96", 70)
     _withDeviceGlucose(db, done.idMedicion, "DEMO", 114)
     mails.clear()
-    assert measurements.autoSendResult(db, team.operator, done.idMedicion) == "ENVIADO"
+    assert measurements.autoSendResult(db, team.operator, done.idMedicion) == "PENDIENTE"
     [sent] = mails
     assert sent["to"] == MAIL
     assert "PRUEBA (DEMO)" in sent["html"] and "simulados" in sent["html"] and "no es una glucemia" in sent["html"]
@@ -179,8 +180,8 @@ def test_glucosa_experimental_y_oximetria_se_envian_con_su_modo_y_sin_marca_demo
     glu = measure(db, team.operator, patient.idPerfilMedicion, dev, "97", 72)
     _withDeviceGlucose(db, glu.idMedicion, "EXPERIMENTAL", 118, mode="GLUCOSA_EXPERIMENTAL")
     mails.clear()
-    assert measurements.autoSendResult(db, team.operator, oxi.idMedicion) == "ENVIADO"
-    assert measurements.autoSendResult(db, team.operator, glu.idMedicion) == "ENVIADO"
+    assert measurements.autoSendResult(db, team.operator, oxi.idMedicion) == "PENDIENTE"
+    assert measurements.autoSendResult(db, team.operator, glu.idMedicion) == "PENDIENTE"
     first, second = mails
     assert "Oximetría" in first["html"] and "DEMO" not in first["html"] and "Glucosa experimental" not in first["html"]
     assert "Glucosa experimental" in second["html"] and "118" in second["html"] and "no es un diagnóstico" in second["html"]
@@ -193,3 +194,65 @@ def test_una_cuenta_individual_sigue_sin_recibir_pruebas_demo(db, mails, consume
     done = completeOximetry(db, user, profileId, device(db))
     _withDeviceGlucose(db, done.idMedicion, "DEMO", 114)
     expectError("RESULTADO_DEMO_NO_ENVIABLE", measurements.sendResultByEmail, db, user, done.idMedicion, ResultSendRequest())
+
+
+def user_mail_absent(entry):
+    return MAIL not in f"{entry.datosNuevos}{entry.observacion}"
+
+
+class Deferred:
+    """Ejecutor que guarda las tareas en vez de correrlas: así se ve qué ocurre antes de que el correo salga (segundo plano)."""
+
+    def __init__(self):
+        self.tasks = []
+
+    def submit(self, fn, *args, **kwargs):
+        self.tasks.append((fn, args, kwargs))
+
+    def run(self):
+        while self.tasks:
+            fn, args, kwargs = self.tasks.pop(0)
+            fn(*args, **kwargs)
+
+
+def test_el_guardado_no_espera_al_correo_del_resultado(db, mails, team, patient, monkeypatch):
+    loadEmail(db, mails, team, patient.idPerfilMedicion)
+    mails.clear()
+    queue = Deferred()
+    monkeypatch.setattr(emailService, "_executor", queue)
+    done = measure(db, team.operator, patient.idPerfilMedicion, device(db, institucion=team.id), "96", 70)
+    assert done.envioAutomatico == "PENDIENTE" and not mails  # la respuesta vuelve sin esperar al servidor de correo
+    [row] = deliveries(db, done.idMedicion)
+    assert row.estadoEnvio == "PENDIENTE" and row.correoDestino == MAIL  # el correo queda solo mientras sale
+    assert measurements.getMeasurement(db, team.operator, done.idMedicion).envioResultadoEstado == "PENDIENTE"
+    queue.run()  # lo que hace el hilo auxiliar
+    assert [m["to"] for m in mails] == [MAIL]
+    [row] = deliveries(db, done.idMedicion)
+    assert row.estadoEnvio == "ENVIADO" and row.correoDestino is None
+    assert measurements.getMeasurement(db, team.operator, done.idMedicion).envioResultadoEstado == "ENVIADO"
+    [entry] = [a for a in audits(db, "ENVIAR_RESULTADO_MEDICION") if a.idRegistro == done.idMedicion]
+    assert "AUTOMATICO" in str(entry.datosNuevos) and user_mail_absent(entry)
+
+
+def test_el_correo_de_confirmacion_sale_en_segundo_plano(db, mails, team, patient, monkeypatch):
+    mails.clear()
+    queue = Deferred()
+    monkeypatch.setattr(emailService, "_executor", queue)
+    read = resultEmail.setResultEmail(db, team.operator, team.id, patient.idPerfilMedicion, body())
+    assert read.correoResultadosPendiente.endswith("@example.com") and not mails  # la respuesta no espera al correo
+    assert resultEmailStore.stored(db, patient.idPerfilMedicion, nowForDb()) is None  # y sigue sin guardarse hasta la confirmación
+    queue.run()
+    assert [m["to"] for m in mails] == [MAIL]
+    [entry] = audits(db, "SOLICITAR_CONFIRMACION_CORREO_RESULTADOS")
+    assert entry.resultado == "EXITO" and MAIL not in f"{entry.datosNuevos}{entry.observacion}"
+
+
+def test_un_fallo_del_correo_de_confirmacion_queda_en_la_auditoria(db, mails, team, patient, monkeypatch):
+    def broken(*args, **kwargs):
+        raise OSError("smtp caído")
+
+    mails.clear()
+    monkeypatch.setattr(emailService.sender, "sendHtmlEmail", broken)
+    resultEmail.setResultEmail(db, team.operator, team.id, patient.idPerfilMedicion, body())  # no levanta: el envío es en segundo plano
+    [entry] = audits(db, "SOLICITAR_CONFIRMACION_CORREO_RESULTADOS")
+    assert entry.resultado != "EXITO" and not mails

@@ -339,7 +339,7 @@ describe('Panel según el rol', () => {
   });
 
   it('el operador tiene un panel de trabajo propio: sin menú de administración, inventario, estadísticas generales ni accesos que no puede usar', async () => {
-    routes({ [`GET ${BASE}`]: jsonResponse(200, detail('OPERADOR')), [`GET ${BASE}/operators/me/dashboard`]: jsonResponse(200, OPERATOR_PANEL),
+    routes({ [`GET ${BASE}`]: jsonResponse(200, detail('OPERADOR')), [`GET ${BASE}/operators/me/dashboard/graficos`]: jsonResponse(200, null), [`GET ${BASE}/operators/me/dashboard`]: jsonResponse(200, OPERATOR_PANEL),
       [`GET ${BASE}/activity`]: jsonResponse(200, { items: [] }) });
     renderAt(`/app/instituciones/${ID}`);
     const nav = await screen.findByRole('navigation', { name: 'Secciones de la institución' });
@@ -358,7 +358,7 @@ describe('Panel según el rol', () => {
   });
 
   it('el operador que abre el inventario por la URL vuelve a su panel', async () => {
-    const { calls } = routes({ [`GET ${BASE}`]: jsonResponse(200, detail('OPERADOR')), [`GET ${BASE}/operators/me/dashboard`]: jsonResponse(200, OPERATOR_PANEL),
+    const { calls } = routes({ [`GET ${BASE}`]: jsonResponse(200, detail('OPERADOR')), [`GET ${BASE}/operators/me/dashboard/graficos`]: jsonResponse(200, null), [`GET ${BASE}/operators/me/dashboard`]: jsonResponse(200, OPERATOR_PANEL),
       [`GET ${BASE}/activity`]: jsonResponse(200, { items: [] }) });
     renderAt(`/app/instituciones/${ID}/dispositivos`);
     expect(await screen.findByRole('heading', { name: 'Mi dashboard de trabajo' })).toBeInTheDocument();
@@ -421,7 +421,7 @@ describe('Panel según el rol', () => {
   });
 
   it.each([['/datos'], ['/configuracion'], ['/administracion/datos']])('el operador que abre %s por la URL vuelve a su panel', async (path) => {
-    routes({ [`GET ${BASE}`]: jsonResponse(200, detail('OPERADOR')), [`GET ${BASE}/operators/me/dashboard`]: jsonResponse(200, OPERATOR_PANEL),
+    routes({ [`GET ${BASE}`]: jsonResponse(200, detail('OPERADOR')), [`GET ${BASE}/operators/me/dashboard/graficos`]: jsonResponse(200, null), [`GET ${BASE}/operators/me/dashboard`]: jsonResponse(200, OPERATOR_PANEL),
       [`GET ${BASE}/activity`]: jsonResponse(200, { items: [] }) });
     renderAt(`/app/instituciones/${ID}${path}`);
     expect(await screen.findByRole('heading', { name: 'Mi dashboard de trabajo' })).toBeInTheDocument();

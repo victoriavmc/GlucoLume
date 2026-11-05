@@ -149,6 +149,14 @@ class AdminKpis(AdminCounts):
     dispositivosRegistrados: int
 
 
+class PersonRef(BaseModel):
+    idInstitucionUsuario: uuid.UUID
+    nombre: str | None
+    apellido: str | None
+    rolInstitucion: str | None = None
+    activo: bool = True
+
+
 class AdminStats(BaseModel):
     filtros: AdminFilters
     operadores: list[PersonRef]  # opciones del filtro: operadores vinculados y desvinculados con actividad en el período
@@ -239,14 +247,6 @@ class InstitutionDashboard(BaseModel):
     minimoPacientesAgregados: int = 5
     administrativo: AdminStats | None = None  # conteos administrativos desde el primer registro (los resultados de salud siguen protegidos)
     saludAgregada: HealthAggregates | None = None  # resultados de salud agregados, por origen y con los filtros de período, modo y origen
-
-
-class PersonRef(BaseModel):
-    idInstitucionUsuario: uuid.UUID
-    nombre: str | None
-    apellido: str | None
-    rolInstitucion: str | None = None
-    activo: bool = True
 
 
 class AssignedPatient(BaseModel):

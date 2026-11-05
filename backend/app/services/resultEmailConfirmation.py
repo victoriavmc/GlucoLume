@@ -8,6 +8,7 @@
 # No hay columnas nuevas: el enlace lleva el pedido firmado con la clave del servidor (perfil, institución, correo, operador y, si
 # corresponde, la medición). Repetir el enlace no vuelve a enviar nada: ya confirmado, no hace nada (idempotente).
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 
@@ -37,6 +38,7 @@ FRONTEND_ROUTE = "/confirmar-correo-resultados"
 _requests = RateLimiter(10, 60 * 60, name="correo-resultados:pedidos")
 
 INVALID = "El enlace no es válido o venció. Pedile al operador que te lo envíe de nuevo."
+logger = logging.getLogger(__name__)
 
 
 def resetLimits() -> None:
@@ -44,9 +46,10 @@ def resetLimits() -> None:
 
 
 def requestConfirmation(db: Session, actor: User, idInstitucion: uuid.UUID, idPerfilMedicion: uuid.UUID, email: str, *,
-                        keep: bool, idMedicion: uuid.UUID | None = None) -> bool:
-    """Envía el correo de confirmación. `keep`: guardar el correo para los envíos automáticos; `idMedicion`: resultado a enviar al
-    confirmar. Devuelve si el correo salió. La auditoría registra el pedido sin la dirección."""
+                        keep: bool, idMedicion: uuid.UUID | None = None) -> None:
+    """Pide la confirmación: el correo sale en segundo plano (la solicitud no espera al servidor de correo). `keep`: guardar el correo
+    para los envíos automáticos; `idMedicion`: resultado a enviar al confirmar. Un fallo del envío no se devuelve a quien pidió: queda
+    en la auditoría (SOLICITAR_CONFIRMACION_CORREO_RESULTADOS, resultado FALLO) y el operador puede volver a pedirla."""
     if not _requests.allow(str(actor.idUsuario)):
         raise AuthError("DEMASIADAS_SOLICITUDES", "Pediste muchas confirmaciones de correo seguidas. Probá de nuevo en una hora.")
     claims = {"sub": str(idPerfilMedicion), "typ": TOKEN_TYPE, "inst": str(idInstitucion), "mail": email, "op": str(actor.idUsuario),
@@ -56,14 +59,25 @@ def requestConfirmation(db: Session, actor: User, idInstitucion: uuid.UUID, idPe
     context = {"institucion": institution.nombre if institution else "GlucoLume", "horas": VALID_HOURS,
                "guardaCorreo": keep, "incluyeResultado": idMedicion is not None,
                "urlConfirmacion": emailService.frontendUrl(FRONTEND_ROUTE) + f"#token={token}"}
+    actorId = actor.idUsuario
+    db.commit()  # el SMTP corre fuera de la transacción de la solicitud
+    emailService.runInBackground(_sendConfirmation, db.get_bind(), actorId, idPerfilMedicion, email, keep, idMedicion is not None, context)
+
+
+def _sendConfirmation(bind, idUsuario: uuid.UUID, idPerfilMedicion: uuid.UUID, email: str, keep: bool, conResultado: bool,
+                      context: dict) -> None:
+    """Hilo auxiliar: envía el correo y anota el pedido con una sesión propia (no comparte la de la solicitud)."""
     try:
         sent = emailService.sendEmailEvent(EmailEventType.CONFIRMAR_CORREO_RESULTADOS, email, context)
-    except Exception:  # noqa: BLE001 - un error de correo se informa como fallido
+    except Exception:  # noqa: BLE001 - un dato inválido se anota como fallido, no deja el hilo caído
         sent = False
-    registerEvent(db, "CRUD", "SOLICITAR_CONFIRMACION_CORREO_RESULTADOS", sent, actor.idUsuario, "PerfilMedicion", idPerfilMedicion,
-                  datosNuevos={"guardaCorreo": keep, "conResultado": idMedicion is not None})
-    db.commit()
-    return sent
+    try:
+        with Session(bind) as session:
+            registerEvent(session, "CRUD", "SOLICITAR_CONFIRMACION_CORREO_RESULTADOS", sent, idUsuario, "PerfilMedicion", idPerfilMedicion,
+                          datosNuevos={"guardaCorreo": keep, "conResultado": conResultado})
+            session.commit()
+    except Exception as error:  # noqa: BLE001 - el correo ya salió o falló; solo se pierde el rastro
+        logger.error("No se pudo anotar el pedido de confirmación (%s).", type(error).__name__)
 
 
 def _issuedAt(claims: dict) -> datetime:
@@ -98,22 +112,25 @@ def confirm(db: Session, token: str) -> dict:
                           operatorId, "PerfilMedicion", idPerfilMedicion, datosNuevos={"confirmadoPorDestinatario": True})
             db.commit()
             stored = True
-    sent = _sendPending(db, operatorId, idInstitucion, idPerfilMedicion, idMedicion, email, issued) if idMedicion else False
-    return {"confirmado": True, "correoEnmascarado": maskEmail(email), "correoGuardado": stored, "resultadoEnviado": sent}
+    pending = _sendPending(db, operatorId, idInstitucion, idPerfilMedicion, idMedicion, email, issued) if idMedicion else False
+    return {"confirmado": True, "correoEnmascarado": maskEmail(email), "correoGuardado": stored, "resultadoEnCamino": pending}
 
 
 def _sendPending(db: Session, operatorId: uuid.UUID, idInstitucion: uuid.UUID, idPerfilMedicion: uuid.UUID, idMedicion: uuid.UUID,
                  email: str, issued: datetime) -> bool:
+    """Encola el resultado pendiente (en segundo plano). Devuelve si quedó encolado; el resultado sale después."""
     from app.services import measurement as measurements
 
     operator = db.get(User, operatorId)
     measurement = db.get(Measurement, idMedicion)
     if operator is None or measurement is None or measurement.idPerfilMedicion != idPerfilMedicion:
         return False
+    # ENVIADO o PENDIENTE: un doble clic en el enlace no encola dos veces el mismo resultado.
     already = db.scalar(select(func.count()).select_from(ResultDelivery).where(
-        ResultDelivery.idMedicion == idMedicion, ResultDelivery.estadoEnvio == "ENVIADO", ResultDelivery.fechaSolicitud >= issued))
+        ResultDelivery.idMedicion == idMedicion, ResultDelivery.estadoEnvio.in_(("ENVIADO", "PENDIENTE")),
+        ResultDelivery.fechaSolicitud >= issued))
     if already:
-        return False  # el enlace ya se usó (o el resultado ya salió después del pedido): no se reenvía
+        return False  # el enlace ya se usó (o el resultado ya salió o está saliendo después del pedido): no se reenvía
     try:
         measurement, access = measurements._measurementAccess(db, operator, idMedicion)  # quien lo pidió debe seguir siendo responsable
         measurements._requireOperate(access)
@@ -121,4 +138,5 @@ def _sendPending(db: Session, operatorId: uuid.UUID, idInstitucion: uuid.UUID, i
         return False
     if access.idInstitucion != idInstitucion or measurement.estadoMedicion != measurements.COMPLETADA:
         return False
-    return measurements._deliverResult(db, operator, measurement, access, email, automatic=False)
+    measurements._queueResult(db, operator, measurement, access, email, modo="MANUAL", avisar=False)
+    return True

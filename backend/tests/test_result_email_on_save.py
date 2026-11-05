@@ -49,7 +49,7 @@ def test_al_guardar_una_medicion_demo_se_envia_el_correo_identificada_como_simul
     loadEmail(db, mails, team, patient.idPerfilMedicion, MAIL)
     mails.clear()
     saved = measureAndSave(db, team, patient, bridge, origen="DEMO", glu="117.0")
-    assert saved.envioAutomatico == "ENVIADO"  # el guardado informa el resultado del envío
+    assert saved.envioAutomatico == "PENDIENTE"  # el guardado no espera al correo: el envío queda ENVIADO al terminar
     assert [m["to"] for m in mails] == [MAIL] and "simulad" in mails[0]["text"].lower()
     assert [d.estadoEnvio for d in deliveries(db, saved.idMedicion)] == ["ENVIADO"]
 
@@ -58,7 +58,7 @@ def test_al_guardar_una_medicion_experimental_tambien_se_envia(db, team, patient
     loadEmail(db, mails, team, patient.idPerfilMedicion, MAIL)
     mails.clear()
     saved = measureAndSave(db, team, patient, bridge, origen="EXPERIMENTAL", glu="105.0")
-    assert saved.envioAutomatico == "ENVIADO" and [m["to"] for m in mails] == [MAIL]
+    assert saved.envioAutomatico == "PENDIENTE" and [m["to"] for m in mails] == [MAIL]
 
 
 def test_sin_correo_cargado_no_se_envia_nada(db, team, patient, bridge, mails):
@@ -76,7 +76,7 @@ def test_cada_medicion_completada_por_la_via_del_servidor_tambien_envia_su_resul
     dev = device(db, institucion=team.id)
     first = measure(db, team.operator, patient.idPerfilMedicion, dev, "97", 70)
     second = measure(db, team.operator, patient.idPerfilMedicion, dev, "96", 75)
-    assert first.envioAutomatico == "ENVIADO" and second.envioAutomatico == "ENVIADO"  # una por cada medición
+    assert first.envioAutomatico == "PENDIENTE" and second.envioAutomatico == "PENDIENTE"  # una por cada medición
     assert [m["to"] for m in mails] == [MAIL, MAIL]
     assert all(d.estadoEnvio == "ENVIADO" for idMedicion in (first.idMedicion, second.idMedicion) for d in deliveries(db, idMedicion))
     # Sin correo no se envía y la medición queda guardada igual.

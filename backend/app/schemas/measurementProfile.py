@@ -307,7 +307,7 @@ class ResultEmailConfirmRead(BaseModel):
     confirmado: bool
     correoEnmascarado: str
     correoGuardado: bool
-    resultadoEnviado: bool
+    resultadoEnCamino: bool  # el resultado pendiente quedó encolado: sale en segundo plano
 
 
 class PatientPage(BaseModel):

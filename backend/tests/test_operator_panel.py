@@ -134,3 +134,18 @@ def test_una_cancelada_sin_origen_se_informa_como_sin_resultado_y_no_como_experi
     charts = data.graficos
     assert charts.sinResultado == 1 and sum(d.experimentales for d in charts.serie) == 1 and sum(d.demo for d in charts.serie) == 2  # serie y modos sin ella
     assert sum(m.experimentales + m.demo for m in charts.porModo) == 3
+
+
+def test_los_indicadores_salen_sin_graficos_y_los_graficos_piden_aparte_lo_mismo(db, scene):
+    # El panel carga primero los indicadores (sin la consulta pesada de gráficos) y los gráficos llegan por su propio endpoint.
+    team = scene["team"]
+    light = dashboards.operatorDashboard(db, team.operator, team.id, "me", incluirGraficos=False)
+    assert light.graficos is None and light.medicionesRealizadas == panel(db, scene).medicionesRealizadas
+    charts = dashboards.operatorCharts(db, team.operator, team.id, "me")
+    assert charts == panel(db, scene).graficos  # mismos números que el dashboard completo
+
+
+def test_los_graficos_solo_los_recibe_el_propio_operador(db, scene):
+    team = scene["team"]
+    own = dashboards.operatorDashboard(db, team.operator, team.id, "me")
+    assert dashboards.operatorCharts(db, team.owner, team.id, str(own.operador.idInstitucionUsuario)) is None

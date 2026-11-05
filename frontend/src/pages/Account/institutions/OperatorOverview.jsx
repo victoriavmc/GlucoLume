@@ -5,8 +5,9 @@
 import { HeartPulse, Play, Zap } from 'lucide-react';
 import { Link, useOutletContext } from 'react-router-dom';
 
+import { Alert } from '../../../components/FormControls.jsx';
 import {
-  AssignedPatientsPanel, OperatorKpiPanel, OperatorWorkCards, useOperatorDashboard,
+  AssignedPatientsPanel, OperatorKpiPanel, OperatorWorkCards, useOperatorCharts, useOperatorDashboard,
 } from './dashboard/InstitutionDashboards.jsx';
 import { OperatorChartsSection } from './dashboard/OperatorCharts.jsx';
 import { InstitutionActivity } from './InstitutionActivity.jsx';
@@ -16,6 +17,8 @@ export function OperatorOverview() {
   const { institution, handleOperationError } = useOutletContext();
   const canManagePatients = can(institution, 'GESTIONAR_PACIENTES');
   const { data, error, period, setPeriod } = useOperatorDashboard(institution, 'me', handleOperationError);
+  // Los gráficos se piden aparte: los indicadores y los pacientes no esperan a la consulta más pesada.
+  const charts = useOperatorCharts(institution, period, handleOperationError);
   return (
     <>
       {canManagePatients && (
@@ -38,7 +41,9 @@ export function OperatorOverview() {
         </section>
       )}
       <OperatorKpiPanel institution={institution} data={data} error={error} period={period} setPeriod={setPeriod} />
-      {data && <OperatorChartsSection institution={institution} data={data} />}
+      {data && (charts.error ? <Alert>{charts.error}</Alert>
+        : charts.loaded ? <OperatorChartsSection institution={institution} data={{ ...data, graficos: charts.charts }} />
+          : <p className="field-hint" role="status">Cargando gráficos…</p>)}
       <div className="op-columns">
         <InstitutionActivity institution={institution} />
         {data && <AssignedPatientsPanel institution={institution} data={data} />}

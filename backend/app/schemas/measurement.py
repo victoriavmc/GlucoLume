@@ -391,7 +391,7 @@ class MeasurementDetail(BaseModel):
     # Estado del último envío del resultado por correo: PENDIENTE mientras sale en segundo plano (la página consulta hasta que termina).
     envioResultadoEstado: Literal["PENDIENTE", "ENVIADO", "FALLIDO"] | None = None
     # Solo al guardar una medición de un paciente con correo cargado: resultado del envío automático (None si no correspondía: DEMO, sin correo).
-    envioAutomatico: Literal["ENVIADO", "FALLIDO"] | None = None
+    envioAutomatico: Literal["PENDIENTE", "ENVIADO", "FALLIDO"] | None = None  # PENDIENTE: el correo sale en segundo plano
     aviso: str = EXPERIMENTAL_NOTICE
 
 

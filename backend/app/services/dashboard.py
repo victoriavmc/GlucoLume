@@ -623,8 +623,33 @@ def _operatorCharts(db: Session, performedAllIds, assignedRows, assignedIds, sta
         truncado=truncated)
 
 
+def _performedAll(idInstitucion: uuid.UUID, relId: uuid.UUID):
+    """Mediciones que el operador (vínculo relId) inició en la institución, sin importar el período ni el estado."""
+    return (select(Measurement).join(Audit, Audit.idRegistro == Measurement.idMedicion).where(
+        Audit.tablaAfectada == "Medicion", Audit.accion == "INICIAR_MEDICION", Audit.idRelacionado == relId,
+        Measurement.idPerfilMedicion.in_(_institutionProfileIds(idInstitucion))))
+
+
+def operatorCharts(db: Session, actor: User, idInstitucion: uuid.UUID, idOperador: str, dias: int = 30,
+                   desde: date | None = None, hasta: date | None = None) -> OperatorCharts | None:
+    """Gráficos del operador, pedidos aparte para que los indicadores aparezcan sin esperarlos. None si no es el propio operador."""
+    start, end, _ = _range(dias, desde, hasta)
+    _, relation, isSelf = _resolveOperator(db, actor, idInstitucion, idOperador)
+    if not isSelf:
+        return None
+    relId = relation.idInstitucionUsuario
+    now = nowForDb()
+    assignedRows = db.execute(patients._patientsOf(idInstitucion).where(
+        patients._IS_ACTIVE, MeasurementProfile.idInstitucionUsuarioResponsable == relId)
+        .order_by(MeasurementProfile.identificadorPseudonimo)).all()
+    assignedIds = [row[0].idPerfilMedicion for row in assignedRows]
+    performedAllIds = _performedAll(idInstitucion, relId).with_only_columns(Measurement.idMedicion)
+    return _operatorCharts(db, performedAllIds, assignedRows, assignedIds, start, end, now)
+
+
 def operatorDashboard(db: Session, actor: User, idInstitucion: uuid.UUID, idOperador: str, dias: int = 30,
-                      desde: date | None = None, hasta: date | None = None) -> OperatorDashboard:
+                      desde: date | None = None, hasta: date | None = None, incluirGraficos: bool = True) -> OperatorDashboard:
+    """`incluirGraficos=False`: sin `graficos` (la consulta más pesada); la pantalla los pide aparte con operatorCharts."""
     start, end, period = _range(dias, desde, hasta)
     membership, relation, isSelf = _resolveOperator(db, actor, idInstitucion, idOperador)
     relId = relation.idInstitucionUsuario
@@ -658,9 +683,7 @@ def operatorDashboard(db: Session, actor: User, idInstitucion: uuid.UUID, idOper
             ultimaEsDemo=(lastByProfile[profile.idPerfilMedicion][3] == ORIGEN_DEMO) if profile.idPerfilMedicion in lastByProfile else None))
 
     # Mediciones que ESTE operador inició (histórico, aunque el paciente ya no esté a su cargo).
-    performedAll = (select(Measurement).join(Audit, Audit.idRegistro == Measurement.idMedicion).where(
-        Audit.tablaAfectada == "Medicion", Audit.accion == "INICIAR_MEDICION", Audit.idRelacionado == relId,
-        Measurement.idPerfilMedicion.in_(_institutionProfileIds(idInstitucion))))
+    performedAll = _performedAll(idInstitucion, relId)
     performed = performedAll.where(NOT_DEMO)  # los contadores históricos conservan su criterio; lo DEMO se informa aparte
     performedIds = performed.with_only_columns(Measurement.idMedicion)
     performedAllIds = performedAll.with_only_columns(Measurement.idMedicion)
@@ -711,7 +734,7 @@ def operatorDashboard(db: Session, actor: User, idInstitucion: uuid.UUID, idOper
         medicionesRealizadasDemo=demoTotal, medicionesEnPeriodoDemo=demoInPeriod,
         medicionesEnPeriodoSinResultado=noResultInPeriod, medicionesSinResultado=noResultTotal,
         ultimaActividad=max(activity) if activity else None,
-        graficos=_operatorCharts(db, performedAllIds, assignedRows, assignedIds, start, end, now) if isSelf else None,
+        graficos=_operatorCharts(db, performedAllIds, assignedRows, assignedIds, start, end, now) if isSelf and incluirGraficos else None,
         realizadas=_performedRows(db, recentRows, pseudonyms, withOperator=False) if isSelf else [],
         ultimasDePacientes=_performedRows(db, ofPatients, pseudonyms, withOperator=True) if isSelf else [],
         transferencias=TransferCounters(

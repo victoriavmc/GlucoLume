@@ -593,6 +593,7 @@ describe('Varias mediciones por paciente en el dashboard institucional', () => {
 describe('Dashboard institucional general', () => {
   it('el moderador lo ve; el operador no lo pide', async () => {
     const { calls } = instRoutes('OPERADOR', {
+      [`GET ${IBASE}/operators/me/dashboard/graficos`]: jsonResponse(200, null),
       [`GET ${IBASE}/operators/me/dashboard`]: jsonResponse(200, {
         periodo: PERIOD, operador: person('op-1', 'Victoria', 'Corti'), pacientesAsignados: 0, pacientes: [], medicionesRealizadas: 0,
         medicionesEnPeriodo: 0, medicionesPorEstado: {}, ultimaActividad: null, realizadas: [], ultimasDePacientes: [],
@@ -635,7 +636,7 @@ describe('Dashboard por operador', () => {
   });
 
   it('el operador consulta el suyo: sus pacientes, con acceso a medir, y nada administrativo', async () => {
-    instRoutes('OPERADOR', { [`GET ${IBASE}/operators/me/dashboard`]: jsonResponse(200, { ...OPERATOR_DASHBOARD, esPropio: true }) });
+    instRoutes('OPERADOR', { [`GET ${IBASE}/operators/me/dashboard/graficos`]: jsonResponse(200, null), [`GET ${IBASE}/operators/me/dashboard`]: jsonResponse(200, { ...OPERATOR_DASHBOARD, esPropio: true }) });
     renderAt(`/app/instituciones/${IID}`);
     expect(await screen.findByRole('heading', { name: 'Mi dashboard de trabajo' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Nueva medición/ })).toHaveAttribute('href', `/app/instituciones/${IID}/pacientes?mios=1&medir=1`);
@@ -649,7 +650,8 @@ describe('Dashboard por operador', () => {
         medicionesEnPeriodo: 1, medicionesEnPeriodoDemo: 2,
         pacientes: [{ ...OPERATOR_DASHBOARD.pacientes[0], ultimaMedicion: '2026-10-17T20:36:00', ultimaModo: 'GLUCOSA_EXPERIMENTAL', ultimaEsDemo: true }],
         realizadas: [{ ...OPERATOR_DASHBOARD.realizadas[0], idMedicion: 'm-d', idPerfilMedicion: 'p-1', esDemo: true }],
-        graficos: {
+        }),
+      [`GET ${IBASE}/operators/me/dashboard/graficos`]: jsonResponse(200, {
           serie: [{ fecha: '2026-10-15', experimentales: 1, demo: 0 }, { fecha: '2026-10-17', experimentales: 0, demo: 2 }],
           porModo: [{ modo: 'OXIMETRIA', experimentales: 1, demo: 1 }, { modo: 'GLUCOSA_EXPERIMENTAL', experimentales: 0, demo: 1 }],
           calidadSenal: { conValor: 2, sinDato: 1, fueraDeAlcance: 0, minimo: 0.5, maximo: 0.9,
@@ -657,7 +659,7 @@ describe('Dashboard por operador', () => {
             conLecturas: 2, lecturas: [{ lecturas: 4, experimentales: 1, demo: 1 }] },
           demografia: [{ rango: '0-17', masculino: 0, femenino: 0, sinInformar: 0 }, { rango: '18-39', masculino: 0, femenino: 1, sinInformar: 0 },
             { rango: 'SIN_INFORMAR', masculino: 0, femenino: 0, sinInformar: 1 }], pacientesDemografia: 2, truncado: false,
-        } }),
+      }),
       [`GET ${IBASE}/activity`]: jsonResponse(200, { items: [] }),
     });
     renderAt(`/app/instituciones/${IID}`);
@@ -688,6 +690,7 @@ describe('Dashboard por operador', () => {
   it('el panel del operador sigue el diseño: indicadores con ayuda, actividad, pacientes asignados y tres tarjetas de trabajo', async () => {
     const recent = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
     instRoutes('OPERADOR', {
+      [`GET ${IBASE}/operators/me/dashboard/graficos`]: jsonResponse(200, null),
       [`GET ${IBASE}/operators/me/dashboard`]: jsonResponse(200, { ...OPERATOR_DASHBOARD, esPropio: true, ultimaActividad: recent, realizadas: [], ultimasDePacientes: [],
         dispositivos: [], dispositivosDisponibles: 0, transferencias: { recibidas: 0, recibidasPendientes: 0, enviadas: 2, enviadasPendientes: 1 },
         pacientes: [{ ...OPERATOR_DASHBOARD.pacientes[0], nombre: 'Samd', apellido: 'Fdsfdsdfs', ultimaMedicion: null, identificadorPseudonimo: 'PAC-ECC8' }] }),
