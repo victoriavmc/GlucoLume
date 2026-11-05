@@ -1,0 +1,11 @@
+{
+ "escenario": "queue:8029:30",
+ "resultado": {
+  "sink_puerto": 8029,
+  "encolados": 30,
+  "tiempo_encolar_ms": 6.01,
+  "cola_justo_al_encolar": 28,
+  "tiempo_hasta_vaciar_ms": 17719.8,
+  "workers": 2
+ }
+}

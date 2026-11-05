@@ -1,0 +1,50 @@
+{
+ "escritorio | portada /": {
+  "loadMs_p50": 46.9,
+  "lcpMs_p50": 144,
+  "dclMs_p50": 45.7,
+  "nodos": 560,
+  "bytesRedKB_p50": 0,
+  "muestraTexto": "Saltar al contenido GlucoLume ¿Qué es? Cómo funciona Solucio"
+ },
+ "escritorio | login /plataforma/login": {
+  "loadMs_p50": 42.6,
+  "lcpMs_p50": 380,
+  "dclMs_p50": 42.6,
+  "nodos": 86,
+  "bytesRedKB_p50": 0,
+  "muestraTexto": "Saltar al contenido GlucoLume Acceso administrativo Administ"
+ },
+ "escritorio | ayuda /ayuda (ver nota)": {
+  "loadMs_p50": 73.1,
+  "lcpMs_p50": 440,
+  "dclMs_p50": 48.8,
+  "nodos": 1235,
+  "bytesRedKB_p50": 0,
+  "muestraTexto": "Saltar al contenido GlucoLume ¿Qué es? Cómo funciona Solucio"
+ },
+ "movil_lento | portada /": {
+  "loadMs_p50": 1213.8,
+  "lcpMs_p50": 1516,
+  "dclMs_p50": 1213.8,
+  "nodos": 560,
+  "bytesRedKB_p50": 158.4,
+  "muestraTexto": "Saltar al contenido GlucoLume Proyecto académico Tecnología "
+ },
+ "movil_lento | login /plataforma/login": {
+  "loadMs_p50": 1204.9,
+  "lcpMs_p50": 1620,
+  "dclMs_p50": 1204.2,
+  "nodos": 86,
+  "bytesRedKB_p50": 164.1,
+  "muestraTexto": "Saltar al contenido GlucoLume Acceso administrativo Administ"
+ },
+ "movil_lento | ayuda /ayuda (ver nota)": {
+  "loadMs_p50": 1294,
+  "lcpMs_p50": 1700,
+  "dclMs_p50": 1095.3,
+  "nodos": 1235,
+  "bytesRedKB_p50": 219.5,
+  "muestraTexto": "Saltar al contenido GlucoLume Ayuda GlucoLume es un prototi"
+ }
+}

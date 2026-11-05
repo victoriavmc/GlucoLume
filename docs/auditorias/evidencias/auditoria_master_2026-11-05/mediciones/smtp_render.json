@@ -1,0 +1,33 @@
+{
+ "escenario": "render",
+ "resultado": {
+  "EMAIL_VERIFICACION": {
+   "render_jinja_validacion": {
+    "n": 40,
+    "p50_ms": 0.7,
+    "p95_ms": 0.8,
+    "max_ms": 18.5
+   },
+   "construccion_mime_con_banner": {
+    "n": 40,
+    "p50_ms": 2.1,
+    "p95_ms": 2.5,
+    "max_ms": 6.6
+   }
+  },
+  "CODIGO_CAMBIO_PASSWORD": {
+   "render_jinja_validacion": {
+    "n": 40,
+    "p50_ms": 0.7,
+    "p95_ms": 0.9,
+    "max_ms": 3.4
+   },
+   "construccion_mime_con_banner": {
+    "n": 40,
+    "p50_ms": 2.2,
+    "p95_ms": 2.6,
+    "max_ms": 2.8
+   }
+  }
+ }
+}

@@ -1,0 +1,19 @@
+JS-PRECISO assets/router-Ci-qNtfU.js              bytes=39705 usado=100.0%
+JS-PRECISO assets/icons-X_eugsBX.js               bytes=71499 usado=100.0%
+JS-PRECISO assets/react-CDyOOsbv.js               bytes=186642 usado=100.0%
+JS-PRECISO assets/index-B-sd4lMD.js               bytes=162645 usado=100.0%
+JS-PRECISO assets/HelpPage-BLScj9no.js            bytes=64695 usado=100.0%
+CASCADA-MOVIL (solo JS/CSS/documento, y primeras miniaturas):
+       0 →      4 ms  /ayuda
+      18 →    918 ms  assets/index-B-sd4lMD.js
+      19 →    969 ms  assets/react-CDyOOsbv.js
+      19 →    561 ms  assets/icons-X_eugsBX.js
+      20 →    569 ms  assets/router-Ci-qNtfU.js
+      20 →    668 ms  assets/index-C-AMtL4g.css
+    1075 →   1384 ms  assets/HelpPage-BLScj9no.js
+    1092 →   1270 ms  assets/PageHeader-DrqDADrv.js
+    1092 →   1299 ms  assets/Tabs-CECsxsBi.js
+    1093 →   1291 ms  assets/HelpPage-hvtCUWVg.css
+  miniaturas (webp) pedidas en carga: 5  originales PNG pedidos en carga (sin visor): 0
+CLS-SCROLL-RUEDA: cambios de diseño tras el inicio = 0  CLS acumulado (sin entradas) = 0.0000
+  ejemplos: []

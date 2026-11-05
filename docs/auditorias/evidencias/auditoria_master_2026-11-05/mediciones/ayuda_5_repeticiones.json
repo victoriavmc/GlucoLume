@@ -1,0 +1,760 @@
+{
+  "url": "http://127.0.0.1:8080/ayuda",
+  "reps": 5,
+  "profiles": {
+    "escritorio": {
+      "carga_resumen": {
+        "ttfbMs": {
+          "n": 5,
+          "p50": 2.9,
+          "p95": 7.7,
+          "max": 7.7
+        },
+        "domContentLoadedMs": {
+          "n": 5,
+          "p50": 55.5,
+          "p95": 69.1,
+          "max": 69.1
+        },
+        "loadMs": {
+          "n": 5,
+          "p50": 89.3,
+          "p95": 101.9,
+          "max": 101.9
+        },
+        "fcpMs": {
+          "n": 5,
+          "p50": 96,
+          "p95": 104,
+          "max": 104
+        },
+        "lcpMs": {
+          "n": 5,
+          "p50": 460,
+          "p95": 464,
+          "max": 464
+        },
+        "cls": {
+          "n": 5,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "longTasksMs": {
+          "n": 5,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "tiempoReadyMs": {
+          "n": 5,
+          "p50": 506,
+          "p95": 523,
+          "max": 523
+        },
+        "tiempoNetworkIdleMs": {
+          "n": 5,
+          "p50": 979,
+          "p95": 1013,
+          "max": 1013
+        },
+        "nodosDOM": {
+          "n": 5,
+          "p50": 1235,
+          "p95": 1235,
+          "max": 1235
+        },
+        "figuras": {
+          "n": 5,
+          "p50": 114,
+          "p95": 114,
+          "max": 114
+        },
+        "imagenesEnDOM": {
+          "n": 5,
+          "p50": 114,
+          "p95": 114,
+          "max": 114
+        },
+        "imagenesCargadasAlInicio": {
+          "n": 5,
+          "p50": 22,
+          "p95": 22,
+          "max": 22
+        },
+        "heapJsMB": {
+          "n": 5,
+          "p50": 4.7,
+          "p95": 4.7,
+          "max": 4.7
+        }
+      },
+      "transferencia_resumen": {
+        "jsBytes": {
+          "n": 5,
+          "p50": 529973,
+          "p95": 529973,
+          "max": 529973
+        },
+        "cssBytes": {
+          "n": 5,
+          "p50": 126865,
+          "p95": 126865,
+          "max": 126865
+        },
+        "imgBytes": {
+          "n": 5,
+          "p50": 296074,
+          "p95": 296074,
+          "max": 296074
+        },
+        "imgRequests": {
+          "n": 5,
+          "p50": 22,
+          "p95": 22,
+          "max": 22
+        },
+        "totalRequests": {
+          "n": 5,
+          "p50": 32,
+          "p95": 32,
+          "max": 32
+        }
+      },
+      "cambio_pestana": {
+        "paintMs": {
+          "n": 20,
+          "p50": 89.6,
+          "p95": 116.5,
+          "max": 126.7
+        },
+        "scriptMs": {
+          "n": 20,
+          "p50": 10.2,
+          "p95": 15,
+          "max": 15.1
+        },
+        "styleMs": {
+          "n": 20,
+          "p50": 2.3,
+          "p95": 3.5,
+          "max": 3.6
+        },
+        "layoutMs": {
+          "n": 20,
+          "p50": 18,
+          "p95": 26.9,
+          "max": 37.7
+        },
+        "taskMs": {
+          "n": 20,
+          "p50": 44.3,
+          "p95": 70.3,
+          "max": 81.1
+        },
+        "nodosDeltaPorCambio": {
+          "n": 20,
+          "p50": 1131,
+          "p95": 1131,
+          "max": 1131
+        }
+      },
+      "scroll": {
+        "frameP50Ms": {
+          "n": 5,
+          "p50": 16.7,
+          "p95": 16.7,
+          "max": 16.7
+        },
+        "frameP95Ms": {
+          "n": 5,
+          "p50": 16.7,
+          "p95": 16.7,
+          "max": 16.7
+        },
+        "jankFrames50ms": {
+          "n": 5,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameMs": {
+          "n": 5,
+          "p50": 16.8,
+          "p95": 16.8,
+          "max": 16.8
+        },
+        "scrollHeightPx": {
+          "n": 5,
+          "p50": 29084,
+          "p95": 29084,
+          "max": 29084
+        }
+      },
+      "visor": {
+        "abrirMs": {
+          "n": 15,
+          "p50": 61.5,
+          "p95": 65.9,
+          "max": 69.4
+        },
+        "cambioCapturaMs": {
+          "n": 75,
+          "p50": 31.7,
+          "p95": 37.6,
+          "max": 40
+        },
+        "ejemploOriginal": {
+          "w": 259,
+          "h": 488,
+          "src": "http://127.0.0.1:8080/ayuda/cliente-menu-perfil.png"
+        }
+      },
+      "muestra_una_corrida": {
+        "carga": {
+          "ttfbMs": 7.700000000069849,
+          "domContentLoadedMs": 69.09999999997672,
+          "loadMs": 101.90000000002328,
+          "fcpMs": 100,
+          "lcpMs": 460,
+          "cls": 0.0022053551654621006,
+          "longTasksMs": 0,
+          "longTaskCount": 0,
+          "figures": 114,
+          "imgs": 114,
+          "imgsLoadedNow": 22,
+          "domNodes": 1235,
+          "tables": 3,
+          "temas": 14,
+          "tReadyMs": 506,
+          "tIdleMs": 973
+        },
+        "transferencia": {
+          "jsBytes": 529973,
+          "cssBytes": 126865,
+          "imgBytes": 296074,
+          "imgRequests": 22,
+          "totalRequests": 32
+        },
+        "cpuTrasCarga": {
+          "scriptMs": 60.278,
+          "layoutMs": 31.271,
+          "styleMs": 5.567,
+          "taskMs": 200.026,
+          "nodes": 1842,
+          "jsHeapMB": 4.688953399658203,
+          "domListeners": 543
+        },
+        "cambiosPestana": [
+          {
+            "to": "Institucional",
+            "paintMs": 126.69999999995343,
+            "scriptMs": 14.27,
+            "layoutMs": 37.71,
+            "styleMs": 3.58,
+            "taskMs": 81.1,
+            "nodes": 1028,
+            "jsHeapMB": 0.2,
+            "domListeners": 86
+          },
+          {
+            "to": "Cliente",
+            "paintMs": 89.59999999997672,
+            "scriptMs": 9.22,
+            "layoutMs": 10.65,
+            "styleMs": 2.03,
+            "taskMs": 33.62,
+            "nodes": 1131,
+            "jsHeapMB": 0.98,
+            "domListeners": 308
+          },
+          {
+            "to": "Institucional",
+            "paintMs": 90,
+            "scriptMs": 8.71,
+            "layoutMs": 14.9,
+            "styleMs": 3.31,
+            "taskMs": 44.33,
+            "nodes": 1021,
+            "jsHeapMB": -0.07,
+            "domListeners": 86
+          },
+          {
+            "to": "Cliente",
+            "paintMs": 59.09999999997672,
+            "scriptMs": 7.15,
+            "layoutMs": 11.11,
+            "styleMs": 1.86,
+            "taskMs": 30.87,
+            "nodes": 1131,
+            "jsHeapMB": -0.11,
+            "domListeners": 308
+          }
+        ],
+        "scroll": {
+          "scrollHeightPx": 29084,
+          "frames": 94,
+          "frameP50Ms": 16.7,
+          "frameP95Ms": 16.7,
+          "jankFrames50ms": 0,
+          "maxFrameMs": 16.8
+        },
+        "visor": {
+          "abrirVisorMs": [
+            59.29999999993015,
+            60.79999999993015,
+            64.70000000006985
+          ],
+          "cambioCapturaMs": [
+            15.5,
+            9.900000000023283,
+            25.29999999993015,
+            31.900000000023283,
+            39.40000000002328,
+            18.099999999976717,
+            33,
+            32.09999999997672,
+            32,
+            37.40000000002328,
+            31.599999999976717,
+            32.29999999993015,
+            32.5,
+            31.70000000006985,
+            24.800000000046566
+          ],
+          "ejemploOriginal": {
+            "w": 259,
+            "h": 488,
+            "src": "http://127.0.0.1:8080/ayuda/cliente-menu-perfil.png"
+          }
+        },
+        "listaSolicitudesImagen": [
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-seguridad.webp",
+            "bytes": 6742,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-conectar-dispositivo.webp",
+            "bytes": 6758,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-mediciones.webp",
+            "bytes": 6774,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-notificaciones.webp",
+            "bytes": 6746,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-perfil.webp",
+            "bytes": 6752,
+            "cacheControl": null
+          }
+        ],
+        "ejemplosCabeceras": [
+          {
+            "url": "/assets/index-C-AMtL4g.css",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          },
+          {
+            "url": "/assets/react-CDyOOsbv.js",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          },
+          {
+            "url": "/assets/icons-X_eugsBX.js",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          },
+          {
+            "url": "/assets/index-B-sd4lMD.js",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          }
+        ]
+      }
+    },
+    "movil_lento": {
+      "carga_resumen": {
+        "ttfbMs": {
+          "n": 5,
+          "p50": 2.9,
+          "p95": 3.2,
+          "max": 3.2
+        },
+        "domContentLoadedMs": {
+          "n": 5,
+          "p50": 1077.2,
+          "p95": 1084.5,
+          "max": 1084.5
+        },
+        "loadMs": {
+          "n": 5,
+          "p50": 1275.2,
+          "p95": 1275.6,
+          "max": 1275.6
+        },
+        "fcpMs": {
+          "n": 5,
+          "p50": 1168,
+          "p95": 1200,
+          "max": 1200
+        },
+        "lcpMs": {
+          "n": 5,
+          "p50": 1648,
+          "p95": 1712,
+          "max": 1712
+        },
+        "cls": {
+          "n": 5,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "longTasksMs": {
+          "n": 5,
+          "p50": 288,
+          "p95": 376,
+          "max": 376
+        },
+        "tiempoReadyMs": {
+          "n": 5,
+          "p50": 1727,
+          "p95": 1806,
+          "max": 1806
+        },
+        "tiempoNetworkIdleMs": {
+          "n": 5,
+          "p50": 2484,
+          "p95": 2540,
+          "max": 2540
+        },
+        "nodosDOM": {
+          "n": 5,
+          "p50": 1235,
+          "p95": 1235,
+          "max": 1235
+        },
+        "figuras": {
+          "n": 5,
+          "p50": 114,
+          "p95": 114,
+          "max": 114
+        },
+        "imagenesEnDOM": {
+          "n": 5,
+          "p50": 114,
+          "p95": 114,
+          "max": 114
+        },
+        "imagenesCargadasAlInicio": {
+          "n": 5,
+          "p50": 5,
+          "p95": 5,
+          "max": 5
+        },
+        "heapJsMB": {
+          "n": 5,
+          "p50": 5,
+          "p95": 5,
+          "max": 5
+        }
+      },
+      "transferencia_resumen": {
+        "jsBytes": {
+          "n": 5,
+          "p50": 529973,
+          "p95": 529973,
+          "max": 529973
+        },
+        "cssBytes": {
+          "n": 5,
+          "p50": 126865,
+          "p95": 126865,
+          "max": 126865
+        },
+        "imgBytes": {
+          "n": 5,
+          "p50": 33772,
+          "p95": 33772,
+          "max": 33772
+        },
+        "imgRequests": {
+          "n": 5,
+          "p50": 5,
+          "p95": 5,
+          "max": 5
+        },
+        "totalRequests": {
+          "n": 5,
+          "p50": 15,
+          "p95": 15,
+          "max": 15
+        }
+      },
+      "cambio_pestana": {
+        "paintMs": {
+          "n": 20,
+          "p50": 219.3,
+          "p95": 258.7,
+          "max": 347.1
+        },
+        "scriptMs": {
+          "n": 20,
+          "p50": 41.6,
+          "p95": 46.8,
+          "max": 87.7
+        },
+        "styleMs": {
+          "n": 20,
+          "p50": 9.7,
+          "p95": 13.2,
+          "max": 20.7
+        },
+        "layoutMs": {
+          "n": 20,
+          "p50": 62.6,
+          "p95": 82.8,
+          "max": 95.9
+        },
+        "taskMs": {
+          "n": 20,
+          "p50": 171.7,
+          "p95": 217.7,
+          "max": 298.7
+        },
+        "nodosDeltaPorCambio": {
+          "n": 20,
+          "p50": 1131,
+          "p95": 1131,
+          "max": 1131
+        }
+      },
+      "scroll": {
+        "frameP50Ms": {
+          "n": 5,
+          "p50": 16.7,
+          "p95": 16.7,
+          "max": 16.7
+        },
+        "frameP95Ms": {
+          "n": 5,
+          "p50": 16.7,
+          "p95": 16.8,
+          "max": 16.8
+        },
+        "jankFrames50ms": {
+          "n": 5,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "maxFrameMs": {
+          "n": 5,
+          "p50": 16.8,
+          "p95": 16.8,
+          "max": 16.8
+        },
+        "scrollHeightPx": {
+          "n": 5,
+          "p50": 39716,
+          "p95": 39716,
+          "max": 39716
+        }
+      },
+      "visor": {
+        "abrirMs": {
+          "n": 15,
+          "p50": 818.3,
+          "p95": 1073.2,
+          "max": 1075
+        },
+        "cambioCapturaMs": {
+          "n": 75,
+          "p50": 258.6,
+          "p95": 1156.4,
+          "max": 1172.2
+        },
+        "ejemploOriginal": {
+          "w": 259,
+          "h": 488,
+          "src": "http://127.0.0.1:8080/ayuda/cliente-menu-perfil.png"
+        }
+      },
+      "muestra_una_corrida": {
+        "carga": {
+          "ttfbMs": 2.8999999999068677,
+          "domContentLoadedMs": 1084.5,
+          "loadMs": 1275.5999999999767,
+          "fcpMs": 1200,
+          "lcpMs": 1712,
+          "cls": 0,
+          "longTasksMs": 376,
+          "longTaskCount": 3,
+          "figures": 114,
+          "imgs": 114,
+          "imgsLoadedNow": 5,
+          "domNodes": 1235,
+          "tables": 3,
+          "temas": 14,
+          "tReadyMs": 1806,
+          "tIdleMs": 2540
+        },
+        "transferencia": {
+          "jsBytes": 529973,
+          "cssBytes": 126865,
+          "imgBytes": 33772,
+          "imgRequests": 5,
+          "totalRequests": 15
+        },
+        "cpuTrasCarga": {
+          "scriptMs": 307.52000000000004,
+          "layoutMs": 173.945,
+          "styleMs": 30.357,
+          "taskMs": 928.975,
+          "nodes": 1834,
+          "jsHeapMB": 5.025550842285156,
+          "domListeners": 543
+        },
+        "cambiosPestana": [
+          {
+            "to": "Institucional",
+            "paintMs": 243.5,
+            "scriptMs": 45.84,
+            "layoutMs": 81.79,
+            "styleMs": 11.18,
+            "taskMs": 207.98,
+            "nodes": 1028,
+            "jsHeapMB": 0.18,
+            "domListeners": 86
+          },
+          {
+            "to": "Cliente",
+            "paintMs": 227.90000000002328,
+            "scriptMs": 45.48,
+            "layoutMs": 59.7,
+            "styleMs": 9.74,
+            "taskMs": 176.62,
+            "nodes": 1131,
+            "jsHeapMB": -0.01,
+            "domListeners": 308
+          },
+          {
+            "to": "Institucional",
+            "paintMs": 173.09999999997672,
+            "scriptMs": 28.04,
+            "layoutMs": 62.61,
+            "styleMs": 10.62,
+            "taskMs": 136.88,
+            "nodes": 1021,
+            "jsHeapMB": 0.96,
+            "domListeners": 86
+          },
+          {
+            "to": "Cliente",
+            "paintMs": 187.90000000002328,
+            "scriptMs": 35.66,
+            "layoutMs": 53.41,
+            "styleMs": 9.48,
+            "taskMs": 159.45,
+            "nodes": 1131,
+            "jsHeapMB": -0.22,
+            "domListeners": 308
+          }
+        ],
+        "scroll": {
+          "scrollHeightPx": 39716,
+          "frames": 129,
+          "frameP50Ms": 16.7,
+          "frameP95Ms": 16.7,
+          "jankFrames50ms": 0,
+          "maxFrameMs": 16.8
+        },
+        "visor": {
+          "abrirVisorMs": [
+            318.10000000009313,
+            823.4000000000233,
+            1071.7999999999302
+          ],
+          "cambioCapturaMs": [
+            248.39999999990687,
+            253,
+            256.5,
+            248.40000000002328,
+            1157,
+            213.19999999995343,
+            821,
+            767.8000000000466,
+            558.5999999999767,
+            198.5,
+            240.40000000002328,
+            215.70000000006985,
+            701.0999999999767,
+            582.1000000000931,
+            1048.4000000000233
+          ],
+          "ejemploOriginal": {
+            "w": 259,
+            "h": 488,
+            "src": "http://127.0.0.1:8080/ayuda/cliente-menu-perfil.png"
+          }
+        },
+        "listaSolicitudesImagen": [
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-perfil.webp",
+            "bytes": 6752,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-seguridad.webp",
+            "bytes": 6742,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-conectar-dispositivo.webp",
+            "bytes": 6758,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-mediciones.webp",
+            "bytes": 6774,
+            "cacheControl": null
+          },
+          {
+            "url": "/ayuda/miniaturas/cliente-menu-notificaciones.webp",
+            "bytes": 6746,
+            "cacheControl": null
+          }
+        ],
+        "ejemplosCabeceras": [
+          {
+            "url": "/assets/icons-X_eugsBX.js",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          },
+          {
+            "url": "/assets/router-Ci-qNtfU.js",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          },
+          {
+            "url": "/assets/index-C-AMtL4g.css",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          },
+          {
+            "url": "/assets/index-B-sd4lMD.js",
+            "cacheControl": "max-age=31536000",
+            "encoding": "gzip"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+DB_MAX_CONCURRENT_CALLS=sin tope: llamadas/s=3109 (8 hilos, LAT=5 ms, wall=1.03s)
+DB_MAX_CONCURRENT_CALLS=2: llamadas/s=776 (8 hilos, LAT=5 ms, wall=4.13s)
+DB_MAX_CONCURRENT_CALLS=4: llamadas/s=1551 (8 hilos, LAT=5 ms, wall=2.06s)
+DB_MAX_CONCURRENT_CALLS=8: llamadas/s=3115 (8 hilos, LAT=5 ms, wall=1.03s)

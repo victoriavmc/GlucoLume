@@ -1,0 +1,4 @@
+inicio               {"heapMB":3.71,"nodos":1795,"listeners":541}
+tras 10 visores      {"heapMB":4.12,"nodos":2060,"listeners":730}
+tras 20 visores      {"heapMB":4.19,"nodos":2310,"listeners":780}
+tras 40 visores      {"heapMB":4.32,"nodos":2810,"listeners":880}

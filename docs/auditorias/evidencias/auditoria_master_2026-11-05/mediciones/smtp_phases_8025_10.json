@@ -1,0 +1,39 @@
+{
+ "escenario": "phases:8025:10",
+ "resultado": {
+  "sink_puerto": 8025,
+  "n": 10,
+  "fases": {
+   "auth_ms": {
+    "n": 10,
+    "p50_ms": 0.7,
+    "p95_ms": 1.1,
+    "max_ms": 1.1
+   },
+   "mail_rcpt_data_ms": {
+    "n": 10,
+    "p50_ms": 7.4,
+    "p95_ms": 9.0,
+    "max_ms": 9.0
+   },
+   "starttls_ms": {
+    "n": 10,
+    "p50_ms": 2.0,
+    "p95_ms": 2.7,
+    "max_ms": 2.7
+   },
+   "tcp_ehlo_ms": {
+    "n": 10,
+    "p50_ms": 0.9,
+    "p95_ms": 2.0,
+    "max_ms": 2.0
+   },
+   "total_ms": {
+    "n": 10,
+    "p50_ms": 14.8,
+    "p95_ms": 40.4,
+    "max_ms": 40.4
+   }
+  }
+ }
+}

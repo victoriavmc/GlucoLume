@@ -1,0 +1,66 @@
+{"concurrencia": 1, "operaciones": 4, "p50_ms": 127.0, "p95_ms": 140.2, "max_ms": 140.2, "throughput_ops_s": 8.13, "rss_pico_mb": 110.5}
+{"concurrencia": 2, "operaciones": 8, "p50_ms": 174.2, "p95_ms": 237.7, "max_ms": 237.7, "throughput_ops_s": 10.68, "rss_pico_mb": 174.8}
+{"concurrencia": 4, "operaciones": 16, "p50_ms": 317.1, "p95_ms": 377.4, "max_ms": 427.9, "throughput_ops_s": 12.33, "rss_pico_mb": 302.8}
+{"concurrencia": 8, "operaciones": 32, "p50_ms": 586.2, "p95_ms": 878.6, "max_ms": 981.1, "throughput_ops_s": 12.48, "rss_pico_mb": 558.4}
+{"concurrencia": 16, "operaciones": 64, "p50_ms": 1225.0, "p95_ms": 1770.4, "max_ms": 2087.6, "throughput_ops_s": 12.28, "rss_pico_mb": 1004.4}
+{"concurrencia": 32, "operaciones": 128, "p50_ms": 2380.1, "p95_ms": 3524.0, "max_ms": 4050.0, "throughput_ops_s": 12.33, "rss_pico_mb": 1883.5}
+{
+  "rss_inicial_mb": 110.3,
+  "parametros": "m=64MiB,t=3,p=4 (security.py)",
+  "escenarios": [
+    {
+      "concurrencia": 1,
+      "operaciones": 4,
+      "p50_ms": 127.0,
+      "p95_ms": 140.2,
+      "max_ms": 140.2,
+      "throughput_ops_s": 8.13,
+      "rss_pico_mb": 110.5
+    },
+    {
+      "concurrencia": 2,
+      "operaciones": 8,
+      "p50_ms": 174.2,
+      "p95_ms": 237.7,
+      "max_ms": 237.7,
+      "throughput_ops_s": 10.68,
+      "rss_pico_mb": 174.8
+    },
+    {
+      "concurrencia": 4,
+      "operaciones": 16,
+      "p50_ms": 317.1,
+      "p95_ms": 377.4,
+      "max_ms": 427.9,
+      "throughput_ops_s": 12.33,
+      "rss_pico_mb": 302.8
+    },
+    {
+      "concurrencia": 8,
+      "operaciones": 32,
+      "p50_ms": 586.2,
+      "p95_ms": 878.6,
+      "max_ms": 981.1,
+      "throughput_ops_s": 12.48,
+      "rss_pico_mb": 558.4
+    },
+    {
+      "concurrencia": 16,
+      "operaciones": 64,
+      "p50_ms": 1225.0,
+      "p95_ms": 1770.4,
+      "max_ms": 2087.6,
+      "throughput_ops_s": 12.28,
+      "rss_pico_mb": 1004.4
+    },
+    {
+      "concurrencia": 32,
+      "operaciones": 128,
+      "p50_ms": 2380.1,
+      "p95_ms": 3524.0,
+      "max_ms": 4050.0,
+      "throughput_ops_s": 12.33,
+      "rss_pico_mb": 1883.5
+    }
+  ]
+}

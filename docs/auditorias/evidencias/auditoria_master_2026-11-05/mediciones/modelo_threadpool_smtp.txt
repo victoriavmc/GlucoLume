@@ -1,0 +1,4 @@
+10 requests bloqueantes en vuelo -> {'/otro-endpoint-def': 4, '/otro-endpoint-async': 2}
+39 requests bloqueantes en vuelo -> {'/otro-endpoint-def': 5, '/otro-endpoint-async': 3}
+40 requests bloqueantes en vuelo -> {'/otro-endpoint-def': 5052, '/otro-endpoint-async': 3}
+80 requests bloqueantes en vuelo -> {'/otro-endpoint-def': 11075, '/otro-endpoint-async': 3}

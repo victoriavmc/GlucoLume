@@ -1,0 +1,7 @@
+CSS assets/HelpPage-hvtCUWVg.css                 bytes=   3692 usado=55.1%
+CSS assets/index-C-AMtL4g.css                    bytes= 123171 usado=4.9%
+JS  assets/HelpPage-BLScj9no.js                  bytes=  64695 usado=100.0%
+JS  assets/icons-X_eugsBX.js                     bytes=  71499 usado=100.0%
+JS  assets/index-B-sd4lMD.js                     bytes= 162645 usado=100.0%
+JS  assets/react-CDyOOsbv.js                     bytes= 186642 usado=100.0%
+JS  assets/router-Ci-qNtfU.js                    bytes=  39705 usado=100.0%

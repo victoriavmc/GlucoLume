@@ -1,0 +1,4 @@
+301 http://127.0.0.1:8080/ayuda/ /ayuda
+403  /ayuda/
+200  /app/ayuda
+200  /consejos

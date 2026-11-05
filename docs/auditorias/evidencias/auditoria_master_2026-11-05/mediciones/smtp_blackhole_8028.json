@@ -1,0 +1,9 @@
+{
+ "escenario": "blackhole:8028",
+ "resultado": {
+  "sink_puerto": 8028,
+  "devuelve_enviado": false,
+  "duracion_ms": 20053.6,
+  "nota": "tiempo que el hilo de la petición queda bloqueado antes de recibir False"
+ }
+}

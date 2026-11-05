@@ -1,0 +1,22 @@
+== /index.html
+HTTP/1.1 200 OK
+Content-Type: text/html
+Last-Modified: Thu, 05 Nov 2026 23:03:54 GMT
+Content-Encoding: gzip
+Expires: Thu, 05 Nov 2026 23:20:58 GMT
+Cache-Control: no-cache
+X-Content-Type-Options: nosniff
+== /ayuda/cliente-menu-inicio.png
+HTTP/1.1 200 OK
+Content-Type: image/png
+Last-Modified: Thu, 05 Nov 2026 23:03:54 GMT
+X-Content-Type-Options: nosniff
+== /ayuda/miniaturas/cliente-menu-inicio.webp
+HTTP/1.1 200 OK
+Content-Type: image/webp
+Last-Modified: Thu, 05 Nov 2026 23:03:54 GMT
+X-Content-Type-Options: nosniff
+== /assets/
+HTTP/1.1 404 Not Found
+Content-Type: text/html
+X-Content-Type-Options: nosniff

@@ -1,0 +1,24 @@
+{
+ "escenario": "delay:8026:5",
+ "resultado": {
+  "sink_puerto": 8026,
+  "envio_unico_sincronico": {
+   "n": 5,
+   "p50_ms": 424.4,
+   "p95_ms": 445.8,
+   "max_ms": 445.8
+  },
+  "dos_correos_conexion_propia": {
+   "n": 5,
+   "p50_ms": 846.3,
+   "p95_ms": 849.9,
+   "max_ms": 849.9
+  },
+  "dos_correos_conexion_compartida": {
+   "n": 5,
+   "p50_ms": 586.5,
+   "p95_ms": 592.0,
+   "max_ms": 592.0
+  }
+ }
+}

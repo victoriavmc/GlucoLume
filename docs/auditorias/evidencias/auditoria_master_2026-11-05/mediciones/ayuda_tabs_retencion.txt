@@ -1,0 +1,4 @@
+inicio                       heapMB=3.69 nodos=1795 nodosDOM=1235 listeners=541
+tras 30 cambios de pestaña   heapMB=4.50 nodos=1809 nodosDOM=1235 listeners=541
+tras 20 visores abiertos     heapMB=4.69 nodos=2324 nodosDOM=1235 listeners=780
+tras 30 cambios más          heapMB=4.80 nodos=2309 nodosDOM=1235 listeners=780
