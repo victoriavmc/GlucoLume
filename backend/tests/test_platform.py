@@ -122,6 +122,11 @@ def login(web, user, secret=None, password=PASSWORD, acceso=None):
     """Entra con el acceso que corresponde a la cuenta: el administrativo para administradores y moderadores de plataforma."""
     if acceso is None:
         acceso = "PLATAFORMA" if user.tipoCuenta in (ADMIN, MOD) else "GENERAL"
+    # Cada inicio de prueba parte de una cuenta sin sesión vigente (como si la anterior se cerrara). Con una sesión abierta, un nuevo
+    # inicio se rechaza (tests/test_sesion_unica.py). Las pruebas que necesitan dos sesiones a la vez usan otraSesion().
+    web.testDb.execute(update(UserSession).where(UserSession.idUsuario == user.idUsuario, UserSession.fechaRevocacion.is_(None))
+                       .values(fechaRevocacion=nowForDb()))
+    web.testDb.commit()
     response = web.post("/api/v1/auth/login", json={"identificador": user.usuario, "acceso": acceso, "password": password})
     assert response.status_code == 200, response.text
     body = response.json()
@@ -133,6 +138,13 @@ def login(web, user, secret=None, password=PASSWORD, acceso=None):
         assert verified.status_code == 200, verified.text
         body = verified.json()
     return {"Authorization": f"Bearer {body['tokens']['accessToken']}"}
+
+
+def otraSesion(db, user) -> dict:
+    """Una segunda sesión vigente de la cuenta (otro dispositivo), abierta sin pasar por el inicio de sesión: un inicio real se rechaza
+    mientras haya una sesión vigente (tests/test_sesion_unica.py)."""
+    session = makeSession(db, user)
+    return {"Authorization": f"Bearer {security.createAccessToken(user.idUsuario, session.idSesion)}"}
 
 
 # --- 1. Inicialización segura del primer administrador ----------------------------------------------------------------

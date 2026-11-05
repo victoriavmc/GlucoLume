@@ -14,7 +14,7 @@ from app.models.accountToken import AccountToken
 from app.services import platform
 from app.utils.timeZone import nowForDb
 from tests.test_account_deletion import PASSWORD, db, engine, mails  # noqa: F401
-from tests.test_platform import ADMIN, NEW_PASSWORD, login, platformUser, web  # noqa: F401
+from tests.test_platform import ADMIN, NEW_PASSWORD, login, otraSesion, platformUser, web  # noqa: F401
 
 URL_CODE = "/api/v1/platform/password/code"
 URL_CHANGE = "/api/v1/platform/password/change"
@@ -78,13 +78,13 @@ def test_pide_el_codigo_con_la_contrasena_actual_y_lo_envia_al_correo_registrado
 
 def test_cambia_la_contrasena_con_el_codigo_y_cierra_las_otras_sesiones(db, mails, web, adminSinMfa):
     current = login(web, adminSinMfa)
-    other = login(web, adminSinMfa)
+    other = otraSesion(db, adminSinMfa)  # otra sesión abierta (otro dispositivo)
     assert web.post(URL_CODE, headers=current, json={"passwordActual": PASSWORD}).status_code == 200
     response = web.post(URL_CHANGE, headers=current, json=cambio(codigo=CODE))
     assert response.status_code == 200, response.text
     assert web.get("/api/v1/platform/me", headers=current).status_code == 200
     assert web.get("/api/v1/platform/me", headers=other).status_code == 401
-    assert web.post("/api/v1/auth/login", json=loginAdmin(PASSWORD)).status_code != 200  # la vieja ya no entra
+    assert web.post("/api/v1/auth/login", json=loginAdmin(PASSWORD)).status_code == 401  # la vieja ya no entra
     assert login(web, adminSinMfa, password=NEW_PASSWORD)  # entra con la nueva
     assert [m for m in mails if "Cambiaste tu contraseña con éxito" in m["subject"]]
 
@@ -93,7 +93,7 @@ def test_sin_codigo_no_cambia_la_contrasena(db, mails, web, adminSinMfa):
     headers = login(web, adminSinMfa)
     response = web.post(URL_CHANGE, headers=headers, json=cambio())
     assert response.status_code == 400 and response.json()["codigo"] == "CODIGO_CORREO_REQUERIDO"
-    assert web.post("/api/v1/auth/login", json=loginAdmin(PASSWORD)).status_code == 200  # la contraseña sigue igual
+    assert login(web, adminSinMfa)  # la contraseña sigue igual (el helper cierra la sesión anterior antes de entrar)
 
 
 def test_un_codigo_incorrecto_queda_invalidado_y_el_siguiente_se_pide_tras_esperar(db, mails, web, adminSinMfa):

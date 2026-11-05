@@ -12,7 +12,7 @@ from app.models.localCredential import LocalCredential
 from app.services.auth import PASSWORD_HISTORY_SIZE
 from app.models.userSession import UserSession
 from tests.test_account_deletion import PASSWORD, db, engine, makeUser, mails  # noqa: F401
-from tests.test_platform import enableMfa, login, web  # noqa: F401
+from tests.test_platform import enableMfa, login, otraSesion, web  # noqa: F401
 
 URL = "/api/v1/auth/password/change"
 NEW = "Zorro#Lento-2027"
@@ -26,7 +26,7 @@ def hash_of(db, user):
 def test_cambia_la_contrasena_avisa_por_correo_y_cierra_las_otras_sesiones(db, mails, web):
     user = makeUser(db, email="persona@example.com", usuario="persona")
     current = login(web, user)
-    other = login(web, user)  # otra sesión abierta (otro dispositivo)
+    other = otraSesion(db, user)  # otra sesión abierta (otro dispositivo)
     before = hash_of(db, user)
     response = web.post(URL, headers=current, json={"passwordActual": PASSWORD, "passwordNueva": NEW})
     assert response.status_code == 200, response.text
@@ -35,8 +35,8 @@ def test_cambia_la_contrasena_avisa_por_correo_y_cierra_las_otras_sesiones(db, m
     assert web.get("/api/v1/auth/me", headers=current).status_code == 200
     assert web.get("/api/v1/auth/me", headers=other).status_code == 401
     # Con la contraseña vieja ya no entra; con la nueva sí.
-    assert web.post("/api/v1/auth/login", json={"identificador": "persona", "password": PASSWORD}).status_code != 200
-    assert web.post("/api/v1/auth/login", json={"identificador": "persona", "password": NEW}).status_code == 200
+    assert web.post("/api/v1/auth/login", json={"identificador": "persona", "password": PASSWORD}).status_code == 401
+    assert login(web, user, password=NEW)
     # Correo: "Cambiaste tu contraseña con éxito", sin contraseñas.
     sent = [m for m in mails if "Cambiaste tu contraseña con éxito" in m["subject"]]
     assert len(sent) == 1 and sent[0]["to"] == "persona@example.com"
@@ -109,7 +109,7 @@ def test_no_admite_la_contrasena_anterior_y_lo_dice_sin_mas(db, mails, web):
     assert back.status_code == 422 and back.json()["codigo"] == "PASSWORD_ANTERIOR"
     assert "contraseña vieja" in back.text
     assert security.verifyPassword(NEW, hash_of(db, user))[0]  # la vigente sigue siendo NEW
-    assert web.post("/api/v1/auth/login", json={"identificador": "persona", "password": NEW}).status_code == 200
+    assert login(web, user, password=NEW)  # el helper cierra la sesión anterior antes de entrar
 
 
 def test_recuerda_solo_las_ultimas_cinco_anteriores(db, mails, web):

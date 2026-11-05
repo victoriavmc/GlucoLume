@@ -76,6 +76,9 @@ def test_mfa_pendiente_correcto_incorrecto_y_con_codigo_de_recuperacion_guardado
     secret = enableMfa(db, user)  # con un código de recuperación guardado: ABCD-EFGH
 
     def newChallenge():
+        # Con una sesión vigente, un nuevo inicio se rechaza: se cierran las anteriores (tests/test_sesion_unica.py).
+        for activa in db.scalars(select(UserSession).where(UserSession.fechaRevocacion.is_(None))).all():
+            authService.logout(db, activa)
         response = authService.loginLocal(db, "victoria", PASSWORD)
         assert response.estado == "MFA_REQUERIDO"
         return response.challengeToken

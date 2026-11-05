@@ -22,6 +22,7 @@ from app.models.user import User
 from app.schemas.auth import RegisterRequest
 from app.schemas.institution import MemberAdminUpdateRequest, MemberInviteRequest
 from app.services import accountActivation
+from app.models.userSession import UserSession
 from app.services import auth as authService
 from app.services import institution as institutions
 from app.utils.timeZone import nowForDb
@@ -109,7 +110,10 @@ def test_activar_aceptar_y_gestionar_operadores(db, mails, team):
     [invitation] = institutions.listInvitations(db, user)
     institutions.respondInvitation(db, user, invitation.idInstitucionUsuario, accept=True)
     assert reload(db, InstitutionUser, member.idInstitucionUsuario).estadoRelacion == "ACTIVO"
-    # Inicia sesión con sus propias credenciales y gestiona operadores.
+    # Inicia sesión con sus propias credenciales y gestiona operadores. La sesión que abrió la activación se cierra antes
+    # (con una sesión vigente, un inicio nuevo se rechaza: tests/test_sesion_unica.py).
+    for activa in db.scalars(select(UserSession).where(UserSession.fechaRevocacion.is_(None))).all():
+        authService.logout(db, activa)
     assert authService.loginLocal(db, "luciasosa", NEW_PASSWORD).estado == "AUTENTICADO"
     assert "INCORPORAR_OPERADORES" in institutions.getDetail(db, user, team.id).permisos
     institutional(db, "op2@example.com", "op2")

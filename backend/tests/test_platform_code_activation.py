@@ -11,6 +11,7 @@ from sqlalchemy import func, select, update
 
 from app.models.accountToken import AccountToken
 from app.models.user import User
+from app.models.userSession import UserSession
 from app.services import auth as authService
 from app.services import platform
 from app.utils.timeZone import nowForDb
@@ -173,6 +174,9 @@ def test_despues_de_activar_se_ingresa_con_contrasena_y_mfa_sin_volver_a_pedir_e
     assert web.post(URL, json=body(user, code)).status_code == 200
     account = reload(db, User, user.idUsuario)
     secret = enableMfa(db, account)  # la persona configura su segundo factor
+    # La sesión que abrió la activación se cierra antes del inicio de prueba (con una vigente, un inicio nuevo se rechaza).
+    db.execute(update(UserSession).where(UserSession.fechaRevocacion.is_(None)).values(fechaRevocacion=nowForDb()))
+    db.commit()
     first = web.post("/api/v1/auth/login", json={"identificador": "elegido", "acceso": "PLATAFORMA", "password": NEW_PASSWORD}).json()
     assert first["estado"] == "MFA_REQUERIDO" and not first.get("tokens")  # la contraseña sola no alcanza, y no se pide ningún código de activación
     account.usuario = "elegido"
