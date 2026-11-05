@@ -102,9 +102,10 @@ function VisorCapturas({ lista, indice, onCambiar, onClose }) {
   return (
     <Modal role="dialog" visor title={actual.titulo} onClose={onClose}>
       <div className="help-visor-cuerpo">
-        {/* Mientras llega el original (sin caché en la primera apertura) se ve la miniatura como fondo: la imagen aparece al instante y luego se afina. */}
-        <img className="help-visor-img" src={actual.src} alt={actual.alt}
-          style={{ backgroundImage: `url(${actual.miniatura})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }} />
+        {/* Mientras llega el original (sin caché en la primera apertura) se ve la miniatura de fondo en el mismo marco. */}
+        <div className="help-visor-marco" style={{ backgroundImage: `url(${actual.miniatura})` }}>
+          <img className="help-visor-img" src={actual.src} alt={actual.alt} />
+        </div>
         <button type="button" className="help-visor-flecha is-anterior" aria-label="Captura anterior" onClick={() => onCambiar((indice - 1 + total) % total)}>
           <ChevronLeft size={28} aria-hidden="true" />
         </button>

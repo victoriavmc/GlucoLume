@@ -222,6 +222,33 @@
   }
 }
 
+/* Marco del visor: caja de tamaño fijo desde el primer instante. Muestra la miniatura de fondo mientras carga el original (que se
+   superpone con el mismo tamaño y object-fit: contain). Sin esta caja, la imagen sin cargar mide 0 px y el visor no aparece. */
+.help-visor-marco {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 150px);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.help-visor-marco .help-visor-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .help-visor-marco {
+    height: calc(100vh - 170px);
+  }
+}
+
 /* Flechas para pasar de una captura a otra: van a los costados de la imagen. */
 .help-visor-flecha {
   position: absolute;

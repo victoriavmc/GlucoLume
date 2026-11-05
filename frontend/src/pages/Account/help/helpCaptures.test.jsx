@@ -80,7 +80,8 @@ describe('PasoImagen: miniatura en la guía, original en el visor', () => {
     const dialogo = screen.getByRole('dialog');
     const visor = dialogo.querySelector('.help-visor-img');
     expect(visor).toHaveAttribute('src', '/ayuda/grupo-creado.png');
-    expect(visor.style.backgroundImage).toContain('/ayuda/miniaturas/grupo-creado.webp');
+    expect(visor.parentElement).toHaveClass('help-visor-marco');
+    expect(visor.parentElement.style.backgroundImage).toContain('/ayuda/miniaturas/grupo-creado.webp');
     expect(within(dialogo).getByText('1 de 2')).toBeInTheDocument();
 
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Captura siguiente' }));
