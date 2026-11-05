@@ -125,6 +125,27 @@ def test_sesion_anterior_a_la_migracion_no_se_cierra_de_golpe(db, mails, clock):
     assert db.get(UserSession, session.idSesion).ultimaActividad is not None
 
 
+def test_una_sesion_inactiva_mas_de_15_minutos_no_bloquea_otro_equipo(db, mails, clock):
+    loginYSesion(db)  # la cuenta queda con una sesión abierta y sin uso
+
+    clock.advance(minutes=16)
+
+    # Ya no está en uso: el otro equipo puede entrar.
+    assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "AUTENTICADO"
+
+
+def test_una_sesion_usada_hace_poco_sigue_bloqueando_otro_equipo(db, mails, clock):
+    user, _, session = loginYSesion(db)
+
+    clock.advance(minutes=10)
+    pedido(db, user, session)  # actividad a los 10 minutos
+    clock.advance(minutes=6)  # 16 desde el login, pero 6 desde la última actividad
+
+    with pytest.raises(AuthError) as error:
+        authService.loginLocal(db, EMAIL, PASSWORD)
+    assert error.value.code == "SESION_ACTIVA"
+
+
 def test_sin_la_columna_la_inactividad_no_se_controla(db, mails, clock, monkeypatch):
     monkeypatch.setattr(schemaCompat, "sessionActivityReady", lambda db: False)  # base sin migrar
     user, _, session = loginYSesion(db)

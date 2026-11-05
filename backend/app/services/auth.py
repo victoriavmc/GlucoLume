@@ -1028,13 +1028,20 @@ def _requireNoOtherActiveSession(db: Session, user: User, clientInfo: ClientInfo
         select(User.idUsuario).where(User.idUsuario == user.idUsuario)
         .with_hint(User, "WITH (UPDLOCK, HOLDLOCK, ROWLOCK)", "mssql")
     )
-    activa = db.scalar(
-        select(UserSession.idSesion).where(
-            UserSession.idUsuario == user.idUsuario,
-            UserSession.fechaRevocacion.is_(None),
-            UserSession.fechaExpiracion > now,
-        ).limit(1)
-    )
+    filtros = [
+        UserSession.idUsuario == user.idUsuario,
+        UserSession.fechaRevocacion.is_(None),
+        UserSession.fechaExpiracion > now,
+    ]
+    if schemaCompat.sessionActivityReady(db):
+        # Una sesión sin actividad dentro de SESION_INACTIVIDAD_MINUTOS ya no cuenta como abierta: la cuenta puede entrar desde otro equipo.
+        # Sin valor de última actividad (sesión anterior a la migración) se usa la fecha de creación.
+        limite = now - timedelta(minutes=getSettings().SESION_INACTIVIDAD_MINUTOS)
+        filtros.append(or_(
+            UserSession.ultimaActividad > limite,
+            and_(UserSession.ultimaActividad.is_(None), UserSession.fechaCreacion > limite),
+        ))
+    activa = db.scalar(select(UserSession.idSesion).where(*filtros).limit(1))
     if activa is None:
         return
     registerEvent(
