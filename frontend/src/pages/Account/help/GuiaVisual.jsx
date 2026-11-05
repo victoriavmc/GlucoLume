@@ -62,18 +62,20 @@ export function PasoMenu({ tipo, destino }) {
 export function PasoImagen({ captura, alt, pie }) {
   const [visor, setVisor] = useState(null);
   const figuraRef = useRef(null);
+  // El visor amplía el original (`src`); la miniatura en la guía es una versión WebP de hasta 840 px (2× el ancho máximo de 420 px).
   const src = `/ayuda/${captura}`;
+  const miniatura = `/ayuda/miniaturas/${captura.replace(/\.png$/, '.webp')}`;
 
   function abrir() {
     const figuras = [...document.querySelectorAll('figure.help-captura')];
-    const lista = figuras.map((figura) => ({ src: figura.dataset.src, alt: figura.dataset.alt, titulo: figura.dataset.titulo }));
+    const lista = figuras.map((figura) => ({ src: figura.dataset.src, miniatura: figura.dataset.miniatura, alt: figura.dataset.alt, titulo: figura.dataset.titulo }));
     setVisor({ lista, indice: Math.max(0, figuras.indexOf(figuraRef.current)) });
   }
 
   return (
-    <figure className="help-captura" ref={figuraRef} data-src={src} data-alt={alt} data-titulo={pie ?? alt}>
+    <figure className="help-captura" ref={figuraRef} data-src={src} data-miniatura={miniatura} data-alt={alt} data-titulo={pie ?? alt}>
       <button type="button" className="help-captura-boton" aria-label={`Ampliar imagen: ${alt}`} onClick={abrir}>
-        <img src={src} alt="" loading="lazy" />
+        <img src={miniatura} alt="" loading="lazy" decoding="async" />
       </button>
       {pie && <figcaption>{pie}</figcaption>}
       {visor && <VisorCapturas lista={visor.lista} indice={visor.indice} onCambiar={(indice) => setVisor({ ...visor, indice })} onClose={() => setVisor(null)} />}
@@ -100,7 +102,10 @@ function VisorCapturas({ lista, indice, onCambiar, onClose }) {
   return (
     <Modal role="dialog" visor title={actual.titulo} onClose={onClose}>
       <div className="help-visor-cuerpo">
-        <img className="help-visor-img" src={actual.src} alt={actual.alt} />
+        {/* Mientras llega el original (sin caché en la primera apertura) se ve la miniatura de fondo en el mismo marco. */}
+        <div className="help-visor-marco" style={{ backgroundImage: `url(${actual.miniatura})` }}>
+          <img className="help-visor-img" src={actual.src} alt={actual.alt} />
+        </div>
         <button type="button" className="help-visor-flecha is-anterior" aria-label="Captura anterior" onClick={() => onCambiar((indice - 1 + total) % total)}>
           <ChevronLeft size={28} aria-hidden="true" />
         </button>

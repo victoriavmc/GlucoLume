@@ -76,7 +76,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Imagen de correo sin uso (la que se adjunta es backend/app/emails/bannerCorreoGlucoLume.png)
+# Imagen de correo sin uso (la que se adjunta es backend/app/emails/bannerCorreoGlucoLume.jpg)
 backend/app/emails/GlucoLume_ banner.png
 
 # Secretos y configuraciones privadas
