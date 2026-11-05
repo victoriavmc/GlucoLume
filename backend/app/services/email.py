@@ -10,7 +10,9 @@
 # Nunca se registran en logs el contexto del correo, tokens, códigos OTP ni contraseñas.
 
 import logging
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -170,6 +172,19 @@ def buildEmailMessage(
     )
 
 
+@contextmanager
+def smtpSession() -> Iterator[sender.SmtpSession]:
+    """Conexión SMTP compartida por varios correos de UN mismo flujo (p. ej. consulta + confirmación). Se cierra al salir.
+
+    Solo cambia cuántas conexiones se abren: cada correo sigue registrando su propio resultado en sendEmailEvent.
+    """
+    session = sender.SmtpSession()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
 def sendEmailEvent(
     eventType: EmailEventType,
     destinatario: str,
@@ -177,18 +192,21 @@ def sendEmailEvent(
     *,
     incluirDetalleMedicion: bool = False,
     replyTo: str | None = None,
+    session: sender.SmtpSession | None = None,
 ) -> bool:
     """Envía el correo del evento. Devuelve True si se envió.
 
     Un error de datos (EmailContextError) se propaga porque es un error de programación; un fallo de
     envío (SMTP, red) se registra con su causa técnica y devuelve False para que el flujo de negocio
-    decida qué hacer.
+    decida qué hacer. `session` (ver smtpSession) reutiliza una conexión ya abierta.
     """
     recipient, rendered = renderEmailEvent(eventType, destinatario, context, incluirDetalleMedicion=incluirDetalleMedicion)
     try:
-        sender.sendHtmlEmail(
-            recipient, rendered.subject, rendered.html, rendered.text, (loadBanner(),), _validReplyTo(replyTo)
-        )
+        args = (recipient, rendered.subject, rendered.html, rendered.text, (loadBanner(),), _validReplyTo(replyTo))
+        if session is None:
+            sender.sendHtmlEmail(*args)
+        else:
+            sender.sendHtmlEmail(*args, session=session)
     except (OSError, RuntimeError) as error:
         # OSError cubre smtplib.SMTPException, SSL y red; RuntimeError, SMTP sin configurar.
         logger.warning(

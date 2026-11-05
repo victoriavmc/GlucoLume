@@ -13,7 +13,7 @@
 import uuid
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import and_, func, not_, select
+from sqlalchemy import and_, case, func, not_, select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthError
@@ -688,17 +688,25 @@ def operatorDashboard(db: Session, actor: User, idInstitucion: uuid.UUID, idOper
     performedIds = performed.with_only_columns(Measurement.idMedicion)
     performedAllIds = performedAll.with_only_columns(Measurement.idMedicion)
     isDemo = Measurement.origenGlucosa == ORIGEN_DEMO
-    demoTotal = db.scalar(select(func.count()).select_from(Measurement).where(Measurement.idMedicion.in_(performedAllIds), isDemo)) or 0
-    demoInPeriod = db.scalar(select(func.count()).select_from(Measurement).where(
-        Measurement.idMedicion.in_(performedAllIds), isDemo, *_inPeriod(Measurement.fechaHoraInicio, start, end))) or 0
     noResult = and_(Measurement.estadoMedicion != COMPLETADA, Measurement.origenGlucosa.is_(None))  # canceladas/inválidas/en curso: sin resultado ni origen
-    noResultInPeriod = db.scalar(select(func.count()).select_from(Measurement).where(
-        Measurement.idMedicion.in_(performedAllIds), noResult, *_inPeriod(Measurement.fechaHoraInicio, start, end))) or 0
-    noResultTotal = db.scalar(select(func.count()).select_from(Measurement).where(Measurement.idMedicion.in_(performedAllIds), noResult)) or 0
-    perStatus = dict(db.execute(select(Measurement.estadoMedicion, func.count()).where(
-        Measurement.idMedicion.in_(performedIds)).group_by(Measurement.estadoMedicion)).all())
-    inPeriod = db.scalar(select(func.count()).select_from(Measurement).where(
-        Measurement.idMedicion.in_(performedIds), *_inPeriod(Measurement.fechaHoraInicio, start, end))) or 0
+    inPeriodNow = and_(*_inPeriod(Measurement.fechaHoraInicio, start, end))
+    # Contadores DEMO / sin resultado y último inicio: una sola pasada sobre las mediciones del operador (antes, cinco consultas que
+    # volvían a calcular la misma subconsulta). Mismos criterios: el COUNT de cada condición equivale al WHERE que reemplaza.
+    totals = db.execute(select(
+        func.coalesce(func.sum(case((isDemo, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((and_(isDemo, inPeriodNow), 1), else_=0)), 0),
+        func.coalesce(func.sum(case((noResult, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((and_(noResult, inPeriodNow), 1), else_=0)), 0),
+        func.max(Measurement.fechaHoraInicio),
+    ).where(Measurement.idMedicion.in_(performedAllIds))).one()
+    demoTotal, demoInPeriod, noResultTotal, noResultInPeriod = (int(value) for value in totals[:4])
+    lastStart = totals[4]
+    # Por estado (sin DEMO, criterio histórico) y el total del período: una sola consulta agrupada.
+    byStatus = db.execute(select(
+        Measurement.estadoMedicion, func.count(), func.coalesce(func.sum(case((inPeriodNow, 1), else_=0)), 0)
+    ).where(Measurement.idMedicion.in_(performedIds)).group_by(Measurement.estadoMedicion)).all()
+    perStatus = {row[0]: row[1] for row in byStatus}
+    inPeriod = sum(int(row[2]) for row in byStatus)
     # Con valores de salud solo los pacientes que el operador tiene a cargo HOY: la autoría histórica (Auditoria) no autoriza la lectura
     # (patientAccess.py); los conteos históricos de arriba no llevan valores y se conservan.
     recentRows = db.scalars(performedAll.where(Measurement.idPerfilMedicion.in_(assignedIds)).order_by(
@@ -716,7 +724,6 @@ def operatorDashboard(db: Session, actor: User, idInstitucion: uuid.UUID, idOper
         Audit, (Audit.idRegistro == ProfileTransfer.idTransferenciaPerfil) & (Audit.tablaAfectada == "TransferenciaPerfil")
     ).where(request, ProfileTransfer.idOperadorDestino == relId).group_by(ProfileTransfer.estado)).all())
 
-    lastStart = db.scalar(select(func.max(Measurement.fechaHoraInicio)).where(Measurement.idMedicion.in_(performedAllIds)))
     lastTransfer = db.scalar(select(func.max(ProfileTransfer.fechaPeticion)).where(ProfileTransfer.idOperadorDestino == relId))
     activity = [moment for moment in (lastStart, lastTransfer) if moment]
 

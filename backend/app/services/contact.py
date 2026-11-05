@@ -36,7 +36,7 @@ _limiter = RateLimiter(RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_SECONDS, name="contacto
 _confirmationLimiter = RateLimiter(CONFIRMATION_LIMIT_MAX, CONFIRMATION_LIMIT_WINDOW_SECONDS, name="contacto:confirmacion")
 
 
-def _sendConfirmation(data: ContactRequest, tipoConsulta: str) -> bool:
+def _sendConfirmation(data: ContactRequest, tipoConsulta: str, session=None) -> bool:
     """Confirmación automática al remitente. Nunca lanza: un fallo se registra y no afecta a la consulta."""
     if not _confirmationLimiter.allow(data.email.lower()):
         logger.warning("Confirmación de contacto omitida: límite de confirmaciones para %s.", maskEmail(data.email))
@@ -46,6 +46,7 @@ def _sendConfirmation(data: ContactRequest, tipoConsulta: str) -> bool:
             EmailEventType.CONTACTO_CONFIRMACION,
             data.email,
             {"nombre": data.nombre, "tipoConsulta": tipoConsulta, "asuntoConsulta": data.asunto},
+            session=session,
         )
     except Exception:  # noqa: BLE001 - la consulta ya fue recibida: este envío nunca debe fallar el request
         logger.exception("No fue posible enviar la confirmación automática al remitente %s.", maskEmail(data.email))
@@ -75,22 +76,25 @@ def sendContactMessage(data: ContactRequest, clientIp: str | None) -> bool:
     if not _limiter.allow(clientIp or "desconocido"):
         raise AuthError("DEMASIADAS_SOLICITUDES", "Enviaste varias consultas seguidas. Probá de nuevo en unos minutos.")
     tipoConsulta = TIPO_CONSULTA_LABELS[data.tipoConsulta]
-    sent = emailService.sendEmailEvent(
-        EmailEventType.CONTACTO_RECIBIDO,
-        recipient,
-        {
-            "fechaEvento": nowForDb(),
-            "nombreRemitente": data.nombre,
-            "correoRemitente": data.email,
-            "tipoConsulta": tipoConsulta,
-            # "asunto" es una variable reservada de las plantillas (asunto del correo).
-            "asuntoConsulta": data.asunto,
-            "mensaje": data.mensaje,
-        },
-        replyTo=data.email,
-    )
-    if not sent:
-        # La causa técnica (credenciales, host, puerto, TLS, timeout...) ya quedó en el log de email.
-        raise AuthError("CORREO_NO_ENVIADO", UNAVAILABLE_MESSAGE)
-    # A partir de acá la consulta ya llegó: la confirmación es independiente y nunca reenvía la consulta.
-    return _sendConfirmation(data, tipoConsulta)
+    # Una sola conexión SMTP para la consulta y su confirmación (antes, dos conexiones completas en serie).
+    with emailService.smtpSession() as session:
+        sent = emailService.sendEmailEvent(
+            EmailEventType.CONTACTO_RECIBIDO,
+            recipient,
+            {
+                "fechaEvento": nowForDb(),
+                "nombreRemitente": data.nombre,
+                "correoRemitente": data.email,
+                "tipoConsulta": tipoConsulta,
+                # "asunto" es una variable reservada de las plantillas (asunto del correo).
+                "asuntoConsulta": data.asunto,
+                "mensaje": data.mensaje,
+            },
+            replyTo=data.email,
+            session=session,
+        )
+        if not sent:
+            # La causa técnica (credenciales, host, puerto, TLS, timeout...) ya quedó en el log de email.
+            raise AuthError("CORREO_NO_ENVIADO", UNAVAILABLE_MESSAGE)
+        # A partir de acá la consulta ya llegó: la confirmación es independiente y nunca reenvía la consulta.
+        return _sendConfirmation(data, tipoConsulta, session)

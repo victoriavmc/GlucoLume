@@ -1,0 +1,23 @@
+{
+  "consultasConGraficos": 24,
+  "consultasSinGraficos": 23,
+  "medicionesEnPeriodo": 1,
+  "medicionesEnPeriodoDemo": 2,
+  "medicionesEnPeriodoSinResultado": 0,
+  "medicionesPorEstado": {
+    "COMPLETADA": 1
+  },
+  "medicionesRealizadas": 1,
+  "medicionesRealizadasDemo": 2,
+  "medicionesSinResultado": 0,
+  "pacientes": 3,
+  "realizadas": 3,
+  "transferencias": {
+    "enviadas": 0,
+    "enviadasPendientes": 0,
+    "recibidas": 0,
+    "recibidasPendientes": 0
+  },
+  "ultimaActividadDia": "2026-11-05",
+  "ultimasDePacientes": 3
+}

@@ -107,6 +107,15 @@ def ruleIdOf(db: Session, idMedicion: uuid.UUID) -> uuid.UUID | None:
     return db.scalar(select(table.c.idReglaMatriz).where(table.c.idMedicion == idMedicion))
 
 
+def ruleIdsOf(db: Session, idMediciones: list[uuid.UUID]) -> dict[uuid.UUID, uuid.UUID | None]:
+    """Igual que ruleIdOf para varias mediciones en UNA consulta. Las mediciones sin regla (o sin migración 025) no aparecen."""
+    if not idMediciones or not hasColumn(db, "Medicion", "idReglaMatriz"):
+        return {}
+    table = Measurement.__table__
+    rows = db.execute(select(table.c.idMedicion, table.c.idReglaMatriz).where(table.c.idMedicion.in_(idMediciones))).all()
+    return {row[0]: row[1] for row in rows}
+
+
 def setRuleId(db: Session, idMedicion: uuid.UUID, idRegla: uuid.UUID | None) -> None:
     if idRegla is None or not hasColumn(db, "Medicion", "idReglaMatriz"):
         return

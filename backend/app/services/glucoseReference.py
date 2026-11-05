@@ -10,6 +10,8 @@
 # (ambos sexos, sin posición) para consulta. Nada de esto modifica la medición ni el perfil.
 
 import uuid
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -97,7 +99,30 @@ def semaphore(rule: ReferenceRule | None, value: float | None) -> str | None:
     return "VERDE"
 
 
-def build(db: Session, measurement: Measurement) -> GlucoseReference:
+@dataclass(frozen=True)
+class Preloaded:
+    """Reglas de varias matrices y regla aplicada de varias mediciones, leídas en una consulta cada una (ver preload)."""
+
+    rules: dict[uuid.UUID, list[MatrixRule]]
+    applied: dict[uuid.UUID, uuid.UUID | None]
+
+
+def preload(db: Session, measurements: Iterable[Measurement]) -> Preloaded:
+    """Lee en lote lo que build() lee por medición (reglas de la matriz y regla aplicada). Sin esto, un listado hace 2 consultas por
+    medición (N+1). Mismo resultado que leerlo una a una: las reglas salen en el mismo orden dentro de cada matriz."""
+    measurements = list(measurements)
+    matrixIds = {m.idMatriz for m in measurements if m.idMatriz is not None}
+    rules: dict[uuid.UUID, list[MatrixRule]] = {}
+    if matrixIds:
+        query = select(MatrixRule).where(MatrixRule.idMatriz.in_(matrixIds)).order_by(
+            MatrixRule.idMatriz, MatrixRule.sexoModelo, MatrixRule.edadDesde, MatrixRule.condicionComida, MatrixRule.codigoRegla)
+        for rule in db.scalars(query).all():
+            rules.setdefault(rule.idMatriz, []).append(rule)
+    applied = schemaCompat.ruleIdsOf(db, [m.idMedicion for m in measurements])
+    return Preloaded(rules=rules, applied=applied)
+
+
+def build(db: Session, measurement: Measurement, preloaded: Preloaded | None = None) -> GlucoseReference:
     estimated = measurement.glucosaEstimada is not None
     raw = measurement.glucosaEstimada if estimated else measurement.glucosaDispositivo
     value = float(raw) if raw is not None else None
@@ -110,11 +135,15 @@ def build(db: Session, measurement: Measurement) -> GlucoseReference:
     if matrix is None:
         return GlucoseReference(estado="SIN_MATRIZ", matriz=None, grupos=[], avisoSexo=None, semaforo=None, **common)
 
-    rules = db.scalars(select(MatrixRule).where(MatrixRule.idMatriz == matrix.idMatriz)
-                       .order_by(MatrixRule.sexoModelo, MatrixRule.edadDesde, MatrixRule.condicionComida, MatrixRule.codigoRegla)).all()
+    if preloaded is None:
+        rules = db.scalars(select(MatrixRule).where(MatrixRule.idMatriz == matrix.idMatriz)
+                           .order_by(MatrixRule.sexoModelo, MatrixRule.edadDesde, MatrixRule.condicionComida, MatrixRule.codigoRegla)).all()
+        appliedRule = schemaCompat.ruleIdOf(db, measurement.idMedicion)
+    else:
+        rules = preloaded.rules.get(matrix.idMatriz, [])
+        appliedRule = preloaded.applied.get(measurement.idMedicion)
     minutes = _minutes(measurement)
     age = measurement.edadAlMomento
-    appliedRule = schemaCompat.ruleIdOf(db, measurement.idMedicion)
     condition = measurement.condicionComida
     # Una matriz que no distingue sexo (CUALQUIER_SEXO) muestra una sola referencia, sea cual sea el sexo informado.
     # Si distingue: sexo informado → solo su referencia; sin informar → ambas (solo para consulta) y las previstas para «sexo no informado».

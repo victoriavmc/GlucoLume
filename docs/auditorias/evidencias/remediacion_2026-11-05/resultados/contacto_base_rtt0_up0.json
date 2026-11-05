@@ -1,0 +1,67 @@
+{
+  "resumen": {
+    "backend": "/tmp/claude-0/-home-user-GlucoLume/d6cb21fc-660d-5d21-9383-8a94e9d1420a/scratchpad/baseline_tree/backend",
+    "escenario": "flujo_contacto",
+    "rttMs": 0.0,
+    "subidaMbps": 0.0,
+    "n": 10,
+    "p50Ms": 337.8,
+    "p95Ms": 416.6,
+    "conexionesSmtp": 20,
+    "mensajesDataRecibidos": 20,
+    "resultados": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "muestras": [
+    {
+      "ms": 362.53976899979534,
+      "resultado": true
+    },
+    {
+      "ms": 306.37964099969395,
+      "resultado": true
+    },
+    {
+      "ms": 416.6213670000616,
+      "resultado": true
+    },
+    {
+      "ms": 345.43885900029636,
+      "resultado": true
+    },
+    {
+      "ms": 323.2969559999219,
+      "resultado": true
+    },
+    {
+      "ms": 297.7867980002884,
+      "resultado": true
+    },
+    {
+      "ms": 349.15889600006267,
+      "resultado": true
+    },
+    {
+      "ms": 323.4391390001292,
+      "resultado": true
+    },
+    {
+      "ms": 408.3455209997737,
+      "resultado": true
+    },
+    {
+      "ms": 330.13478399971063,
+      "resultado": true
+    }
+  ]
+}
