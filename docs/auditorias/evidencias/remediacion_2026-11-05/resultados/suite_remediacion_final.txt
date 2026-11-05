@@ -1,0 +1,4 @@
+3 failed, 2370 passed, 203 skipped, 1 warning in 1227.17s (0:20:27)
+FAILED tests/test_bridge_ctl.py::test_el_comando_de_inicio_usa_pythonw_sin_consola_y_el_archivo_de_configuracion
+FAILED tests/test_patient_access.py::test_la_api_directa_sin_autenticacion_es_rechazada
+FAILED tests/test_stream_limits.py::test_los_streams_no_retienen_conexiones_del_pool[/api/v1/acquisition/telemetry/stream]

@@ -1,0 +1,22 @@
+{
+  "consultasCon3Glucosa": 10,
+  "consultasCon15Glucosa": 34,
+  "filasPagina15": 15,
+  "semaforos": [
+    "AMARILLO",
+    "AMARILLO",
+    "VERDE",
+    "AMARILLO",
+    "AMARILLO",
+    "VERDE",
+    "AMARILLO",
+    "ROJO",
+    "VERDE",
+    "AMARILLO",
+    "AMARILLO",
+    "VERDE",
+    "AMARILLO",
+    "ROJO",
+    "VERDE"
+  ]
+}

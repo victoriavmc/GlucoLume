@@ -1,0 +1,9 @@
+NOTA: corrida intermedia (4 fallos). Superada por suite_remediacion_final.txt: en esa corrida tests/test.env
+local tenía SMTP_PORT=8025; con SMTP_PORT=587 (valor que exige test_platform_dashboard) el fallo desaparece.
+Código evaluado: el mismo árbol de commits; solo cambió el archivo de entorno local, no versionado.
+
+4 failed, 2369 passed, 203 skipped, 1 warning in 1209.93s (0:20:09)
+FAILED tests/test_bridge_ctl.py::test_el_comando_de_inicio_usa_pythonw_sin_consola_y_el_archivo_de_configuracion
+FAILED tests/test_patient_access.py::test_la_api_directa_sin_autenticacion_es_rechazada
+FAILED tests/test_platform_dashboard.py::test_los_componentes_informan_verificaciones_reales_y_estados_diferenciados
+FAILED tests/test_stream_limits.py::test_los_streams_no_retienen_conexiones_del_pool[/api/v1/acquisition/telemetry/stream]

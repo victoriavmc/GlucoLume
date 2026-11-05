@@ -1,0 +1,67 @@
+{
+  "resumen": {
+    "backend": "/home/user/GlucoLume/backend",
+    "escenario": "flujo_contacto",
+    "rttMs": 0.0,
+    "subidaMbps": 0.0,
+    "n": 10,
+    "p50Ms": 93.4,
+    "p95Ms": 114.0,
+    "conexionesSmtp": 10,
+    "mensajesDataRecibidos": 20,
+    "resultados": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "muestras": [
+    {
+      "ms": 113.98244700012583,
+      "resultado": true
+    },
+    {
+      "ms": 97.82290200018906,
+      "resultado": true
+    },
+    {
+      "ms": 84.10686499973963,
+      "resultado": true
+    },
+    {
+      "ms": 86.44193999953131,
+      "resultado": true
+    },
+    {
+      "ms": 84.03475599970989,
+      "resultado": true
+    },
+    {
+      "ms": 91.89285699994798,
+      "resultado": true
+    },
+    {
+      "ms": 106.06511300011334,
+      "resultado": true
+    },
+    {
+      "ms": 94.0170850008144,
+      "resultado": true
+    },
+    {
+      "ms": 100.70893400006753,
+      "resultado": true
+    },
+    {
+      "ms": 92.7797800004555,
+      "resultado": true
+    }
+  ]
+}
