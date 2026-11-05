@@ -62,7 +62,9 @@ export function PasoMenu({ tipo, destino }) {
 export function PasoImagen({ captura, alt, pie }) {
   const [visor, setVisor] = useState(null);
   const figuraRef = useRef(null);
+  // El visor amplía el original (`src`); la miniatura en la guía es una versión WebP de hasta 840 px (2× el ancho máximo de 420 px).
   const src = `/ayuda/${captura}`;
+  const miniatura = `/ayuda/miniaturas/${captura.replace(/\.png$/, '.webp')}`;
 
   function abrir() {
     const figuras = [...document.querySelectorAll('figure.help-captura')];
@@ -73,7 +75,7 @@ export function PasoImagen({ captura, alt, pie }) {
   return (
     <figure className="help-captura" ref={figuraRef} data-src={src} data-alt={alt} data-titulo={pie ?? alt}>
       <button type="button" className="help-captura-boton" aria-label={`Ampliar imagen: ${alt}`} onClick={abrir}>
-        <img src={src} alt="" loading="lazy" />
+        <img src={miniatura} alt="" loading="lazy" decoding="async" />
       </button>
       {pie && <figcaption>{pie}</figcaption>}
       {visor && <VisorCapturas lista={visor.lista} indice={visor.indice} onCambiar={(indice) => setVisor({ ...visor, indice })} onClose={() => setVisor(null)} />}
