@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { enSegundoPlano } from '../../../api/client.js';
 import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
 
@@ -30,7 +31,7 @@ export function useDeviceReadiness(idPerfilMedicion, status, idInstitucion) {
   }, [refresh, signature]);
 
   useEffect(() => {
-    const timer = setInterval(refresh, POLL_MS);
+    const timer = setInterval(() => enSegundoPlano(refresh), POLL_MS);
     return () => clearInterval(timer);
   }, [refresh]);
 

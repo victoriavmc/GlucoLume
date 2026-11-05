@@ -65,11 +65,29 @@ async function parseError(response) {
 
 export const CSRF_HEADER = 'X-GlucoLume-CSRF';
 export const REMEMBER_HEADER = 'X-GlucoLume-Recordarme';
+// Pedido de fondo (sondeo de la página): no renueva el cierre por inactividad del servidor.
+export const BACKGROUND_HEADER = 'X-GlucoLume-Segundo-Plano';
+
+let enSegundoPlanoActivo = false;
+
+/** Marca como de fondo los pedidos que `fn` hace de forma síncrona (los sondeos periódicos). Si una llamada no queda marcada, se comporta
+ *  como antes: renueva la sesión. Nunca deja de autenticar: solo cambia si la actividad cuenta para el cierre por inactividad. */
+export function enSegundoPlano(fn) {
+  enSegundoPlanoActivo = true;
+  try {
+    return fn();
+  } finally {
+    enSegundoPlanoActivo = false;
+  }
+}
 
 async function send(path, { method = 'GET', body, token, remember, file = false } = {}) {
+  // Se lee antes de cualquier await: la marca solo cubre lo que se llama de forma síncrona.
+  const background = enSegundoPlanoActivo;
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (background) headers[BACKGROUND_HEADER] = '1';
   // Solo /auth/* usa la cookie (Path=/api/v1/auth): el resto de la API se autentica con el access token y no recibe credenciales ambientales.
   const usesCookie = path.startsWith('/auth/') || path === '/platform/activation/with-code';  // esta última también abre sesión
   if (usesCookie) {

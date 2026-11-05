@@ -52,7 +52,7 @@ from app.services import consent as consentService
 from app.services import invitedAccounts, knownAccess, mfa, unverifiedAccounts
 from app.services import user as userService
 from app.services import userNotifications
-from app.services import adminAccessAlerts, auditClassification
+from app.services import adminAccessAlerts, auditClassification, schemaCompat
 from app.services.adminAccessAlerts import TIPO_CONTRASENA, TIPO_GOOGLE, TIPO_SEGUNDO_FACTOR
 from app.services.audit import hashIdentifier, registerEvent, singleInstitutionOf
 from app.utils.normalizers import normalizeEmail, normalizeProperName
@@ -1152,14 +1152,44 @@ def verifyMfaChallenge(
 # --- Sesiones ----------------------------------------------------------------------------
 
 
+# --- Cierre por inactividad --------------------------------------------------------------
+
+ACTIVIDAD_INTERVALO_ESCRITURA = timedelta(seconds=60)  # la última actividad se guarda como mucho una vez por minuto y sesión
+
+
+def _enforceInactivity(db: Session, session: UserSession, now: datetime, renovar: bool = True) -> bool:
+    """Cierra la sesión si lleva más de SESION_INACTIVIDAD_MINUTOS sin usarse (olvido en un equipo compartido). Devuelve True si la cerró:
+    quien llama rechaza el pedido. Sin la columna (base sin migrar) no hace nada.
+
+    Una sesión sin valor (creada antes de la migración) queda activa desde este pedido: no se cierran todas de golpe al actualizar."""
+    if not schemaCompat.sessionActivityReady(db):
+        return False
+    last = session.ultimaActividad
+    if last is not None and now - last > timedelta(minutes=getSettings().SESION_INACTIVIDAD_MINUTOS):
+        db.execute(
+            update(UserSession)
+            .where(UserSession.idSesion == session.idSesion, UserSession.fechaRevocacion.is_(None))
+            .values(fechaRevocacion=now)
+        )
+        db.commit()
+        return True
+    if renovar and (last is None or now - last > ACTIVIDAD_INTERVALO_ESCRITURA):
+        db.execute(update(UserSession).where(UserSession.idSesion == session.idSesion).values(ultimaActividad=now))
+        db.commit()
+    return False
+
+
 def _createSession(db: Session, user: User) -> TokenPair:
     settings = getSettings()
     refreshToken = security.generateOpaqueToken()
+    now = nowForDb()
     session = UserSession(
         idUsuario=user.idUsuario,
         refreshTokenHash=security.hashOpaqueToken(refreshToken),
-        fechaExpiracion=nowForDb() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        fechaExpiracion=now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
+    if schemaCompat.sessionActivityReady(db):
+        session.ultimaActividad = now  # el cierre por inactividad cuenta desde el inicio
     db.add(session)
     db.flush()
     db.commit()
@@ -1178,6 +1208,9 @@ def refreshSession(db: Session, refreshToken: str) -> TokenPair:
     )
     if session is None:
         raise AuthError("TOKEN_INVALIDO", "Sesión inválida.", motivo="SESION_INVALIDA")
+    # Una sesión inactiva se cierra: su renovación no es una reutilización (por eso no alerta ni revoca el resto).
+    if session.fechaRevocacion is None and _enforceInactivity(db, session, now):
+        raise AuthError("TOKEN_INVALIDO", "Sesión inválida.", motivo="SESION_INACTIVA")
 
     revoked = db.execute(
         update(UserSession)
@@ -1321,20 +1354,24 @@ def logout(db: Session, session: UserSession) -> None:
     db.commit()
 
 
-def resolveAccessSession(db: Session, claims: dict) -> tuple[User, UserSession]:
-    """Valida que la sesión del access token siga vigente y el usuario activo."""
+def resolveAccessSession(db: Session, claims: dict, renovarActividad: bool = True) -> tuple[User, UserSession]:
+    """Valida que la sesión del access token siga vigente y el usuario activo. `renovarActividad=False` (sondeo de fondo, streams) no
+    renueva el plazo del cierre por inactividad, pero sí lo aplica."""
     try:
         idUsuario = uuid.UUID(claims["sub"])
         session = db.get(UserSession, uuid.UUID(claims["sid"]))
     except ValueError as error:
         raise AuthError("TOKEN_INVALIDO", "Token inválido.", motivo="TOKEN_MALFORMADO") from error
+    now = nowForDb()
     if (
         session is None
         or session.idUsuario != idUsuario
         or session.fechaRevocacion is not None
-        or session.fechaExpiracion <= nowForDb()
+        or session.fechaExpiracion <= now
     ):
         raise AuthError("TOKEN_INVALIDO", "Token inválido.", motivo="SESION_INVALIDA")
+    if _enforceInactivity(db, session, now, renovar=renovarActividad):
+        raise AuthError("TOKEN_INVALIDO", "Token inválido.", motivo="SESION_INACTIVA")
     user = db.get(User, idUsuario)
     if user is None or user.estado != ESTADO_ACTIVO:
         raise AuthError("TOKEN_INVALIDO", "Token inválido.", motivo="SESION_INVALIDA")

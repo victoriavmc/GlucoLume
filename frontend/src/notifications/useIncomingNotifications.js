@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 
+import { enSegundoPlano } from '../api/client.js';
 import { getNotifications } from '../api/notificationsApi.js';
 
 export const POLL_INTERVAL_MS = 30000;
@@ -39,7 +40,7 @@ export function useIncomingNotifications(onArrive, onCount) {
     }
 
     check();
-    const timer = window.setInterval(check, POLL_INTERVAL_MS);
+    const timer = window.setInterval(() => enSegundoPlano(check), POLL_INTERVAL_MS);
     document.addEventListener('visibilitychange', check);
     return () => {
       active = false;

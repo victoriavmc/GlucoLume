@@ -28,5 +28,8 @@ class UserSession(Base):
     fechaCreacion: Mapped[datetime] = mapped_column(DATETIME2(precision=3), server_default=text("sysutcdatetime()"))
     fechaExpiracion: Mapped[datetime] = mapped_column(DATETIME2(precision=3))
     fechaRevocacion: Mapped[datetime | None] = mapped_column(DATETIME2(precision=3))
+    # Última actividad (cierre por inactividad). Columna nueva: diferida para que las consultas no la lean en una base sin migrar
+    # (database/reference/GlucoLume_sesion_inactividad.sql); los servicios la usan solo si schemaCompat.sessionActivityReady().
+    ultimaActividad: Mapped[datetime | None] = mapped_column(DATETIME2(precision=3), nullable=True, deferred=True)
 
     usuario: Mapped[User] = relationship()

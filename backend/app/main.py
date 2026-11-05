@@ -91,7 +91,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontendOrigin],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", sessionCookie.CSRF_HEADER, sessionCookie.REMEMBER_HEADER],
+    allow_headers=["Authorization", "Content-Type", sessionCookie.CSRF_HEADER, sessionCookie.REMEMBER_HEADER,
+                   sessionCookie.BACKGROUND_HEADER],
     # El frontend lee Retry-After para informar cuándo termina un bloqueo temporal.
     expose_headers=["Retry-After", "X-Request-ID"],
     allow_credentials=True,

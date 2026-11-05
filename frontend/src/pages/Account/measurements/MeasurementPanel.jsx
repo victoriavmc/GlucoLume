@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { enSegundoPlano } from '../../../api/client.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
 import { ExperimentalNotice } from '../../../components/ExperimentalNotice.jsx';
 import { Alert, CheckField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
@@ -219,7 +220,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const active = measurement && ACTIVE_STATES.includes(measurement.estadoMedicion);
   useEffect(() => {
     if (!active) return undefined;
-    const timer = setInterval(() => { load().then((loaded) => loaded && onChanged?.(loaded)); }, POLL_MS);
+    const timer = setInterval(() => { enSegundoPlano(load).then((loaded) => loaded && onChanged?.(loaded)); }, POLL_MS);
     return () => clearInterval(timer);
   }, [active, load, onChanged]);
 
@@ -227,7 +228,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const sendingResult = measurement?.envioResultadoEstado === 'PENDIENTE';
   useEffect(() => {
     if (!sendingResult) return undefined;
-    const timer = setInterval(() => { load(); }, POLL_MS);
+    const timer = setInterval(() => { enSegundoPlano(load); }, POLL_MS);
     const stop = setTimeout(() => clearInterval(timer), SEND_WAIT_MS);
     return () => { clearInterval(timer); clearTimeout(stop); };
   }, [sendingResult, load]);

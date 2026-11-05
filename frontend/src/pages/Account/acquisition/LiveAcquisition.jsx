@@ -6,6 +6,7 @@ import { Ban, CircleCheck, PlugZap, Radio } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { enSegundoPlano } from '../../../api/client.js';
 import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
 import { Alert } from '../../../components/FormControls.jsx';
@@ -40,7 +41,7 @@ export function LiveAcquisition({ measurement, onUpdated, onLiveChange }) {
 
   useEffect(() => {
     refresh();
-    const timer = setInterval(refresh, POLL_MS);
+    const timer = setInterval(() => enSegundoPlano(refresh), POLL_MS);
     return () => clearInterval(timer);
   }, [refresh]);
 

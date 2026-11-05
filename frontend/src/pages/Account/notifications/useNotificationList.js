@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { enSegundoPlano } from '../../../api/client.js';
 import * as notificationsApi from '../../../api/notificationsApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
 import { useUnreadNotifications } from '../../../notifications/UnreadNotificationsContext.js';
@@ -75,7 +76,7 @@ export function useNotificationList(params) {
   }, [paramsKey]);
 
   useEffect(() => {
-    const timer = window.setInterval(refreshSilently, POLL_INTERVAL_MS);
+    const timer = window.setInterval(() => enSegundoPlano(refreshSilently), POLL_INTERVAL_MS);
     document.addEventListener('visibilitychange', refreshSilently);
     return () => {
       window.clearInterval(timer);

@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.api import sessionCookie
 from app.api.rateLimit import checkAuthenticated
 from app.core.exceptions import AuthError
 from app.core.security import decodeAccessToken
@@ -42,7 +43,9 @@ def getAuthContext(
         raise AuthError("TOKEN_INVALIDO", "Token inválido.", motivo="TOKEN_VENCIDO") from error
     except jwt.InvalidTokenError as error:
         raise AuthError("TOKEN_INVALIDO", "Token inválido.", motivo="TOKEN_MALFORMADO") from error
-    user, session = authService.resolveAccessSession(db, claims)
+    # El sondeo de la página (pedidos de fondo) no renueva la actividad: si no, una pestaña abierta mantendría viva la sesión.
+    renovar = request.headers.get(sessionCookie.BACKGROUND_HEADER) != "1"
+    user, session = authService.resolveAccessSession(db, claims, renovarActividad=renovar)
     return AuthContext(user=user, session=session)
 
 

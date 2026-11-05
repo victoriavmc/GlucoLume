@@ -54,6 +54,12 @@ def hasTable(db: Session, table: str) -> bool:
     return _check(db, ("table", table), "SELECT 1 FROM sys.tables WHERE object_id = OBJECT_ID(:table)", table=f"dbo.{table}")
 
 
+def sessionActivityReady(db: Session) -> bool:
+    """¿Tiene la base la columna SesionUsuario.ultimaActividad (cierre por inactividad, GlucoLume_sesion_inactividad.sql)? Sin ella las
+    sesiones no se cierran por inactividad, como antes."""
+    return hasColumn(db, "SesionUsuario", "ultimaActividad")
+
+
 def auditContextReady(db: Session) -> bool:
     """¿Tiene la base instalada la tabla AuditoriaContexto (esquema v5)? Sin ella la auditoría sigue funcionando, sin IP, cliente ni correlación."""
     return hasTable(db, "AuditoriaContexto")

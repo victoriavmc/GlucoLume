@@ -71,7 +71,8 @@ def openStreamSlot(userId: uuid.UUID) -> StreamSlot:
 def _sessionStillValid(userId: uuid.UUID, sessionId: uuid.UUID) -> bool:
     db = dbSession.getSessionFactory()()
     try:
-        authService.resolveAccessSession(db, {"sub": str(userId), "sid": str(sessionId)})
+        # La revalidación periódica del stream no cuenta como actividad (un stream abierto no debe mantener viva la sesión).
+        authService.resolveAccessSession(db, {"sub": str(userId), "sid": str(sessionId)}, renovarActividad=False)
         return True
     except AuthError:
         return False

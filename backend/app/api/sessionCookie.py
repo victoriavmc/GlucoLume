@@ -25,6 +25,8 @@ COOKIE_PATH = "/api/v1/auth"
 CSRF_HEADER = "X-GlucoLume-CSRF"
 CSRF_VALUE = "1"
 REMEMBER_HEADER = "X-GlucoLume-Recordarme"
+# Pedido de fondo (sondeo de la página): autentica igual, pero no cuenta como actividad para el cierre por inactividad.
+BACKGROUND_HEADER = "X-GlucoLume-Segundo-Plano"
 PERSISTENT_PREFIX = "p."
 SESSION_PREFIX = "s."
 

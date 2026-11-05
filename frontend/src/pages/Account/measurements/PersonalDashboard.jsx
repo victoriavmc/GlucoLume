@@ -21,6 +21,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { enSegundoPlano } from "../../../api/client.js";
 import * as acquisitionApi from "../../../api/acquisitionApi.js";
 import * as dashboardApi from "../../../api/dashboardApi.js";
 import * as measurementsApi from "../../../api/measurementsApi.js";
@@ -186,7 +187,7 @@ function DeviceShortcut() {
         },
       );
     load();
-    const timer = setInterval(load, DEVICE_POLL_MS);
+    const timer = setInterval(() => enSegundoPlano(load), DEVICE_POLL_MS);
     return () => {
       active = false;
       clearInterval(timer);
