@@ -74,6 +74,12 @@ def test_activar_exige_un_codigo_valido(db, mails):
     assert "Verificación en dos pasos activada" in [mail["subject"] for mail in mails][-1] or mails
 
 
+def cerrarSesiones(db) -> None:
+    """Simula que el usuario cerró su sesión: con una sesión vigente, un nuevo inicio se rechaza (tests/test_sesion_unica.py)."""
+    for session in db.scalars(select(UserSession).where(UserSession.fechaRevocacion.is_(None))).all():
+        authService.logout(db, session)
+
+
 def test_login_con_mfa_no_entrega_sesion_hasta_validar(db, mails):
     user = makeUser(db)
     secret, _ = activate(db, user)
@@ -94,6 +100,7 @@ def test_login_con_mfa_no_entrega_sesion_hasta_validar(db, mails):
     assert sessions(db) == before + 1
 
     # El mismo código no se acepta dos veces (protección contra reutilización).
+    cerrarSesiones(db)
     again = authService.loginLocal(db, EMAIL, PASSWORD)
     with pytest.raises(AuthError):
         authService.verifyMfaChallenge(db, again.challengeToken, nextCode, None)
@@ -106,6 +113,7 @@ def test_codigo_de_recuperacion_sirve_una_sola_vez(db, mails):
     first = authService.loginLocal(db, EMAIL, PASSWORD)
     assert authService.verifyMfaChallenge(db, first.challengeToken, None, codes[0]).estado == "AUTENTICADO"
 
+    cerrarSesiones(db)
     second = authService.loginLocal(db, EMAIL, PASSWORD)
     with pytest.raises(AuthError) as reused:
         authService.verifyMfaChallenge(db, second.challengeToken, None, codes[0])

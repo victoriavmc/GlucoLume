@@ -372,18 +372,20 @@ def _resendEmail(db: Session, row: UserNotification, user: User, email: tuple[Em
 
 
 def notify(db: Session, user: User, evento: str, titulo: str, mensaje: str, *, url: str | None = None,
-           email: tuple[EmailEventType, dict] | None = None, clave: str | None = None) -> bool:
+           email: tuple[EmailEventType, dict] | None = None, clave: str | None = None, siempreEnPagina: bool = False) -> bool:
     """Avisa a `user` por la página y/o por correo según sus preferencias. Devuelve True si encoló un correo.
 
     `email` es (evento de correo, contexto); sin él el aviso es solo de la página (las alertas de seguridad envían su correo por su flujo).
     `clave` identifica el hecho de origen para esta cuenta: un segundo aviso con la misma clave no crea otra fila ni otro correo (solo,
     si el correo falló antes, lo reintenta). Sin clave el aviso se trata como un hecho único. Nunca propaga errores: el hecho que avisa
     ya está confirmado.
+    `siempreEnPagina` deja el aviso en la página aunque la cuenta haya apagado ese canal (p. ej. un bloqueo de seguridad que debe llegar).
     """
     try:
         if not ready(db):
             return False
         enPagina, porCorreo = _channels(user, _preferenceRow(db, user, evento), evento)
+        enPagina = enPagina or siempreEnPagina
         sendMail = bool(porCorreo and email is not None and user.correoElectronico)
         if not enPagina and not sendMail:
             return False

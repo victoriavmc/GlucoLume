@@ -11,6 +11,7 @@ from app.api import sessionCookie
 from app.api.deps import getDb
 from app.core.config import getSettings
 from app.models.userSession import UserSession
+from app.utils.timeZone import nowForDb
 from tests.test_account_deletion import PASSWORD, db, engine, makeUser, mails  # noqa: F401 - fixtures
 
 CSRF = {sessionCookie.CSRF_HEADER: "1"}
@@ -133,16 +134,26 @@ def test_una_cookie_manipulada_o_sin_prefijo_es_invalida(web, user):
         assert web.post("/api/v1/auth/refresh", headers=CSRF).status_code == 401, value
 
 
-def test_la_cookie_va_con_secure_en_produccion_o_con_frontend_https(monkeypatch, web, user):
+def cerrarSesiones(db) -> None:
+    """Simula que el usuario cerró sus sesiones: con una sesión vigente, un nuevo inicio se rechaza (tests/test_sesion_unica.py)."""
+    for activa in db.scalars(select(UserSession).where(UserSession.fechaRevocacion.is_(None))).all():
+        activa.fechaRevocacion = nowForDb()
+    db.commit()
+
+
+def test_la_cookie_va_con_secure_en_produccion_o_con_frontend_https(monkeypatch, web, user, db):
     settings = getSettings()
     monkeypatch.setattr(settings, "API_ENV", "production")
     assert "; secure" in refreshCookie(web.post("/api/v1/auth/login", json=LOGIN, headers=CSRF)).lower()
     monkeypatch.setattr(settings, "API_ENV", "development")
     monkeypatch.setattr(settings, "FRONTEND_URL", "https://glucolume.example")
+    cerrarSesiones(db)
     assert "; secure" in refreshCookie(web.post("/api/v1/auth/login", json=LOGIN, headers=CSRF)).lower()
     monkeypatch.setattr(settings, "FRONTEND_URL", "http://localhost:5173")
+    cerrarSesiones(db)
     assert "; secure" not in refreshCookie(web.post("/api/v1/auth/login", json=LOGIN, headers=CSRF)).lower()
     monkeypatch.setattr(settings, "REFRESH_COOKIE_SECURE", True)
+    cerrarSesiones(db)
     assert "; secure" in refreshCookie(web.post("/api/v1/auth/login", json=LOGIN, headers=CSRF)).lower()
 
 

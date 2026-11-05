@@ -52,6 +52,12 @@ def challenge(db) -> str:
     return response.challengeToken
 
 
+def cerrarSesiones(db) -> None:
+    """Simula que el usuario cerró sus sesiones: con una sesión vigente, un nuevo inicio se rechaza (tests/test_sesion_unica.py)."""
+    for session in db.scalars(select(UserSession).where(UserSession.fechaRevocacion.is_(None))).all():
+        authService.logout(db, session)
+
+
 def emailedCode(mails) -> str:
     mail = [m for m in mails if m["subject"] == SUBJECT][-1]
     return re.search(r"\b(\d{6})\b", mail["text"]).group(1)
@@ -193,8 +199,9 @@ def test_codigo_vencido(db, mails, mfaUser):
 
 def test_recuperacion_completa_desactiva_mfa_y_revoca_sesiones(db, mails, mfaUser):
     user, secret = mfaUser
+    token = challenge(db)  # antes de crear la sesión vieja: con una sesión vigente, el primer factor se rechaza
     old = makeSession(db, user)
-    started = recovery.startRecovery(db, challenge(db), PASSWORD)
+    started = recovery.startRecovery(db, token, PASSWORD)
     code = emailedCode(mails)
 
     response = recovery.verifyRecovery(db, started.recoveryToken, code)
@@ -211,7 +218,8 @@ def test_recuperacion_completa_desactiva_mfa_y_revoca_sesiones(db, mails, mfaUse
     # El código no se puede reutilizar.
     with pytest.raises(AuthError):
         recovery.verifyRecovery(db, started.recoveryToken, code)
-    # El login ya no pide el MFA anterior.
+    # El login ya no pide el MFA anterior. La sesión que abrió la recuperación se cierra antes (con una vigente, un inicio nuevo se rechaza).
+    cerrarSesiones(db)
     assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "AUTENTICADO"
     # Aviso posterior de seguridad, sin secretos.
     notice = [m for m in mails if m["subject"] == "La verificación en dos pasos fue desactivada"][-1]
@@ -235,6 +243,7 @@ def test_activar_de_nuevo_genera_un_secreto_nuevo(db, mails, mfaUser):
     newSecret, _ = mfaService.startSetup(db, user)
     assert newSecret != oldSecret
     mfaService.enable(db, user, pyotp.TOTP(newSecret).now())
+    cerrarSesiones(db)  # la sesión que abrió la recuperación se cierra antes del nuevo inicio de prueba
     assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "MFA_REQUERIDO"
     # El autenticador perdido ya no sirve.
     with pytest.raises(AuthError):
@@ -360,6 +369,8 @@ def test_seguridad_recuperacion_completa_conserva_la_sesion_actual(db, mails, mf
         recovery.completeAccountRecovery(db, user, current.idSesion, code)
     assert reused.value.code == "MFA_NO_CONFIGURADO"
     # El TOTP anterior ya no sirve: el login no pide MFA y el secreto viejo no desactiva nada.
+    # La sesión conservada se cierra antes del login de prueba: con una sesión vigente, un inicio nuevo se rechaza.
+    authService.logout(db, db.get(UserSession, current.idSesion))
     assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "AUTENTICADO"
     newSecret, _ = mfaService.startSetup(db, user)
     assert newSecret != secret

@@ -7,6 +7,8 @@ const MESSAGES = {
   INSTITUCION_PAUSADA: 'Esta institución está pausada por la administración de GlucoLume. Tus datos se conservan; comunicate con el soporte para más información.',
   CREDENCIALES_INVALIDAS: 'El correo, el usuario o la contraseña no son correctos.',
   CUENTA_BLOQUEADA: 'Por seguridad bloqueamos el acceso tras varios intentos fallidos. Probá de nuevo en unos minutos.',
+  SESION_ACTIVA:
+    'Tu cuenta ya tiene una sesión iniciada en otro dispositivo. Cerrala para ingresar desde acá. Te enviamos un aviso por correo y en tu cuenta.',
   CORREO_NO_VERIFICADO:
     'Tenés que verificar tu correo electrónico antes de iniciar sesión. Revisá tu bandeja de entrada o spam.',
   CUENTA_NO_ACTIVA: 'Esta cuenta no está activa.',

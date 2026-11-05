@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Bloqueamos un inicio de sesión en tu cuenta{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">Alguien intentó iniciar sesión en tu cuenta desde otro dispositivo mientras ya había una sesión iniciada. No lo permitimos: una cuenta solo puede tener una sesión activa a la vez.</p>
+{{ m.datos([
+  ("Fecha y hora", fechaEvento|fechaHora),
+  ("Navegador", navegador if navegador is defined else none),
+  ("Sistema operativo", sistemaOperativo if sistemaOperativo is defined else none),
+  ("Dispositivo", dispositivo if dispositivo is defined else none),
+]) }}
+<p style="{{ m.P }}">Si fuiste vos, cerrá la sesión que sigue abierta en el otro dispositivo y volvé a intentar.</p>
+{% call m.aviso(alerta=true) %}Si no fuiste vos, restablecé tu contraseña: al hacerlo se cierran todas las sesiones de tu cuenta.{% endcall %}
+{{ m.boton(urlSeguridad, "Revisar seguridad", secundario=true) }}
+{% endblock %}

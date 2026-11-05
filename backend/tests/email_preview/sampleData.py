@@ -65,6 +65,10 @@ def sampleContexts() -> dict[E, dict]:
             "fechaExpiracion": now + timedelta(hours=1),
         },
         E.PASSWORD_CAMBIADA: {**base, "fechaEvento": now, "urlSeguridad": security},
+        E.INICIO_BLOQUEADO_SESION_ACTIVA: {
+            **base, "fechaEvento": now, "navegador": "Chrome", "sistemaOperativo": "Windows",
+            "dispositivo": "Computadora", "urlSeguridad": security,
+        },
         E.NUEVO_INICIO_SESION: {
             **base, "fechaEvento": now, "metodo": "Correo o usuario y contraseña", "navegador": "Chrome",
             "sistemaOperativo": "Windows", "dispositivo": "Computadora",

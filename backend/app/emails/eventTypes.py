@@ -24,6 +24,8 @@ class EmailEventType(StrEnum):
     # Seguridad
     NUEVO_INICIO_SESION = "NUEVO_INICIO_SESION"
     INTENTO_ACCESO_INUSUAL = "INTENTO_ACCESO_INUSUAL"
+    # Un inicio de sesión con la contraseña (o Google) correctos se rechazó porque la cuenta ya tenía otra sesión vigente.
+    INICIO_BLOQUEADO_SESION_ACTIVA = "INICIO_BLOQUEADO_SESION_ACTIVA"
     # MFA
     MFA_ACTIVADO = "MFA_ACTIVADO"
     MFA_DESACTIVADO = "MFA_DESACTIVADO"
@@ -206,6 +208,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     ),
     _E.INTENTO_ACCESO_INUSUAL: EmailEventSpec(
         "seguridad/intentoAccesoInusual.html", "Revisá una actividad de seguridad", CATEGORIA_SEGURIDAD,
+        ("fechaEvento", "urlSeguridad"), ("urlSeguridad",), securityNotice=True, highPriority=True,
+    ),
+    _E.INICIO_BLOQUEADO_SESION_ACTIVA: EmailEventSpec(
+        "seguridad/inicioBloqueadoSesionActiva.html", "Bloqueamos un inicio de sesión en tu cuenta", CATEGORIA_SEGURIDAD,
         ("fechaEvento", "urlSeguridad"), ("urlSeguridad",), securityNotice=True, highPriority=True,
     ),
     # --- MFA ------------------------------------------------------------------------------

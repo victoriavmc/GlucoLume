@@ -1008,10 +1008,61 @@ def _linkOrCreateGoogleUser(
     return user, outcome
 
 
+# --- Una sola sesión activa por cuenta ---------------------------------------------------
+
+SESION_ACTIVA = "SESION_ACTIVA"
+MENSAJE_SESION_ACTIVA = (
+    "Tu cuenta ya tiene una sesión iniciada en otro dispositivo. Cerrala para ingresar desde acá. "
+    "Te enviamos un aviso por correo y en tu cuenta."
+)
+
+
+def _requireNoOtherActiveSession(db: Session, user: User, clientInfo: ClientInfo | None) -> None:
+    """Una cuenta tiene una sola sesión activa: si ya hay una vigente, el inicio nuevo se rechaza y el titular recibe un aviso por correo y
+    en la página (aunque tenga apagados esos canales).
+
+    Se llama antes de registrar el inicio exitoso, así el intento rechazado no queda auditado como LOGIN correcto. La fila del usuario queda
+    bloqueada hasta el commit de la sesión: dos inicios simultáneos no pueden abrir dos sesiones."""
+    now = nowForDb()
+    db.scalar(
+        select(User.idUsuario).where(User.idUsuario == user.idUsuario)
+        .with_hint(User, "WITH (UPDLOCK, HOLDLOCK, ROWLOCK)", "mssql")
+    )
+    activa = db.scalar(
+        select(UserSession.idSesion).where(
+            UserSession.idUsuario == user.idUsuario,
+            UserSession.fechaRevocacion.is_(None),
+            UserSession.fechaExpiracion > now,
+        ).limit(1)
+    )
+    if activa is None:
+        return
+    registerEvent(
+        db, "LOGIN", "LOGIN_SESION_ACTIVA", False, user.idUsuario, "SesionUsuario", activa, motivo=SESION_ACTIVA,
+        observacion="Ya había una sesión vigente en la cuenta",
+    )
+    db.commit()
+    client = clientInfo or ClientInfo()
+    _notify(
+        EmailEventType.INICIO_BLOQUEADO_SESION_ACTIVA, user, fechaEvento=now, navegador=client.navegador,
+        sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo, urlSeguridad=_securityUrl(),
+    )
+    userNotifications.notify(
+        db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Inicio de sesión bloqueado",
+        "Alguien intentó iniciar sesión en tu cuenta desde otro dispositivo mientras ya había una sesión iniciada, y no lo permitimos. "
+        "Si no fuiste vos, restablecé tu contraseña.",
+        url=userNotifications.URL_SEGURIDAD,
+        clave=f"{userNotifications.ACTIVIDAD_SOSPECHOSA}:{SESION_ACTIVA}:{now:%Y-%m-%dT%H:%M:%S.%f}",
+        siempreEnPagina=True,
+    )
+    raise AuthError(SESION_ACTIVA, MENSAJE_SESION_ACTIVA, motivo=SESION_ACTIVA)
+
+
 def _completePrimaryAuthentication(
     db: Session, user: User, method: str, clientInfo: ClientInfo | None = None
 ) -> LoginResponse:
     """Entrega la sesión, o solo un desafío MFA si el usuario tiene MFA habilitado."""
+    _requireNoOtherActiveSession(db, user, clientInfo)
     if mfa.isEnabled(db, user):
         if not getSettings().mfaEnabled:
             # Nunca se omite un MFA habilitado: si no puede verificarse, no hay sesión.
@@ -1059,6 +1110,7 @@ def issueSession(
     db: Session, user: User, methodLabel: str | None = None, clientInfo: ClientInfo | None = None
 ) -> LoginResponse:
     """Sesión definitiva para un usuario ya autenticado por un flujo propio (p. ej. recuperación de MFA)."""
+    _requireNoOtherActiveSession(db, user, clientInfo)
     return _authenticatedResponse(db, user, methodLabel, clientInfo)
 
 
@@ -1087,6 +1139,8 @@ def verifyMfaChallenge(
     except AuthError as error:
         _alertAdministratorAttempt(db, user, False, TIPO_SEGUNDO_FACTOR, error.code)
         raise
+    # Otro dispositivo pudo iniciar sesión mientras se esperaba el código: se vuelve a exigir la sesión única.
+    _requireNoOtherActiveSession(db, user, clientInfo)
     method = claims.get("amr", [METHOD_PASSWORD])[0]
     registerEvent(db, "LOGIN", f"LOGIN_{method.upper()}_MFA", True, user.idUsuario)
     methodLabel = _METHOD_LABELS.get(method)

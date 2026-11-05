@@ -35,6 +35,7 @@ from app.models.notificationPreference import NotificationPreference
 from app.models.reminderSchedule import ReminderSchedule
 from app.models.user import User
 from app.models.userNotification import UserNotification
+from app.models.userSession import UserSession
 from app.schemas.group import FamilyGroupCreateRequest
 from app.schemas.userNotification import EventoAviso, ReminderScheduleUpdate
 from app.services import auth as authService
@@ -836,6 +837,11 @@ FIREFOX = ClientInfo(navegador="Firefox", sistemaOperativo="Linux", dispositivo=
 
 
 def login(db, user, client):
+    # Una cuenta tiene una sola sesión vigente: cada inicio de estas pruebas parte de la cuenta sin sesión (como si la anterior se cerrara).
+    # El rechazo por sesión activa se prueba en tests/test_sesion_unica.py.
+    db.execute(update(UserSession).where(UserSession.idUsuario == user.idUsuario, UserSession.fechaRevocacion.is_(None))
+               .values(fechaRevocacion=nowForDb()))
+    db.commit()
     return authService._completePrimaryAuthentication(db, user, authService.METHOD_PASSWORD, client)
 
 
