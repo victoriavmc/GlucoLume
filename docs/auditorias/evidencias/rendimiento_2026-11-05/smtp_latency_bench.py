@@ -1,6 +1,8 @@
 # Latencia del envío SMTP REAL del código (integrations/email/sender._send) contra un sumidero LOCAL (aiosmtpd con STARTTLS).
 # No sale ningún correo de la máquina: el servidor es local y el proxy simula RTT y ancho de banda de subida.
 import _env  # noqa: F401  (carga la configuración de prueba y el path del backend)
+import os as _os
+_os.environ["SMTP_PORT"] = "8026"  # el código habla con el PROXY (que simula la red), no directo con el sumidero
 import asyncio, json, os, smtplib, ssl, statistics, sys, threading, time
 os.environ["SSL_CERT_FILE"] = os.path.join(os.path.dirname(__file__), "cert.pem")  # confía en el certificado de prueba
 from aiosmtpd.controller import Controller
@@ -61,6 +63,9 @@ def startProxy(loop):
 
 class CountingSMTP(smtplib.SMTP):
     commands = 0
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.set_debuglevel(1)  # activa el registro de smtplib para contar cada comando enviado
     def _print_debug(self, *args):
         if args and args[0] == "send:": CountingSMTP.commands += 1
 smtplib.SMTP = CountingSMTP  # solo en este proceso: contar comandos SMTP por envío
