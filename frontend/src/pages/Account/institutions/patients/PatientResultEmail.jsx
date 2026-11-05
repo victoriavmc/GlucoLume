@@ -41,7 +41,7 @@ export function PatientResultEmail({ institution, patient, onChanged, handleOper
       const updated = await institutionsApi.setPatientResultEmail(institution.idInstitucion, patient.idPerfilMedicion,
         { correo: email.trim(), pacienteAutoriza: true });
       onChanged(updated);
-      setNotice(`Enviamos un correo a ${updated.correoResultadosPendiente ?? 'esa dirección'} para que el paciente la confirme (el enlace vence en `
+      setNotice(`Estamos enviando un correo a ${updated.correoResultadosPendiente ?? 'esa dirección'} para que el paciente la confirme (el enlace vence en `
         + `72 horas). Se guarda cuando la confirma y el plazo de 12 meses cuenta desde ese momento.`
         + (stored ? ' Hasta entonces sigue vigente el correo anterior.' : ''));
       reset();

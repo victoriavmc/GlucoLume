@@ -21,7 +21,7 @@ function readToken() {
 }
 
 function successMessage(result) {
-  if (result.resultadoEnviado) return `Listo: enviamos tu resultado a ${result.correoEnmascarado}.`;
+  if (result.resultadoEnCamino) return `Listo: estamos enviando tu resultado a ${result.correoEnmascarado}.`;
   if (result.correoGuardado) return `Listo: ${result.correoEnmascarado} va a recibir tus resultados durante los próximos 12 meses.`;
   return 'Este enlace ya se había usado: no hace falta hacer nada más.';
 }

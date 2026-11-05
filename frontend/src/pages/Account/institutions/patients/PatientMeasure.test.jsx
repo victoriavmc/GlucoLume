@@ -265,7 +265,7 @@ describe('Medición institucional: correo del paciente para sus resultados', () 
     await user.click(within(box).getByRole('button', { name: 'Enviar confirmación al paciente' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === `PUT ${EMAIL_URL}`)).toBe(true));
     expect(api.calls.find((call) => call.key === `PUT ${EMAIL_URL}`).body).toEqual({ correo: 'paciente@example.com', pacienteAutoriza: true });
-    expect(await within(box).findByText(/Enviamos un correo a pa\*\*\*@example.com para que el paciente la confirme/)).toBeInTheDocument();
+    expect(await within(box).findByText(/Estamos enviando un correo a pa\*\*\*@example.com para que el paciente la confirme/)).toBeInTheDocument();
     expect(within(box).queryByText(/paciente@example.com/)).not.toBeInTheDocument(); // solo se muestra enmascarado
     expect(api.calls.some((call) => call.key === START)).toBe(false);
   });
@@ -306,5 +306,20 @@ describe('Medición institucional: correo del paciente para sus resultados', () 
     await pushStatus(status({ sesion: session(8, true) }));
     await user.click(await screen.findByRole('button', { name: 'Guardar medición' }));
     expect(await screen.findByText(/Enviamos el resultado por correo al paciente \(pa\*\*\*@example.com\)/)).toBeInTheDocument();
+  });
+
+  it('al guardar, el correo del resultado sale en segundo plano: la pantalla no espera y lo dice', async () => {
+    const api = routes(withEmail(), status(), {
+      [START]: () => jsonResponse(201, { ...SAVED, estadoEnlace: 'ADQUIRIENDO' }),
+      'POST /acquisition/telemetry/session/save': jsonResponse(200, { ...SAVED, esDemo: false, envioAutomatico: 'PENDIENTE' }),
+    });
+    const user = userEvent.setup();
+    open();
+    await user.click(within(await form()).getByRole('button', { name: 'Iniciar medición' }));
+    await waitFor(() => expect(api.calls.some((call) => call.key === START)).toBe(true));
+    api.set(status({ sesion: session(8, true) }));
+    await pushStatus(status({ sesion: session(8, true) }));
+    await user.click(await screen.findByRole('button', { name: 'Guardar medición' }));
+    expect(await screen.findByText(/Estamos enviando el resultado por correo al paciente \(pa\*\*\*@example.com\)/)).toBeInTheDocument();
   });
 });

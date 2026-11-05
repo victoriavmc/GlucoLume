@@ -54,6 +54,9 @@ export function PatientMeasurePage() {
               </p>
             </div>
           </div>
+          {saved.envioAutomatico === 'PENDIENTE' && (
+            <Alert kind="info">Estamos enviando el resultado por correo al paciente ({patient.correoResultados}). Si no sale, podés reenviarlo desde el detalle de la medición.</Alert>
+          )}
           {saved.envioAutomatico === 'ENVIADO' && (
             <Alert kind="success">Enviamos el resultado por correo al paciente ({patient.correoResultados}): dónde se midió y los valores.</Alert>
           )}

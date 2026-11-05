@@ -81,8 +81,8 @@ def test_el_paciente_institucional_recibe_el_resultado_en_el_correo_que_informo(
     mails.clear()
     token = confirmationToken([request], PATIENT_MAIL)
     result = confirmation.confirm(db, token)
-    assert result["resultadoEnviado"] and not result["correoGuardado"]  # envío puntual: el correo no se guarda
-    assert confirmation.confirm(db, token)["resultadoEnviado"] is False  # el mismo enlace no lo reenvía
+    assert result["resultadoEnCamino"] and not result["correoGuardado"]  # envío puntual: el correo no se guarda
+    assert confirmation.confirm(db, token)["resultadoEnCamino"] is False  # el mismo enlace no lo reenvía
     [sent] = mails
     assert sent["to"] == PATIENT_MAIL and "SpO₂" in sent["html"] and "iniciá sesión" not in sent["html"]
     assert "/app/mediciones" not in sent["html"]  # el paciente no tiene cuenta: no hay enlace

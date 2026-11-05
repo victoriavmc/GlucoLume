@@ -12,7 +12,7 @@ beforeEach(() => clearTokens());
 
 describe('Confirmación del correo de resultados (GL-08)', () => {
   it('abrir el enlace no confirma: hace falta el botón; el token sale de la barra de direcciones', async () => {
-    const { calls } = mockApi({ [CONFIRM]: jsonResponse(200, { confirmado: true, correoEnmascarado: 'pa***@example.com', correoGuardado: true, resultadoEnviado: false }) });
+    const { calls } = mockApi({ [CONFIRM]: jsonResponse(200, { confirmado: true, correoEnmascarado: 'pa***@example.com', correoGuardado: true, resultadoEnCamino: false }) });
     const user = userEvent.setup();
     renderAt('/confirmar-correo-resultados#token=abc.def.ghi');
 
@@ -26,11 +26,11 @@ describe('Confirmación del correo de resultados (GL-08)', () => {
   });
 
   it('envío puntual: informa que el resultado se envió', async () => {
-    mockApi({ [CONFIRM]: jsonResponse(200, { confirmado: true, correoEnmascarado: 'ro***@example.com', correoGuardado: false, resultadoEnviado: true }) });
+    mockApi({ [CONFIRM]: jsonResponse(200, { confirmado: true, correoEnmascarado: 'ro***@example.com', correoGuardado: false, resultadoEnCamino: true }) });
     const user = userEvent.setup();
     renderAt('/confirmar-correo-resultados#token=uno');
     await user.click(await screen.findByRole('button', { name: /Confirmar mi correo/ }));
-    expect(await screen.findByText(/enviamos tu resultado a ro\*\*\*@example.com/)).toBeInTheDocument();
+    expect(await screen.findByText(/estamos enviando tu resultado a ro\*\*\*@example.com/)).toBeInTheDocument();
   });
 
   it('sin token no ofrece confirmar', async () => {

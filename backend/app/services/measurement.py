@@ -1050,9 +1050,8 @@ def sendResultByEmail(db: Session, actor: User, idMedicion: uuid.UUID, data: Res
         if confirmed is None or recipient.lower() != confirmed.lower():
             from app.services import resultEmailConfirmation as confirmation
 
-            if not confirmation.requestConfirmation(db, actor, access.idInstitucion, measurement.idPerfilMedicion, recipient, keep=False,
-                                                    idMedicion=idMedicion):
-                raise _error("ENVIO_CORREO_FALLIDO", "No pudimos enviar el correo. Probá de nuevo en unos minutos.")
+            confirmation.requestConfirmation(db, actor, access.idInstitucion, measurement.idPerfilMedicion, recipient, keep=False,
+                                             idMedicion=idMedicion)  # sale en segundo plano; el resultado llega cuando lo confirma
             return ResultSendRead(estadoEnvio="CONFIRMACION_PENDIENTE", correoEnmascarado=maskEmail(recipient),
                                   mensaje="Enviamos al paciente un correo para que confirme su dirección: el resultado le llega cuando la confirma.")
     else:
@@ -1063,7 +1062,7 @@ def sendResultByEmail(db: Session, actor: User, idMedicion: uuid.UUID, data: Res
     if recent >= RESULT_SEND_LIMIT:
         raise _error("ENVIO_RESULTADO_LIMITE", "Ya se pidieron varios envíos de esta medición. Probá de nuevo más tarde.")
 
-    _queueResult(db, actor, measurement, access, recipient)
+    _queueResult(db, actor, measurement, access, recipient, modo="MANUAL", avisar=True)
     return ResultSendRead(estadoEnvio="PENDIENTE", correoEnmascarado=maskEmail(recipient),
                           mensaje="Enviando el resultado por correo electrónico. Podés seguir usando GlucoLume: te avisamos acá cuando salga.")
 
@@ -1090,9 +1089,10 @@ def _resultContext(db: Session, measurement: Measurement, access) -> dict:
     return context
 
 
-def _queueResult(db: Session, actor: User, measurement: Measurement, access, recipient: str) -> None:
+def _queueResult(db: Session, actor: User, measurement: Measurement, access, recipient: str, *, modo: str, avisar: bool) -> None:
     """Deja el envío PENDIENTE y lo manda en segundo plano: la solicitud no espera al servidor de correo.
 
+    `modo` (MANUAL, AUTOMATICO) va a la auditoría; `avisar`: si la bandeja de quien pidió el envío recibe el aviso al terminar.
     El correo se guarda en el envío solo mientras sale; _finishResultDelivery lo borra al terminar (CK_EnvioResultado_enviado).
     """
     context = _resultContext(db, measurement, access)
@@ -1101,12 +1101,12 @@ def _queueResult(db: Session, actor: User, measurement: Measurement, access, rec
     db.commit()  # el SMTP corre fuera de la transacción y de la sesión de la solicitud
     emailService.runInBackground(
         _finishResultDelivery, db.get_bind(), delivery.idEnvioResultado, actor.idUsuario, measurement.idMedicion, recipient, context,
-        access.idInstitucion is not None, access.relation.idInstitucionUsuario if access.relation else None,
+        access.idInstitucion is not None, access.relation.idInstitucionUsuario if access.relation else None, modo, avisar,
     )
 
 
 def _finishResultDelivery(bind, idEnvio: uuid.UUID, idUsuario: uuid.UUID, idMedicion: uuid.UUID, recipient: str, context: dict,
-                          institutional: bool, idRelacion: uuid.UUID | None) -> None:
+                          institutional: bool, idRelacion: uuid.UUID | None, modo: str, avisar: bool) -> None:
     """Envía el correo del resultado y anota el envío con una sesión propia (el hilo no comparte la de la solicitud)."""
     try:
         sent = emailService.sendEmailEvent(EmailEventType.RESULTADO_MEDICION, recipient, context, incluirDetalleMedicion=True)
@@ -1122,10 +1122,10 @@ def _finishResultDelivery(bind, idEnvio: uuid.UUID, idUsuario: uuid.UUID, idMedi
                 delivery.detalleError = "No se pudo enviar el correo."
             registerEvent(session, "CRUD", "ENVIAR_RESULTADO_MEDICION", sent, idUsuario, "Medicion", idMedicion,
                           datosNuevos={"estadoEnvio": delivery.estadoEnvio, "idEnvioResultado": str(idEnvio),
-                                       "destino": "PACIENTE" if institutional else "CUENTA_PROPIA", "modo": "MANUAL"},
+                                       "destino": "PACIENTE" if institutional else "CUENTA_PROPIA", "modo": modo},
                           tablaRelacionada="InstitucionUsuario" if idRelacion else None, idRelacionado=idRelacion)
             session.commit()
-            actor = session.get(User, idUsuario)
+            actor = session.get(User, idUsuario) if avisar else None
             if actor is not None:
                 userNotifications.notifyResultSent(session, actor, idEnvio, sent)  # la bandeja: nunca propaga errores
     except Exception as error:  # noqa: BLE001 - el correo ya salió o falló; solo se pierde el rastro
@@ -1138,36 +1138,11 @@ def _lastResultState(db: Session, idMedicion: uuid.UUID) -> str | None:
                      .order_by(ResultDelivery.fechaSolicitud.desc()).limit(1))
 
 
-def _deliverResult(db: Session, actor: User, measurement: Measurement, access, recipient: str, automatic: bool) -> bool:
-    """Registra el envío, manda el correo y deja constancia SIN el correo (CK_EnvioResultado_enviado). Devuelve si se envió."""
-    institutional = access.idInstitucion is not None
-    idMedicion = measurement.idMedicion
-    delivery = ResultDelivery(idMedicion=idMedicion, correoDestino=recipient, estadoEnvio="PENDIENTE", fechaSolicitud=nowForDb())
-    db.add(delivery)
-    db.commit()  # el SMTP corre fuera de la transacción
-    context = _resultContext(db, measurement, access)
-    try:
-        sent = emailService.sendEmailEvent(EmailEventType.RESULTADO_MEDICION, recipient, context, incluirDetalleMedicion=True)
-    except Exception:  # noqa: BLE001 - un dato inválido no debe dejar el envío en PENDIENTE
-        sent = False
-    delivery.estadoEnvio = "ENVIADO" if sent else "FALLIDO"
-    delivery.fechaEnvio = nowForDb() if sent else None
-    delivery.correoDestino = None  # CK_EnvioResultado_enviado: no se conserva el correo
-    if not sent:
-        delivery.detalleError = "No se pudo enviar el correo."
-    registerEvent(db, "CRUD", "ENVIAR_RESULTADO_MEDICION", sent, actor.idUsuario, "Medicion", idMedicion,
-                  datosNuevos={"estadoEnvio": delivery.estadoEnvio, "idEnvioResultado": str(delivery.idEnvioResultado),
-                               "destino": "PACIENTE" if institutional else "CUENTA_PROPIA", "modo": "AUTOMATICO" if automatic else "MANUAL"},
-                  tablaRelacionada="InstitucionUsuario" if access.relation else None,
-                  idRelacionado=access.relation.idInstitucionUsuario if access.relation else None)
-    db.commit()
-    return sent
-
-
 def autoSendResult(db: Session, actor: User, idMedicion: uuid.UUID) -> str | None:
     """Envío automático al guardar una medición de un paciente institucional con correo cargado y vigente (autorizado y de menos de
     12 meses). Se envían TODAS (oximetría, glucosa experimental y pruebas DEMO; el correo identifica las DEMO como simuladas). Nunca para
-    cuentas individuales ni sin correo. Devuelve ENVIADO, FALLIDO o None (no correspondía). No levanta errores: la medición ya está guardada y un fallo del correo no la deshace."""
+    cuentas individuales ni sin correo. El correo sale en segundo plano: devuelve PENDIENTE (queda ENVIADO o FALLIDO en el envío), o None
+    si no correspondía. No levanta errores: la medición ya está guardada y un fallo del correo no la deshace."""
     # La sesión no expira los objetos al confirmar (expire_on_commit=False) y el guardado actualiza la medición con una sentencia directa: sin
     # esto se leería la copia anterior (ADQUIRIENDO), se concluiría que «no está completada» y NO se enviaría nada, sin ningún aviso.
     db.expire_all()
@@ -1177,4 +1152,5 @@ def autoSendResult(db: Session, actor: User, idMedicion: uuid.UUID) -> str | Non
     recipient = resultEmailStore.recipient(db, measurement.idPerfilMedicion, nowForDb())
     if recipient is None:
         return None
-    return "ENVIADO" if _deliverResult(db, actor, measurement, access, recipient, automatic=True) else "FALLIDO"
+    _queueResult(db, actor, measurement, access, recipient, modo="AUTOMATICO", avisar=False)
+    return "PENDIENTE"

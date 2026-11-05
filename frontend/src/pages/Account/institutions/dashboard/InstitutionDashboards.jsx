@@ -101,6 +101,23 @@ export function useOperatorDashboard(institution, idOperador, handleOperationErr
   return useDashboard((p) => dashboardApi.getOperatorDashboard(id, idOperador, p), [id, idOperador], handleOperationError);
 }
 
+/** Gráficos del propio operador para un período. Llegan aparte de los indicadores; `loaded` distingue «cargando» de «sin gráficos». */
+export function useOperatorCharts(institution, period, handleOperationError) {
+  const id = institution.idInstitucion;
+  const key = `${id}|${JSON.stringify(period)}`;
+  const [state, setState] = useState({ key: '', loaded: false, charts: null, error: '' });
+  useEffect(() => {
+    let active = true;
+    dashboardApi.getOperatorCharts(id, 'me', period).then(
+      (charts) => active && setState({ key, loaded: true, charts, error: '' }),
+      (error) => active && setState({ key, loaded: true, charts: null, error: handleOperationError(error) }),
+    );
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return state.key === key ? state : { key, loaded: false, charts: null, error: '' };
+}
+
 /** Encabezado con el período y las tarjetas de indicadores. */
 export function OperatorKpiPanel({ institution, data, error, period, setPeriod }) {
   const own = data?.esPropio;

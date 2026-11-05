@@ -18,9 +18,13 @@ export const getGroupDashboard = (idGrupo, period) =>
 export const getInstitutionDashboard = (idInstitucion, period, filters = {}) =>
   request(`/institutions/${idInstitucion}/dashboard${queryString({ ...periodParams(period), ...filters })}`, { auth: true });
 
-/** idOperador: vínculo del operador (InstitucionUsuario) o `me`. */
+/** idOperador: vínculo del operador (InstitucionUsuario) o `me`. Sin gráficos: van aparte con getOperatorCharts, así los indicadores aparecen antes. */
 export const getOperatorDashboard = (idInstitucion, idOperador, period) =>
-  request(`/institutions/${idInstitucion}/operators/${idOperador}/dashboard${queryString(periodParams(period))}`, { auth: true });
+  request(`/institutions/${idInstitucion}/operators/${idOperador}/dashboard${queryString({ ...periodParams(period), incluirGraficos: false })}`, { auth: true });
+
+/** Gráficos del propio operador (`me`); null para quien supervisa. */
+export const getOperatorCharts = (idInstitucion, idOperador, period) =>
+  request(`/institutions/${idInstitucion}/operators/${idOperador}/dashboard/graficos${queryString(periodParams(period))}`, { auth: true });
 
 /**
  * Análisis del OPERADOR sobre sus pacientes activos (el backend fija el alcance; no hay parámetro para otro operador).

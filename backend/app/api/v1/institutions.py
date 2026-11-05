@@ -46,7 +46,7 @@ from app.schemas.measurementProfile import (
     PatientResultEmailRequest,
     PatientUpdateRequest,
 )
-from app.schemas.dashboard import InstitutionDashboard, OperatorDashboard, PatientDashboard
+from app.schemas.dashboard import InstitutionDashboard, OperatorCharts, OperatorDashboard, PatientDashboard
 from app.schemas.measurement import EvolutionRead
 from app.schemas.patientAnalytics import PatientAnalytics
 from app.schemas.measurement import InstitutionIndicators, MeasurementPage
@@ -745,8 +745,17 @@ def patientAnalytics(
             "propietario y moderador, el de cualquier operador de la institución. Distingue pacientes asignados ahora "
             "de mediciones realizadas históricamente.")
 def operatorDashboard(idInstitucion: uuid.UUID, idOperador: str, auth: CurrentAuth, db: DbSession, dias: int = 30,
-                      desde: date | None = None, hasta: date | None = None):
-    return dashboardService.operatorDashboard(db, auth.user, idInstitucion, idOperador, dias, desde, hasta)
+                      desde: date | None = None, hasta: date | None = None, incluirGraficos: bool = True):
+    return dashboardService.operatorDashboard(db, auth.user, idInstitucion, idOperador, dias, desde, hasta, incluirGraficos)
+
+
+@router.get("/{idInstitucion}/operators/{idOperador}/dashboard/graficos", response_model=OperatorCharts | None,
+            summary="Gráficos del dashboard de un operador",
+            description="Solo el propio operador (`me`); a quien supervisa se le devuelve null. Va aparte de los indicadores para "
+            "que estos aparezcan sin esperar los gráficos.")
+def operatorCharts(idInstitucion: uuid.UUID, idOperador: str, auth: CurrentAuth, db: DbSession, dias: int = 30,
+                   desde: date | None = None, hasta: date | None = None):
+    return dashboardService.operatorCharts(db, auth.user, idInstitucion, idOperador, dias, desde, hasta)
 
 
 @router.get("/{idInstitucion}/patients/{idPerfilMedicion}/dashboard", response_model=PatientDashboard,
