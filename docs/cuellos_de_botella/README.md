@@ -1,203 +1,220 @@
 # Cuellos de botella de rendimiento
 
-> Diagnóstico por código del 05/11/2026, sobre la rama `claude/modest-curie-903ohj`. Ordena los cuellos de botella según los perfiles de ingeniería de rendimiento.
-> **No cambia código, no fija metas y no reemplaza las mediciones** de [RENDIMIENTO.md](../RENDIMIENTO.md) (23/10/2026), que sigue siendo la referencia de lo medido.
+> Revisión desde cero del 05/11/2026, sobre la rama `claude/modest-curie-903ohj` (código tal como está hoy).
+> Los cuellos se ordenan por los seis perfiles de optimización: Software Performance, Backend, Frontend, Database, SRE y Performance Testing.
+>
+> **Este documento no usa como fuente** `docs/RENDIMIENTO.md` ni `docs/PENDIENTES.md`: están desactualizados y quedan solo como historial, sin cambios.
+> Tampoco cambia código. Es un diagnóstico para decidir qué medir y qué corregir primero.
 
-## 1. Alcance y método
+## 1. Cómo leer este documento
 
-- Se revisaron el backend (FastAPI, SQLAlchemy, SQL Server), el frontend (React, Vite, Nginx), la configuración Docker, el esquema SQL consolidado y los informes previos ([RENDIMIENTO.md](../RENDIMIENTO.md), [PENDIENTES.md](../PENDIENTES.md), `PR_rendimiento.md`).
-- **Esta revisión no ejecutó carga ni midió nada nuevo.** Cada hallazgo lleva una etiqueta de evidencia:
-  - **Medido**: hay una medición reproducible en `docs/RENDIMIENTO.md` o en `docs/evidencias/rendimiento/`.
-  - **Código**: se observa en el código; falta medirlo.
-  - **Hipótesis**: se deduce del código; hay que confirmarla antes de tocarla.
-- Las mediciones previas se hicieron en Docker Desktop/WSL2 con **1 CPU** y **datos sintéticos**. El destino real es Windows con SQL Server (ver PT-2).
+Cada hallazgo lleva una etiqueta de evidencia:
+
+- **Medido**: lo ejecuté en esta revisión. El detalle figura en la sección 3.
+- **Código**: lo leí en el código con la referencia de archivo y línea. No lo medí.
+- **Hipótesis**: se deduce del código, pero el costo real depende de datos o de infraestructura que no tengo aquí. Hay que confirmarla antes de tocarla.
+
+**Entorno de la revisión:** contenedor de 4 vCPU (Intel Xeon 2,10 GHz), Python 3.13, Node 22. **No hay SQL Server ni daemon de Docker activos**, así que ninguna consulta SQL se midió. Todo lo de base de datos es hipótesis.
 
 ## 2. Resumen
 
-| ID | Cuello de botella | Perfil principal | Evidencia | Severidad | Estado |
-|---|---|---|---|---|---|
-| BE-1 | Concurrencia en el driver ODBC (tope de 2 llamadas) | Backend, DB | Medido | Alta | Mitigado; falta barrido en el servidor destino |
-| BE-6 | Sin timeout de consulta ni de espera en el semáforo | Backend, SRE | Código | **Alta** | Abierto |
-| DB-1 | `Medicion` sin índice por `idPerfilMedicion` | Database | Hipótesis | **Alta** | Confirmar con plan de ejecución |
-| BE-4 / BE-5 | Correo en la petición y cola en memoria de 2 hilos | Backend, SRE | Medido (≈40 llamadas, hasta 20 s) + Código | Alta | Abierto (P2) |
-| SR-1 | Sin métricas de aplicación ni registro de accesos | SRE | Código | **Alta** | Abierto |
-| PT-1 / PT-2 | Sin pruebas de carga automatizadas; entorno no representativo | Performance Testing | Código | **Alta** | Abierto |
-| BE-3 | Dashboards traen hasta 50 000 filas a Python | Backend, DB | Medido (institución) + Código | Media-alta | Abierto (P2) |
-| DB-2 | Búsquedas `LIKE '%…%'` sobre varias columnas | Database | Código | Media | Abierto |
-| DB-3 | Paginación con `OFFSET` sobre la auditoría | Database | Código | Media | Abierto |
-| FE-1 | Sondeos cada 3 a 10 s sin pausa con la pestaña oculta | Frontend, Backend | Código | Media | Abierto |
-| FE-2 | Compilación del frontend de 3 min 20 s | Frontend, SRE | Medido | Media (entrega) | Sin solución |
-| BE-7 | Streams SSE con sondeo cada 0,2 s | Backend | Código | Media | Abierto |
-| BE-2 | Un solo proceso Uvicorn con 1 CPU y 512 MB | Backend, SRE | Código | Media | Límite de diseño |
+| ID | Cuello de botella | Perfil | Evidencia | Severidad |
+|---|---|---|---|---|
+| BE-1 | Login con Argon2id: CPU y memoria por intento, sin límite de concurrencia | Backend, SRE | Medido + Código | **Alta** |
+| BE-2 | Semáforo del driver con 2 llamadas por proceso y sin timeouts | Backend, SRE | Código | **Alta** |
+| BE-3 | Correo: 15 envíos síncronos dentro de la petición y cola sin límite | Backend, SRE | Código | **Alta** |
+| BE-4 | Dashboards traen hasta 50 000 filas a Python | Backend, DB | Medido (memoria) + Código | Media-alta |
+| BE-5 | Mantenimiento periódico corriendo dentro de la API | Backend, DB | Código | Media |
+| DB-1 | `Medicion` sin índice que empiece por `idPerfilMedicion` | Database | Código (esquema) | **Alta** |
+| DB-2 | Búsquedas `LIKE '%…%'` sobre varias columnas | Database | Código | Media |
+| DB-3 | Paginación con `OFFSET` en páginas profundas | Database | Código | Media |
+| DB-4 | Retención en lotes compitiendo con la API por bloqueos | Database, SRE | Código | Media |
+| FE-1 | Carga inicial: 461 KB de JS y 123 KB de CSS antes del primer render | Frontend | Medido | Media |
+| FE-2 | Sondeos cada 3 a 60 s sin pausa con la pestaña oculta | Frontend, Backend | Código | Media |
+| FE-3 | Compilación de 4 min 22 s | Frontend | Medido | Media (entrega) |
+| SP-1 | Un solo proceso Python para toda la API: la 2.ª CPU de producción queda casi sin uso para Python | Software | Código + Medido | Media |
+| SR-1 | Sin métricas de aplicación ni registro de accesos | SRE | Código | **Alta** |
+| SR-2 | Health check solo de vida, sin indicador de disponibilidad | SRE | Código | Media |
+| SR-3 | Estado en memoria del proceso: escalar réplicas cambia los límites | SRE | Código | Media |
+| PT-1 | Sin pruebas de carga en integración continua | Performance Testing | Código | **Alta** |
+| PT-2 | No hay medición en un entorno parecido al de destino | Performance Testing | Código | **Alta** |
 
-**Ruta crítica de una medición.** Sensor → puente de Windows (latido y envío cada 1 s) → API → SQL Server → SSE → interfaz. La escritura de muestras ya se corrigió (ver §9). Los cuellos que quedan están en la **lectura** (dashboards, historial, auditoría), en la **conexión a la base** (concurrencia, timeouts) y en el **correo**.
+## 3. Mediciones de esta revisión
 
----
+| Qué | Cómo | Resultado |
+|---|---|---|
+| Compilación del frontend | `vite build`, una corrida | **4 min 22 s**; el tiempo de CPU fue ~290 s, así que casi todo corrió en un solo núcleo |
+| JS de la carga inicial | Archivos que `index.html` precarga o carga como entrada | **461 KB** sin comprimir, **135 KB** con gzip -9 (índice 163 KB, React 187 KB, router 40 KB, íconos 71 KB) |
+| CSS de la carga inicial | `index-*.css` referenciado en `index.html` | **123 KB** sin comprimir, **22 KB** con gzip |
+| JS total del build | 89 archivos `.js` | 1,34 MB sin comprimir, 429 KB con gzip |
+| Argon2id, un núcleo | `verify` con m=64 MiB, t=3, p=4 (los parámetros de `app/core/security.py`) | **≈180 ms por login**; ≈5 logins/s; cae a ≈3,4/s con 8 concurrentes |
+| Argon2id, dos núcleos | Igual, con `taskset` en 2 CPU | **≈119 ms por login**; ≈10 logins/s |
+| Argon2id, memoria | Pico de RSS con N verificaciones simultáneas | Base 79 MB; 4 concurrentes → 272 MB; 8 concurrentes → **527 MB** (≈50–55 MB por login simultáneo) |
+| Sondeo SSE | Prototipo con el mismo bucle de `api/v1/acquisition.py` (`get_nowait` + `sleep(0.2)`) | 10 streams: 0,1 % de un núcleo; 100: 0,4 %; **300: 1,3 %** |
+| Modelo `Medicion` | Instanciar 50 000 filas del modelo real sin base | **≥31 MB** y **≈380 ms** de CPU solo para construirlas (cota inferior: una sesión real suma estado propio) |
 
-## 3. Software Performance Engineer (visión integral)
+Las mediciones de Argon2id usaron la librería con las mismas versiones fijadas en `backend/requirements.txt`.
 
-- **Tope de CPU y de proceso (BE-2).** La API corre en un único proceso Uvicorn (`backend/Dockerfile`, línea 78, sin `--workers`), con `cpus: 1.0` y `memory: 512M` en `compose.yaml`. Toda la lógica Python (JSON, hash Argon2id en cada inicio de sesión, render de correos, agregación de dashboards) compite por una sola CPU.
-- **Escalar horizontalmente rompe supuestos (BE-8).** El semáforo del driver (BE-1) es **por proceso**: con *N* réplicas hay hasta *2N* llamadas simultáneas contra SQL Server, y el número vuelve a subir la contención que BE-1 corrigió. El limitador de solicitudes y el hub de telemetría están en memoria; el hub exige una sola réplica (`backend/app/services/rateLimiter.py`, cabecera).
-- **Decisión a tomar:** antes de agregar réplicas o workers hay que medir el tope por proceso y el consumo de Redis (`compose.redis.yaml`), no suponer que escalan.
+## 4. Software Performance Engineer
 
-## 4. Backend Performance Engineer
+**SP-1 · Un solo proceso Python para toda la API** · *Código + Medido*
+- **Dónde:** `backend/Dockerfile:78` arranca `uvicorn` sin `--workers`. Producción asigna 2 CPU al backend (`compose.prod.yaml:23`).
+- **Qué pasa:** el GIL impide que el código Python use más de un núcleo a la vez. La medición de Argon2 muestra que el código nativo sí puede usar el segundo núcleo: el throughput se duplica de un núcleo a dos (≈5 a ≈10 logins/s). Pero el trabajo Python de cada petición (serialización, validaciones, agregados) queda en un solo núcleo.
+- **Cómo confirmar:** perfil de CPU bajo carga real con `py-spy` en producción o en un entorno equivalente, separando tiempo en Python de tiempo en espera de base o de hashing.
+- **Dirección:** evaluar más de un proceso **solo después** de resolver BE-2 y SR-3, porque cada proceso tendría su propio semáforo y sus propios límites en memoria.
 
-**BE-1 · Concurrencia del driver ODBC** · *Medido, mitigado*
-- **Dónde:** `backend/app/db/gate.py`, `backend/app/db/session.py` (`_createEngine`).
-- **Qué pasa:** con 6 u 8 hilos dentro de pyodbc a la vez, el rendimiento cae cerca de 9× (RENDIMIENTO §3.1). El tope por defecto (`DB_MAX_CONCURRENT_CALLS=2`) lo corrige: con 8 clientes pasa de 4,4 a 28,2 req/s y el p95 de 7,0 s a 0,75 s.
-- **Pendiente:** la causa interna del driver `msodbcsql18` y el valor óptimo en el servidor destino (PENDIENTES, Rendimiento).
+## 5. Backend Performance Engineer
 
-**BE-6 · Sin timeout de consulta ni de espera en el semáforo** · *Código, riesgo alto*
-- **Dónde:** `_createEngine` (la cadena de conexión no fija timeout de conexión ni de consulta); `gate.py` (`with self._gate:` espera sin límite).
-- **Qué pasa:** `DB_LOCK_TIMEOUT_MS` (5 000 ms, `backend/app/core/config.py:60`) acota solo las esperas por **bloqueos**. Una consulta colgada por red o por un servidor que no responde no tiene límite. Si dos llamadas quedan colgadas, ocupan los dos cupos del semáforo y **toda** petición que use la base se detiene, mientras `/healthz` (que no consulta la base) sigue respondiendo bien.
-- **Cómo confirmar:** simular un corte de red o un servidor que no responde entre la API y SQL Server, y medir cuántas peticiones quedan esperando y durante cuánto tiempo.
-- **Dirección:** timeout de conexión y de consulta en la cadena de conexión, y un tiempo máximo de espera al tomar el semáforo que devuelva un error controlado.
+**BE-1 · Login con Argon2id: costo de CPU y memoria, sin límite de concurrencia** · *Medido + Código*
+- **Dónde:** `backend/app/core/security.py:47` (parámetros m=64 MiB, t=3, p=4, fijados a propósito por H-12); `verifyPassword` (línea 142) se llama desde `services/auth.py` en las líneas 541, 549, 584 y 695. `verifyDummyPassword` (línea 148) se ejecuta en `auth.py:664, 671, 680` cuando la cuenta no existe. No hay ningún semáforo ni límite que controle cuántas verificaciones corren a la vez (búsqueda de `Semaphore` en `app/`: solo el del driver de base).
+- **Qué pasa, medido:**
+  - Un login cuesta **≈180 ms de CPU** en un núcleo. Con 20 logins simultáneos al empezar una clase, el último espera ≈4 s en un núcleo y ≈2 s en dos.
+  - Cada verificación simultánea agrega **≈50–55 MB** de memoria. Con un límite de 512 MB (`compose.yaml:80-81`, el valor por defecto) no caben muchos logins a la vez: estimo **≈7** antes de un OOM, asumiendo ~100 MB de base del proceso (no medida dentro del contenedor). Con 1 GB (producción) estimo **≈16**.
+  - Un **cambio de contraseña** hace hasta 4 verificaciones seguidas: la actual más las 3 del historial (`auth.py:541-549`, `PASSWORD_HISTORY_SIZE = 3`). Estimo **≈0,7 s** de CPU en un núcleo. Es secuencial, no paralelo.
+- **Por qué importa:** un pico de inicios de sesión no degrada solo el login: el proceso consume memoria y CPU que también necesitan las demás peticiones.
+- **Dirección:** limitar la concurrencia de verificaciones con un semáforo propio, con espera acotada y respuesta controlada cuando se excede. Medir el resultado con ráfagas de 1, 5, 10 y 20 logins en el límite de 512 MB y en el de 1 GB. No bajar los parámetros: el costo es el objetivo de seguridad.
 
-**BE-2 · Un proceso, una CPU** · *Código*
-- **Dónde:** `backend/Dockerfile:78`, `compose.yaml` (servicio `backend`).
-- **Qué pasa:** la mayoría de los endpoints son `def` (síncronos) y AnyIO los ejecuta en su pool de hilos (40 por defecto). Con una CPU, el paralelismo real de Python es limitado y el pool compite por el GIL.
-- **Cómo confirmar:** perfil de CPU bajo carga (`py-spy`) y medir si el tiempo se va en Python o en espera de la base.
+**BE-2 · Semáforo del driver con 2 llamadas por proceso y sin timeouts** · *Código*
+- **Dónde:** `backend/app/core/config.py:55` (`DB_MAX_CONCURRENT_CALLS = 2`); `backend/app/db/gate.py` (`with self._gate:` espera sin límite); `backend/app/db/session.py` (`_createEngine`: la cadena de conexión no fija timeout de conexión ni de consulta). `DB_LOCK_TIMEOUT_MS = 5000` (`config.py:60`) acota solo las esperas por **bloqueos**.
+- **Qué pasa:** cada proceso permite 2 llamadas simultáneas al driver. Con *N* réplicas hay hasta *2N* contra SQL Server. Una llamada que se cuelga por red o por un servidor que no responde no tiene límite de tiempo, y ocupa uno de los dos cupos. Con dos colgadas, **toda** petición que use la base espera sin límite. `/healthz` sigue respondiendo, así que nada lo señala.
+- **Capacidad (cálculo, no medido):** el throughput máximo de consultas del proceso es ≈ **2 / latencia media de una llamada al driver**. Si una llamada toma 10 ms, el techo es ≈200 llamadas por segundo, sin importar cuántos hilos haya.
+- **Nota:** el valor 2 y la estrategia están justificados en el comentario de `gate.py` con una medición de ese entorno. Hay que repetirla en el destino antes de cambiarlo.
+- **Dirección:** timeout de conexión y de consulta en la cadena de conexión, y un tiempo máximo de espera para tomar el semáforo que devuelva un error controlado.
 
-**BE-3 · Dashboards que traen filas a Python** · *Medido (institución) + Código*
-- **Dónde:** `backend/app/services/dashboard.py:209` (`MAX_ADMIN_ROWS = 50000`), `:565` (`MAX_CHART_ROWS = 20000`); `patientAnalytics.py:52` (`MAX_ROWS = 100000`); `securityDetection.py:41` (`MAX_ROWS = 5000`).
-- **Qué pasa:** las agregaciones se hacen en Python sobre filas traídas de la base. El costo crece con el número de mediciones y el tope de filas es también un tope de memoria. Medido: el dashboard de institución tiene p50 de 142 ms con 8,7 mil mediciones y crece con los datos; 16 a 31 sentencias por carga (RENDIMIENTO §3.5).
-- **Dirección:** llevar `GROUP BY` y los agregados a SQL y comparar fila a fila con el resultado actual (PENDIENTES, Rendimiento).
+**BE-3 · Correo: envíos síncronos dentro de la petición y cola sin límite** · *Código*
+- **Dónde:** 15 llamadas directas a `sendEmailEvent` (síncrono) en 10 archivos de `backend/app/services/`: `auth.py`, `mfaRecovery.py`, `passwordChangeCode.py`, `accountDeletion.py`, `measurement.py` (2), `platform.py` (2), `userNotifications.py`, `notifications.py`, `resultEmailConfirmation.py` y `contact.py` (2, dentro de un `run_in_threadpool`). El resto usa `sendEmailEventInBackground`.
+- **Qué pasa:** cada envío síncrono ocupa un hilo del pool de la petición durante todo el intento SMTP. El timeout es de 20 s (`backend/app/integrations/email/sender.py:16`). Con un SMTP lento, esos hilos se agotan y las demás peticiones que usan el pool esperan. La cola de envío en segundo plano tiene **2 hilos y sin límite** (`backend/app/services/email.py:72`), vive en memoria y **se pierde al reiniciar**.
+- **Cómo confirmar:** simular un SMTP que acepta la conexión y no responde; medir el pool de hilos y la profundidad de la cola durante 5 minutos.
+- **Dirección:** llevar los 15 envíos a segundo plano, acotar la cola y registrar en un *outbox* persistente lo que no pudo salir.
 
-**BE-4 · Correo en la ruta de la petición** · *Medido (≈40 llamadas) + Código*
-- **Dónde:** `sendEmailEvent` (síncrono) se llama directamente desde `services/auth.py:256`, `mfaRecovery.py:164`, `passwordChangeCode.py:103`, `accountDeletion.py:249`, `measurement.py:1112` y `:1150`, `userNotifications.py:344`, `platform.py:200` y `:479`. El envío en segundo plano (`sendEmailEventInBackground`) sí se usa en la mayoría de los demás flujos.
-- **Qué pasa:** cada envío síncrono ocupa un hilo del pool de la petición durante todo el intento SMTP. El timeout es de 20 s (`backend/app/integrations/email/sender.py:16`). Con un SMTP lento, esos hilos se agotan y las peticiones que no tienen nada que ver con el correo empiezan a esperar. Medido: hasta 20 s de espera dentro de la petición HTTP.
-- **Dirección:** pasar los envíos restantes a segundo plano o a una cola persistente (*outbox*), conservando el registro del resultado del envío (PENDIENTES, Rendimiento).
+**BE-4 · Dashboards que traen filas a Python** · *Medido (memoria) + Código*
+- **Dónde:** `backend/app/services/dashboard.py:209` (`MAX_ADMIN_ROWS = 50000`) y `:565` (`MAX_CHART_ROWS = 20000`); `patientAnalytics.py:52` (`MAX_ROWS = 100000`); `securityDetection.py:41` (`MAX_ROWS = 5000`).
+- **Qué pasa:** las agregaciones se hacen en Python sobre objetos ORM. **Medido:** construir 50 000 filas de `Medicion` ocupa **≥31 MB y ≈380 ms de CPU** antes de cualquier cálculo. Con tres dashboards de administración a la vez son ≥100 MB de un proceso que tiene 512 MB. El costo de la consulta en la base no está medido.
+- **Dirección:** llevar `GROUP BY` y los agregados a SQL, y comparar los resultados con los actuales antes de cambiar nada. Bajar los topes sin cambiar la consulta solo cambia el error por un resultado incompleto.
 
-**BE-5 · Cola de correos en memoria** · *Código*
-- **Dónde:** `backend/app/services/email.py:72` (`ThreadPoolExecutor(max_workers=2)`, cola sin límite).
-- **Qué pasa:** con SMTP lento o caído, la cola crece sin tope y **se pierde al reiniciar** el proceso. No hay reintentos ni métricas de profundidad.
-- **Cómo confirmar:** simular un SMTP que no responde y observar la profundidad de la cola y los correos perdidos tras un reinicio.
+**BE-5 · Mantenimiento periódico corriendo dentro de la API** · *Código (hipótesis de impacto)*
+- **Dónde:** `backend/app/services/maintenance.py` arranca un bucle en el `lifespan` de la API: primera pasada a los 15 s y luego cada 60 s (`MAINTENANCE_INTERVAL_SECONDS`). Cada pasada llama a `measurementLifecycle.sweep()`: libera sesiones vencidas, carga hasta 200 mediciones activas como objetos ORM completos (`invalidateStale`) y purga auditoría técnica.
+- **Qué pasa:** el trabajo corre en el mismo proceso, en el mismo pool de hilos y con el mismo semáforo que las peticiones de usuarios. Si la base está lenta o hay muchas mediciones activas acumuladas, la pasada compite con la API cada minuto.
+- **Cómo confirmar:** registrar la duración de cada `sweep()` y la espera del semáforo durante esa pasada.
+- **Dirección:** mover el mantenimiento a un proceso propio (como ya se hizo con `lifecycle` y `notifications` en `compose.yaml`) o, como mínimo, medir su costo antes de decidir.
 
-**BE-7 · SSE con sondeo cada 0,2 s** · *Código*
-- **Dónde:** `backend/app/api/v1/acquisition.py` (`stream`, alrededor de las líneas 77 a 120), `backend/app/api/v1/telemetry.py` (`telemetryStream`, línea 185). Cada iteración hace `channel.get_nowait()` y `asyncio.sleep(0.2)`; `Revalidator` (`backend/app/api/streams.py:87`) vuelve a consultar la sesión cada `STREAM_REVALIDATE_SECONDS`.
-- **Qué pasa:** cada stream abierto despierta unas 5 veces por segundo aunque no haya datos. Con una CPU, muchos streams compiten con el resto de la API. El canal es una `queue.Queue` de hilos, por eso se sondea; un puente a `asyncio` evitaría el sondeo.
-- **Cómo confirmar:** medir el uso de CPU con 0, 10 y 50 streams abiertos y sin datos.
+**Descartado con evidencia: ingreso de lecturas del puente.** El puente envía un latido por segundo (`acquisition/bridge/glucolume_bridge.py:71`). Cada envío busca la credencial por `tokenHash`, que tiene índice único (`UQ_PuenteCredencial_tokenHash`), y el registro de último uso está limitado a una escritura por intervalo (`bridgeCredentials._touch`). A escala de un equipo, no es un cuello. Con muchos puentes habría que medirlo.
 
-**BE-8 · Estado en memoria y escalado** · *Código*
-- Ver §3. El limitador de solicitudes usa memoria por defecto y Redis solo si se configura `RATE_LIMIT_REDIS_URL`; el hub de telemetría requiere una réplica.
+## 6. Frontend Performance Engineer
 
-**BE-9 · Pool de conexiones por defecto y `pool_pre_ping`** · *Hipótesis (costo bajo)*
-- **Dónde:** `session.py`, `create_engine(url, pool_pre_ping=True)`; no se configura `pool_size` ni `max_overflow` (valores por defecto de SQLAlchemy).
-- **Qué pasa:** `pool_pre_ping` agrega un viaje de ida y vuelta en cada préstamo de conexión. Con el semáforo en 2, el pool suele sobrar; el costo real es pequeño, pero no está medido.
+**FE-1 · Carga inicial pesada** · *Medido*
+- **Medido:** antes del primer render se precargan `index` (163 KB, 47 KB gz), React (187 KB, 58 KB gz), router (40 KB, 14 KB gz) e íconos (71 KB, 14 KB gz), y se carga el CSS `index-*.css` (**123 KB**, 22 KB gz). `index.html` precarga los íconos también en la pantalla de login.
+- **Dónde:** `frontend/vite.config.js` (`manualChunks`); el CSS global de `frontend/src/styles/` y `frontend/src/components/*.css`.
+- **Qué falta:** medir qué porción del CSS se usa en login y en la primera pantalla de cada rol con cobertura de Chrome DevTools. Sin esa cifra no conviene partir el CSS a ciegas.
+- **Dirección:** evaluar CSS por ruta y los íconos por pantalla, y comparar FCP y LCP en 3G simulado antes y después.
 
-## 5. Frontend Performance Engineer
+**FE-2 · Sondeos sin pausa con la pestaña oculta** · *Código (cálculo, no medido)*
+- **Dónde y periodos:** `LiveAcquisition.jsx:17` (3 s), `MeasurementPanel.jsx:28` (3 s), `useDeviceReadiness.js:10` (5 s), `useDeviceStatus.js:11` (5 s), `PersonalDashboard.jsx:46` (10 s), `useIncomingNotifications.js:11` y `useNotificationList.js:79` (30 s, mismo intervalo), `MeasurementHistory.jsx:88` (60 s).
+- **Qué pasa:** solo `useIncomingNotifications.js` y `useNotificationList.js` leen `visibilityState`. El resto sigue consultando con la ventana minimizada. `enSegundoPlano` (`frontend/src/api/client.js:75`) marca la petición como de fondo, pero no pausa ningún sondeo.
+- **Cálculo:** `ConnectDevicePage.jsx` importa componentes que usan `LiveAcquisition`, `useDeviceReadiness` y `MeasurementPanel`. Si se montan juntos, son **≈74 peticiones por minuto por pestaña abierta**. Confirmar en la pestaña Red de DevTools en esa pantalla.
+- **Dirección:** pausar los sondeos con `document.hidden`, unificar los que consultan lo mismo, y para adquisición usar el stream SSE que ya existe en lugar de consultar.
 
-**FE-1 · Sondeos concurrentes sin pausa en pestaña oculta** · *Código*
-- **Dónde y periodos:** `LiveAcquisition.jsx:17` (3 s), `MeasurementPanel.jsx:28` (3 s), `useDeviceReadiness.js:10` (5 s), `useDeviceStatus.js:11` (5 s), `PersonalDashboard.jsx:46` (10 s), `useIncomingNotifications.js:11` y `useNotificationList.js` (30 s), `MeasurementHistory.jsx:88` (60 s).
-- **Qué pasa:** `ConnectDevicePage.jsx` importa componentes que usan `LiveAcquisition`, `useDeviceReadiness` y `MeasurementPanel`; si se montan a la vez, una sola pantalla dispara varias peticiones cada 3 a 5 s por usuario. Solo `useIncomingNotifications.js` y `useNotificationList.js` leen `visibilityState`; el resto sigue consultando con la pestaña oculta. `enSegundoPlano` (`api/client.js:75`) solo marca la petición como de fondo; no pausa ni limita los sondeos.
-- **Cómo confirmar:** en la pantalla de conexión del dispositivo (`ConnectDevicePage`, ruta declarada en `frontend/src/App.jsx:82`), pestaña Red de DevTools con la ventana en primer plano y luego oculta, contando peticiones por minuto.
-- **Dirección:** pausar los sondeos con `document.hidden`, unificar los que consultan lo mismo y reemplazar los sondeos de adquisición por el stream SSE que ya existe.
+**FE-3 · Compilación de 4 min 22 s** · *Medido*
+- Una corrida en el entorno de la sección 1. No investigué la causa en esta revisión. Afecta el ciclo de desarrollo y la entrega, no al usuario final. Antes de atribuirla a una herramienta hay que perfilar el build.
 
-**FE-2 · Compilación de 3 min 20 s** · *Medido, sin solución*
-- **Dónde:** `frontend/vite.config.js`, fase de tree-shaking de Rollup.
-- **Qué pasa:** cerca del 75 % del tiempo se va en el análisis de Rollup al dibujar `<App/>`. No es `lucide-react`, ni los datos de consejos, ni las opciones de `treeshake` probadas (RENDIMIENTO §3.2). Afecta el ciclo de desarrollo y la entrega, no al usuario final.
-
-**FE-3 · Cifras de bundle inconsistentes** · *Por aclarar*
-- `PR_rendimiento.md` indica JS inicial de 124 a 196 KB; `PENDIENTES.md` indica un bundle inicial de ~887 kB. Puede ser la diferencia entre comprimido y sin comprimir, o entre inicial y total. Hay que aclararlo antes de fijar una meta.
-
-**FE-4 · Gráficos y render por muestra** · *Medido (TBT) + Hipótesis*
+**FE-4 · Render de gráficos al llegar cada muestra** · *Hipótesis*
 - **Dónde:** `LiveChart.jsx`, `PpgChart.jsx`, `SignalChart.jsx`, `TimeSeriesChart.jsx`, `AnalyticsCharts.jsx`.
-- **Qué pasa:** el TBT del dashboard de institución en 3G con CPU 4× sigue en 1,2 s por el render de gráficos (PENDIENTES, Rendimiento). El INP no se midió con un guion de interacción real. La hipótesis es que cada evento SSE actualiza estado y repinta gráficos completos; hay que confirmarlo con el React Profiler.
+- **Hipótesis:** cada evento del stream actualiza el estado y vuelve a dibujar el gráfico completo. Confirmar con el React Profiler durante una adquisición de 60 s y medir INP con una interacción real.
 
-**FE-5 · Estabilidad visual de `/pacientes`** · *Medido*
-- CLS de 0 a 0,13 en 3G según la corrida (RENDIMIENTO §9). Hace falta reservar el espacio de la tabla antes de cargar los datos.
+## 7. Database Performance Engineer
 
-**FE-6 · Peticiones por pantalla sobre HTTP/1.1** · *Medido + Código*
-- Con la carga diferida cada pantalla pide más archivos. `docker/nginx/default.conf.template` sirve el frontend sin HTTP/2 (lo da el proxy Caddy, si está). Las cargas repetidas quedan cubiertas por `expires 1y` (línea 172), así que el impacto está en la primera visita.
-
-## 6. Database Performance Engineer
-
-**DB-1 · `Medicion` sin índice por `idPerfilMedicion`** · *Hipótesis, prioridad alta*
-- **Dónde:** `database/reference/GlucoLume_DB_v5.sql` (índices de `Medicion`: `IX_Medicion_estado_fin` y `IX_Medicion_vencimientoRetencion`); `backend/app/models/measurement.py` (FK `FK_Medicion_Perfil`); consultas en `backend/app/services/dashboard.py:116` (`idPerfilMedicion IN (…)`) y `:191`.
-- **Qué pasa:** `idPerfilMedicion` no es la clave de ningún índice; aparece solo como `INCLUDE` en `IX_Medicion_estado_fin`, que no sirve para buscar por ese valor. Las consultas de historial y de resumen filtran por perfil y ordenan por `fechaHoraInicio DESC`, así que es probable que hagan un recorrido amplio de la tabla y un ordenamiento. El costo crece con cada medición.
-- **Cómo confirmar:** plan de ejecución real de la consulta de historial con `SET STATISTICS IO ON` o con Query Store, con un volumen parecido al de producción. Si confirma el recorrido, el índice compuesto `(idPerfilMedicion, fechaHoraInicio)` es el candidato natural; hay que medir antes y después.
+**DB-1 · `Medicion` sin índice por `idPerfilMedicion`** · *Código (esquema) · Hipótesis de costo*
+- **Dónde:** `database/reference/GlucoLume_DB_v5.sql` (lista completa de índices de `Medicion`: `IX_Medicion_estado_fin` y `IX_Medicion_vencimientoRetencion`); FK `FK_Medicion_Perfil` en `backend/app/models/measurement.py`.
+- **Qué pasa:** `idPerfilMedicion` no es la clave inicial de ningún índice; aparece solo como `INCLUDE` en `IX_Medicion_estado_fin`, que no sirve para buscar por ese valor. Las consultas que lo filtran son el historial (`backend/app/services/measurement.py`, `_history`: `WHERE idPerfilMedicion = …`, `COUNT(*)` sobre todas las filas del perfil **en cada página**, `ORDER BY fechaHoraInicio` y `OFFSET`) y los resúmenes de `dashboard.py:116` (`idPerfilMedicion IN (…)`).
+- **Cómo confirmar:** plan de ejecución real de `_history` con un volumen parecido al de producción, con `SET STATISTICS IO ON` o Query Store. Si confirma un recorrido amplio, el candidato natural es un índice que empiece por `idPerfilMedicion, fechaHoraInicio`. Medir antes y después.
 
 **DB-2 · Búsquedas con comodín inicial** · *Código*
-- **Dónde:** `institutionPatients.py:305` a `:313` (`ilike` con `%término%` sobre `dni`, `nombre`, `apellido` e `identificadorPseudonimo`, combinados con `OR`); `auditQuery.py:162` a `:175` (concatenación con `coalesce` antes del `ilike`, lo que impide el uso de índices); `auditQuery.py:1112`; `device.py:288`.
-- **Qué pasa:** un comodín al inicio no usa índices; combinar varias columnas con `OR` empeora el plan. El costo crece con el número de pacientes y de auditorías.
-- **Dirección:** búsqueda por prefijo cuando sea posible, columnas normalizadas o índices de texto completo; medir con un volumen grande.
+- **Dónde:** `backend/app/services/institutionPatients.py:305-313` (`ilike` con `%término%` sobre `dni`, `nombre`, `apellido` e `identificadorPseudonimo`, combinados con `OR`); `auditQuery.py:162-175` (concatenación con `coalesce` antes del `ilike`); `auditQuery.py:1112`; `device.py:288`; `platformDashboard.py:348`.
+- **Qué pasa:** un comodín inicial no usa índice, y el `OR` sobre varias columnas empeora el plan. El costo crece con el número de pacientes y de auditorías.
+- **Dirección:** búsqueda por prefijo donde el negocio lo permita, columnas normalizadas o índices de texto completo.
 
 **DB-3 · Paginación con `OFFSET`** · *Código*
-- **Dónde:** `auditQuery.py:924`, `institutionActivity.py:204`, `platformInstitutions.py:329`, `technicalAudit.py:75`.
-- **Qué pasa:** `OFFSET` descarta filas en el servidor, así que las páginas profundas cuestan más. Las consultas ya ordenan por `(fechaHora, idAuditoria)`, que es una clave estable: se puede pasar a paginación por cursor sin cambiar el orden.
+- **Dónde:** `auditQuery.py:924`, `institutionActivity.py:204`, `platformInstitutions.py:329`, `technicalAudit.py:75`, `institutionReassignments.py:154`, `platformDashboard.py:352`, `measurement.py` (`_history`).
+- **Qué pasa:** `OFFSET` descarta filas en el servidor; las páginas profundas cuestan más. Varias de estas consultas ya ordenan por una clave estable (`fechaHora, idAuditoria`), así que pueden pasar a paginación por cursor sin cambiar el orden.
 
-**DB-4 · Retención y limpieza compitiendo con la API** · *Código + hipótesis*
-- **Dónde:** `measurementRetention.py:160` y `:169`, `auditRetention.py:61` y `:142`; servicio `notifications` en `compose.yaml`.
-- **Qué pasa:** los trabajos borran en lotes mientras la API escribe. Si un lote retiene bloqueos, las peticiones esperan hasta `DB_LOCK_TIMEOUT_MS` (5 s) y fallan con error. No hay métricas de duración de lote.
-- **Cómo confirmar:** correr la retención con datos de volumen y medir los errores de bloqueo en la API durante el lote.
+**DB-4 · Retención en lotes compitiendo con la API** · *Código + Hipótesis*
+- **Dónde:** `measurementRetention.py:160` y `:169`, `auditRetention.py:61` y `:142`; servicios `lifecycle` y `notifications` en `compose.yaml`.
+- **Qué pasa:** los trabajos borran o actualizan en lotes mientras la API escribe. Si un lote retiene bloqueos más de `DB_LOCK_TIMEOUT_MS` (5 s), la petición del usuario falla. No hay métrica de duración por lote.
+- **Cómo confirmar:** ejecutar la retención con volumen y registrar errores de bloqueo en la API durante cada lote.
 
-**DB-5 · Límites de SQL Server Express** · *Código (verificar)*
-- El destino previsto es Windows con SQL Express (PENDIENTES, P1). SQL Server Express tiene límites publicados de tamaño por base de datos y de memoria para la caché de búfer, además de un máximo de núcleos. Si la instalación real es Express, el tamaño de la base y la caché son cuellos que las pruebas en Docker no reproducen. Verificar los límites de la versión instalada antes de fijar capacidades.
+**DB-5 · Edición Express: límites de capacidad** · *Código (verificar)*
+- La configuración apunta a SQL Server Express (`.env.example:134`, `MSSQL_PID=Express`; `docs/DESPLIEGUE.md` describe una instalación de Express existente). Las ediciones Express tienen límites publicados de tamaño por base de datos, de memoria para el caché de búfer y de núcleos. Antes de dimensionar, verificar los límites de la versión instalada contra la documentación de Microsoft. Si la base crece hasta el tope, es un fallo de capacidad, no de rendimiento.
 
-**Lo que no es cuello en la base:** `MuestraSensor` tiene el índice único `UQ_MuestraSensor_orden (idMedicion, numeroMuestra)`, que cubre las búsquedas por medición. Las columnas calculadas `minutosDesdeUltimaComida` y `duracionMs` solo se leen, no se filtran.
+## 8. Site Reliability Engineer (SRE)
 
-## 7. Site Reliability Engineer (SRE)
+**SR-1 · Sin métricas de aplicación ni registro de accesos** · *Código · prioridad alta*
+- **Dónde:** `backend/Dockerfile:78` incluye `--no-access-log`. No hay endpoint `/metrics` ni cliente de Prometheus o StatsD en `backend/app`. `opentelemetry-api` aparece en `backend/requirements.txt:626` solo como dependencia transitiva.
+- **Qué pasa:** en producción no hay latencia por endpoint, tasa de errores, profundidad de la cola de correo, ocupación del semáforo ni tiempo de espera para hashing. Hoy el rendimiento solo se conoce con pruebas manuales.
+- **Dirección mínima:** registrar duración y código de respuesta por ruta; exponer contadores del semáforo, de la cola de correo y de las verificaciones de contraseña en curso.
 
-**SR-1 · Sin métricas ni registro de accesos en producción** · *Código, prioridad alta*
-- **Dónde:** `backend/Dockerfile:78` (`--no-access-log`); no hay endpoint `/metrics` ni cliente de Prometheus o StatsD en el código. `opentelemetry-api` aparece en `backend/requirements.txt:626` solo como dependencia transitiva.
-- **Qué pasa:** en producción no hay latencia por endpoint, tasa de errores, profundidad de la cola de correo ni tamaño del pool. Hoy el rendimiento solo se conoce con pruebas manuales.
-- **Dirección mínima:** registrar duración y código por petición, exponer contadores de la cola de correo y del semáforo, y medir la latencia p95 por ruta.
+**SR-2 · Health check solo de vida** · *Código*
+- **Dónde:** `backend/app/main.py:63-66`. El comentario dice que `/healthz` no consulta la base a propósito, para que una caída de SQL Server no reinicie el contenedor en bucle. Es una decisión correcta, pero falta un indicador de **disponibilidad** (readiness) que refleje si la base responde y si el semáforo está bloqueado. Hoy esa situación no aparece en el estado del servicio.
 
-**SR-2 · Health check superficial** · *Código (verificar)*
-- `/healthz` (`backend/app/main.py:63`) es **liveness** por diseño: no consulta la base, para que una caída de SQL Server no reinicie el contenedor en bucle. Eso es correcto, pero falta una comprobación de **disponibilidad** (readiness) que refleje si la base responde y si el semáforo está ocupado (ver BE-6). Hoy un corte de la base no aparece en el estado del servicio.
+**SR-3 · Estado en memoria: escalar cambia los límites** · *Código*
+- **Qué pasa:** el semáforo (BE-2) es por proceso, el limitador de solicitudes usa memoria salvo que se configure `RATE_LIMIT_REDIS_URL`, y el hub de telemetría exige una sola réplica (encabezado de `backend/app/services/rateLimiter.py`). Agregar réplicas multiplica las llamadas a la base y divide el control de abuso sin que nada lo avise.
+- **Dirección:** antes de escalar, definir qué estado debe ser compartido y medir el límite efectivo con 1 y 2 réplicas.
 
-**SR-3 · Recursos ajustados y punto único** · *Código*
-- Un contenedor de API con 1 CPU y 512 MB, un servicio de ciclo de vida con 0,5 CPU y 256 MB, y una sola base. No hay réplica ni plan de alta disponibilidad. Antes de dimensionar, medir consumo real de CPU y memoria con el perfil de uso esperado.
+**SR-4 · Recursos de referencia** · *Código*
+- Desarrollo y el `compose.yaml` base: backend con **1 CPU y 512 MB**. Producción (`compose.prod.yaml:23-24`): **2 CPU y 1 GB**. Con los costos de BE-1 y BE-4, el límite de 512 MB es el primero que se agota. Dimensionar con las mediciones de PT-3, no con supuestos.
 
-## 8. Performance Testing Engineer
+## 9. Performance Testing Engineer
 
-**PT-1 · Sin pruebas de carga automatizadas** · *Código, prioridad alta*
-- El repositorio no tiene carpeta `.github/` ni pipeline de integración continua. Las pruebas de carga son manuales.
+**PT-1 · Sin pruebas de carga en integración continua** · *Código · prioridad alta*
+- El repositorio no tiene carpeta `.github/` ni otro pipeline de CI. Ninguna prueba de rendimiento corre automáticamente ni tiene umbrales.
 
-**PT-2 · Entorno no representativo** · *Medido + Código, prioridad alta*
-- Las mediciones previas usaron Docker Desktop/WSL2 con 1 CPU y datos sintéticos. El tope de 2 llamadas se midió en ese entorno (RENDIMIENTO §3.1 y `docs/evidencias/rendimiento/README.md`). El destino real es Windows con SQL Server y el puente de Windows, con otro perfil de CPU, disco y red.
+**PT-2 · Ningún entorno parecido al de destino** · *Código · prioridad alta*
+- El destino previsto es Windows con SQL Server Express (DB-5) y el puente de Windows (`acquisition/bridge`). Esta revisión corrió en Linux, sin base, con 4 vCPU. Las cifras de Argon2 y de memoria son válidas para la CPU medida; las de base de datos no existen todavía.
 
 **PT-3 · Herramientas existentes y escenarios que faltan**
-- Ya existen en `docs/evidencias/rendimiento/`: `carga_endpoint.py` (N clientes sobre un mismo endpoint), `medir_http.py`, `hilos_micro*.py`, `medir_consultas.py`, `medir_frontend.mjs`, `cls_fuentes.mjs` y `compose.rendimiento.yaml`.
-- Escenarios que faltan, cada uno con criterios de aceptación que defina el equipo:
-  1. **Inicio de sesión concurrente** (costo de Argon2id en una CPU).
-  2. **Dashboards con volumen grande** (BE-3, DB-1, DB-2): p95 con 50 000 mediciones y con 500 000.
-  3. **Correo con SMTP lento** (BE-4, BE-5): simular un servidor que tarda 20 s y medir el pool y la cola.
-  4. **Muchos streams SSE abiertos** (BE-7) sin datos y con datos.
-  5. **Corte de la base** (BE-6): cuántas peticiones quedan colgadas y cuánto tardan en fallar.
-  6. **Sesión de medición completa** con un puente simulado: latencia de extremo a extremo.
-- Registrar p50, p95, rendimiento, CPU, memoria, conexiones y errores en cada corrida, y guardar los resultados en `docs/evidencias/rendimiento/`.
+- Ya existen en `docs/evidencias/rendimiento/`: `carga_endpoint.py` (N clientes sobre un mismo endpoint), `medir_http.py`, `medir_consultas.py`, `hilos_micro*.py`, `medir_frontend.mjs`, `cls_fuentes.mjs` y `compose.rendimiento.yaml`. No los ejecuté hoy porque no hay base.
+- Escenarios a construir, cada uno con criterios de aceptación que defina el equipo:
+  1. **Ráfaga de logins** de 1, 5, 10 y 20 usuarios, con pico de memoria y p95 en los límites de 512 MB y de 1 GB (BE-1).
+  2. **Dashboards con volumen** de 50 000 y 500 000 mediciones: p95, memoria y CPU (BE-4, DB-1).
+  3. **Correo con SMTP que no responde** durante 5 minutos: hilos ocupados y profundidad de cola (BE-3).
+  4. **Corte de la base** durante la carga: cuántas peticiones quedan esperando y cuánto tardan en fallar (BE-2).
+  5. **Sesión de medición completa** con un puente simulado: latencia de extremo a extremo.
+  6. **Mantenimiento en marcha**: duración de cada pasada y su efecto sobre la API (BE-5, DB-4).
+- Registrar p50, p95, rendimiento, CPU, memoria, conexiones y errores en cada corrida.
 
-## 9. Ya resuelto o descartado
+## 10. Revisado y sin cuello con la evidencia actual
 
-- **Escrituras de muestras del sensor:** de 403 `INSERT` (211 ms) a 4 escrituras (52 ms) en la misma transacción (RENDIMIENTO §8.1).
-- **Concurrencia del driver:** mitigada con el semáforo (BE-1).
-- **Carga diferida, esqueletos y `useLatestRequest`:** JS inicial reducido y respuestas viejas que no pisan a las nuevas (RENDIMIENTO §5 y §6).
-- **Correo de contacto:** el envío bloqueante corre en el pool de hilos (`backend/app/api/v1/contact.py`), no en el event loop.
-- **Estáticos:** `gzip_static`, `expires 1y` y `robots.txt` en Nginx.
-- **Descartados con medición:** `lucide-react`, datos de consejos y opciones de `treeshake` como causa de la compilación lenta (RENDIMIENTO §3.2).
+- **Sondeo SSE:** 1,3 % de un núcleo con 300 streams (medido). El límite de 6 streams por usuario y 300 en total (`api/streams.py:20-21`) es razonable.
+- **Ingreso de lecturas del puente:** una operación indexada por segundo y escrituras de último uso limitadas (sección 5).
+- **Historial del paciente:** paginado, con tope de 50 filas por página (`measurement.py`, `MAX_PAGE_SIZE`). Solo el `COUNT` de DB-1 es el problema.
+- **Contacto:** el envío bloqueante corre en `run_in_threadpool` (`api/v1/contact.py`) y tiene límite de 5 consultas por 15 minutos por IP.
+- **Estáticos:** Nginx sirve con `gzip_static` (archivos precomprimidos al construir la imagen) y `expires 1y` (`docker/nginx/default.conf.template`). Las visitas repetidas no vuelven a descargar el bundle.
+- **Columnas calculadas de `Medicion`** (`minutosDesdeUltimaComida`, `duracionMs`): solo se leen, no se filtran.
+- **Índice de muestras del sensor:** `UQ_MuestraSensor_orden (idMedicion, numeroMuestra)` cubre las búsquedas por medición.
 
-## 10. Prioridad sugerida
+## 11. Prioridad sugerida
 
-| Prioridad | Acción | Ref. |
+| Prioridad | Acción | Referencia |
 |---|---|---|
-| **P1** | Timeouts de consulta y de espera en el semáforo | BE-6 |
-| **P1** | Métricas por ruta, cola de correo y semáforo; registro de accesos | SR-1 |
-| **P1** | Medir en el servidor destino (Windows + SQL Server, edición real) | PT-2, DB-5 |
-| **P1** | Confirmar con el plan de ejecución el índice de `Medicion` | DB-1 |
-| P2 | Dashboards con agregados en SQL | BE-3 |
-| P2 | Búsquedas sin comodín inicial; paginación por cursor en auditoría | DB-2, DB-3 |
-| P2 | Correo restante en segundo plano y cola persistente (*outbox*) | BE-4, BE-5 |
-| P2 | Pausar sondeos con la pestaña oculta y unificarlos | FE-1 |
-| P2 | Pruebas de carga de los seis escenarios de PT-3 | PT-1, PT-3 |
-| P3 | SSE sin sondeo; bridge a `asyncio` | BE-7 |
-| P3 | Aclarar las cifras de bundle; reducir render de gráficos | FE-3, FE-4 |
-| P3 | Reservar espacio en `/pacientes`; HTTP/2 en Nginx | FE-5, FE-6 |
-| P3 | Revisar `pool_pre_ping` y el pool de SQLAlchemy | BE-9 |
+| **P1** | Limitar la concurrencia de verificaciones de contraseña y medir ráfagas en 512 MB y 1 GB | BE-1 |
+| **P1** | Timeouts de conexión, de consulta y de espera en el semáforo | BE-2 |
+| **P1** | Registro de duración por ruta y contadores de semáforo y de cola | SR-1 |
+| **P1** | Medir en un entorno igual al de destino (Windows, SQL Server Express) | PT-2, DB-5 |
+| **P1** | Plan de ejecución real de `_history` y decisión sobre el índice | DB-1 |
+| P2 | Correo fuera de la petición y cola acotada con *outbox* | BE-3 |
+| P2 | Agregados en SQL para dashboards | BE-4 |
+| P2 | Pausar sondeos con la pestaña oculta y unificarlos | FE-2 |
+| P2 | Sacar el mantenimiento de la API o medir su costo | BE-5 |
+| P2 | Indicador de disponibilidad (readiness) | SR-2 |
+| P2 | Búsquedas sin comodín inicial; paginación por cursor | DB-2, DB-3 |
+| P3 | CSS e íconos por ruta, con cobertura medida | FE-1 |
+| P3 | Evaluar más de un proceso por contenedor (después de BE-2 y SR-3) | SP-1 |
+| P3 | Perfilar el build del frontend | FE-3 |
+| P3 | Renderizado de gráficos durante la adquisición | FE-4 |
 
-## 11. Límites de esta revisión
+## 12. Límites de esta revisión
 
-- No se midió nada nuevo. Todo lo marcado como *Hipótesis* o *Código* requiere confirmación.
-- La causa interna del driver ODBC y el valor óptimo del tope en el servidor destino siguen abiertos (RENDIMIENTO §3.1).
-- Los límites de SQL Server Express (DB-5) deben verificarse contra la edición instalada.
-- Las cifras de bundle (FE-3) están en conflicto entre dos documentos.
+- **Ninguna consulta SQL se midió.** DB-1 a DB-4 son hipótesis hasta tener un plan de ejecución.
+- Argon2id se midió en la CPU de la revisión, con los parámetros de producción. El límite de logins por memoria (≈7 y ≈16) es una estimación: la base del proceso dentro del contenedor no se midió.
+- La compilación del frontend es una sola corrida. El bundle se midió con el build de esta revisión; el tamaño comprimido usa gzip -9, cercano al precomprimido que sirve Nginx.
+- La medición de memoria de `Medicion` es una cota inferior.
+- No se ejecutó ninguna prueba de carga, porque no hay base disponible en este entorno.
