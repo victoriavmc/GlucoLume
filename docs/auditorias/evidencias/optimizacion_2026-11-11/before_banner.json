@@ -1,0 +1,15 @@
+{
+ "banner": "bannerCorreoGlucoLume.png",
+ "subtype": "png",
+ "bannerBytes": 1348681,
+ "mensajeMimeBytes": 1829355,
+ "imagenes": [
+  {
+   "contentType": "image/png",
+   "contentId": "<bannerCorreoGlucoLume>",
+   "disposition": "inline",
+   "bytes": 1348681
+  }
+ ],
+ "cidEnHtml": true
+}
