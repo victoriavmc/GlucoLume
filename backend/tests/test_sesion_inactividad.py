@@ -126,12 +126,15 @@ def test_sesion_anterior_a_la_migracion_no_se_cierra_de_golpe(db, mails, clock):
 
 
 def test_una_sesion_inactiva_mas_de_15_minutos_no_bloquea_otro_equipo(db, mails, clock):
-    loginYSesion(db)  # la cuenta queda con una sesión abierta y sin uso
+    _, _, vieja = loginYSesion(db)  # la cuenta queda con una sesión abierta y sin uso
 
     clock.advance(minutes=16)
 
-    # Ya no está en uso: el otro equipo puede entrar.
+    # Ya no está en uso: el otro equipo puede entrar, y la sesión vieja queda cerrada de verdad.
     assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "AUTENTICADO"
+    db.expire_all()
+    assert db.get(UserSession, vieja.idSesion).fechaRevocacion is not None
+    assert len(db.scalars(select(UserSession).where(UserSession.fechaRevocacion.is_(None))).all()) == 1
 
 
 def test_una_sesion_usada_hace_poco_sigue_bloqueando_otro_equipo(db, mails, clock):

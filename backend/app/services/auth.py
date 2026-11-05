@@ -1043,6 +1043,13 @@ def _requireNoOtherActiveSession(db: Session, user: User, clientInfo: ClientInfo
         ))
     activa = db.scalar(select(UserSession.idSesion).where(*filtros).limit(1))
     if activa is None:
+        # Sin sesión en uso, las abiertas que quedan son inactivas: se cierran de verdad (no solo dejan de contar). Va en la misma
+        # transacción que el inicio nuevo (lo confirma _createSession), así que el bloqueo sigue vigente hasta entonces.
+        db.execute(
+            update(UserSession)
+            .where(UserSession.idUsuario == user.idUsuario, UserSession.fechaRevocacion.is_(None))
+            .values(fechaRevocacion=now)
+        )
         return
     registerEvent(
         db, "LOGIN", "LOGIN_SESION_ACTIVA", False, user.idUsuario, "SesionUsuario", activa, motivo=SESION_ACTIVA,
