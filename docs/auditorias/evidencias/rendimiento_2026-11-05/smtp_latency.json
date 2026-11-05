@@ -1,0 +1,7 @@
+{"tamanioMensaje": {"conBanner": 1829356, "sinBanner": 7066}}
+{"rttMs": 0, "subidaMbps": null, "n": 10, "fallos": 0, "envioMsP50": 106.3, "envioMsP95": 128.6, "comandosSmtpP50": 9.0}
+{"rttMs": 50, "subidaMbps": null, "n": 10, "fallos": 0, "envioMsP50": 640.2, "envioMsP95": 670.6, "comandosSmtpP50": 9.0}
+{"rttMs": 150, "subidaMbps": null, "n": 10, "fallos": 0, "envioMsP50": 1707.7, "envioMsP95": 1737.5, "comandosSmtpP50": 9.0}
+{"rttMs": 50, "subidaMbps": 10.0, "n": 5, "fallos": 0, "envioMsP50": 2099.7, "envioMsP95": 2103.5, "comandosSmtpP50": 9.0}
+{"rttMs": 50, "subidaMbps": 2.0, "n": 5, "fallos": 0, "envioMsP50": 8054.0, "envioMsP95": 8075.3, "comandosSmtpP50": 9.0}
+{"resumen": [{"rttMs": 0, "subidaMbps": null, "n": 10, "fallos": 0, "envioMsP50": 106.3, "envioMsP95": 128.6, "comandosSmtpP50": 9.0}, {"rttMs": 50, "subidaMbps": null, "n": 10, "fallos": 0, "envioMsP50": 640.2, "envioMsP95": 670.6, "comandosSmtpP50": 9.0}, {"rttMs": 150, "subidaMbps": null, "n": 10, "fallos": 0, "envioMsP50": 1707.7, "envioMsP95": 1737.5, "comandosSmtpP50": 9.0}, {"rttMs": 50, "subidaMbps": 10.0, "n": 5, "fallos": 0, "envioMsP50": 2099.7, "envioMsP95": 2103.5, "comandosSmtpP50": 9.0}, {"rttMs": 50, "subidaMbps": 2.0, "n": 5, "fallos": 0, "envioMsP50": 8054.0, "envioMsP95": 8075.3, "comandosSmtpP50": 9.0}], "tamanioMensaje": {"conBanner": 1829356, "sinBanner": 7066}}

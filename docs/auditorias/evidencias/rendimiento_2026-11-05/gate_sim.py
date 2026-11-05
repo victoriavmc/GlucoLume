@@ -17,11 +17,11 @@ def engine(limit):
 
 def calibrate(e, targetMs):
     with e.connect() as c:
-        for n in (10_000, 50_000, 100_000, 200_000, 400_000):
+        for n in (10_000, 50_000, 100_000, 200_000, 400_000, 2_000_000, 4_000_000, 8_000_000):
             t = time.perf_counter(); c.execute(text(f"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<{n}) SELECT count(*) FROM c")).scalar()
             ms = (time.perf_counter() - t) * 1000
             if ms >= targetMs: return n, round(ms, 1)
-    return 400_000, None
+    return 8_000_000, None
 
 def query(e, n):
     t = time.perf_counter()
@@ -51,19 +51,23 @@ if __name__ == "__main__":
     # B: una consulta lenta (~1 s) y 200 consultas rápidas desde 10 hilos, con tope 2 (como la API).
     nSlow, msSlow = calibrate(base, 1000)
     nFast, msFast = calibrate(base, 2)
-    for scenario in ("sinConsultaLenta", "conConsultaLenta"):
+    for scenario in ("sinConsultaLenta", "conConsultaLenta", "dosConsultasLentas"):
         e = engine(2)
         fast = []; lock = threading.Lock()
         def fastWork():
             for _ in range(20):
                 ms_ = query(e, nFast)
                 with lock: fast.append(ms_)
-        slow = None
+        slow = None; slows = []
         if scenario == "conConsultaLenta":
             slow = threading.Thread(target=lambda: query(e, nSlow)); slow.start(); time.sleep(0.05)
+        if scenario == "dosConsultasLentas":
+            slows = [threading.Thread(target=lambda: query(e, nSlow)) for _ in range(2)]
+            [t.start() for t in slows]; time.sleep(0.05)
         ts = [threading.Thread(target=fastWork) for _ in range(10)]
         [t.start() for t in ts]; [t.join() for t in ts]
         if slow: slow.join()
+        [t.join() for t in slows]
         out["B_cabeza_de_linea"].append({"escenario": scenario, "consultasRapidas": len(fast),
-            "rapidaP50Ms": round(pct(fast, .5), 1), "rapidaP95Ms": round(pct(fast, .95), 1), "consultaLentaMs": msSlow if slow else None})
+            "rapidaP50Ms": round(pct(fast, .5), 1), "rapidaP95Ms": round(pct(fast, .95), 1), "consultasLentas": (1 if slow else 2 if slows else 0), "consultaLentaMs": msSlow if (slow or slows) else None})
     print(json.dumps(out, ensure_ascii=False, indent=1))

@@ -1,0 +1,5 @@
+{"hashMs": {"p50": 56.9, "p95": 69.2}, "verifyMs": {"p50": 54.9, "p95": 67.6}, "cambioContrasenaMs": {"p50": 264.1, "p95": 301.0, "n": 15, "verificacionesArgon2": 5}}
+{"k": 1, "wallMs": 49.4, "perVerifyMsP50": 49.1, "perVerifyMsP95": 49.1, "peakRssMB": 110.6}
+{"k": 2, "wallMs": 118.8, "perVerifyMsP50": 116.9, "perVerifyMsP95": 117.9, "peakRssMB": 174.7}
+{"k": 4, "wallMs": 260.1, "perVerifyMsP50": 237.0, "perVerifyMsP95": 249.9, "peakRssMB": 302.6}
+{"k": 8, "wallMs": 670.7, "perVerifyMsP50": 632.3, "perVerifyMsP95": 661.9, "peakRssMB": 554.6}
