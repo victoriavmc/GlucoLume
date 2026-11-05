@@ -191,7 +191,7 @@ def mails(monkeypatch, engine):
         def submit(self, fn, *args, **kwargs):
             return fn(*args, **kwargs)
 
-    def fakeSend(recipient, subject, html, plainText, inlineImages=(), replyTo=None):
+    def fakeSend(recipient, subject, html, plainText, inlineImages=(), replyTo=None, *, session=None):
         # Conexión independiente: solo ve lo confirmado (COMMIT) por el servicio.
         with engine.connect() as connection:
             committed = {

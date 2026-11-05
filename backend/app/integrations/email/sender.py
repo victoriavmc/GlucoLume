@@ -10,6 +10,7 @@ import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
+from typing import Self
 
 from app.core.config import getSettings
 
@@ -39,11 +40,68 @@ def tlsContext() -> ssl.SSLContext:
     return context
 
 
+def _secure(server: smtplib.SMTP) -> None:
+    """STARTTLS verificado y autenticación con la cuenta SMTP de GlucoLume."""
+    settings = getSettings()
+    server.starttls(context=tlsContext())
+    server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD.get_secret_value())
+
+
+class SmtpSession:
+    """Conexión SMTP (TCP + STARTTLS + AUTH) que se reutiliza para varios correos seguidos del mismo flujo.
+
+    Se abre con el primer envío. Ante CUALQUIER fallo se descarta la conexión: el envío siguiente abre otra, así que
+    cada correo fallido o exitoso se comporta igual que con una conexión propia (no se reintenta ningún envío).
+    Quien la usa debe cerrarla con close() (o con `with`), que termina con QUIT.
+    """
+
+    def __init__(self) -> None:
+        self._server: smtplib.SMTP | None = None
+
+    def _open(self) -> smtplib.SMTP:
+        settings = getSettings()
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
+        try:
+            _secure(server)
+        except BaseException:
+            server.close()
+            raise
+        return server
+
+    def send(self, message: EmailMessage) -> None:
+        if self._server is None:
+            self._server = self._open()
+        try:
+            self._server.send_message(message)
+        except BaseException:
+            self._discard()
+            raise
+
+    def _discard(self) -> None:
+        server, self._server = self._server, None
+        if server is not None:
+            server.close()
+
+    def close(self) -> None:
+        server, self._server = self._server, None
+        if server is None:
+            return
+        try:
+            server.quit()
+        except Exception:  # noqa: BLE001 - cerrar nunca debe ocultar el resultado de los envíos
+            server.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self.close()
+
+
 def _send(message: EmailMessage) -> None:
     settings = getSettings()
     with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
-        server.starttls(context=tlsContext())
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD.get_secret_value())
+        _secure(server)
         server.send_message(message)
 
 
@@ -89,11 +147,20 @@ def sendHtmlEmail(
     text: str,
     inlineImages: tuple[InlineImage, ...] = (),
     replyTo: str | None = None,
+    *,
+    session: SmtpSession | None = None,
 ) -> None:
-    """Envía un correo HTML con alternativa de texto. Lanza RuntimeError si SMTP no está configurado."""
+    """Envía un correo HTML con alternativa de texto. Lanza RuntimeError si SMTP no está configurado.
+
+    `session`: envía por una conexión ya abierta (varios correos del mismo flujo). Sin ella, abre y cierra una conexión propia.
+    """
     if not getSettings().smtpEnabled:
         raise RuntimeError("SMTP no está configurado.")
-    _send(buildHtmlMessage(to, subject, html, text, inlineImages, replyTo))
+    message = buildHtmlMessage(to, subject, html, text, inlineImages, replyTo)
+    if session is None:
+        _send(message)
+    else:
+        session.send(message)
 
 
 _EMAIL_IN_TEXT = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
