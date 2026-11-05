@@ -27,6 +27,15 @@ const MAX_AGE_MS = 86_400_000;
 export const webSerialSupported = () => typeof navigator !== 'undefined' && 'serial' in navigator
   && (typeof window === 'undefined' || window.isSecureContext !== false);
 
+// Filtros del selector del navegador: que solo aparezca el puerto que corresponde al medio elegido (sin COM1, COM4, etc.).
+// Bluetooth: el puerto SPP («Serie estándar sobre Bluetooth») del HC-05/HC-06 emparejado. USB: adaptadores habituales del Arduino UNO
+// (oficial 0x2341, clones con CH340 0x1A86, CP210x 0x10C4, FTDI 0x0403, Arduino.org 0x2A03).
+const SERIAL_PORT_PROFILE = '00001101-0000-1000-8000-00805f9b34fb';
+const PICKER_FILTERS = {
+  BLUETOOTH: [{ bluetoothServiceClassId: SERIAL_PORT_PROFILE }],
+  USB: [0x2341, 0x1a86, 0x10c4, 0x0403, 0x2a03].map((usbVendorId) => ({ usbVendorId })),
+};
+
 const hex = (value) => value.toString(16).padStart(4, '0');
 
 function portLabel(port, medium) {
@@ -172,7 +181,10 @@ export function createBrowserLink(deps = {}) {
     emit({ estado: STATES.CONNECTING, medio: medium, error: null, lineasEnviadas: 0, ultimoEnvio: null });
     let port;
     try {
-      port = await serial.requestPort();
+      port = await serial.requestPort({
+        filters: PICKER_FILTERS[medium],
+        ...(medium === 'BLUETOOTH' ? { allowedBluetoothServiceClassIds: [SERIAL_PORT_PROFILE] } : {}),
+      });
     } catch (error) {
       const message = describeSerialError(error, 'pick');
       emit({ estado: message ? STATES.ERROR : STATES.IDLE, error: message });
