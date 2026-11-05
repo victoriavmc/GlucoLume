@@ -42,6 +42,7 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | Grupo familiar | `MEDICION_GRUPO` | Alguien se midió y activó «Aviso de medición» (quién y cuándo, nunca el valor) | No | Preferencia |
 | Recordatorios | `RECORDATORIO_MEDICION` | Vence un horario de medición | No | Preferencia (apagado por omisión) |
 | Mediciones | `RESULTADO_ENVIADO` | Sale, o no pudo salir, el correo con el resultado de una medición que pediste | No | Preferencia (apagado por omisión). El correo del aviso no incluye el resultado; el resultado lo envía el flujo de la medición |
+| Mediciones | `MEDICION_REALIZADA` | Se completa una medición real de una **cuenta individual** (dispositivo en vivo o muestras procesadas por el servidor; no DEMO ni de institución). El cartel de la página muestra «Ya está disponible tu última medición» con la hora, el modo y los valores | No | Preferencia (apagado por omisión). Si la cuenta lo elige, sale el correo `MEDICION_REGISTRADA` con el detalle y un enlace a esa medición (`/app/mediciones/<id>`). Solo cuentas individuales: no aparece en Preferencias de una cuenta institucional |
 | Institución | `INSTITUCION_INVITACION` | Una institución invita a una cuenta institucional ya activa. Un reenvío no crea otro aviso | No | No (el correo de invitación ya lo envía su flujo) |
 | Institución | `INSTITUCION_OPERADOR_NUEVO` | Un operador acepta su invitación. Lo reciben propietarios y moderadores, menos quien lo invitó | No | Preferencia, encendido por omisión. Propietarios: el correo `OPERADOR_AGREGADO` del flujo. Moderadores: `AVISO_INSTITUCION` |
 | Institución | `INSTITUCION_OPERADOR_BAJA` | Se da de baja a un operador. Propietarios y moderadores, menos quien lo hizo | No | Preferencia, encendido por omisión. Propietarios: `OPERADOR_ELIMINADO` del flujo. Moderadores: `AVISO_INSTITUCION` |
@@ -130,6 +131,8 @@ Sigue igual: cada inicio de sesión (con o sin aviso) queda en `Auditoria` (`LOG
 Comandos: `python -m app.jobs.reminders --loop | --health | ejecutar | depurar | previsualizar` (`depurar` es el mismo borrado que hace solo el servicio `notifications` cada hora, a demanda).
 
 ## 8. Cambios de esquema
+
+**v8 (medición realizada, cuentas individuales):** [GlucoLume_notificaciones_v8.sql](../database/reference/GlucoLume_notificaciones_v8.sql) reemplaza los dos CHECK de `evento` para admitir `MEDICION_REALIZADA`. Igual que v4–v7: no modifica ni borra filas, es idempotente, exige `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V8"` y se aplica **después** de v7. Mientras no se aplique, el aviso de cada medición no se guarda (queda como error en el log) y el guardado de la medición y su correo siguen igual. Las instalaciones nuevas ya lo tienen en [GlucoLume_DB_v5.sql](../database/reference/GlucoLume_DB_v5.sql), que se mantiene igual que el modelo.
 
 **v4 (avisos de institución):** [GlucoLume_notificaciones_v4.sql](../database/reference/GlucoLume_notificaciones_v4.sql) reemplaza los dos CHECK de `evento` (NotificacionUsuario y PreferenciaNotificacion) para admitir los 18 avisos. No modifica ni borra filas, es idempotente, exige `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V4"` y se aplica **después** de v3. Mientras no se aplique, la institución funciona igual, pero el aviso de bandeja de cada hecho nuevo no se guarda (el `CHECK` lo rechaza y queda registrado como error en el log).
 
@@ -253,6 +256,7 @@ Hasta que se apliquen, el backend nuevo deja Notificaciones como «no disponible
 
 1. **Respaldo** restaurable de la base (`GlucoLume_respaldo.ps1` o `BACKUP ... WITH CHECKSUM`) y, de preferencia, ensayar los pasos 2 y 3 en una copia.
 2. **Esquema:** con `sqlcmd -I`, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"` y **después** `GlucoLume_notificaciones_v3.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` (eliminación de la bandeja; si la base no tenía las tablas, antes `GlucoLume_notificaciones_usuario.sql`). Cada uno es idempotente y no borra filas.
+2c. **Medición realizada:** `GlucoLume_notificaciones_v8.sql` con `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V8"` (después de v7).
 2b. **Esquema de institución:** `GlucoLume_notificaciones_v4.sql` con `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V4"` (después de v3), y luego `GlucoLume_notificaciones_v5.sql` con `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V5"` (intentos de ingreso e invitaciones de institución).
 3. **Permisos:** volver a aplicar `GlucoLume_permisos.sql` (agrega el `DELETE` de `NotificacionUsuario` para el rol de conservación) y comprobar con `GlucoLume_permisos_verificar.sql`.
 4. **Cuenta de procesos:** definir `DB_JOBS_USER` y `DB_JOBS_PASSWORD` en el `.env` (cuenta distinta de la de la API, miembro de `rol_glucolume_retencion`). Sin ella los recordatorios funcionan pero la bandeja no se depura.

@@ -23,6 +23,7 @@
 import logging
 import uuid
 from datetime import datetime, time, timedelta
+from decimal import Decimal
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -30,7 +31,9 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthError
 from app.emails.eventTypes import EmailEventType
+from app.models.device import Device
 from app.models.groupUser import GroupUser
+from app.models.measurement import ORIGEN_DEMO, Measurement
 from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexportan: los demás servicios los usan como userNotifications.X
     ACTIVIDAD_SOSPECHOSA,
     AGREGADO_GRUPO,
@@ -44,6 +47,7 @@ from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexpo
     INTENTO_INGRESO,
     INVITACION_GRUPO,
     MEDICION_GRUPO,
+    MEDICION_REALIZADA,
     NUEVA_ACCION_GRUPO,
     PLATAFORMA_MODERADOR_ACTIVO,
     PLATAFORMA_TRANSFERENCIA_RESPONDIDA,
@@ -126,6 +130,11 @@ def safeUrl(url: str | None) -> str | None:
 # --- Canales y preferencias ----------------------------------------------------------------------
 
 
+def esIndividual(user: User) -> bool:
+    """¿Es una cuenta individual (consumidor final)? Las institucionales y la de la plataforma no."""
+    return user.tipoCuenta == TIPO_INDIVIDUAL
+
+
 def esPlataforma(user: User) -> bool:
     """¿La cuenta pertenece a la administración de la plataforma? Solo ella ve y puede elegir los avisos `plataforma` del catálogo."""
     return user.tipoCuenta in TIPOS_PLATAFORMA
@@ -171,6 +180,8 @@ def settings(db: Session, user: User) -> NotificationSettingsRead:
     for evento in EVENTOS:
         if CATALOGO[evento].plataforma and not esPlataforma(user):
             continue  # los avisos de la administración no aparecen en la cuenta individual
+        if CATALOGO[evento].soloIndividual and not esIndividual(user):
+            continue  # p. ej. las mediciones propias: una cuenta institucional no las recibe
         enPagina, porCorreo = _channels(user, rows.get(evento), evento)
         preferencias.append(NotificationPreferenceRead(
             evento=evento, categoria=CATALOGO[evento].categoria, enPagina=enPagina, porCorreo=porCorreo,
@@ -181,6 +192,8 @@ def settings(db: Session, user: User) -> NotificationSettingsRead:
 def assertEditable(user: User, evento: str) -> None:
     """Rechaza un aviso que no existe o que la cuenta no puede cambiar. La ruta lo llama antes de tocar nada más (p. ej. el correo de inicio de sesión)."""
     if evento not in CATALOGO or (CATALOGO[evento].plataforma and not esPlataforma(user)):
+        raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
+    if CATALOGO[evento].soloIndividual and not esIndividual(user):
         raise AuthError("EVENTO_NO_VALIDO", "Ese aviso no existe.")
 
 
@@ -338,10 +351,15 @@ def retryFailedReminderEmails(db: Session, now: datetime | None = None) -> int:
 # --- Envío -----------------------------------------------------------------------------------------
 
 
+# Correos con datos de una medición (dato de salud). El detalle sale solo porque la cuenta eligió recibirlo por correo, que es la
+# autorización explícita que exige el servicio de correo (services/email.py).
+CORREOS_CON_DETALLE = frozenset({EmailEventType.MEDICION_REGISTRADA})
+
+
 def _sendAndRecord(bind, idNotificacion: uuid.UUID, eventType: EmailEventType, to: str, context: dict) -> None:
     """Envía el correo y anota el resultado en el aviso, con una sesión propia (el hilo no comparte la de la solicitud)."""
     try:
-        sent = emailService.sendEmailEvent(eventType, to, context)
+        sent = emailService.sendEmailEvent(eventType, to, context, incluirDetalleMedicion=eventType in CORREOS_CON_DETALLE)
     except Exception as error:  # noqa: BLE001 - un error del correo nunca debe terminar el hilo ni tocar el aviso
         logger.error("Correo %s no generado (%s).", eventType, type(error).__name__)
         sent = False
@@ -538,6 +556,52 @@ def notifyResultSent(db: Session, user: User, idEnvio: uuid.UUID, sent: bool) ->
     email = (EmailEventType.AVISO_RESULTADO_ENVIADO, {"mensaje": mensaje, "urlMediciones": emailService.frontendUrl(URL_MEDICIONES)})
     return notify(db, user, RESULTADO_ENVIADO, titulo, mensaje, url=URL_MEDICIONES, email=email,
                   clave=f"{RESULTADO_ENVIADO}:{idEnvio}")
+
+
+def _numero(value) -> str:
+    """Valor de una medición sin ceros de más: 97.00 → «97», 4.50 → «4.5»."""
+    number = Decimal(str(value))
+    return str(int(number)) if number == number.to_integral_value() else format(number.normalize(), "f")
+
+
+def notifyMeasurementCompleted(db: Session, owner: User, measurement: Measurement, *, institutional: bool) -> bool:
+    """Avisa a la cuenta individual dueña de una medición real que acaba de completarse: cuándo, en qué modo y los valores.
+
+    En la página aparece el cartel de la derecha con esos datos. Por correo sale solo si la cuenta eligió el canal, con el detalle y un
+    enlace a esa medición. No avisa las pruebas DEMO, las mediciones de una institución ni las de cuentas que no son individuales.
+    Nunca propaga errores: la medición ya está confirmada.
+    """
+    try:
+        db.expire(measurement)  # el cierre de la medición la actualizó con una sentencia directa: se lee la fila vigente
+        if institutional or measurement.origenGlucosa == ORIGEN_DEMO or not esIndividual(owner):
+            return False
+        glucosa = measurement.glucosaEstimada if measurement.glucosaEstimada is not None else measurement.glucosaDispositivo
+        experimental = measurement.modoMedicion == "GLUCOSA_EXPERIMENTAL"
+        modo = "Glucosa experimental" if experimental else "Oximetría"
+        cuando = measurement.fechaHoraInicio
+        valores = []
+        if glucosa is not None:
+            valores.append(f"glucosa {_numero(glucosa)} mg/dL (estimación, no es un diagnóstico)")
+        if measurement.spo2 is not None:
+            valores.append(f"SpO₂ {_numero(measurement.spo2)} %")
+        if measurement.frecuenciaCardiaca is not None:
+            valores.append(f"frecuencia cardíaca {_numero(measurement.frecuenciaCardiaca)} lpm")
+        mensaje = f"Te mediste el {cuando:%d/%m/%Y} a las {cuando:%H:%M} ({modo})" + (f": {', '.join(valores)}." if valores else ".")
+        url = f"{URL_MEDICIONES}/{measurement.idMedicion}"
+        device = db.get(Device, measurement.idDispositivo)
+        context = {
+            "fechaMedicion": cuando, "modo": modo, "estadoRegistro": "Completada", "urlMedicion": emailService.frontendUrl(url),
+            "dispositivo": device.nombre if device is not None else None,
+            "spo2": measurement.spo2, "frecuenciaCardiaca": measurement.frecuenciaCardiaca,
+            "valorGlucosa": glucosa, "unidad": "mg/dL" if glucosa is not None else None,
+            "condicionComida": measurement.condicionComida if experimental else None,
+        }
+        return notify(db, owner, MEDICION_REALIZADA, "Ya está disponible tu última medición", mensaje, url=url,
+                      email=(EmailEventType.MEDICION_REGISTRADA, context),
+                      clave=f"{MEDICION_REALIZADA}:{measurement.idMedicion}")
+    except Exception as error:  # noqa: BLE001 - el aviso nunca deshace una medición ya confirmada
+        logger.error("Aviso de medición no registrado (%s).", type(error).__name__)
+        return False
 
 
 def deleteNotification(db: Session, user: User, idNotificacion: uuid.UUID) -> int:

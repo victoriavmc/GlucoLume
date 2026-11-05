@@ -50,6 +50,7 @@ from app.services import institution as institutions
 from app.services import measurement as measurements
 from app.services import schemaCompat
 from app.services import notifications
+from app.services import userNotifications
 from app.services import securityMonitor
 from app.services.acquisition import TIPO_INSTITUCIONAL, _requireMeasurer
 from app.services.audit import registerEvent
@@ -667,6 +668,7 @@ def _persist(db: Session, actor: User, session) -> MeasurementDetail:
             ownerUser = db.get(User, owner) if owner is not None else None
             if ownerUser is not None:
                 notifications.notifyGroupMeasurement(db, ownerUser, end)
+                userNotifications.notifyMeasurementCompleted(db, ownerUser, measurement, institutional=access.idInstitucion is not None)
         except Exception:  # noqa: BLE001 - el aviso al grupo nunca deshace una medición ya confirmada
             logger.exception("No se pudo enviar el aviso de medición al grupo (medición %s)", session.idMedicion)
     autoSend = None

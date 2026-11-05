@@ -32,6 +32,8 @@ INSTITUCION_SOLICITUD_RECHAZADA = "INSTITUCION_SOLICITUD_RECHAZADA"
 # Envío del resultado de una medición por correo (lo manda el flujo de medición): el aviso llega a la bandeja cuando termina y, si la
 # cuenta lo elige, también por correo (sin datos de la medición).
 RESULTADO_ENVIADO = "RESULTADO_ENVIADO"
+# Una medición real completada de una cuenta individual: la hora, el modo y los valores (en la página, y por correo si la cuenta lo elige).
+MEDICION_REALIZADA = "MEDICION_REALIZADA"
 # Administración de la plataforma (solo para cuentas ADMINISTRADOR_PLATAFORMA y MODERADOR_PLATAFORMA). Los correos de estos hechos ya los
 # envía services/platform.py: aquí solo se agrega la bandeja de la página.
 PLATAFORMA_TRANSFERENCIA_SOLICITADA = "PLATAFORMA_TRANSFERENCIA_SOLICITADA"  # al moderador a quien se ofrece la administración
@@ -54,6 +56,7 @@ class EventSpec:
     porCorreo: bool = True
     correo: bool = True  # tiene canal de correo propio; si no, el aviso solo llega a la página
     plataforma: bool = False  # solo lo reciben las cuentas de la administración de la plataforma
+    soloIndividual: bool = False  # solo lo reciben las cuentas individuales (consumidor final)
 
 
 CATALOGO: dict[str, EventSpec] = {
@@ -83,6 +86,8 @@ CATALOGO: dict[str, EventSpec] = {
     INSTITUCION_SOLICITUD_ACEPTADA: EventSpec(CATEGORIA_INSTITUCION),
     INSTITUCION_SOLICITUD_RECHAZADA: EventSpec(CATEGORIA_INSTITUCION),
     RESULTADO_ENVIADO: EventSpec(CATEGORIA_MEDICION, porCorreo=False),
+    # Por omisión solo aparece en la página: el correo con los valores sale si la cuenta lo elige (es un dato de salud).
+    MEDICION_REALIZADA: EventSpec(CATEGORIA_MEDICION, porCorreo=False, soloIndividual=True),
     PLATAFORMA_TRANSFERENCIA_SOLICITADA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
     PLATAFORMA_TRANSFERENCIA_RESPONDIDA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
     PLATAFORMA_MODERADOR_ACTIVO: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
