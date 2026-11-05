@@ -24,6 +24,7 @@ from app.db.session import getDb
 from app.main import app
 from app.models.audit import Audit
 from app.models.auditContext import AuditContext
+from app.models.auditReview import AuditReview
 from app.models.localCredential import LocalCredential
 from app.services import auditClassification as classification
 from app.services import platformDashboard
@@ -950,4 +951,73 @@ def test_una_rafaga_avisa_al_administrador_una_vez_por_hora_sin_la_ip(db, mails,
     monkeypatch.setenv("SECURITY_ALERT_EMAIL_MINUTES", "0")
     getSettings.cache_clear()
     assert securityMonitor.alertAdministrator(burst, now=2 * 10**9) is False  # desactivable
+
+
+# --- Señales ya analizadas: se ocultan solo si NINGÚN evento que las origina quedó sin analizar ---------------------------------
+
+
+def analyzed(db, *audits, by):
+    """Marca los eventos «analizado» (la misma tabla que pone la administración en la lista de eventos)."""
+    for audit in audits:
+        db.add(AuditReview(idAuditoria=audit.idAuditoria, idUsuarioRevisor=by.idUsuario))
+    db.commit()
+
+
+def test_una_rafaga_ya_analizada_no_aparece_pero_los_indicadores_siguen(db, mails):
+    user = makeUser(db)
+    burst = [plant(db, "LOGIN_LOCAL", user=user, ip="203.0.113.7", motivo="PASSWORD_INCORRECTA", minutes=m) for m in range(5)]
+    analyzed(db, *burst, by=user)
+    result = signals(db)
+    assert result.senales == [] and result.analizadasOcultas == 1
+    assert result.indicadores.intentosFallidos == 5
+
+
+def test_un_evento_nuevo_sin_analizar_vuelve_a_mostrar_la_senal(db, mails):
+    user = makeUser(db)
+    burst = [plant(db, "LOGIN_LOCAL", user=user, ip="203.0.113.7", motivo="PASSWORD_INCORRECTA", minutes=m) for m in range(5)]
+    analyzed(db, *burst, by=user)
+    plant(db, "LOGIN_LOCAL", user=user, ip="203.0.113.7", motivo="PASSWORD_INCORRECTA", minutes=0)
+    [signal] = signals(db).senales
+    assert (signal.tipo, signal.cantidad, signal.umbral) == ("FALLOS_REPETIDOS_CUENTA", 6, 5)
+    assert signals(db).analizadasOcultas == 0
+
+
+def test_una_rafaga_nueva_sin_analizar_se_muestra_aunque_otra_igual_ya_este_analizada(db, mails):
+    user = makeUser(db)
+    old = [plant(db, "LOGIN_LOCAL", user=user, ip="203.0.113.7", motivo="PASSWORD_INCORRECTA", minutes=300 + m) for m in range(5)]
+    analyzed(db, *old, by=user)
+    for m in range(5):
+        plant(db, "LOGIN_LOCAL", user=user, ip="203.0.113.7", motivo="PASSWORD_INCORRECTA", minutes=m)
+    [signal] = signals(db).senales
+    assert signal.cantidad == 5 and signal.hasta > nowForDb() - timedelta(minutes=30)  # muestra la ráfaga nueva, no la analizada
+    assert signals(db).analizadasOcultas == 0
+
+
+def test_un_origen_que_prueba_muchas_cuentas_ya_analizado_no_aparece(db, mails):
+    reviewer = makeUser(db)
+    attempts = [plant(db, "LOGIN_LOCAL", ip="203.0.113.9", motivo="CUENTA_INEXISTENTE",
+                      fingerprint=hashIdentifier(f"cuenta{n}@example.com"), minutes=n) for n in range(5)]
+    analyzed(db, *attempts, by=reviewer)
+    result = signals(db)
+    assert result.senales == [] and result.analizadasOcultas == 1
+
+
+def test_un_control_ya_analizado_no_aparece_y_uno_nuevo_si(db, mails):
+    user = makeUser(db)
+    blocked = plant(db, "BLOQUEO_TEMPORAL_CUENTA", user=user, modulo="SEGURIDAD", ip="203.0.113.7", motivo="INTENTOS_EXCEDIDOS")
+    analyzed(db, blocked, by=user)
+    result = signals(db)
+    assert result.senales == [] and result.analizadasOcultas == 1
+    plant(db, "BLOQUEO_TEMPORAL_CUENTA", user=user, modulo="SEGURIDAD", ip="203.0.113.7", motivo="INTENTOS_EXCEDIDOS")
+    [signal] = signals(db).senales
+    assert (signal.tipo, signal.clasificacion, signal.cantidad) == ("BLOQUEOS_CUENTA", "CONFIRMADO", 2)
+
+
+def test_sin_la_tabla_de_revision_las_senales_no_se_ocultan(db, mails, monkeypatch):
+    monkeypatch.setattr(securityDetection.schemaCompat, "auditReviewReady", lambda _db: False)
+    user = makeUser(db)
+    burst = [plant(db, "LOGIN_LOCAL", user=user, ip="203.0.113.7", motivo="PASSWORD_INCORRECTA", minutes=m) for m in range(5)]
+    analyzed(db, *burst, by=user)
+    result = signals(db)
+    assert [s.tipo for s in result.senales] == ["FALLOS_REPETIDOS_CUENTA"] and result.analizadasOcultas == 0
 

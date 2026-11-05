@@ -163,6 +163,15 @@ describe('Seguridad y accesos fallidos', () => {
     expect(screen.getByText(/Eso no significa que no haya habido intentos fallidos/)).toBeInTheDocument();
   });
 
+  it('las señales ya analizadas no se muestran y el panel dice cuántas quedaron ocultas', async () => {
+    routes(ADMIN, { 'GET /audit': page([]), 'GET /audit/summary': jsonResponse(200, SUMMARY),
+      'GET /audit/security/signals': jsonResponse(200, { ...EMPTY_SIGNALS, analizadasOcultas: 2 }) });
+    renderAt('/app/auditoria');
+    expect(await screen.findByText('Todas las señales del período ya están analizadas.')).toBeInTheDocument();
+    expect(screen.getByText(/2 señales ya analizadas no se muestran/)).toBeInTheDocument();
+    expect(screen.getByText(/casilla «Analizado» en la lista de eventos/)).toBeInTheDocument();
+  });
+
   it('los umbrales se ajustan solo para la consulta y viajan acotados', async () => {
     const { calls } = routes(ADMIN, { 'GET /audit': page([]), 'GET /audit/summary': jsonResponse(200, SUMMARY), 'GET /audit/security/signals': () => jsonResponse(200, SIGNALS) });
     const user = userEvent.setup();

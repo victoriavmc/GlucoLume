@@ -16,6 +16,9 @@
 #   reutilización de tokens de sesión.
 # Límite de alcance: se analizan como máximo MAX_ROWS intentos del período (se informa si se alcanzó). Una IP compartida (NAT, una institución)
 # o una IPv6 rotativa pueden dar falsos positivos o negativos: por eso son señales, no veredictos.
+# Analizado: una señal se oculta cuando NINGÚN evento que la origina quedó sin analizar (la marca de AuditoriaRevision, que pone la
+# administración en la lista de eventos). Un evento nuevo sin analizar, o una ráfaga nueva, vuelve a mostrar la señal. Las cifras de los
+# indicadores no cambian: la marca solo oculta la señal del panel.
 
 import uuid
 from collections import defaultdict
@@ -28,6 +31,7 @@ from app.api.rateLimit import normalizeIp
 from app.core.config import getSettings
 from app.models.audit import Audit
 from app.models.auditContext import AuditContext
+from app.models.auditReview import AuditReview
 from app.models.user import User
 from app.schemas.auditLog import SecurityIndicators, SecuritySignal, SecuritySignals, SecurityThresholds
 from app.services import auditClassification as classification
@@ -62,7 +66,7 @@ def densestWindow(stamps: list[datetime], minutes: int) -> tuple[int, datetime, 
     for end, stamp in enumerate(stamps):
         while stamp - stamps[start] > width:
             start += 1
-        if end - start + 1 > best[0]:
+        if end - start + 1 >= best[0]:  # en empate, la ventana más reciente (una ráfaga nueva no queda con las fechas de una ya analizada)
             best = (end - start + 1, stamps[start], stamp)
     return best
 
@@ -95,24 +99,31 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
     since = datetime.combine(desde, time.min)
     until = datetime.combine(hasta + timedelta(days=1), time.min)
     ready = schemaCompat.auditContextReady(db)
+    reviewReady = schemaCompat.auditReviewReady(db)
     columns = [Audit.fechaHora, Audit.idUsuario, Audit.accion]
     if ready:
         columns += [AuditContext.ipOrigen, AuditContext.motivo, AuditContext.identificadorHash]
+    if reviewReady:
+        columns += [AuditReview.idAuditoria]  # no nulo = el evento ya está marcado «analizado»
     query = select(*columns).where(Audit.resultado == "FALLO", Audit.fechaHora >= since, Audit.fechaHora < until,
                                    classification.categoryFilter("ACCESOS_FALLIDOS"))
     if ready:
         query = query.outerjoin(AuditContext, AuditContext.idAuditoria == Audit.idAuditoria)
+    if reviewReady:
+        query = query.outerjoin(AuditReview, AuditReview.idAuditoria == Audit.idAuditoria)
     if idInstitucion is not None:
         query = query.where(Audit.idInstitucion == idInstitucion)
     rows = db.execute(query.order_by(Audit.fechaHora.desc()).limit(MAX_ROWS)).all()
-    attempts = []  # (instante, clave de la cuenta, ip agrupada, ip exacta, idUsuario, huella)
+    attempts = []  # (instante, clave de la cuenta, ip agrupada, ip exacta, idUsuario, huella, analizado)
     for row in rows:
         accion, ip, motivo, fingerprint = row[2], (row[3] if ready else None), (row[4] if ready else None), (row[5] if ready else None)
         if not _isAttempt(accion, motivo):
             continue
         account = str(row[1]) if row[1] else (f"hash:{fingerprint}" if fingerprint else None)
-        attempts.append((row[0], account, normalizeIp(ip) if ip else None, ip, row[1], fingerprint))
+        analyzed = reviewReady and row[-1] is not None
+        attempts.append((row[0], account, normalizeIp(ip) if ip else None, ip, row[1], fingerprint, analyzed))
     attempts.sort(key=lambda item: item[0])
+    hidden = 0  # señales ocultas por estar ya analizadas (todos sus eventos marcados)
 
     signals: list[SecuritySignal] = []
     names = _accountNames(db, {a[4] for a in attempts if a[4]})
@@ -125,6 +136,9 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
     for account, items in byAccount.items():
         count, first, last = densestWindow([i[0] for i in items], umbrales.ventanaMinutos)
         if count >= umbrales.fallosPorCuenta:
+            if not _pendingWindow([(i[0], account, i[6]) for i in items], umbrales.ventanaMinutos, umbrales.fallosPorCuenta, distinct=False):
+                hidden += 1
+                continue
             origins = {i[2] for i in items if i[2]}
             known = items[0][4]
             filters = {"idCuenta": str(known)} if known else {"refIdentificador": items[0][5]}
@@ -145,6 +159,9 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
     for origin, items in byOrigin.items():
         count, first, last = distinctWindow([(i[0], i[1]) for i in items], umbrales.ventanaMinutos)
         if count >= umbrales.cuentasPorOrigen:
+            if not _pendingWindow([(i[0], i[1], i[6]) for i in items], umbrales.ventanaMinutos, umbrales.cuentasPorOrigen, distinct=True):
+                hidden += 1
+                continue
             signals.append(SecuritySignal(
                 tipo="MULTIPLES_CUENTAS_ORIGEN", clasificacion=classification.SOSPECHOSO, titulo="Un mismo origen probó muchas cuentas",
                 descripcion=f"{count} cuentas o identificadores distintos en {umbrales.ventanaMinutos} minutos desde un mismo origen.",
@@ -153,17 +170,42 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
 
     # 3. Origen inusual para la cuenta (solo con historia suficiente).
     if ready:
-        signals += _unusualOrigins(db, attempts, since, until, umbrales)
+        unusual, unusualHidden = _unusualOrigins(db, attempts, since, until, umbrales)
+        signals += unusual
+        hidden += unusualHidden
 
     # 4. Controles que ya actuaron y ráfagas ya registradas.
-    signals += _recordedControls(db, since, until, idInstitucion, ready)
+    recorded, recordedHidden = _recordedControls(db, since, until, idInstitucion, reviewReady)
+    signals += recorded
+    hidden += recordedHidden
 
     signals.sort(key=lambda s: (s.clasificacion != classification.CONFIRMADO, -s.cantidad))
     indicators = _indicators(db, since, until, idInstitucion, attempts)
     return SecuritySignals(
         desde=desde, hasta=hasta, umbrales=umbrales, indicadores=indicators, senales=signals,
-        truncado=len(rows) >= MAX_ROWS, contextoDisponible=ready,
+        truncado=len(rows) >= MAX_ROWS, contextoDisponible=ready, analizadasOcultas=hidden,
     )
+
+
+def _pendingWindow(items: list[tuple[datetime, str, bool]], minutes: int, need: int, *, distinct: bool) -> bool:
+    """¿Hay algún evento sin analizar dentro de una ventana que alcance `need` (eventos, o claves distintas si `distinct`)?
+    `items` ordenado por instante: (instante, clave, analizado). Recorre la ventana deslizante una sola vez."""
+    width = timedelta(minutes=minutes)
+    inside: dict[str, int] = defaultdict(int)
+    start, reached, pending = 0, 0, False  # `reached`: hasta dónde ya se miró dentro de una ventana que alcanza el umbral
+    for end, (stamp, key, _analyzed) in enumerate(items):
+        inside[key] += 1
+        while stamp - items[start][0] > width:
+            old = items[start][1]
+            inside[old] -= 1
+            if not inside[old]:
+                del inside[old]
+            start += 1
+        size = len(inside) if distinct else end - start + 1
+        if size >= need:
+            pending = pending or any(not items[i][2] for i in range(max(start, reached), end + 1))
+            reached = end + 1
+    return pending
 
 
 def _accountNames(db: Session, ids: set) -> dict:
@@ -174,15 +216,15 @@ def _accountNames(db: Session, ids: set) -> dict:
             for u in users}
 
 
-def _unusualOrigins(db: Session, attempts: list, since: datetime, until: datetime, umbrales: SecurityThresholds) -> list[SecuritySignal]:
+def _unusualOrigins(db: Session, attempts: list, since: datetime, until: datetime, umbrales: SecurityThresholds) -> tuple[list[SecuritySignal], int]:
     candidates: dict[tuple, list] = defaultdict(list)
     for item in attempts:
         if item[4] and item[2]:
             candidates[(item[4], item[2])].append(item)
     if not candidates:
-        return []
+        return [], 0
     names = _accountNames(db, {key[0] for key in candidates})
-    signals = []
+    signals, hidden = [], 0
     history_since = since - timedelta(days=LOOKBACK_DAYS)
     for (account, origin), items in list(candidates.items())[:200]:
         successful = db.execute(
@@ -194,13 +236,16 @@ def _unusualOrigins(db: Session, attempts: list, since: datetime, until: datetim
             continue  # sin historia suficiente no se puede decir que un origen sea inusual
         if origin in {normalizeIp(ip) for ip in successful}:
             continue  # la cuenta ya entró bien desde ahí (antes o después): un descuido, no un origen ajeno
+        if all(item[6] for item in items):
+            hidden += 1  # todos sus accesos fallidos ya están analizados
+            continue
         signals.append(SecuritySignal(
             tipo="ORIGEN_INUSUAL", clasificacion=classification.SOSPECHOSO, titulo="Fallos desde un origen nunca usado por la cuenta",
             descripcion=f"{len(items)} acceso(s) fallido(s) desde un origen sin accesos exitosos previos; la cuenta tiene {len(successful)} accesos "
                         f"exitosos con origen registrado en los últimos {LOOKBACK_DAYS} días. Es un indicio débil: puede ser un viaje o una red nueva.",
             cantidad=len(items), umbral=umbrales.historialOrigenInusual, desde=items[0][0], hasta=items[-1][0], ipOrigen=origin,
             cuenta=names.get(account, "Cuenta"), filtros={"idCuenta": str(account), "ip": items[0][3] or origin, "categoria": "ACCESOS_FALLIDOS"}))
-    return signals
+    return signals, hidden
 
 
 RECORDED = (
@@ -212,8 +257,8 @@ RECORDED = (
 )
 
 
-def _recordedControls(db: Session, since: datetime, until: datetime, idInstitucion, ready: bool) -> list[SecuritySignal]:
-    signals = []
+def _recordedControls(db: Session, since: datetime, until: datetime, idInstitucion, reviewReady: bool) -> tuple[list[SecuritySignal], int]:
+    signals, hidden = [], 0
     for accion, tipo, titulo, kind in RECORDED:
         query = select(func.count(), func.min(Audit.fechaHora), func.max(Audit.fechaHora)).where(
             Audit.accion == accion, Audit.fechaHora >= since, Audit.fechaHora < until)
@@ -222,13 +267,22 @@ def _recordedControls(db: Session, since: datetime, until: datetime, idInstituci
         count, first, last = db.execute(query).one()
         if not count:
             continue
+        if reviewReady:
+            pendingQuery = (select(func.count()).select_from(Audit)
+                            .outerjoin(AuditReview, AuditReview.idAuditoria == Audit.idAuditoria)
+                            .where(Audit.accion == accion, Audit.fechaHora >= since, Audit.fechaHora < until, AuditReview.idAuditoria.is_(None)))
+            if idInstitucion is not None:
+                pendingQuery = pendingQuery.where(Audit.idInstitucion == idInstitucion)
+            if not db.scalar(pendingQuery):
+                hidden += 1  # todos los eventos de este control ya están analizados
+                continue
         confirmed = kind == classification.CONFIRMADO
         signals.append(SecuritySignal(
             tipo=tipo, clasificacion=kind, titulo=titulo, cantidad=count, desde=first, hasta=last,
             descripcion=("El sistema aplicó el control %d vez/veces. Es un hecho comprobado; no indica por sí solo que alguien atacara la cuenta."
                          if confirmed else "Registrado %d vez/veces por el monitor de solicitudes rechazadas. Conviene revisar el origen.") % count,
             filtros={"accion": accion}))
-    return signals
+    return signals, hidden
 
 
 def _indicators(db: Session, since: datetime, until: datetime, idInstitucion, attempts: list) -> SecurityIndicators:

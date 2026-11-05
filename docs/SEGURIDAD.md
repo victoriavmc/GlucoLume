@@ -219,6 +219,8 @@ INSERT, si la base tiene la columna.
 verde/naranja/rojo/gris, siempre con texto. **Señales** calculadas al consultar (no escriben): ≥ 5 fallos contra una cuenta o identificador
 en 15 min; ≥ 5 cuentas distintas desde un origen en 15 min; origen inusual solo si la cuenta tiene ≥ 5 accesos exitosos con IP en 90 días;
 controles y ráfagas (≥ 20 rechazos o ≥ 30 errores de validación por origen en 15 min). Umbrales `AUDIT_ALERT_*` configurables.
+Una señal **analizada** (todos los eventos que la originan marcados «Analizado» en la lista de eventos) se oculta del panel y el panel dice cuántas
+ocultó; un evento nuevo sin analizar la vuelve a mostrar. La marca no cambia los indicadores ni los eventos.
 
 **Accesos por tipo de cuenta** (tablero de la plataforma, `services/authAccess.py`): individuales, institucionales, de plataforma y «sin
 clasificar» salen de la misma consulta y suman el total. El tipo es el de la cuenta que se autenticó (registrado en el evento cuando existe la

@@ -140,13 +140,21 @@ export function AuditSecurityPanel({ idInstitucion, onViewEvents, title = 'Segur
           </KpiGrid>
           {data.senales.length === 0 ? (
             <EmptyState variant="inline" icon={ShieldCheck} headingLevel={0}
-              title="No se detectaron patrones sospechosos ni controles activados en el período."
+              title={data.analizadasOcultas > 0
+                ? 'Todas las señales del período ya están analizadas.'
+                : 'No se detectaron patrones sospechosos ni controles activados en el período.'}
               description="Eso no significa que no haya habido intentos fallidos: se ven de a uno en la lista de eventos (Tipo de evento: Accesos fallidos)." />
           ) : (
             <ul className="audit-signals" aria-label="Señales de seguridad">
               {data.senales.map((signal) => <Signal key={`${signal.tipo}-${signal.filtros?.idCuenta ?? signal.filtros?.ip ?? signal.filtros?.refIdentificador ?? signal.filtros?.accion}`}
                 signal={signal} onView={onViewEvents} />)}
             </ul>
+          )}
+          {data.analizadasOcultas > 0 && (
+            <p className="field-hint" role="status">
+              {data.analizadasOcultas === 1 ? '1 señal ya analizada no se muestra' : `${data.analizadasOcultas} señales ya analizadas no se muestran`}.
+              Vuelven a aparecer si llega un evento nuevo sin analizar. Para marcarlas, usá la casilla «Analizado» en la lista de eventos.
+            </p>
           )}
         </>
       )}

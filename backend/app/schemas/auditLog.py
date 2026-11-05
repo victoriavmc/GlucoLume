@@ -300,3 +300,5 @@ class SecuritySignals(BaseModel):
     truncado: bool = False
     # Sin la tabla de contexto (AuditoriaContexto) no hay IP ni motivo: se indica en lugar de afirmar que no hubo patrones.
     contextoDisponible: bool = True
+    # Señales que no se muestran porque todos los eventos que las originan ya están marcados «analizado» (no cambian los indicadores).
+    analizadasOcultas: int = 0
