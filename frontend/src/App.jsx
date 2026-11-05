@@ -165,6 +165,8 @@ const PRELOADS = [
   [/^\/app\/dispositivos\/?$/, [GlobalDevicesPage]],
   [/^\/app\/auditoria\/?$/, [GlobalAuditPage]],
   [/^\/app\/matrices\/?$/, [GlobalMatricesPage]],
+  // Guía de uso (pública y del espacio privado): sin esto, su chunk se pedía recién al montar la ruta, después del JavaScript del shell.
+  [/^\/ayuda\/?$|^\/app\/ayuda\/?$/, [PublicHelpPage, HelpPage]],
 ];
 
 export function preloadForPath(pathname) {
