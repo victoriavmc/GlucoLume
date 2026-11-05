@@ -562,6 +562,7 @@ def finishMeasurement(db: Session, actor: User, idMedicion: uuid.UUID, data: Mea
         ownerUser = db.get(User, owner) if owner is not None else None
         if ownerUser is not None:
             notifications.notifyGroupMeasurement(db, ownerUser, end)
+            userNotifications.notifyMeasurementCompleted(db, ownerUser, measurement, institutional=access.idInstitucion is not None)
     # Cada medición completada de un paciente institucional con correo cargado y vigente envía su resultado (como al guardar con el dispositivo).
     autoSend = None
     if final == COMPLETADA:

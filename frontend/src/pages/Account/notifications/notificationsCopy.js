@@ -69,6 +69,10 @@ export const EVENTOS = {
     categoria: 'MEDICION', icono: MailCheck, tono: 'measurement', titulo: 'Envío del resultado',
     descripcion: 'Cuando sale por correo el resultado de una medición que pediste, o cuando no pudo salir. El correo de este aviso no incluye el resultado.',
   },
+  MEDICION_REALIZADA: {
+    categoria: 'MEDICION', icono: Activity, tono: 'measurement', titulo: 'Tu última medición',
+    descripcion: 'Cuando se completa una medición tuya: te mostramos la hora, el modo y los valores en un aviso a la derecha de la pantalla. Por correo, el mismo detalle y un enlace a la medición; elegilo solo si querés recibir datos de salud por correo.',
+  },
   INSTITUCION_INVITACION: {
     categoria: 'INSTITUCION', icono: MailPlus, tono: 'institution', titulo: 'Invitaciones de instituciones',
     descripcion: 'Cuando una institución te invita a formar parte de su equipo. Podés aceptar o rechazar la invitación desde Instituciones.',

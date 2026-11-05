@@ -1206,7 +1206,7 @@ def test_la_migracion_v5_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
         assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
         assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
-    for evento in (e for e in notificationEvents.EVENTOS if e != "RESULTADO_ENVIADO" and not e.startswith("PLATAFORMA_")):  # los agregan v6 y v7
+    for evento in (e for e in notificationEvents.EVENTOS if e not in ("RESULTADO_ENVIADO", "MEDICION_REALIZADA") and not e.startswith("PLATAFORMA_")):  # los agregan v6, v7 y v8
         assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
     for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
         assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
@@ -1224,7 +1224,7 @@ def test_la_migracion_v6_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
         assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
         assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
-    for evento in (e for e in notificationEvents.EVENTOS if not e.startswith("PLATAFORMA_")):  # esos avisos los agrega la v7
+    for evento in (e for e in notificationEvents.EVENTOS if e != "MEDICION_REALIZADA" and not e.startswith("PLATAFORMA_")):  # esos avisos los agrega la v7; MEDICION_REALIZADA, la v8
         assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
     for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
         assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
@@ -1237,6 +1237,24 @@ def test_la_migracion_v7_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     code = re.sub(r"--[^\n]*", "", script)
 
     assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V7'" in script
+    assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script  # exige v3
+    assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
+    for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
+        assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
+        assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
+    for evento in (e for e in notificationEvents.EVENTOS if e != "MEDICION_REALIZADA"):  # este aviso lo agrega la v8
+        assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
+    for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
+        assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
+
+
+def test_la_migracion_v8_admite_todos_los_avisos_del_catalogo_y_es_idempotente():
+    import re
+
+    script = (Path(__file__).resolve().parents[2] / "database" / "reference" / "GlucoLume_notificaciones_v8.sql").read_text(encoding="utf-8")
+    code = re.sub(r"--[^\n]*", "", script)
+
+    assert ":on error exit" in script and "N'$(CONFIRMAR)' <> N'ACTUALIZAR_NOTIFICACIONES_V8'" in script
     assert "COL_LENGTH(N'dbo.NotificacionUsuario', N'fechaEliminacion') IS NULL" in script  # exige v3
     assert script.rstrip().endswith("SET NOEXEC OFF;\nGO")
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
