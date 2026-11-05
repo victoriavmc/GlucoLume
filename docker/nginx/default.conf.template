@@ -178,6 +178,19 @@ server {
         expires -1;
     }
 
+    # /ayuda es una ruta de la SPA y, a la vez, el nombre de la carpeta de capturas (public/ayuda/). Sin estas dos ubicaciones exactas,
+    # Nginx redirige /ayuda a /ayuda/ y responde 403 (la carpeta no tiene index.html). La página entra siempre por la SPA; las capturas
+    # siguen siendo archivos servidos por la regla de imágenes. Ubicaciones exactas: no cambian ninguna otra ruta.
+    location = /ayuda {
+        expires -1;
+        try_files /index.html =404;
+    }
+
+    location = /ayuda/ {
+        expires -1;
+        try_files /index.html =404;
+    }
+
     # Un archivo que no existe (robots.txt, sitemap.xml, un .map, un .png) es un 404, no el index.html de la SPA con estado 200 («soft 404»:
     # un buscador leía HTML como si fuera robots.txt). Sin add_header propio: hereda las cabeceras de seguridad del server.
     location ~* ^(?!/api/).+\.(?:txt|xml|json|map|ico|png|jpe?g|gif|webp|svg|woff2?|webmanifest)$ {
