@@ -661,10 +661,14 @@ def getMeasurement(db: Session, actor: User, idMedicion: uuid.UUID) -> Measureme
     return _detail(db, measurement, access)
 
 
-def _semaphoreOf(db: Session, measurement: Measurement) -> str | None:
-    if measurement.modoMedicion != GLUCOSA or measurement.estadoMedicion != COMPLETADA:
+def _needsSemaphore(measurement: Measurement) -> bool:
+    return measurement.modoMedicion == GLUCOSA and measurement.estadoMedicion == COMPLETADA
+
+
+def _semaphoreOf(db: Session, measurement: Measurement, preloaded=None) -> str | None:
+    if not _needsSemaphore(measurement):
         return None
-    return glucoseReference.build(db, measurement).semaforo
+    return glucoseReference.build(db, measurement, preloaded).semaforo
 
 
 def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None,
@@ -701,6 +705,8 @@ def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, ha
                       .limit(tamanioPagina)).all()
     codes = {d.idDispositivo: d.codigoDispositivo for d in db.scalars(
         select(Device).where(Device.idDispositivo.in_({r.idDispositivo for r in rows}))).all()} if rows else {}
+    # Referencias de glucosa de toda la página en pocas consultas (antes, 2 por medición de glucosa completada).
+    preloaded = glucoseReference.preload(db, [r for r in rows if _needsSemaphore(r)])
     items = [
         MeasurementListItem(
             idMedicion=r.idMedicion, fechaHoraInicio=r.fechaHoraInicio, fechaHoraFin=r.fechaHoraFin,
@@ -710,7 +716,7 @@ def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, ha
             dispositivo=codes.get(r.idDispositivo), origenGlucosa=r.origenGlucosa,
             glucosaDispositivo=r.glucosaDispositivo, indiceOptico=r.indiceOptico, esDemo=r.origenGlucosa == ORIGEN_DEMO,
             visibleHasta=visibleUntil(r) if hideExpired else None,
-            semaforo=_semaphoreOf(db, r),
+            semaforo=_semaphoreOf(db, r, preloaded),
         )
         for r in rows
     ]

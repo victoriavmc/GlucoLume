@@ -427,8 +427,10 @@ def analyze(
             candidates = [r for r in own if r.modoMedicion == "GLUCOSA_EXPERIMENTAL" and r.estadoMedicion == "COMPLETADA" and _group(r) == "EXPERIMENTAL"
                           and (r.glucosaDispositivo is not None or r.glucosaEstimada is not None)]
             ids = [r.idMedicion for r in candidates[-MATRIX_LIMIT:]]
-            for entity in (db.scalars(select(Measurement).where(Measurement.idMedicion.in_(ids))).all() if ids else []):
-                built = glucoseReference.build(db, entity)
+            entities = db.scalars(select(Measurement).where(Measurement.idMedicion.in_(ids))).all() if ids else []
+            preloaded = glucoseReference.preload(db, entities)  # reglas y regla aplicada en lote (antes, 2 consultas por medición)
+            for entity in entities:
+                built = glucoseReference.build(db, entity, preloaded)
                 selected = next((g for g in built.grupos if g.reglaSeleccionada is not None), None)
                 references[entity.idMedicion] = ReferenceInfo(
                     estado=built.estado, matriz=None if built.matriz is None else f"{built.matriz.nombre}, versión {built.matriz.version}",
