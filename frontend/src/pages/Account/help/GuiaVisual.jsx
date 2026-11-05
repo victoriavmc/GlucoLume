@@ -68,12 +68,12 @@ export function PasoImagen({ captura, alt, pie }) {
 
   function abrir() {
     const figuras = [...document.querySelectorAll('figure.help-captura')];
-    const lista = figuras.map((figura) => ({ src: figura.dataset.src, alt: figura.dataset.alt, titulo: figura.dataset.titulo }));
+    const lista = figuras.map((figura) => ({ src: figura.dataset.src, miniatura: figura.dataset.miniatura, alt: figura.dataset.alt, titulo: figura.dataset.titulo }));
     setVisor({ lista, indice: Math.max(0, figuras.indexOf(figuraRef.current)) });
   }
 
   return (
-    <figure className="help-captura" ref={figuraRef} data-src={src} data-alt={alt} data-titulo={pie ?? alt}>
+    <figure className="help-captura" ref={figuraRef} data-src={src} data-miniatura={miniatura} data-alt={alt} data-titulo={pie ?? alt}>
       <button type="button" className="help-captura-boton" aria-label={`Ampliar imagen: ${alt}`} onClick={abrir}>
         <img src={miniatura} alt="" loading="lazy" decoding="async" />
       </button>
@@ -102,7 +102,9 @@ function VisorCapturas({ lista, indice, onCambiar, onClose }) {
   return (
     <Modal role="dialog" visor title={actual.titulo} onClose={onClose}>
       <div className="help-visor-cuerpo">
-        <img className="help-visor-img" src={actual.src} alt={actual.alt} />
+        {/* Mientras llega el original (sin caché en la primera apertura) se ve la miniatura como fondo: la imagen aparece al instante y luego se afina. */}
+        <img className="help-visor-img" src={actual.src} alt={actual.alt}
+          style={{ backgroundImage: `url(${actual.miniatura})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }} />
         <button type="button" className="help-visor-flecha is-anterior" aria-label="Captura anterior" onClick={() => onCambiar((indice - 1 + total) % total)}>
           <ChevronLeft size={28} aria-hidden="true" />
         </button>

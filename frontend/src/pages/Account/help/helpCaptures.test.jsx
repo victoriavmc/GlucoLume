@@ -62,6 +62,7 @@ describe('PasoImagen: miniatura en la guía, original en el visor', () => {
 
     const figura = container.querySelector('figure.help-captura');
     expect(figura).toHaveAttribute('data-src', '/ayuda/grupo-creado.png');
+    expect(figura).toHaveAttribute('data-miniatura', '/ayuda/miniaturas/grupo-creado.webp');
     expect(screen.getByRole('button', { name: 'Ampliar imagen: Grupo creado' })).toBeInTheDocument();
     expect(screen.getByText('Creaste el grupo.')).toBeInTheDocument();
   });
@@ -79,6 +80,7 @@ describe('PasoImagen: miniatura en la guía, original en el visor', () => {
     const dialogo = screen.getByRole('dialog');
     const visor = dialogo.querySelector('.help-visor-img');
     expect(visor).toHaveAttribute('src', '/ayuda/grupo-creado.png');
+    expect(visor.style.backgroundImage).toContain('/ayuda/miniaturas/grupo-creado.webp');
     expect(within(dialogo).getByText('1 de 2')).toBeInTheDocument();
 
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Captura siguiente' }));
