@@ -1,0 +1,50 @@
+{
+ "consultaCalibrada": {
+  "n": 200000,
+  "msAprox": 30.3
+ },
+ "A_techo": [
+  {
+   "limite": 0,
+   "hilos": 40,
+   "consultas": 600,
+   "consultasPorS": 120.6,
+   "latenciaP50Ms": 316.0,
+   "latenciaP95Ms": 428.2
+  },
+  {
+   "limite": 2,
+   "hilos": 40,
+   "consultas": 600,
+   "consultasPorS": 61.6,
+   "latenciaP50Ms": 30.6,
+   "latenciaP95Ms": 1989.7
+  }
+ ],
+ "B_cabeza_de_linea": [
+  {
+   "escenario": "sinConsultaLenta",
+   "consultasRapidas": 200,
+   "rapidaP50Ms": 7.7,
+   "rapidaP95Ms": 14.6,
+   "consultasLentas": 0,
+   "consultaLentaMs": null
+  },
+  {
+   "escenario": "conConsultaLenta",
+   "consultasRapidas": 200,
+   "rapidaP50Ms": 7.6,
+   "rapidaP95Ms": 14.6,
+   "consultasLentas": 1,
+   "consultaLentaMs": 1233.0
+  },
+  {
+   "escenario": "dosConsultasLentas",
+   "consultasRapidas": 200,
+   "rapidaP50Ms": 7.6,
+   "rapidaP95Ms": 73.2,
+   "consultasLentas": 2,
+   "consultaLentaMs": 1233.0
+  }
+ ]
+}

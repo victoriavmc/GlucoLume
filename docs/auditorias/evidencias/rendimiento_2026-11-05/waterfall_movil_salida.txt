@@ -1,0 +1,12 @@
+{"fcpMs":2192,"lcpMs":3112,"requests":18,"totalTransferKB":439,"beforeFcpRequests":6,"beforeFcpKB":157}
+   628 ms       1 KB  /ayuda
+  1536 ms      14 KB  /assets/icons-BYXb5JfK.js
+  1571 ms      14 KB  /assets/router-Ci-qNtfU.js
+  1714 ms      24 KB  /assets/index-C-AMtL4g.css
+  1919 ms      46 KB  /assets/index-viAQgmZA.js
+  1982 ms      58 KB  /assets/react-CDyOOsbv.js
+  2721 ms       1 KB  /assets/PageHeader-DODXTnC1.js
+  2730 ms       1 KB  /assets/HelpPage-DXpJAC-H.css
+  2739 ms       1 KB  /assets/Tabs-CECsxsBi.js
+  2829 ms      19 KB  /assets/HelpPage-CnQLMNWk.js
+png: 8 KB 260
