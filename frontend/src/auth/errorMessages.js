@@ -30,6 +30,8 @@ const MESSAGES = {
     'No hay una cuenta de GlucoLume asociada a esa cuenta de Google. Registrate primero para poder ingresar con Google.',
   TOKEN_INVALIDO: 'La sesión o el enlace venció. Volvé a iniciar sesión.',
   CORREO_REGISTRADO: 'Ya existe una cuenta con ese correo electrónico. Iniciá sesión o usá otro correo.',
+  CORREO_NO_ENCONTRADO:
+    'Correo no encontrado: la dirección no existe o no puede recibir correos. Revisá que esté bien escrita.',
   USUARIO_REGISTRADO: 'Ese nombre de usuario ya está en uso. Elegí otro.',
   INSTITUCION_REGISTRADA: 'Ya existe una institución activa registrada con este CUIT.',
   CUENTA_YA_VERIFICADA: 'Esta cuenta ya está verificada: podés iniciar sesión.',

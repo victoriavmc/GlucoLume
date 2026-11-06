@@ -20,10 +20,12 @@ from urllib.parse import urlsplit
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from app.core.config import getSettings
+from app.core.exceptions import AuthError
 from app.emails.eventTypes import EMAIL_EVENTS, MEASUREMENT_DETAIL_KEYS, MEASUREMENT_EVENTS, EmailEventType
 from app.emails.formatting import maskEmail
 from app.emails.renderer import BANNER_CID, EMAILS_DIR, RenderedEmail, renderEmail
-from app.integrations.email import sender
+from app.integrations.email import mailboxCheck, sender
+from app.integrations.email.mailboxCheck import ResultadoBuzon, Veredicto
 from app.integrations.email.sender import InlineImage
 from app.utils.normalizers import normalizeEmail
 
@@ -72,6 +74,8 @@ FRONTEND_ROUTES = {
 _emailAdapter = TypeAdapter(EmailStr)
 # Envíos en segundo plano para avisos que no deben demorar la respuesta (p. ej. inicio de sesión).
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="glucolume-email")
+# Resultados definitivos de la verificación de buzón (EXISTE / NO_EXISTE) por una hora.
+_cacheBuzones = mailboxCheck.CacheVeredictos()
 
 
 class EmailContextError(ValueError):
@@ -218,8 +222,51 @@ def sendEmailEvent(
     return True
 
 
+def _remitenteVerificacion() -> str | None:
+    settings = getSettings()
+    return settings.SMTP_FROM or settings.SMTP_USERNAME
+
+
+def verificarDestinatario(destinatario: str) -> ResultadoBuzon:
+    """Verifica si el correo existe antes de enviarle algo (ver mailboxCheck). No envía ningún mensaje."""
+    settings = getSettings()
+    if not settings.EMAIL_VERIFICAR_BUZON:
+        return ResultadoBuzon(Veredicto.NO_VERIFICABLE, "DESACTIVADA")
+    correo = normalizeEmail(destinatario) or ""
+    cached = _cacheBuzones.obtener(correo)
+    if cached is not None:
+        return cached
+    resultado = mailboxCheck.verificarBuzon(
+        correo,
+        remitente=_remitenteVerificacion(),
+        timeout=settings.EMAIL_VERIFICACION_TIMEOUT_SECONDS,
+    )
+    _cacheBuzones.guardar(correo, resultado)
+    logger.info("Verificación de buzón de %s: %s (%s).", maskEmail(correo), resultado.veredicto, resultado.motivo)
+    return resultado
+
+
+def requireMailboxExists(destinatario: str) -> None:
+    """Rechaza el correo si el servidor de su dominio dice que el buzón no existe. Lo demás (no verificable) pasa."""
+    resultado = verificarDestinatario(destinatario)
+    if resultado.veredicto is Veredicto.NO_EXISTE:
+        raise AuthError(
+            "CORREO_NO_ENCONTRADO",
+            "Correo no encontrado: la dirección no existe o no puede recibir correos. Revisá que esté bien escrita.",
+            motivo=resultado.motivo,
+        )
+
+
 def _sendSafely(eventType: EmailEventType, destinatario: str, context: dict, incluirDetalleMedicion: bool) -> None:
     try:
+        resultado = verificarDestinatario(destinatario)
+        if resultado.veredicto is Veredicto.NO_EXISTE:
+            logger.warning(
+                "Correo %s no enviado a %s: correo no encontrado (%s).",
+                eventType, maskEmail(destinatario), resultado.motivo,
+            )
+            return
+        # sendEmailEvent registra el éxito ("Correo ... enviado a ...") o la causa técnica del fallo.
         sendEmailEvent(eventType, destinatario, context, incluirDetalleMedicion=incluirDetalleMedicion)
     except Exception as error:  # noqa: BLE001 - un aviso en segundo plano nunca debe terminar el hilo
         logger.error("Correo %s no generado (%s).", eventType, type(error).__name__)

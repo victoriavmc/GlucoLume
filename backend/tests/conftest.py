@@ -164,6 +164,19 @@ def referenceSchema() -> str:
 
 
 @pytest.fixture(autouse=True)
+def noRealMailboxChecks(monkeypatch):
+    """Ninguna prueba consulta DNS ni se conecta al servidor de correo de un dominio real para verificar un buzón. Con la red
+    bloqueada, la verificación devuelve NO_VERIFICABLE (no bloquea): las pruebas que necesitan otro resultado lo reemplazan."""
+    from app.integrations.email import mailboxCheck
+
+    def blocked(*args, **kwargs):
+        raise OSError("DNS bloqueado en las pruebas")
+
+    monkeypatch.setattr(mailboxCheck, "_servidoresDeCorreo", blocked)
+    monkeypatch.setattr(mailboxCheck, "_conectarPorDefecto", blocked)
+
+
+@pytest.fixture(autouse=True)
 def noRealSmtp(monkeypatch):
     """Ninguna prueba envía correo real aunque el .env tenga SMTP configurado: smtplib falla como una red caída. Las pruebas que
     verifican el envío reemplazan sender.sendHtmlEmail o smtplib por su propio doble y no se ven afectadas."""

@@ -129,6 +129,11 @@ class Settings(BaseSettings):
     # Remitente visible. Sin SMTP_FROM se usa SMTP_USERNAME.
     SMTP_FROM: str | None = None
     SMTP_FROM_NAME: str = "GlucoLume"
+    # Verificación previa del destinatario (app/integrations/email/mailboxCheck.py): consulta MX y RCPT TO sin enviar el mensaje.
+    # Un correo que el servidor de su dominio dice que no existe se rechaza (registro) o no se envía (avisos en segundo plano).
+    EMAIL_VERIFICAR_BUZON: bool = True
+    # Espera máxima por cada paso de la verificación (DNS, conexión y cada comando SMTP), en segundos.
+    EMAIL_VERIFICACION_TIMEOUT_SECONDS: float = 5.0
 
     # Casilla que recibe las consultas del formulario de contacto de la landing (POST /api/v1/contact).
     # Sin valor, el formulario responde que el contacto no está disponible.

@@ -215,6 +215,7 @@ def requestDeletion(db: Session, user: User) -> DeletionRequest:
 
     No pide contraseña ni MFA: la reautenticación se hace al confirmar (paso 2).
     """
+    emailService.requireMailboxExists(user.correoElectronico)
     blocker = findBlocker(db, user)
     if blocker is not None:
         # Sin token mientras exista una condición que bloquee la baja.
