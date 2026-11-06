@@ -52,7 +52,10 @@ def requestConfirmation(db: Session, actor: User, idInstitucion: uuid.UUID, idPe
     en la auditoría (SOLICITAR_CONFIRMACION_CORREO_RESULTADOS, resultado FALLO) y el operador puede volver a pedirla."""
     if not _requests.allow(str(actor.idUsuario)):
         raise AuthError("DEMASIADAS_SOLICITUDES", "Pediste muchas confirmaciones de correo seguidas. Probá de nuevo en una hora.")
-    claims = {"sub": str(idPerfilMedicion), "typ": TOKEN_TYPE, "inst": str(idInstitucion), "mail": email, "op": str(actor.idUsuario),
+    # Un buzón que no existe nunca recibe el enlace: se rechaza ya, en la solicitud, y no como un «enviando…» que después no llega.
+    # Igual que en el registro: solo NO_EXISTE rechaza; si el servidor no se puede consultar, la solicitud sigue.
+    emailService.requireMailboxExists(email)
+    claims = {"sub":str(idPerfilMedicion), "typ": TOKEN_TYPE, "inst": str(idInstitucion), "mail": email, "op": str(actor.idUsuario),
               "keep": keep, "med": str(idMedicion) if idMedicion else None, "jti": uuid.uuid4().hex}
     token = security.encodeScopedToken(claims, timedelta(hours=VALID_HOURS))
     institution = db.get(Institution, idInstitucion)

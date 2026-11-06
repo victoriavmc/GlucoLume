@@ -79,6 +79,14 @@ def test_cargar_el_correo_exige_autorizacion_y_la_confirmacion_del_paciente_y_ve
         assert MAIL not in f"{entry.datosNuevos}{entry.datosPrevios}{entry.observacion}{entry.detalle}"
 
 
+def test_un_correo_que_no_existe_se_rechaza_al_cargarlo_y_no_se_dice_que_sale(db, mails, team, patient, monkeypatch):
+    from app.integrations.email.mailboxCheck import ResultadoBuzon, Veredicto
+    monkeypatch.setattr(emailService, "verificarDestinatario", lambda correo: ResultadoBuzon(Veredicto.NO_EXISTE, "BUZON_NO_ENCONTRADO"))
+    expectError("CORREO_NO_ENCONTRADO", resultEmail.setResultEmail, db, team.operator, team.id, patient.idPerfilMedicion, body("nadie@example.com"))
+    assert not [mail for mail in mails if mail["to"] == "nadie@example.com"]  # ni se envía el enlace de confirmación
+    assert resultEmailStore.stored(db, patient.idPerfilMedicion, nowForDb()) is None
+
+
 def test_cambiar_el_correo_lo_reemplaza_y_renueva_el_plazo_y_quitarlo_lo_borra(db, mails, team, patient):
     loadEmail(db, mails, team, patient.idPerfilMedicion)
     # El plazo se había cargado «hace 6 meses»: al cambiar el correo vuelve a contar 12 meses desde hoy.
