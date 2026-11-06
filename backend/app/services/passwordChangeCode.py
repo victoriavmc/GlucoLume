@@ -72,6 +72,8 @@ def requestCode(db: Session, user: User, password: str) -> str:
                       motivo="PASSWORD_INCORRECTA")
         db.commit()
         raise AuthError("PASSWORD_INCORRECTA", "La contraseña ingresada no es correcta.")
+    # Recién con la contraseña verificada se consulta el servidor del correo (no se sondea el buzón de cualquiera).
+    emailService.requireMailboxExists(user.correoElectronico)
 
     now = nowForDb()
     _requireCodeAllowed(db, user.idUsuario, now)

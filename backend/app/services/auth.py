@@ -180,6 +180,8 @@ def registerLocal(db: Session, data: RegisterRequest) -> User:
         existingByUsername = db.scalar(select(User).where(User.usuario == data.usuario))
         if existingByUsername is not None and not _purgeIfExpired(db, existingByUsername):
             raise AuthError("USUARIO_REGISTRADO", "El nombre de usuario ya está registrado.")
+    # El correo debe existir antes de crear nada: sin buzón no hay forma de verificar la cuenta.
+    emailService.requireMailboxExists(data.correoElectronico)
 
     user = User(
         nombre=data.nombre,
