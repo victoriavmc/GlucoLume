@@ -41,8 +41,8 @@ export function ContactSection() {
   const [form, setForm] = useState(EMPTY);
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState('');
-  // null: sin envío; { confirmacionEnviada }: la consulta llegó (respuesta exitosa del backend).
-  const [sent, setSent] = useState(null);
+  // false: sin envío; true: la consulta llegó (respuesta exitosa del backend).
+  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
   function update(field) {
@@ -56,7 +56,7 @@ export function ContactSection() {
     event.preventDefault();
     // Sin doble envío: mientras la solicitud está en curso el botón queda deshabilitado y se ignora el submit.
     if (loading) return;
-    setSent(null);
+    setSent(false);
     const errors = validate(form);
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
@@ -70,7 +70,7 @@ export function ContactSection() {
         asunto: form.asunto.trim(),
         mensaje: form.mensaje.trim(),
       });
-      setSent({ confirmacionEnviada: Boolean(response?.confirmacionEnviada) });
+      setSent(true);
       setForm(EMPTY);
     } catch (sendError) {
       const byField = {};
@@ -114,18 +114,8 @@ export function ContactSection() {
         </div>
 
         <form className="card contact-form" onSubmit={handleSubmit} noValidate aria-labelledby="contacto-title">
-          {sent && (
-            <Alert kind="success">
-              {sent.confirmacionEnviada ? (
-                <>
-                  <b>¡Consulta enviada!</b> Recibimos tu mensaje correctamente. También enviamos una confirmación a
-                  tu correo electrónico.
-                </>
-              ) : (
-                'Recibimos tu consulta correctamente.'
-              )}
-            </Alert>
-          )}
+          {/* Solo se afirma lo que sabemos: la consulta llegó. No prometemos una confirmación al correo: no podemos saber si llega. */}
+          {sent && <Alert kind="success">Recibimos tu consulta correctamente.</Alert>}
           {error && <Alert>{error}</Alert>}
           <TextField
             label="Nombre"

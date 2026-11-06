@@ -129,7 +129,7 @@ function SendResult({ measurement, handleOperationError, onSent }) {
     previousSendState.current = sendState;
     if (before !== 'PENDIENTE' || !sendState || sendState === 'PENDIENTE') return;
     if (sendState === 'ENVIADO') {
-      setDone('Enviamos el resultado por correo electrónico.');
+      setDone('Salió el resultado por correo electrónico. No podemos confirmar que llegó.');
     } else {
       setError('No pudimos enviar el resultado por correo. Probá de nuevo en unos minutos.');
     }

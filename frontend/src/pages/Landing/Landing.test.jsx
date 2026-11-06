@@ -231,10 +231,8 @@ describe("Landing: contacto", () => {
     );
 
     const success = await within(form).findByRole("status");
-    expect(success).toHaveTextContent("¡Consulta enviada!");
-    expect(success).toHaveTextContent(
-      "También enviamos una confirmación a tu correo electrónico.",
-    );
+    expect(success).toHaveTextContent("Recibimos tu consulta correctamente.");
+    expect(success).not.toHaveTextContent("confirmación");
     expect(calls[0].body).toEqual({
       nombre: "Ana Pérez",
       email: "ana@example.com",
@@ -263,7 +261,7 @@ describe("Landing: contacto", () => {
     expect(calls).toHaveLength(1);
     release(jsonResponse(200, { mensaje: "ok", confirmacionEnviada: true }));
     expect(
-      await within(form).findByText(/¡Consulta enviada!/),
+      await within(form).findByText(/Recibimos tu consulta correctamente/),
     ).toBeInTheDocument();
   });
 

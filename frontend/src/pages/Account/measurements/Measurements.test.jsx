@@ -580,17 +580,17 @@ describe('Detalle y estados de una medición', () => {
 
   it('la cuenta individual puede enviarse el resultado por correo con un botón', async () => {
     const { calls } = open(detail({ estadoMedicion: 'COMPLETADA', spo2: '97.50', puedeOperar: false, envioResultado: 'CUENTA_PROPIA' }), {
-      [`POST /measurements/${MEASUREMENT_ID}/send-result`]: jsonResponse(200, { estadoEnvio: 'ENVIADO', correoEnmascarado: 'v***@example.com', mensaje: 'Enviamos el resultado por correo electrónico.' }),
+      [`POST /measurements/${MEASUREMENT_ID}/send-result`]: jsonResponse(200, { estadoEnvio: 'ENVIADO', correoEnmascarado: 'v***@example.com', mensaje: 'Salió el resultado por correo electrónico.' }),
     });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     await userEvent.click(await screen.findByRole('button', { name: /Enviarme el resultado por correo/ }));
-    expect(await screen.findByText(/Enviamos el resultado por correo electrónico/)).toBeInTheDocument();
+    expect(await screen.findByText(/Salió el resultado por correo electrónico/)).toBeInTheDocument();
     expect(calls.find((call) => call.key.endsWith('/send-result')).body).toEqual({});
   });
 
   it('para un paciente se pide el correo y la autorización antes de enviar', async () => {
     const { calls } = open(detail({ estadoMedicion: 'COMPLETADA', spo2: '97.50', puedeOperar: false, envioResultado: 'PACIENTE' }), {
-      [`POST /measurements/${MEASUREMENT_ID}/send-result`]: jsonResponse(200, { estadoEnvio: 'ENVIADO', correoEnmascarado: 'r***@example.com', mensaje: 'Enviamos el resultado por correo electrónico.' }),
+      [`POST /measurements/${MEASUREMENT_ID}/send-result`]: jsonResponse(200, { estadoEnvio: 'ENVIADO', correoEnmascarado: 'r***@example.com', mensaje: 'Salió el resultado por correo electrónico.' }),
     });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     const send = await screen.findByRole('button', { name: /Enviar resultado al paciente/ });
@@ -600,7 +600,7 @@ describe('Detalle y estados de una medición', () => {
     await userEvent.type(screen.getByLabelText('Correo del paciente'), 'rosa@example.com');
     await userEvent.click(screen.getByLabelText(/El paciente autorizó/));
     await userEvent.click(send);
-    expect(await screen.findByText(/Enviamos el resultado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Salió el resultado/)).toBeInTheDocument();
     expect(calls.find((call) => call.key.endsWith('/send-result')).body).toEqual({ correoDestino: 'rosa@example.com', pacienteAutoriza: true });
   });
 
@@ -619,7 +619,7 @@ describe('Detalle y estados de una medición', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Enviarme el resultado por correo/ }));
     expect(await screen.findByText(/Enviando el resultado por correo electrónico/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Enviarme el resultado por correo/ })).toBeEnabled(); // no bloquea la pantalla
-    expect(await screen.findByText(/Enviamos el resultado por correo electrónico/, {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Salió el resultado por correo electrónico/, {}, { timeout: 6000 })).toBeInTheDocument();
     expect(screen.queryByText(/Enviando el resultado por correo electrónico/)).not.toBeInTheDocument();
   }, 15000);
 

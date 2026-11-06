@@ -305,7 +305,7 @@ describe('Medición institucional: correo del paciente para sus resultados', () 
     api.set(status({ sesion: session(8, true) }));
     await pushStatus(status({ sesion: session(8, true) }));
     await user.click(await screen.findByRole('button', { name: 'Guardar medición' }));
-    expect(await screen.findByText(/Enviamos el resultado por correo al paciente \(pa\*\*\*@example.com\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/Salió el resultado por correo hacia el paciente \(pa\*\*\*@example.com\)/)).toBeInTheDocument();
   });
 
   it('al guardar, el correo del resultado sale en segundo plano: la pantalla no espera y lo dice', async () => {
