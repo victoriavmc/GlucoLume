@@ -75,6 +75,9 @@ def sendContactMessage(data: ContactRequest, clientIp: str | None) -> bool:
         raise AuthError("CONTACTO_NO_DISPONIBLE", UNAVAILABLE_MESSAGE)
     if not _limiter.allow(clientIp or "desconocido"):
         raise AuthError("DEMASIADAS_SOLICITUDES", "Enviaste varias consultas seguidas. Probá de nuevo en unos minutos.")
+    # Sin un correo que exista no hay a quién responder ni a quién confirmar: se pide corregirlo antes de mandar nada (como en el registro).
+    # Solo NO_EXISTE rechaza; si el servidor del dominio no se puede consultar, la consulta sigue.
+    emailService.requireMailboxExists(data.email)
     tipoConsulta = TIPO_CONSULTA_LABELS[data.tipoConsulta]
     # Una sola conexión SMTP para la consulta y su confirmación (antes, dos conexiones completas en serie).
     with emailService.smtpSession() as session:

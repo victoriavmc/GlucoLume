@@ -74,6 +74,17 @@ def test_contacto_envia_a_la_casilla_configurada_con_reply_to(mails, contactEnab
     assert "nuestro" not in confirmation["html"], "La confirmación no repite el mensaje de la consulta."
 
 
+def test_correo_del_remitente_que_no_existe_se_rechaza_sin_enviar_nada(mails, contactEnabled, monkeypatch):
+    from app.integrations.email.mailboxCheck import ResultadoBuzon, Veredicto
+    from app.services import email as emailService
+
+    monkeypatch.setattr(emailService, "verificarDestinatario", lambda correo: ResultadoBuzon(Veredicto.NO_EXISTE, "BUZON_NO_ENCONTRADO"))
+    with pytest.raises(AuthError) as error:
+        contactService.sendContactMessage(contact(email="sadklklsadklasdkldaskl@gmail.com"), "10.0.0.1")
+    assert error.value.code == "CORREO_NO_ENCONTRADO"
+    assert mails == []  # ni la consulta a la casilla ni la confirmación: la persona corrige el correo y vuelve a enviar
+
+
 def test_confirmacion_escapa_el_contenido_del_usuario(mails, contactEnabled):
     contactService.sendContactMessage(
         contact(nombre="Ana", asunto='<a href="http://phishing.example">Hacé clic</a>'), "10.0.0.1"
