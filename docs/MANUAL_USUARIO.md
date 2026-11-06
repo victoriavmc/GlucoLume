@@ -52,7 +52,8 @@ experimental**: sus resultados no reemplazan una medición clínica ni un consej
 
 1. **Mediciones → Nueva medición.** La primera vez aceptá la **autorización para almacenar tus mediciones** (sin eso no se mide).
 2. Elegí el dispositivo, el **modo** (Oximetría o Glucosa experimental) y la **alimentación**; si hace falta, edad y sexo solo para esta
-   medición y observaciones.
+   medición y observaciones. Si marcás **Guardar sola cuando la señal esté estable**, la medición se guarda sin que toques el botón al
+   llegar a «Señal estable» (se guarda una sola vez; en modo glucosa solo si el dispositivo informa glucosa). Sin marcarla, sigue igual.
 3. **Iniciar medición** toma el dispositivo para vos. Si falta algo, **Ver qué falta** lo indica.
 4. Apoyá el dedo: verás la señal de pulso, la frecuencia, la SpO₂, el índice óptico y la glucosa informada. Esperá a que la lectura se
    estabilice y tocá **Guardar medición** (o **Cancelar**). Al terminar, el dispositivo queda libre para otra cuenta.

@@ -188,6 +188,11 @@ autorización para medir.
 3. «Guardar medición» (`…/session/save`) evalúa las **últimas 8 lecturas consecutivas** (separación ≤ 3 s, la última ≤ 5 s): `Dedo=1`,
    `SenalValida=1`, `Muestras ≥ 25`, BPM 20–250, SpO₂ e índice disponibles, mismo origen, variación ≤ 8 lpm, ≤ 2 puntos de SpO₂ y ≤ 15 mg/dL
    de glucosa `EXPERIMENTAL`. Guarda la **mediana** en una transacción con auditoría; si no, `409 LECTURA_NO_ESTABLE`.
+   **Guardado automático (opt-in):** si al iniciar la persona marcó «Guardar sola cuando la señal esté estable», la pantalla llama a
+   este mismo endpoint en cuanto la estabilidad llega a `estable=true`, una sola vez por sesión. No cambia las reglas del servidor ni
+   envía modo, nota ni lecturas: el modo, la alimentación y la observación se eligen antes de iniciar y viajan en `session` como siempre.
+   Si el servidor responde `409`, se muestra el motivo y queda el botón manual (sin reintentos automáticos). Sin marcarla, solo el botón.
+   La preferencia vive solo en la pantalla: si se recarga durante la sesión, deja de aplicar y queda el botón manual.
 4. La sesión se libera recién después del commit. Para pacientes con correo de resultados vigente se envía el resultado automáticamente
    ([PRIVACIDAD_Y_RETENCION.md](PRIVACIDAD_Y_RETENCION.md)).
 
