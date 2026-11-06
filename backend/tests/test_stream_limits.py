@@ -69,6 +69,9 @@ def world(engine, db, monkeypatch):  # noqa: F811
         event.listen(small, "connect", listener)
     factory = sessionmaker(bind=small, autoflush=False, expire_on_commit=False)
     monkeypatch.setattr(sessionModule, "getSessionFactory", lambda: factory)
+    # telemetry.py importa getSessionFactory por nombre (_checkMeasurer): hay que parchear también ese símbolo.
+    import app.api.v1.telemetry as telemetryRoutes
+    monkeypatch.setattr(telemetryRoutes, "getSessionFactory", lambda: factory)
     monkeypatch.setattr(streams, "registry", streams.StreamRegistry(perUser=3, total=50))
     attacker, other = makeUser(db, email="a@example.com", usuario="atacante"), makeUser(db, email="b@example.com", usuario="otrapersona")
     sessions = {"attacker": makeSession(db, attacker), "other": makeSession(db, other)}
