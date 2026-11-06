@@ -1975,7 +1975,6 @@ a.dash-card:hover { border-color: var(--red-600); }
 .field-action, .home-notice-close { min-width: 44px; }
 .dash-link, .back-link { display: inline-flex; align-items: center; min-height: 44px; }
 .field-counter,
-.guide-state,
 .gd-footnote,
 .gd-timeline small { font-size: max(14px, 1em); }
 
