@@ -4,7 +4,8 @@
 //   1. Esperando dedo        — «Colocá el dedo sobre el sensor.» Sin valores fisiológicos.
 //   2. Detectando pulsaciones — hay dedo y señal óptica; se dibuja la onda PPG real y se marcan los latidos detectados.
 //   3. Analizando señal      — ya hay frecuencia cardíaca / SpO₂ válidas; se sigue evaluando la estabilidad.
-//   4. Señal estable         — 8 lecturas válidas seguidas: se habilita «Guardar medición» (siempre con confirmación de la persona).
+//   4. Señal estable         — 8 lecturas válidas seguidas: se habilita «Guardar medición». Si al iniciar la persona marcó «Guardar sola»,
+//                              se guarda una sola vez en ese momento (misma acción y mismas validaciones del servidor); si no, sigue el botón.
 // Si se pierde el dedo o la señal, el estado cambia de inmediato y el conteo de estabilidad lo reinicia el backend.
 
 import {
@@ -82,7 +83,7 @@ function MetricCard({ title, icon: Icon, tone, current, unit, decimals = 0, poin
 /** Valor ACTUAL: el de la última lectura de la sesión y solo si es válida (sin dedo o con señal inválida no se muestra el anterior). */
 const currentOf = (points, field) => points.at(-1)?.[field] ?? null;
 
-export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = false, onSaved, onCancelled, onWorking, handleOperationError }) {
+export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = false, autoSave = false, onSaved, onCancelled, onWorking, handleOperationError }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -125,6 +126,15 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
 
   const save = () => run('save', acquisitionApi.saveDeviceSession, onSaved);
   const cancel = () => run('cancel', acquisitionApi.cancelDeviceSession, onCancelled);
+
+  // Guardado automático (solo si se eligió al iniciar): al llegar a «Señal estable» se intenta UNA vez. Si el servidor lo rechaza, queda el
+  // motivo y el botón manual; no se reintenta en bucle. La referencia impide dos intentos aunque la pantalla vuelva a renderizar.
+  const autoSaveTried = useRef(false);
+  useEffect(() => {
+    if (!autoSave || autoSaveTried.current || !ready || busy) return;
+    autoSaveTried.current = true;
+    save();
+  }, [autoSave, ready, busy]); // solo se reevalúa cuando cambian estos estados; `save` usa siempre las props del render actual
 
   const hasReading = connected && reading;
   const stage = acquisitionStage(reading, stability, connected);

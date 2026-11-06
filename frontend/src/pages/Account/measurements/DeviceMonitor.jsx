@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 
 import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
-import { Alert, SelectField, SubmitButton, TextAreaField, TextField } from '../../../components/FormControls.jsx';
+import { Alert, CheckField, SelectField, SubmitButton, TextAreaField, TextField } from '../../../components/FormControls.jsx';
 import { SavingScreen } from '../../../components/SavingScreen.jsx';
 import { useDeviceReadiness } from '../acquisition/useDeviceReadiness.js';
 import { DeviceReadout } from './DeviceReadout.jsx';
@@ -29,7 +29,7 @@ const FOCUS_MODES = {
 // «Después de comer» supone una comida reciente: más de 6 horas desde la última comida no es válido (ver MAX_MINUTOS_DESPUES_DE_COMER en el backend).
 const MAX_MEAL_AGE_MS = 6 * 60 * 60 * 1000;
 
-function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, extraOptions, focus, onFocus, handleOperationError, onStarted }) {
+function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, extraOptions, focus, onFocus, autoSave, onAutoSave, handleOperationError, onStarted }) {
   const [devices, setDevices] = useState(null);
   const [selected, setSelected] = useState('');
   const [condicionComida, setCondicionComida] = useState('NO_INFORMADA');
@@ -148,6 +148,10 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                   onChange={(event) => { setLastMeal(event.target.value); setMealError(''); }} />
               )}
             </div>
+            <CheckField label="Guardar sola cuando la señal esté estable" checked={autoSave} onChange={(event) => onAutoSave(event.target.checked)}
+              hint={glucoseMode
+                ? 'Sin pulsar «Guardar medición»: al llegar a «Señal estable» se guarda con lo elegido arriba. Si el dispositivo no informa glucosa, no se guarda sola.'
+                : 'Sin pulsar «Guardar medición»: al llegar a «Señal estable» se guarda con lo elegido arriba. Podés cancelar la sesión antes de que se estabilice.'} />
             {glucoseMode && (
               <Alert kind="info">
                 {matrix ? (
@@ -195,6 +199,8 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
 export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, profile = null, patient = false, extraOptions = null, savingSteps = [], handleOperationError, onSaved, onCancelled }) {
   const { status, error, refresh } = useDeviceStatus();
   const [focus, setFocus] = useState('OXIMETRIA');
+  // Guardado automático: lo elige la persona al iniciar (desmarcado por defecto). Solo vive en esta pantalla; no se envía al servidor.
+  const [autoSave, setAutoSave] = useState(false);
   const inSession = Boolean(status && !status.ocupado && status.sesion);
   // Guardar o cancelar: el servidor libera la sesión ANTES de responder (y al guardar también envía el resultado por correo), así que el estado
   // del dispositivo ya dice «sin sesión» mientras la respuesta tarda. Se conserva la última sesión y una pantalla de carga hasta que responda,
@@ -210,7 +216,7 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
       <section className="measure-flow" aria-label="Medición con el dispositivo">
         {error && <Alert>{error}</Alert>}
         <DeviceSession status={sessionStatus} profileLabel={profileLabel} patient={patient} handleOperationError={handleOperationError}
-          onWorking={setWorking}
+          autoSave={autoSave} onWorking={setWorking}
           onSaved={(detail) => { setWorking(''); refresh(); onSaved?.(detail); }} onCancelled={(detail) => { setWorking(''); refresh(); onCancelled?.(detail); }} />
         {working === 'save' && <SavingScreen title="Guardando la medición…" steps={['Registrando los resultados', ...savingSteps]} />}
         {working === 'cancel' && <SavingScreen title="Cancelando la medición…" note="Un momento: liberamos el dispositivo." />}
@@ -230,7 +236,7 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
       {/* Antes de iniciar solo hay configuración y estado del dispositivo: la «Medición en tiempo real» aparece con la sesión. */}
       {status && !status.ocupado && (
         <StartForm status={status} idPerfilMedicion={idPerfilMedicion} idInstitucion={idInstitucion} profile={profile} patient={patient} extraOptions={extraOptions}
-          focus={focus} onFocus={setFocus} handleOperationError={handleOperationError} onStarted={refresh} />
+          focus={focus} onFocus={setFocus} autoSave={autoSave} onAutoSave={setAutoSave} handleOperationError={handleOperationError} onStarted={refresh} />
       )}
     </section>
   );

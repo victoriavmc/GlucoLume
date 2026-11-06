@@ -572,6 +572,108 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
   });
 });
 
+describe('Nueva medición con el dispositivo: guardado automático (opt-in al iniciar)', () => {
+  const AUTO = 'Guardar sola cuando la señal esté estable';
+  const SAVE_CALL = 'POST /acquisition/telemetry/session/save';
+  const START_CALL = 'POST /acquisition/telemetry/session';
+  const session = (lecturasValidas, estable, motivo = 'LECTURAS_INSUFICIENTES') => ({
+    idMedicion: MEASUREMENT_ID, iniciada: '2026-10-08T09:00:00Z', enlacePerdido: false,
+    estabilidad: { estable, motivo: estable ? null : motivo, mensaje: null, lecturasValidas, lecturasRequeridas: 8 },
+  });
+  const settle = () => act(() => new Promise((resolve) => { setTimeout(resolve, 20); })); // deja correr las llamadas pendientes
+  // Inicia la medición desde el formulario, con o sin «Guardar sola» marcado (y el modo indicado, si se pasa). Devuelve cuando el
+  // inicio llegó al backend; el monitor aparece después, con el estado de sesión que cada prueba informa.
+  async function startSession(user, api, { auto, mode }) {
+    renderAt('/app/mediciones/nueva');
+    const section = await card();
+    if (mode) await user.selectOptions(await within(section).findByLabelText('Modo de medición'), mode);
+    const box = await within(section).findByRole('checkbox', { name: AUTO });
+    if (box.checked !== auto) await user.click(box);
+    await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
+    await waitFor(() => expect(api.calls.some((call) => call.key === START_CALL)).toBe(true));
+  }
+  const liveRegion = () => screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
+
+  it('por defecto no se guarda sola: al estabilizarse espera el botón «Guardar medición» (el checkbox viene desmarcado)', async () => {
+    const api = routes(status(), {
+      [START_CALL]: () => jsonResponse(201, detail()), [SAVE_CALL]: jsonResponse(200, SAVED_DEMO),
+    });
+    const user = userEvent.setup();
+    renderAt('/app/mediciones/nueva');
+    const section = await card();
+    expect(await within(section).findByRole('checkbox', { name: AUTO })).not.toBeChecked();
+    await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
+    await waitFor(() => expect(api.calls.some((call) => call.key === START_CALL)).toBe(true));
+    api.set(status({ sesion: session(3, false) }));
+    await pushStatus(status({ sesion: session(3, false) }));
+    await pushStatus(status({ sesion: session(8, true) }));
+    await settle();
+    const live = screen.getByRole('region', { name: 'Sesión de medición con el dispositivo' });
+    expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeEnabled();
+    expect(api.calls.some((call) => call.key === SAVE_CALL)).toBe(false);
+  });
+
+  it('con «Guardar sola» marcado, al llegar a «Señal estable» guarda una sola vez, sin pulsar nada, y muestra el resultado', async () => {
+    const api = routes(status(), {
+      [START_CALL]: () => jsonResponse(201, detail()), [SAVE_CALL]: jsonResponse(200, SAVED_DEMO),
+      [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, SAVED_DEMO),
+    });
+    const user = userEvent.setup();
+    await startSession(user, api, { auto: true });
+    // El inicio no envía el checkbox: es una preferencia de esta pantalla, y el backend recibe lo mismo que siempre.
+    expect(api.calls.find((call) => call.key === START_CALL).body).toEqual({
+      idPerfilMedicion: PROFILE_ID, idDispositivo: 'd-1', condicionComida: 'NO_INFORMADA', modoMedicion: 'OXIMETRIA',
+    });
+    api.set(status({ sesion: session(3, false) }));
+    await pushStatus(status({ sesion: session(3, false) }));
+    expect(api.calls.some((call) => call.key === SAVE_CALL)).toBe(false); // todavía no estable
+    await pushStatus(status({ sesion: session(8, true) }));
+    expect(await screen.findByRole('heading', { name: 'Medición guardada' })).toBeInTheDocument();
+    await pushStatus(status({ sesion: session(8, true) })); // nuevas lecturas estables no disparan otro guardado
+    await settle();
+    expect(api.calls.filter((call) => call.key === SAVE_CALL)).toHaveLength(1);
+  });
+
+  it('si el servidor rechaza el guardado automático muestra el motivo, no reintenta en bucle y deja el botón manual', async () => {
+    const api = routes(status(), {
+      [START_CALL]: () => jsonResponse(201, detail()),
+      [SAVE_CALL]: jsonResponse(409, { codigo: 'LECTURA_NO_ESTABLE', detail: 'El dedo no está colocado sobre el sensor.' }),
+    });
+    const user = userEvent.setup();
+    await startSession(user, api, { auto: true });
+    api.set(status({ sesion: session(3, false) }));
+    await pushStatus(status({ sesion: session(3, false) }));
+    await pushStatus(status({ sesion: session(8, true) }));
+    const live = await liveRegion();
+    expect(await within(live).findByText('El dedo no está colocado sobre el sensor.')).toBeInTheDocument();
+    await pushStatus(status({ sesion: session(8, true) }));
+    await settle();
+    expect(api.calls.filter((call) => call.key === SAVE_CALL)).toHaveLength(1);
+    expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeEnabled(); // el guardado manual sigue disponible
+  });
+
+  it('en modo glucosa sin valor de glucosa no se guarda sola: la estabilidad del servidor no la da por estable', async () => {
+    const message = 'Estimación de glucosa no disponible: el dispositivo no informa un valor de glucosa (sin calibrar).';
+    const api = routes(status(), {
+      [START_CALL]: () => jsonResponse(201, detail({ modoMedicion: 'GLUCOSA_EXPERIMENTAL' })), [SAVE_CALL]: jsonResponse(200, SAVED_DEMO),
+    });
+    const user = userEvent.setup();
+    await startSession(user, api, { auto: true, mode: 'GLUCOSA_EXPERIMENTAL' });
+    const noGlucose = {
+      sesion: { idMedicion: MEASUREMENT_ID, iniciada: '2026-10-08T09:00:00Z', enlacePerdido: false, modo: 'GLUCOSA_EXPERIMENTAL',
+        estabilidad: { estable: false, motivo: 'GLUCOSA_NO_DISPONIBLE', mensaje: message, lecturasValidas: 8, lecturasRequeridas: 8 } },
+      lectura: { ...READING, origen: 'SIN_CALIBRAR', esDemo: false, glucosa: null, unidadGlucosa: null },
+    };
+    api.set(status(noGlucose));
+    await pushStatus(status(noGlucose));
+    const live = await liveRegion();
+    await settle();
+    expect(api.calls.some((call) => call.key === SAVE_CALL)).toBe(false);
+    expect(within(live).getByText(message)).toBeInTheDocument();
+    expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeDisabled();
+  });
+});
+
 describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
   const ITEM = {
     idMedicion: MEASUREMENT_ID, fechaHoraInicio: '2026-10-08T09:00:00', fechaHoraFin: '2026-10-08T09:00:12', modoMedicion: 'OXIMETRIA',
