@@ -364,7 +364,8 @@ class DeviceIdentification(BaseModel):
 class BridgeAuthority(BaseModel):
     """¿Puede quien consulta dar órdenes al puente? Lo resuelve el backend según el contexto del dispositivo que el puente atiende."""
 
-    contexto: Literal["SIN_DISPOSITIVO", "PERSONAL", "INSTITUCIONAL_PROPIA", "INSTITUCIONAL_AJENA"]
+    # COMPARTIDO: uso compartido del equipo (DEC-01). Lo devuelve services/telemetry.bridgeAuthority.
+    contexto: Literal["SIN_DISPOSITIVO", "PERSONAL", "COMPARTIDO", "INSTITUCIONAL_PROPIA", "INSTITUCIONAL_AJENA", "INSTITUCIONAL_PAUSADA"]
     permitido: bool
     motivo: str | None = None
 
