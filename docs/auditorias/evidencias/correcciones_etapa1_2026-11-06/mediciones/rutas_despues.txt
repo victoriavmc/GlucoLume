@@ -1,0 +1,19 @@
+PASS  SPA /ayuda -> 200 index.html
+PASS  SPA /ayuda/ -> 200 index.html
+PASS  SPA /ayuda?seccion=cliente -> 200 index.html
+PASS  SPA /app/ayuda -> 200 index.html
+PASS  SPA /consejos -> 200 index.html
+PASS  captura /ayuda/cliente-menu-inicio.png -> 200 image/png
+PASS  captura /ayuda/cliente-menu-inicio.png -> Cache-Control max-age=604800
+PASS  miniatura /ayuda/miniaturas/cliente-menu-inicio.webp -> 200 image/webp
+PASS  miniatura -> Cache-Control max-age=604800
+PASS  /ayuda/no-existe.png -> 404
+PASS  /ayuda conserva content-security-policy
+PASS  /ayuda conserva x-frame-options
+PASS  /ayuda conserva x-content-type-options
+PASS  /ayuda conserva referrer-policy
+PASS  /ayuda (SPA) -> no-cache
+PASS  /index.html -> no-cache
+PASS  /assets/index-vUKtaQCt.js -> 200 con max-age=31536000
+
+Todas las comprobaciones pasaron.

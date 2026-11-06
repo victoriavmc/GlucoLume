@@ -1,0 +1,2 @@
+{"threadpool_libre": {"p50_ms": 1.4, "max_ms": 37.4}, "con_40_bloqueadas": {"p50_ms": 2.5, "max_ms": 3.7}}
+{"threadpool_libre": {"p50_ms": 1.4, "max_ms": 27.5}, "con_40_bloqueadas": {"p50_ms": 2.7, "max_ms": 3.4}}

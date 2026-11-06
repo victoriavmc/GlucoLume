@@ -1,0 +1,20 @@
+{
+  "etiqueta": "antes",
+  "base": "http://127.0.0.1:8082",
+  "escritorioAltoPagina": 59774,
+  "clsMovilScroll_rep1": {
+    "cls": 0,
+    "desplazamientos": 0,
+    "duracionMs": 25709
+  },
+  "clsMovilScroll_rep2": {
+    "cls": 0,
+    "desplazamientos": 0,
+    "duracionMs": 25656
+  },
+  "clsMovilScroll_rep3": {
+    "cls": 0,
+    "desplazamientos": 0,
+    "duracionMs": 25817
+  }
+}

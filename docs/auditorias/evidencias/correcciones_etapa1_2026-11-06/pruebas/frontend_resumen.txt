@@ -1,0 +1,6 @@
+Frontend (Vitest, rama fix/estabilidad-pre-exposicion)
+- Pruebas de Ayuda (src/pages/Account/help): 17 de 17 pasan (incluye 3 pruebas nuevas de tamaños de miniaturas).
+- Mutación verificada: un tamaño alterado en miniaturasTamanos.js hace fallar "el tamaño del mapa coincide con el encabezado real de cada WebP"; restaurado, pasan 7 de 7.
+- Suite completa: 854 pasan, 1 falla: PatientMeasure.test.jsx > "si se informa la última comida se envía con su fecha y hora" (≈5,2 s).
+  Esa misma falla ocurre en master sin ningún cambio de esta etapa (verificado con un worktree de master): preexistente, no es regresión.
+Backend (pytest): ver backend_resumen.txt. Conjunto de fallos idéntico en master y en la rama (86 fallos de entorno).

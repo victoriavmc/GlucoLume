@@ -1,0 +1,3 @@
+tamaños: (1366, 59774) (1366, 59774)
+bbox de diferencias: None
+píxeles distintos: 0 de 81651284

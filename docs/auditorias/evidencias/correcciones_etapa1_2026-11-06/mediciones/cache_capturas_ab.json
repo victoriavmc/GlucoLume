@@ -1,0 +1,34 @@
+{
+  "antes_master": {
+    "primera": {
+      "peticiones": 22,
+      "desdeCache": 0,
+      "red304": 0,
+      "red200": 22,
+      "cacheControl": ""
+    },
+    "segunda": {
+      "peticiones": 22,
+      "desdeCache": 22,
+      "red304": 0,
+      "red200": 0,
+      "cacheControl": ""
+    }
+  },
+  "despues_correccion": {
+    "primera": {
+      "peticiones": 22,
+      "desdeCache": 0,
+      "red304": 0,
+      "red200": 22,
+      "cacheControl": "max-age=604800"
+    },
+    "segunda": {
+      "peticiones": 22,
+      "desdeCache": 22,
+      "red304": 0,
+      "red200": 0,
+      "cacheControl": "max-age=604800"
+    }
+  }
+}

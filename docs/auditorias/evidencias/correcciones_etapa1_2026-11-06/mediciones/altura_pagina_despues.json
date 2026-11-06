@@ -1,0 +1,20 @@
+{
+ "base": "http://127.0.0.1:8080",
+ "repeticiones": [
+  {
+   "alAbrirPx": 59774,
+   "alFinalPx": 59774,
+   "crecimientoPct": 0
+  },
+  {
+   "alAbrirPx": 59774,
+   "alFinalPx": 59774,
+   "crecimientoPct": 0
+  },
+  {
+   "alAbrirPx": 59774,
+   "alFinalPx": 59774,
+   "crecimientoPct": 0
+  }
+ ]
+}

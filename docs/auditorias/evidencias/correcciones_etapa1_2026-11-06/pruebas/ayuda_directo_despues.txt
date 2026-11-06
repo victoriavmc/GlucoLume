@@ -1,0 +1,6 @@
+acceso directo /ayuda              temas=14 figuras=114 miniaturas-ya-cargadas=4 url=/ayuda
+recarga (F5)                       temas=14 figuras=114 miniaturas-ya-cargadas=6 url=/ayuda
+acceso directo /ayuda/             temas=14 figuras=114 miniaturas-ya-cargadas=6 url=/ayuda/
+navegación interna desde portada   temas=14 figuras=114 miniaturas-ya-cargadas=6 url=/ayuda
+errores HTTP/JS: ninguno
+LISTO
