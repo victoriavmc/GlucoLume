@@ -225,7 +225,8 @@ describe('Conectar dispositivo: guías', () => {
     expect(within(guide).getByText(/Hacen falta 8 lecturas válidas consecutivas/)).toBeInTheDocument();
     expect(within(guide).getByText(/Identificá el origen del dato/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Cómo colocar el dedo en el MAX30100/ })).toBeInTheDocument();
-    expect(screen.getByText(/DEMO son valores sintéticos/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Importante' })).toBeInTheDocument();
+    expect(screen.getByText(/La estimación de glucosa no está calibrada/)).toBeInTheDocument();
   });
 });
 

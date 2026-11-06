@@ -227,3 +227,11 @@ export const FINGER_TIPS = [
   'Mantené la mano apoyada y sin moverte hasta que el dedo figure como detectado.',
   'Evitá luz solar directa o lámparas intensas sobre el sensor.',
 ];
+
+/** Avisos del bloque «Importante» de la guía de medición. */
+export const IMPORTANT_NOTES = [
+  'Los valores son de prueba (DEMO/EXPERIMENTAL).',
+  'La estimación de glucosa no está calibrada.',
+  'Usá siempre el mismo dedo y evitá movimientos.',
+  'No es un glucómetro ni reemplaza un diagnóstico médico.',
+];
