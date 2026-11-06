@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Modal } from '../../../components/Modal.jsx';
+import { TAMANOS_MINIATURAS } from './miniaturasTamanos.js';
 
 // Espejo del menú de layouts/Sidebar.jsx para cada tipo de cuenta: si cambia un nombre o una ruta, cambiarlo también aquí
 // (y volver a capturar: scripts en public/ayuda/ se generan con la app local).
@@ -65,6 +66,8 @@ export function PasoImagen({ captura, alt, pie }) {
   // El visor amplía el original (`src`); la miniatura en la guía es una versión WebP de hasta 840 px (2× el ancho máximo de 420 px).
   const src = `/ayuda/${captura}`;
   const miniatura = `/ayuda/miniaturas/${captura.replace(/\.png$/, '.webp')}`;
+  // Tamaño de la miniatura: reserva el marco antes de que cargue (sin salto de diseño). Si falta en el mapa, la imagen queda sin atributos.
+  const [ancho, alto] = TAMANOS_MINIATURAS[captura.replace(/\.png$/, '.webp')] ?? [];
 
   function abrir() {
     const figuras = [...document.querySelectorAll('figure.help-captura')];
@@ -75,7 +78,7 @@ export function PasoImagen({ captura, alt, pie }) {
   return (
     <figure className="help-captura" ref={figuraRef} data-src={src} data-miniatura={miniatura} data-alt={alt} data-titulo={pie ?? alt}>
       <button type="button" className="help-captura-boton" aria-label={`Ampliar imagen: ${alt}`} onClick={abrir}>
-        <img src={miniatura} alt="" loading="lazy" decoding="async" />
+        <img src={miniatura} width={ancho} height={alto} alt="" loading="lazy" decoding="async" />
       </button>
       {pie && <figcaption>{pie}</figcaption>}
       {visor && <VisorCapturas lista={visor.lista} indice={visor.indice} onCambiar={(indice) => setVisor({ ...visor, indice })} onClose={() => setVisor(null)} />}
