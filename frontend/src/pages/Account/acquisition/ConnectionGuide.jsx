@@ -1,17 +1,13 @@
-// Elección del medio (Bluetooth o USB) y su guía paso a paso. Los pasos que el backend puede comprobar llevan su marca real
-// (correcto / con problema / pendiente); los que hace la persona se presentan como tales, sin aparentar una verificación.
+// Elección del medio de conexión (Bluetooth o USB). La guía paso a paso se quitó de esta pantalla: el medio elegido
+// sigue determinando la velocidad y el tipo de puerto que usan el puente y la conexión desde el navegador.
 
-import { Bluetooth, Hand, Usb } from 'lucide-react';
+import { Bluetooth, Usb } from 'lucide-react';
 
-import { StateIcon } from './ConnectionStatusPanel.jsx';
-import { MEDIA, guideSteps } from './connectModel.js';
+import { MEDIA } from './connectModel.js';
 
 const ICONS = { BLUETOOTH: Bluetooth, USB: Usb };
-const STATE_CLASS = { OK: 'is-ok', ERROR: 'is-error', PENDIENTE: 'is-pending', MANUAL: 'is-manual' };
-const STATE_LABEL = { OK: 'Comprobado', ERROR: 'Con problema', PENDIENTE: 'Pendiente', MANUAL: 'Lo hacés vos' };
 
-export function ConnectionGuide({ medium, onMediumChange, status, readiness, institutional = false }) {
-  const steps = guideSteps(medium, status, readiness, institutional);
+export function ConnectionGuide({ medium, onMediumChange }) {
   return (
     <section className="panel connect-panel" aria-labelledby="guia-conexion">
       <div className="panel-title">
@@ -33,20 +29,6 @@ export function ConnectionGuide({ medium, onMediumChange, status, readiness, ins
           );
         })}
       </div>
-
-      <h3 className="guide-title">Guía: {MEDIA[medium].label} ({MEDIA[medium].baud} baudios)</h3>
-      <ol className="guide-steps" aria-label={`Pasos de la conexión por ${MEDIA[medium].label}`}>
-        {steps.map((step, index) => (
-          <li key={step.titulo} className={`guide-step ${STATE_CLASS[step.estado]}`}>
-            <span className="guide-marker" aria-hidden="true">{step.estado === 'MANUAL' ? <Hand size={14} /> : <StateIcon state={step.estado} size={14} />}</span>
-            <span className="guide-body">
-              <b>{index + 1}. {step.titulo}</b>
-              {step.detalle && <small>{step.detalle}</small>}
-            </span>
-            <span className="guide-state">{STATE_LABEL[step.estado]}</span>
-          </li>
-        ))}
-      </ol>
     </section>
   );
 }

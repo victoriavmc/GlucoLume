@@ -6,7 +6,6 @@ import { Plug, Unplug } from 'lucide-react';
 
 import { Alert } from '../../../components/FormControls.jsx';
 import { STATES, useBrowserLink } from '../../../utils/browserSerialLink.js';
-import { BridgeInstallSteps } from './BridgeSettings.jsx';
 import { MEDIA } from './connectModel.js';
 
 export function BrowserConnection({ status, medium }) {
@@ -54,11 +53,6 @@ export function BrowserConnection({ status, medium }) {
           {' '}Solo lee: GlucoLume nunca escribe en el Arduino. Si no aparece ninguno, revisá el cable o el controlador.
         </p>
       )}
-
-      <details className="connect-alt">
-        <summary>¿Preferís instalar el puente en la computadora?</summary>
-        <BridgeInstallSteps />
-      </details>
     </section>
   );
 }

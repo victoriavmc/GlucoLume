@@ -23,7 +23,7 @@ export const LOCAL_COMMANDS = {
   doctor: 'python backend\\acquisition\\bridge\\bridge_ctl.py doctor',
 };
 
-const STATE = { OK: 'OK', PENDING: 'PENDIENTE', ERROR: 'ERROR', MANUAL: 'MANUAL' };
+const STATE = { OK: 'OK', PENDING: 'PENDIENTE', ERROR: 'ERROR' };
 
 /** La conexión activa la abrió un navegador (Web Serial), no un puente instalado. */
 export const fromBrowser = (status) => status?.puente?.origen === 'NAVEGADOR';
@@ -31,12 +31,6 @@ export const fromBrowser = (status) => status?.puente?.origen === 'NAVEGADOR';
 export const bridgeRunning = (status) => Boolean(status) && status.estado !== 'SIN_PUENTE' && Boolean(status.puente);
 
 export const portsOf = (status) => status?.puente?.puertosDisponibles ?? [];
-
-/** Puertos que el puente ve y que corresponden al medio elegido (Bluetooth o Arduino/USB-serie). */
-export function portsForMedium(status, medium) {
-  const flag = medium === 'BLUETOOTH' ? 'esBluetooth' : 'esArduino';
-  return portsOf(status).filter((port) => port[flag]);
-}
 
 export function readinessStep(readiness, id) {
   return readiness?.pasos?.find((step) => step.id === id) ?? null;
@@ -50,16 +44,6 @@ export function recognized(status, medium) {
   const port = portsOf(status).find((item) => item.puerto.toLowerCase() === configured.toLowerCase());
   if (!port) return false;
   return medium === 'BLUETOOTH' ? port.esBluetooth : port.esArduino || !port.esBluetooth;
-}
-
-/** Aviso de un puerto que Windows reporta con problemas de controlador (p. ej. estado Unknown del CH340). */
-export function windowsWarning(status) {
-  const configured = status?.puente?.puerto?.toLowerCase();
-  const port = portsOf(status).find((item) => item.puerto.toLowerCase() === configured) ?? portsOf(status).find((item) => item.esArduino && item.estadoWindows && item.estadoWindows !== 'OK');
-  if (port?.estadoWindows && port.estadoWindows !== 'OK') {
-    return `Windows informa el estado «${port.estadoWindows}» para ${port.puerto}: reinstalá el controlador del adaptador (CH340) o probá otro cable.`;
-  }
-  return null;
 }
 
 /** Las cuatro etapas: reconocido → puerto abierto → telemetría → disponible. Cada una con su propio estado. */
@@ -134,76 +118,6 @@ export function nextAction(status, readiness, medium, browserSupported = webSeri
   if (blocker) return { kind: 'info', title: blocker.titulo, detail: blocker.detalle, solution: blocker.solucion };
   const last = readinessStep(readiness, 'DISPONIBLE');
   return { kind: 'info', title: last?.titulo ?? 'Comprobando', detail: last?.detalle ?? 'Comprobando el estado del dispositivo…', solution: last?.solucion ?? null };
-}
-
-/**
- * Operador: identificar el Arduino, registrarlo si es nuevo y confirmar que su institución lo puede usar son un solo paso de la guía; el estado
- * es el del primero que no está bien (identidad → registro → asociación). El paciente no se vincula acá: se elige al medir.
- */
-function institutionLink(readiness) {
-  const steps = ['IDENTIDAD', 'REGISTRADO', 'ASOCIADO'].map((id) => readinessStep(readiness, id));
-  const open = steps.find((item) => item && item.estado !== 'OK');
-  const done = steps.every((item) => item?.estado === 'OK');
-  return {
-    titulo: 'Identificá el dispositivo y confirmá su vinculación con tu institución',
-    detalle: done ? 'El dispositivo está identificado y vinculado a tu institución; el paciente se elige al medir.'
-      : (open?.detalle ?? 'Se comprueba cuando el Arduino se comunique: si es nuevo, registralo en «Dispositivo de esta conexión».'),
-    estado: done ? STATE.OK : open?.estado ?? STATE.PENDING,
-  };
-}
-
-/**
- * Pasos de la guía de conexión. `estado`: OK (comprobado), ERROR (comprobado y mal), PENDIENTE (todavía no se puede
- * comprobar) o MANUAL (lo hace la persona y el sistema no puede verlo). Solo los pasos que el backend puede verificar
- * llevan marca; los demás se presentan como acciones de la persona.
- */
-export function guideSteps(medium, status, readiness, institutional = false) {
-  const running = bridgeRunning(status);
-  const bridge = status?.puente;
-  const step = (id) => readinessStep(readiness, id);
-  const mark = (okFlag, whenUnknown = STATE.PENDING) => (okFlag === null ? whenUnknown : okFlag ? STATE.OK : STATE.ERROR);
-  const portsFound = portsForMedium(status, medium);
-  const baud = MEDIA[medium].baud;
-  const portsText = !running ? 'Se muestran cuando el puente esté ejecutándose.'
-    : portsFound.length ? `El puente ve: ${portsFound.map((p) => `${p.puerto}${p.descripcion ? ` (${p.descripcion})` : ''}`).join(', ')}.` : 'El puente no ve ningún puerto de este tipo.';
-  const speedOk = running && bridge.baudios ? bridge.baudios === baud && bridge.medio === medium : null;
-  const busy = bridge?.codigoError === 'PUERTO_OCUPADO';
-  const common = {
-    bridge: fromBrowser(status)
-      ? { titulo: 'Verificá que el navegador esté leyendo el Arduino', detalle: 'Esta conexión se mantiene mientras la pestaña de GlucoLume esté abierta.', estado: STATE.OK }
-      : { titulo: 'Verificá que el servicio puente esté ejecutándose', detalle: running ? 'El puente informa actividad.' : 'No hay latidos del puente.', estado: running ? STATE.OK : STATE.ERROR },
-    reception: { titulo: 'Comprobá la recepción de datos', detalle: step('TELEMETRIA')?.detalle ?? 'Sin datos todavía.', estado: step('TELEMETRIA')?.estado ?? STATE.PENDING },
-    link: institutional ? institutionLink(readiness) : { titulo: 'Vinculá el dispositivo registrado con el perfil autorizado',
-      detalle: step('ASOCIADO')?.estado === 'OK' ? 'El perfil puede usar este dispositivo.' : (step('ASOCIADO')?.detalle ?? step('REGISTRADO')?.detalle ?? 'Se comprueba cuando llegue telemetría.'),
-      estado: step('ASOCIADO')?.estado ?? STATE.PENDING },
-    enable: { titulo: 'Habilitá la opción de realizar una medición', detalle: readiness?.listo ? 'Habilitada: «Mis mediciones» ya permite iniciar la sesión.' : 'Se habilita cuando todos los pasos anteriores estén bien.',
-      estado: readiness?.listo ? STATE.OK : STATE.PENDING },
-  };
-  if (medium === 'BLUETOOTH') {
-    return [
-      { titulo: 'Encendé el Arduino y verificá que el módulo Bluetooth tenga alimentación', detalle: 'El LED del HC-05/HC-06 debe parpadear.', estado: STATE.MANUAL },
-      { titulo: 'Activá el Bluetooth en Windows', detalle: 'Configuración → Bluetooth y dispositivos.', estado: STATE.MANUAL },
-      { titulo: 'Emparejá el HC-05/HC-06 desde la configuración de Bluetooth', detalle: 'PIN 1234 o 0000. Windows crea dos puertos COM: uno saliente y otro entrante.',
-        estado: running ? mark(portsForMedium(status, 'BLUETOOTH').length > 0) : STATE.PENDING },
-      { titulo: 'Identificá el puerto COM saliente asignado al módulo', detalle: `Configuración → Bluetooth → Más opciones de Bluetooth → Puertos COM («Saliente»). ${portsText}`, estado: STATE.MANUAL },
-      { titulo: 'Seleccioná ese puerto en GlucoLume', detalle: running ? 'Usá «Configuración del puente» más abajo: solo aparecen los puertos que el puente ve.' : 'Disponible cuando el puente esté ejecutándose (o elegilo en la instalación local).',
-        estado: running && bridge.puerto ? (recognized(status, medium) ? STATE.OK : STATE.ERROR) : STATE.PENDING },
-      { titulo: 'Usá 9600 baudios', detalle: running && bridge.baudios ? `El puente lee a ${bridge.baudios} baudios.` : 'Se aplica sola al elegir Bluetooth.', estado: speedOk === null ? STATE.PENDING : speedOk ? STATE.OK : STATE.ERROR },
-      common.bridge, common.reception, common.link, common.enable,
-    ];
-  }
-  return [
-    { titulo: 'Conectá el Arduino UNO a la computadora con un cable USB de datos', detalle: 'Un cable solo de carga no funciona.', estado: STATE.MANUAL },
-    { titulo: 'Verificá que Windows reconozca el dispositivo', detalle: windowsWarning(status) ?? (portsFound.length ? 'Windows muestra un puerto de Arduino/USB-serie.' : 'Si no aparece ningún puerto, instalá el controlador CH340.'),
-      estado: !running ? STATE.PENDING : windowsWarning(status) ? STATE.ERROR : portsFound.length ? STATE.OK : STATE.ERROR },
-    { titulo: 'Identificá el puerto COM correspondiente', detalle: portsText, estado: STATE.MANUAL },
-    { titulo: 'Seleccioná ese puerto mediante el puente local', detalle: running ? 'Usá «Configuración del puente» más abajo.' : 'Disponible cuando el puente esté ejecutándose.',
-      estado: running && bridge.puerto ? (recognized(status, medium) ? STATE.OK : STATE.ERROR) : STATE.PENDING },
-    { titulo: 'Usá 115200 baudios', detalle: running && bridge.baudios ? `El puente lee a ${bridge.baudios} baudios.` : 'Se aplica sola al elegir USB.', estado: speedOk === null ? STATE.PENDING : speedOk ? STATE.OK : STATE.ERROR },
-    { titulo: 'Comprobá que ningún Monitor Serie ni otra aplicación ocupe el puerto', detalle: busy ? bridge.ultimoError : 'Cerrá el Monitor Serie del Arduino IDE, PuTTY o miniterm.',
-      estado: !running ? STATE.PENDING : busy ? STATE.ERROR : bridge.estadoEnlace === 'CONECTADO' ? STATE.OK : STATE.PENDING },
-    common.reception, common.link, common.enable,
-  ];
 }
 
 /** Pasos de «Cómo realizar una medición» (los tiempos salen del firmware, 1 lectura por segundo, y del criterio del backend). */

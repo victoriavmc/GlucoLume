@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearTokens, saveTokens } from '../../../auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../../test/helpers.js';
 import { renderAt } from '../../../test/renderApp.jsx';
-import { guideSteps, indicators, nextAction, pipeline } from './connectModel.js';
+import { indicators, nextAction, pipeline } from './connectModel.js';
 
 vi.mock('../../../api/acquisitionApi.js', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -126,15 +126,15 @@ describe('Conectar dispositivo: estado real', () => {
     open(status({ estado: 'PUERTO_DESCONECTADO', lectura: null, puente: searching }), readiness({}));
     expect(await screen.findByRole('radio', { name: /Automático/ })).toBeChecked();
     expect(screen.queryByText('Algo salió mal')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Guía: Bluetooth/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Conexión por Bluetooth/ })).toBeChecked();
   });
 
-  it('elegir Automático desde el selector no rompe la guía y el botón aplica el modo sin puerto', async () => {
+  it('elegir Automático desde el selector no rompe la pantalla y el botón aplica el modo sin puerto', async () => {
     const user = userEvent.setup();
     open(status(), READY);
     await user.click(await screen.findByRole('radio', { name: /Automático/ }));
     expect(screen.queryByText('Algo salió mal')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Guía: Bluetooth/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Conexión por Bluetooth/ })).toBeChecked();
     expect(screen.queryByRole('combobox', { name: 'Puerto COM' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Aplicar modo automático/ })).toBeEnabled();
   });
@@ -182,34 +182,15 @@ describe('Conectar dispositivo: estado real', () => {
 });
 
 describe('Conectar dispositivo: guías', () => {
-  it('Bluetooth muestra 10 pasos a 9600 baudios y USB 9 pasos a 115200, sin fijar ningún puerto', async () => {
+  it('el selector de medio cambia entre Bluetooth y USB, sin lista de pasos', async () => {
     const user = userEvent.setup();
     open(status({ estado: 'SIN_PUENTE', puente: null, lectura: null }), READY);
     await screen.findByRole('heading', { name: /Elegí cómo conectar/ });
-    const bluetooth = screen.getByRole('list', { name: 'Pasos de la conexión por Bluetooth' });
-    expect(within(bluetooth).getAllByRole('listitem')).toHaveLength(10);
-    expect(within(bluetooth).getByText(/Usá 9600 baudios/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Conexión por Bluetooth/ })).toBeChecked();
+    expect(screen.queryByRole('list', { name: /Pasos de la conexión/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: /Conexión por USB/ }));
-    const usb = screen.getByRole('list', { name: 'Pasos de la conexión por USB' });
-    expect(within(usb).getAllByRole('listitem')).toHaveLength(9);
-    expect(within(usb).getByText(/Usá 115200 baudios/)).toBeInTheDocument();
-    expect(within(usb).getByText(/Un cable solo de carga no funciona/)).toBeInTheDocument();
-    expect(document.querySelector('.guide-steps')?.textContent).not.toMatch(/COM[0-9]/);
-  });
-
-  it('los pasos que solo hace la persona no llevan marca de comprobado', () => {
-    const steps = guideSteps('BLUETOOTH', status(), READY);
-    expect(steps[0].estado).toBe('MANUAL');
-    expect(steps[1].estado).toBe('MANUAL');
-    expect(steps.at(-1).estado).toBe('OK');
-    expect(guideSteps('USB', STOPPED, null).filter((item) => item.estado === 'OK')).toHaveLength(0);
-  });
-
-  it('USB: avisa si Windows reporta el adaptador en estado Unknown (controlador)', () => {
-    const unknown = status({ puente: { ...BRIDGE, medio: 'USB', puerto: 'COM3', baudios: 115200, puertosDisponibles: [{ ...USB_PORT, estadoWindows: 'Unknown' }] } });
-    const steps = guideSteps('USB', unknown, READY);
-    expect(steps[1].estado).toBe('ERROR');
-    expect(steps[1].detalle).toMatch(/Windows informa el estado «Unknown» para COM3/);
+    expect(screen.getByRole('radio', { name: /Conexión por USB/ })).toBeChecked();
+    expect(screen.queryByText(/Guía: /)).not.toBeInTheDocument();
   });
 
   it('la velocidad que no corresponde al medio se marca (Bluetooth a 115200)', () => {
@@ -332,12 +313,12 @@ describe('Conectar dispositivo: desde el navegador (Web Serial)', () => {
     delete navigator.serial;
   });
 
-  it('sin puente ofrece conectar el Arduino desde el navegador, sin pedir instalar nada, y deja el puente como alternativa', async () => {
+  it('sin puente ofrece conectar el Arduino desde el navegador, sin pedir instalar nada ni ofrecer el puente como alternativa', async () => {
     open(STOPPED, readiness({ PUENTE: step('PUENTE', 'Servicio puente', 'ERROR', 'El puente de GlucoLume no está ejecutándose.') }));
     expect(await screen.findByRole('heading', { name: '2. Conectar el Arduino desde este navegador' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Conectar Arduino por Bluetooth/ })).toBeEnabled();
     expect(await screen.findByText('El Arduino todavía no está conectado')).toBeInTheDocument();
-    expect(screen.getByText('¿Preferís instalar el puente en la computadora?')).toBeInTheDocument();
+    expect(screen.queryByText('¿Preferís instalar el puente en la computadora?')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Detener puente/ })).not.toBeInTheDocument();
   });
 

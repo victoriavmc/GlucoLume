@@ -81,7 +81,7 @@ export function ConnectDeviceView({ institution }) {
         {browserMode
           ? <BrowserConnection status={status} medium={guideMedium} />
           : <BridgeSettings status={status} medium={chosenMedium} onMediumChange={setMedium} onChanged={refreshAll} authority={readiness?.ordenesPuente} />}
-        <ConnectionGuide medium={guideMedium} onMediumChange={setMedium} status={status} readiness={readiness} institutional={!individual} />
+        <ConnectionGuide medium={guideMedium} onMediumChange={setMedium} />
       </div>
       <MeasurementGuide ready={Boolean(readiness?.listo)} individual={individual} blockedBy={readiness?.listo ? null : `${action.title}.`}
         measureTo={institution ? `/app/instituciones/${idInstitucion}/pacientes` : undefined} />
