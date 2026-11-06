@@ -102,7 +102,8 @@ def test_tiempo_total_corta_un_servidor_que_no_responde(monkeypatch):
     aceptadas = []
 
     def aceptar():
-        conexion, _ = servidor.accept()  # nunca envía el saludo SMTP
+        conexion, _ = servidor.accept()
+        conexion.sendall(b"220 servidor de prueba listo\r\n")  # saluda, y después no responde a EHLO/STARTTLS
         aceptadas.append(conexion)
 
     hilo = threading.Thread(target=aceptar, daemon=True)
@@ -128,11 +129,8 @@ def test_envio_normal_conecta_autentica_envia_y_cierra(monkeypatch):
     class ServidorFalso:
         sock = None
 
-        def __init__(self, timeout):
-            registro.append(("timeout", timeout))
-
-        def connect(self, host, port):
-            registro.append(("connect", host, port))
+        def __init__(self, host, port, timeout):  # como smtplib: el constructor conecta y lee el saludo
+            registro.append(("conexion", host, port, timeout))
 
         def starttls(self, context):
             registro.append(("starttls",))
@@ -162,8 +160,7 @@ def test_envio_normal_conecta_autentica_envia_y_cierra(monkeypatch):
     sender._send(_message())
 
     assert registro == [
-        ("timeout", sender.SMTP_TIMEOUT_SECONDS),
-        ("connect", "127.0.0.1", 2525),
+        ("conexion", "127.0.0.1", 2525, sender.SMTP_TIMEOUT_SECONDS),
         ("starttls",),
         ("login", "cuenta"),
         ("send", "destino@example.com"),

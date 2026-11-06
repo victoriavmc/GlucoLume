@@ -19,8 +19,8 @@ from app.core.config import getSettings
 
 # Timeout por operación de socket (conexión, cada comando SMTP).
 SMTP_TIMEOUT_SECONDS = 20
-# Tiempo total de un envío (conexión, STARTTLS, AUTH y DATA). Un servidor que responde de a poco no puede retener la conexión
-# más allá de este límite, aunque cada operación esté dentro de su timeout.
+# Tiempo total de un envío desde STARTTLS hasta DATA. Un servidor que responde de a poco no puede retener la conexión más allá de
+# este límite, aunque cada operación esté dentro de su timeout. El saludo inicial se rige por SMTP_TIMEOUT_SECONDS (ver _connect).
 SMTP_TOTAL_TIMEOUT_SECONDS = 30
 # Conexiones SMTP abiertas a la vez. Cada envío sincrónico ocupa un hilo de la API mientras dura; el límite evita que un servidor
 # lento agote el threadpool y deje sin responder a endpoints que no envían correo.
@@ -166,12 +166,14 @@ class SmtpSession:
 
 
 def _connect(deadline: _Deadline) -> smtplib.SMTP:
-    """Conexión TCP + STARTTLS + AUTH dentro del tiempo total del envío. Ante un fallo la conexión se cierra."""
+    """Conexión TCP + saludo + STARTTLS + AUTH. Ante un fallo la conexión se cierra.
+
+    El saludo inicial lo lee el propio constructor de smtplib, antes de que exista un socket que el plazo pueda cortar: ese tramo
+    se rige por SMTP_TIMEOUT_SECONDS. Desde STARTTLS en adelante, el plazo total corta cualquier espera."""
     settings = getSettings()
-    server = smtplib.SMTP(timeout=SMTP_TIMEOUT_SECONDS)
+    server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
     try:
         deadline.attach(server)
-        server.connect(settings.SMTP_HOST, settings.SMTP_PORT)
         deadline.check()
         _secure(server)
         deadline.check()
