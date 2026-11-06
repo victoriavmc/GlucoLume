@@ -61,8 +61,11 @@ app = FastAPI(
 
 
 @app.get("/healthz", include_in_schema=False)
-def healthz() -> dict[str, str]:
-    """Liveness: la API responde. No consulta la base, para que una caída de SQL Server no reinicie en bucle el contenedor."""
+async def healthz() -> dict[str, str]:
+    """Liveness: la API responde. No consulta la base, para que una caída de SQL Server no reinicie en bucle el contenedor.
+
+    Es async a propósito: no necesita un hilo del threadpool. Con los hilos ocupados por envíos SMTP en curso, un handler síncrono
+    dejaba el healthcheck sin respuesta (medido: hasta ~7 s con 40 peticiones bloqueadas)."""
     return {"estado": "ok"}
 
 
