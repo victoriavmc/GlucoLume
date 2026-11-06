@@ -191,6 +191,14 @@ server {
         try_files /index.html =404;
     }
 
+    # Capturas de la guía (public/ayuda/ y miniaturas/). Sus nombres no llevan hash, así que la caché es de 7 días (no de un año como
+    # /assets/). Sin add_header propio: hereda las cabeceras de seguridad. Un archivo inexistente responde 404, no el index.html.
+    # ^~ gana a la regla de imágenes de más abajo: estas rutas se resuelven aquí.
+    location ^~ /ayuda/ {
+        expires 7d;
+        try_files $uri =404;
+    }
+
     # Un archivo que no existe (robots.txt, sitemap.xml, un .map, un .png) es un 404, no el index.html de la SPA con estado 200 («soft 404»:
     # un buscador leía HTML como si fuera robots.txt). Sin add_header propio: hereda las cabeceras de seguridad del server.
     location ~* ^(?!/api/).+\.(?:txt|xml|json|map|ico|png|jpe?g|gif|webp|svg|woff2?|webmanifest)$ {
