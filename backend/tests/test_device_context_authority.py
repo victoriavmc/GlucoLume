@@ -258,3 +258,15 @@ def test_compartido_operadora_de_otra_institucion_mide_a_su_paciente_sin_cambiar
     clinical = measure(db, bridge, team.operator, teamPatient.idPerfilMedicion, dev)
     assert code(measurements.getMeasurement, db, north.operator, clinical.idMedicion) == "MEDICION_NO_ENCONTRADA"
 
+
+def test_compartido_el_diagnostico_por_la_api_responde_con_el_contexto_compartido(db, mails, consumer, team, bridge, api, deviceMode):
+    """Regresión: en modo compartido el servicio devuelve `contexto` COMPARTIDO. El esquema de respuesta no lo admitía y la API contestaba 500
+    (error genérico «El servidor no pudo procesar la solicitud») aunque el servicio funcionara. Se prueba por HTTP, no solo el servicio."""
+    deviceMode(True)
+    user, profileId = consumer
+    device(db, institucion=team.id, codigo=CODE)
+    bridge.seconds(1)
+    response = api(user).get(f"/api/v1/acquisition/telemetry/readiness?idPerfilMedicion={profileId}")
+    assert response.status_code == 200, response.text
+    assert response.json()["ordenesPuente"] == {"contexto": "COMPARTIDO", "permitido": True, "motivo": None}
+    assert response.json()["listo"] is True
