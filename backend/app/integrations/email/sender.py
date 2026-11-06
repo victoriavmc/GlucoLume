@@ -7,6 +7,9 @@ import re
 import smtplib
 import socket
 import ssl
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
@@ -14,7 +17,80 @@ from typing import Self
 
 from app.core.config import getSettings
 
+# Timeout por operación de socket (conexión, cada comando SMTP).
 SMTP_TIMEOUT_SECONDS = 20
+# Tiempo total de un envío (conexión, STARTTLS, AUTH y DATA). Un servidor que responde de a poco no puede retener la conexión
+# más allá de este límite, aunque cada operación esté dentro de su timeout.
+SMTP_TOTAL_TIMEOUT_SECONDS = 30
+# Conexiones SMTP abiertas a la vez. Cada envío sincrónico ocupa un hilo de la API mientras dura; el límite evita que un servidor
+# lento agote el threadpool y deje sin responder a endpoints que no envían correo.
+SMTP_MAX_CONCURRENT = 4
+# Espera máxima por un lugar libre. Pasado este tiempo el envío falla como cualquier otro fallo SMTP (mismo mensaje al usuario).
+SMTP_SLOT_WAIT_SECONDS = 10
+
+_slots = threading.BoundedSemaphore(SMTP_MAX_CONCURRENT)
+
+
+class SmtpBusyError(RuntimeError):
+    """No hubo lugar entre las conexiones SMTP simultáneas dentro de SMTP_SLOT_WAIT_SECONDS."""
+
+
+class SmtpDeadlineError(TimeoutError):
+    """El envío superó SMTP_TOTAL_TIMEOUT_SECONDS."""
+
+
+@contextmanager
+def _slot() -> Iterator[None]:
+    if not _slots.acquire(timeout=SMTP_SLOT_WAIT_SECONDS):
+        raise SmtpBusyError(f"Hay {SMTP_MAX_CONCURRENT} envíos SMTP en curso.")
+    try:
+        yield
+    finally:
+        _slots.release()
+
+
+class _Deadline:
+    """Tiempo total de un envío. Al vencer, cierra el socket desde un hilo auxiliar: las lecturas bloqueadas despiertan con error y
+    la operación en curso falla. Si el vencimiento ocurre antes de que exista el socket, `attach` lo corta en cuanto se crea."""
+
+    def __init__(self, seconds: float) -> None:
+        self._expired = threading.Event()
+        self._server: smtplib.SMTP | None = None
+        self._timer = threading.Timer(seconds, self._expire)
+        self._timer.daemon = True
+
+    def __enter__(self) -> Self:
+        self._timer.start()
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self._timer.cancel()
+
+    def attach(self, server: smtplib.SMTP) -> None:
+        self._server = server
+        if self._expired.is_set():
+            self._abort()
+
+    def check(self) -> None:
+        if self._expired.is_set():
+            raise SmtpDeadlineError(f"El envío superó {SMTP_TOTAL_TIMEOUT_SECONDS} s.")
+
+    def raiseIfExpired(self, error: BaseException) -> None:
+        """Ante un fallo con el plazo vencido, lanza SmtpDeadlineError (la causa real) en lugar del error genérico del socket cerrado."""
+        if self._expired.is_set() and not isinstance(error, SmtpDeadlineError):
+            raise SmtpDeadlineError(f"El envío superó {SMTP_TOTAL_TIMEOUT_SECONDS} s.") from error
+
+    def _expire(self) -> None:
+        self._expired.set()
+        self._abort()
+
+    def _abort(self) -> None:
+        sock = getattr(self._server, "sock", None)
+        if sock is not None:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass  # ya cerrado: la operación en curso falla igual
 
 
 @dataclass(frozen=True)
@@ -58,24 +134,15 @@ class SmtpSession:
     def __init__(self) -> None:
         self._server: smtplib.SMTP | None = None
 
-    def _open(self) -> smtplib.SMTP:
-        settings = getSettings()
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
-        try:
-            _secure(server)
-        except BaseException:
-            server.close()
-            raise
-        return server
-
     def send(self, message: EmailMessage) -> None:
-        if self._server is None:
-            self._server = self._open()
-        try:
-            self._server.send_message(message)
-        except BaseException:
-            self._discard()
-            raise
+        with _slot(), _Deadline(SMTP_TOTAL_TIMEOUT_SECONDS) as deadline:
+            try:
+                if self._server is None:
+                    self._server = _connect(deadline)
+                _deliver(self._server, message, deadline)
+            except BaseException:
+                self._discard()
+                raise
 
     def _discard(self) -> None:
         server, self._server = self._server, None
@@ -98,11 +165,35 @@ class SmtpSession:
         self.close()
 
 
-def _send(message: EmailMessage) -> None:
+def _connect(deadline: _Deadline) -> smtplib.SMTP:
+    """Conexión TCP + STARTTLS + AUTH dentro del tiempo total del envío. Ante un fallo la conexión se cierra."""
     settings = getSettings()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
+    server = smtplib.SMTP(timeout=SMTP_TIMEOUT_SECONDS)
+    try:
+        deadline.attach(server)
+        server.connect(settings.SMTP_HOST, settings.SMTP_PORT)
+        deadline.check()
         _secure(server)
+        deadline.check()
+    except BaseException as error:
+        server.close()
+        deadline.raiseIfExpired(error)
+        raise
+    return server
+
+
+def _deliver(server: smtplib.SMTP, message: EmailMessage, deadline: _Deadline) -> None:
+    try:
         server.send_message(message)
+    except BaseException as error:
+        deadline.raiseIfExpired(error)
+        raise
+
+
+def _send(message: EmailMessage) -> None:
+    with _slot(), _Deadline(SMTP_TOTAL_TIMEOUT_SECONDS) as deadline:
+        with _connect(deadline) as server:
+            _deliver(server, message, deadline)
 
 
 def buildHtmlMessage(
@@ -173,7 +264,11 @@ def describeSmtpError(error: BaseException) -> str:
     """
     settings = getSettings()
     server = f"{settings.SMTP_HOST}:{settings.SMTP_PORT}"
-    if isinstance(error, RuntimeError):
+    if isinstance(error, SmtpBusyError):
+        category = f"demasiados envíos SMTP en curso (límite {SMTP_MAX_CONCURRENT}); el servidor puede estar lento"
+    elif isinstance(error, SmtpDeadlineError):
+        category = f"tiempo total del envío agotado con {server} (más de {SMTP_TOTAL_TIMEOUT_SECONDS} s)"
+    elif isinstance(error, RuntimeError):
         category = "configuración (faltan SMTP_HOST, SMTP_USERNAME o SMTP_PASSWORD)"
     elif isinstance(error, smtplib.SMTPAuthenticationError):
         category = f"autenticación rechazada por {server} (revisar SMTP_USERNAME / SMTP_PASSWORD o contraseña de aplicación)"
