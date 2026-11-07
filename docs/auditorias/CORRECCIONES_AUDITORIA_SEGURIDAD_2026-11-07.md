@@ -17,7 +17,7 @@
 | B-3 | Baja | **CORREGIDO** (código + validación local) | Cada cabecera de seguridad aparece una sola vez en la API. |
 | B-4 | Baja | **NO APLICA** (preload) / **PENDIENTE** (308) | `preload` no es posible sobre `*.ts.net`. El 302→308 lo emite Tailscale Serve, fuera del repo. |
 | B-5 | Baja | **PENDIENTE** | HTTP/2 lo negocia el borde de Tailscale. COOP/CORP requiere validar el flujo de login en navegador. |
-| B-6 | Baja | **CORREGIDO** (liveness) | `/api/v1/healthz` publicado. La readiness con base no se publica. |
+| B-6 | Baja | **CORREGIDO** | Liveness `/api/v1/healthz` publicada. Readiness `/api/v1/readyz` implementada para monitoreo interno: Nginx la responde 404 y el backend la expone con valores enumerados, sin versiones ni cadenas de conexión. |
 | B-7 | Baja | **PENDIENTE** | Requiere un colector de reportes CSP. Los reportes incluyen URLs, que pueden llevar tokens. |
 | Anexo C | — | **PENDIENTE** | Requiere acceso al host (nginx -T, cookies en vivo, kernel, Tailscale). `pip-audit` local: sin vulnerabilidades conocidas. |
 
@@ -322,12 +322,24 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 - HTTP/2 lo negocia el borde (Tailscale Serve); Nginx escucha HTTP/1.1 en 8080.
 - COOP/CORP: el frontend no usa `window.open` ni `opener` (verificado con grep), y el login de Google es navegación completa (`window.location.assign`). Por eso COOP `same-origin` parece seguro, pero el flujo login (`localhost`) → app (`glucolume.local`) entre orígenes debe validarse en navegador antes de activarlo. CORP solo debería aplicarse a HTML y estáticos, no a la API.
 
-### B-6 · Endpoint de salud (CORREGIDO, liveness)
+### B-6 · Monitoreo: liveness y readiness (CORREGIDO)
 
-- **Diagnóstico:** `/api/v1/healthz`, `/api/v1/readyz`, `/api/health` → 404. El backend ya tenía `/healthz` (`backend/app/main.py`, responde `{"estado":"ok"}` sin consultar la base).
-- **Solución:** `location = /api/v1/healthz` con `rewrite ^ /healthz break;` hacia el backend. Medido: 200 con cabeceras únicas; `POST` → 405.
-- **Pendiente:** readiness con base de datos (`/api/v1/readyz`). No se publica: revelaría el estado de SQL Server desde internet. Si se quiere, debe ir solo a monitoreo interno.
-- **Pruebas:** `test_nginx_expone_solo_la_liveness_de_la_api` (no existe en `HEAD`).
+- **Diagnóstico:** en `HEAD` existía solo la liveness: `/healthz` del backend (`backend/app/main.py`, `{"estado":"ok"}`, sin base de datos), publicada por Nginx como `/api/v1/healthz`. No había readiness: `/api/v1/readyz`, `/api/v1/healthz` (antes de B-6) y `/api/health` respondían 404. Los `--health` de `lifecycle` y `notifications` solo revisan archivos de latido, sin base. Los healthchecks de Compose son: backend `/healthz`, `lifecycle`/`notifications` `--health`, frontend `/nginx-health`, `db` `sqlcmd SELECT 1`.
+- **Solución:**
+  - **Liveness** (`/healthz`, y `/api/v1/healthz` vía Nginx): sin cambios de comportamiento. Responde mientras el proceso vive, sin tocar la base.
+  - **Readiness** (`GET /api/v1/readyz`): `backend/app/api/v1/health.py` (ruta síncrona, para no bloquear el event loop) y `backend/app/services/readiness.py`. Comprueba `SELECT 1` y una lectura `TOP 1` de `SesionUsuario` (sin ella no hay inicio de sesión). Costo acotado: el resultado se cachea 5 s, solo corre una comprobación a la vez, y cada comprobación tiene tope de 3 s y usa la sesión de base de la API (mismo semáforo `DB_MAX_CONCURRENT_CALLS`).
+  - **Respuesta:** `200 {"estado":"listo","dependencias":{"baseDeDatos":"ok","tablaSesiones":"ok"}}`, o `503 {"estado":"no_listo",...}` con `Retry-After: 5` y `Cache-Control: no-store`. Los valores son enumerados (`ok`, `no_disponible`, `no_verificado`, `tiempo_agotado`). No hay versión, cadena de conexión, nombre de servidor ni mensaje de excepción; el log solo registra el tipo de excepción.
+  - **Nginx:** `location = /api/v1/readyz { return 404 }` (JSON `{"detail":"Not Found"}`). Sin este bloque la ruta caía en `location /api/` y quedaba publicada, lo que expone el estado de SQL Server desde el borde. La readiness queda solo accesible desde el backend (el puerto 8000 no se publica en el host).
+- **Pruebas:**
+  - `backend/tests/test_readyz.py` (10): liveness con base caída (200); sano (200); base caída (503 con valores enumerados y sin cadenas sensibles); no se puede crear la sesión (503); falta la tabla (503); caché (20 sondeos → 1 consulta; tras la ventana, 2); base colgada (503 `tiempo_agotado` dentro del tope, sin apilar comprobaciones); 20 sondeos concurrentes → 1 comprobación; ruta síncrona; ninguna respuesta expone versión ni contraseña.
+  - `backend/tests/test_security_hardening.py::test_nginx_expone_solo_la_liveness_de_la_api`: `/api/v1/healthz` reenvía a `/healthz` y `/api/v1/readyz` responde `return 404`.
+- **Evidencia:** `docs/auditorias/evidencias/auditoria_seguridad_2026-11-07/sondas_salud.sh`, `resultados_salud_antes.txt` (HEAD: readyz 404) y `resultados_salud_despues.txt` (a través de Nginx, readyz 404; directo al backend, 503 `no_listo` con `Retry-After` y `no-store`, porque el banco no tiene driver ODBC para SQL Server).
+- **Uso en Docker Compose o monitoreo futuro (sin cambiar el despliegue):**
+  - Mantener el healthcheck del backend en `/healthz`. Con `restart: unless-stopped`, Docker no reinicia por sí solo un contenedor `unhealthy`, pero un healthcheck de readiness marcaría el backend como `unhealthy` en cada caída de la base, lo que confunde el diagnóstico de la liveness.
+  - Monitoreo interno (recomendado): un monitor en la misma red de Compose consulta `http://backend:8000/api/v1/readyz` cada 30–60 s y alerta tras 2–3 respuestas `503` seguidas. No usar la URL pública (Nginx la responde 404).
+  - Opcional: si se quiere un healthcheck de readiness en Compose, un servicio auxiliar con `curl -fsS http://backend:8000/api/v1/readyz` (el `200` no tiene cuerpo sensible; el `503` solo indica la dependencia).
+- **Riesgos:** cada monitor genera como mucho una consulta de readiness por ventana de 5 s. Si la base queda colgada, la comprobación ocupa un slot del semáforo hasta el tope de 3 s; el hilo puede seguir bloqueado en el driver mientras la base no responda, pero no se apilan comprobaciones (`_probing`) y las respuestas siguen siendo `503 tiempo_agotado`.
+- **Rollback:** quitar `app.include_router(healthRouter, ...)` de `backend/app/main.py`, el bloque `location = /api/v1/readyz` de la plantilla de Nginx, y los archivos `api/v1/health.py`, `services/readiness.py` y `tests/test_readyz.py`. Sin migraciones ni cambios de datos.
 
 ### B-7 · Reporte de CSP (PENDIENTE)
 
@@ -356,7 +368,7 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 | M-1 `absolute_redirect off` | Redirecciones de Nginx pasan a relativas | Quitar la línea y recargar Nginx |
 | B-3 `proxy_hide_header` | La API usa la CSP de Nginx, no la del backend | Quitar las líneas `proxy_hide_header` |
 | B-1 `client_max_body_size 16k` en auth | Un formulario de auth > 16 KB daría 413 (ninguno legítimo) | Quitar la línea |
-| B-6 `/api/v1/healthz` | Nueva ruta pública (solo liveness) | Quitar el bloque `location` |
+| B-6 `/api/v1/healthz`, `/api/v1/readyz` | Liveness pública; readiness nueva en el backend, bloqueada en Nginx (404) | Quitar el bloque `location = /api/v1/healthz` y `location = /api/v1/readyz`, y el `include_router` de `main.py` |
 | M-3 tope 256 en login | Contraseñas > 256 caracteres → 422 en lugar de 401 | Restaurar `password: Password` |
 | M-3 control Argon2 | Login con más de 2 verificaciones en curso responde 503 tras 8 en espera; la latencia sube en pico | `ARGON2_MAX_CONCURRENT` / `ARGON2_MAX_WAITING`, o quitar `_argonSlot` en `core/security.py` |
 
@@ -368,4 +380,4 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 2. **M-4:** aprobar el diseño de la sección correspondiente (fragmento + POST + ventana de transición).
 3. **B-3:** confirmar que Nginx sea el único emisor de la CSP de la API.
 4. **B-1:** medir el lote real del puente antes de bajar `/api/` de 1 MB.
-5. **B-6:** confirmar que no se publica la readiness.
+5. **B-6:** confirmar que el monitoreo interno llama al backend directamente (`http://backend:8000/api/v1/readyz`) y que la readiness no se publica por Nginx. Si se quiere exponerla, debe ser con restricción por origen, y el origen real de cliente hoy no se distingue detrás de Tailscale Serve.

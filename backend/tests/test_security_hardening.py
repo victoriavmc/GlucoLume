@@ -336,11 +336,13 @@ def test_upstream_por_defecto_coincide_con_el_puerto_real_del_backend():
 
 
 def test_nginx_expone_solo_la_liveness_de_la_api():
-    """B-6 (auditoría 07/11/2026): /api/v1/healthz reenvía el /healthz del backend (sin base de datos). La readiness no se publica."""
+    """B-6 (auditoría 07/11/2026): /api/v1/healthz reenvía el /healthz del backend (sin base de datos). La readiness consulta la base
+    y no se publica: Nginx la responde 404 (la ruta exacta gana al prefijo /api/)."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
     block = re.search(r"location = /api/v1/healthz \{(.*?)\n    \}", conf, re.S).group(1)
     assert "rewrite ^ /healthz break;" in block and "proxy_pass http://$backend;" in block
-    assert "readyz" not in conf
+    ready = re.search(r"location = /api/v1/readyz \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "return 404" in ready and "proxy_pass" not in ready
 
 
 def test_login_acota_la_contrasena_de_entrada():
