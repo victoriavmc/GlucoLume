@@ -9,7 +9,7 @@
 | ID | Sev. (PDF) | Estado | Resumen |
 |---|---|---|---|
 | M-1 | Media | **CORREGIDO** (código + validación local) | `/api` redirigía a `http://<host>:8080/api/`. Ahora `Location: /api/`. |
-| M-2 | Media | **PARCIAL** (decisión pendiente) | El límite existe (60 intentos/10 min por IP, 429 desde el 61.º). Falta decidir si se ajusta. |
+| M-2 | Media | **CORREGIDO** (con riesgo residual: ataque distribuido) | El PDF no reprodujo el límite porque probó 15 intentos. Sí había fallas reales: oráculo de enumeración, bloqueo de la cuenta por terceros y 429 del borde sin forma de API. Ver §2. |
 | M-3 | Media | **PARCIAL** | Login acotado a 256 caracteres. El sobrecoste de CPU **no se reprodujo**. |
 | M-4 | Media | **PENDIENTE** (requiere aprobación de diseño) | El access token ya está en memoria y el refresh en cookie HttpOnly. Quedan tokens en la URL de 4 flujos. |
 | B-1 | Baja | **PARCIAL** | Auth limitado a 16 KB. `/api/` general sigue en 1 MB (el puente lo necesita). |
@@ -34,12 +34,56 @@
 - **Fuera de alcance:** las redirecciones que genera **el backend** (FastAPI `redirect_slashes`, p. ej. `/api/v1/auth/login/` → 307) usan el `Host` del pedido y el esquema del proxy. Local, con esquema `http`: `Location: http://127.0.0.1:8080/api/v1/auth/login`. Verificar en el servidor (ver Anexo C).
 - **Riesgos y rollback:** bajo. Rollback: quitar la línea `absolute_redirect off;` y recargar Nginx.
 
-### M-2 · Límite de intentos de login (PARCIAL, decisión pendiente)
+### M-2 · Protección del inicio de sesión contra intentos automatizados (CORREGIDO, con riesgo residual)
 
-- **Diagnóstico (medido, app local con SQLite):** cuenta inexistente ×70 → 60 respuestas `401` y la 61.ª `429 DEMASIADAS_SOLICITUDES` con `Retry-After`.
-- **Lo que sí es cierto del PDF:** con 15 intentos no se llega a ningún límite. Y el límite por IP es amplio: 60 intentos/10 min ≈ 8 640 por día desde una misma IP, repartidos entre cuentas.
-- **Lo que no es cierto:** que no hay límite. Además, una cuenta real se bloquea tras 3 contraseñas incorrectas durante 15 min (`app/services/auth.py`, cubierto por `test_login_lockout.py`). Una cuenta inexistente no se bloquea, por diseño (no revelar existencia).
-- **Decisión que necesito:** el PDF propone `limit_req 5r/m` por IP. Con una IP compartida por una institución, eso bloquearía a todos sus usuarios. Opciones: (a) mantener 60/10 min; (b) bajar el límite de la app a ~20/10 min; (c) añadir en Nginx una zona dedicada a `POST /api/v1/auth/login` a ~10 r/min con ráfaga.
+**Diagnóstico (medido en la app real con base de prueba, antes de los cambios):**
+
+- El PDF afirma «sin 429 ni Retry-After tras 15 intentos». **Esa observación es correcta, pero no prueba que falte el límite:** el límite por IP es de 60 intentos cada 10 min, y 15 no lo alcanzan (`app/api/rateLimit.py`).
+- Lo que el PDF no vio, y medimos (`evidencias/.../resultados_login_antes.txt`):
+  - **Oráculo de enumeración (S1 vs S2):** tras 3 contraseñas erróneas, una cuenta **real** responde `429 CUENTA_BLOQUEADA` con `Retry-After`, y una **inexistente** responde `401` siempre. Quien ataca distingue qué cuentas existen.
+  - **Bloqueo por terceros (S3):** un atacante desde otra IP deja fuera a la víctima, que con la contraseña correcta recibe el mismo `429`.
+  - **Renovación (S4):** el bloqueo vence a los 15 min, y tres intentos más lo reabren. Un atacante lo mantiene indefinidamente.
+  - **Borde inconsistente:** el `limit_req` de Nginx respondía la página HTML `429 Too Many Requests`, sin `Retry-After` ni el JSON de la API (72 de 90 respuestas 429 en la ráfaga medida).
+
+**Causa raíz:** el bloqueo era **global por cuenta** (3 fallos → `CredencialLocal.bloqueadoHasta`). Esa decisión es la que produce a la vez el oráculo (la respuesta difiere solo para cuentas reales), el bloqueo por terceros y la renovación. El límite por IP existente nunca vio a un atacante que rota IPs ni a una cuenta atacada desde varias.
+
+**Solución implementada:**
+
+1. **Límite por (identificador, origen)** en `backend/app/services/loginThrottle.py`, sobre `RateLimiter` (con Redis compartido si está configurado). Dos ventanas deslizantes: **5 fallos en 15 min** y **15 fallos en 1 h**. El origen es la IP real normalizada (`normalizeIp`), que Nginx fija desde el proxy de confianza. Un tercero desde otra IP **no** afecta a la víctima.
+2. **Se evalúa antes de buscar la cuenta** y con el mismo contador para identificadores existentes e inexistentes. La respuesta (código, mensaje, `Retry-After`) es idéntica, y los intentos limitados no consultan la base ni verifican Argon2.
+3. **Se quita el bloqueo global por cuenta del login.** `_loginLocal` ya no lee ni incrementa `CredencialLocal` para el login. La **reautenticación con sesión** (`verifyCurrentPassword`) conserva su bloqueo: exige sesión, así que no es una vía anónima.
+4. **Retry-After exacto** en memoria: el instante en que vence el fallo que libera un lugar en la ventana (`RateLimiter.retryAfter`). Con Redis compartido es la cota superior (la ventana entera).
+5. **Decisiones serializadas por par** (`loginThrottle.exclusivo`, 256 cerrojos fijos): comprobar el límite, verificar la contraseña y registrar el fallo ocurren juntos. **Hallazgo de la prueba:** sin esto, 8 intentos simultáneos pasaban todos la comprobación y se verificaban las 8 contraseñas.
+6. **Aviso al titular una sola vez** al alcanzar el límite (evento de seguridad, aviso en página y correo). Nunca aparece en la respuesta a quien ataca.
+7. **Borde de Nginx** (`error_page 429 = @auth_limite`): el rechazo de ráfaga tiene el mismo JSON que la API, `Retry-After: 1` y las cabeceras de seguridad (la ubicación nombrada las repite porque un `add_header` local anula las del `server`).
+8. **Documentación** actualizada: manual de usuario, ficha funcional, tabla de controles de `SEGURIDAD.md`, regla de negocio del TIF y comentario de `AUTH_LOCKOUT_MINUTES` (ahora sólo para la reautenticación).
+
+**Qué no cambia:** login normal (tokens en el cuerpo, o cookie en modo `X-GlucoLume-CSRF`), recuperación de contraseña (`/auth/password/forgot` responde con el límite de login activo), intercambio de Google (`/auth/google/exchange`), MFA, y los tipos de cuenta (consumidor, institucional, administración de plataforma: el límite aplica igual, `acceso=PLATAFORMA` incluido).
+
+**Riesgo residual (decisión que necesito confirmar):**
+
+- **Ataque distribuido a una cuenta:** un atacante con muchas IPs puede probar 5 contraseñas cada 15 min por IP contra una misma cuenta. Antes, el bloqueo global cortaba eso a 3 intentos por ventana, **pero era exactamente el mecanismo que permitía bloquear una cuenta ajena**. Hoy no hay tope global por cuenta: elegí no reintroducirlo porque reabre el bloqueo por terceros que pediste evitar. Si querés un tope global (con ese costo), es un cambio de constante, pero requiere tu aprobación.
+- **Origen compartido:** si el proxy del host **no** envía la IP real del cliente, todos llegan a Nginx con la misma IP y el límite por origen se vuelve global. **Verificar en el servidor** (ver §5).
+- **Múltiples réplicas:** sin `RATE_LIMIT_REDIS_URL` los contadores son por proceso (igual que el resto de los límites del proyecto). La configuración actual tiene una sola réplica.
+
+**Pruebas:**
+
+- `backend/tests/test_login_throttle.py` (11): la secuencia del auditor (15 intentos: 5 × 401 y 10 × 429 con `Retry-After`), forma consistente del rechazo, respuestas iguales para cuenta existente e inexistente, tercero que no bloquea a la víctima, recuperación al vencer, recuperación de contraseña y Google sin afectación, login normal, tipos de cuenta, y la ventana deslizante exacta.
+- `backend/tests/test_login_lockout.py` (16): límite por par, sin renovación, normalización del identificador, límite por identificador, límite de administración, aviso una sola vez, sin correos para cuentas inexistentes, **ráfaga concurrente** (8 hilos: 5 verificados, 3 rechazados), `Retry-After` en cabecera, y la reautenticación sin cambios.
+- Actualizadas: `test_auth_access_flows::test_sesiones_denegadas…` y `test_audit_security::test_el_bloqueo_temporal…` (codificaban el bloqueo global de 3 intentos).
+- `test_security_hardening::test_nginx_responde_el_limite_de_rafaga…` (nueva).
+- **Lo que se midió que falla con la lógica anterior:** el oráculo, el bloqueo por terceros y la renovación (sonda S1–S4, `resultados_login_antes.txt`), y la ráfaga concurrente sin serializar (8 de 8 contraseñas verificadas). Las pruebas nuevas no se ejecutaron contra la lógica anterior: importan módulos que antes no existían.
+
+**Evidencia (`docs/auditorias/evidencias/auditoria_seguridad_2026-11-07/`):**
+
+- `resultados_login_antes.txt`: S1–S4 del estado anterior (oráculo, bloqueo por terceros, renovación).
+- `resultados_login_pytest.txt`: salida `-v` de las pruebas del límite (ver §3).
+- `resultados_login_borde.txt`: ráfaga de 150 solicitudes en nginx, antes (72 HTML) y después (0 HTML), con la respuesta del borde.
+- `resultados_login_nginx_despues.txt` y `sondas_login.sh`: falsificación de `X-Forwarded-For` con 70 pedidos, cada uno con una IP distinta. El 429 aparece en el pedido 46 de esa parte (61 en total): **la cabecera del cliente no evade el límite.** La parte 1 de la sonda (15 intentos) devuelve 500 en el banco sin SQL Server, porque la app falla antes de registrar el fallo; la evidencia de esa parte es la prueba de pytest con base de prueba.
+
+**Rollback:** revertir `backend/app/services/auth.py` (`_loginLocal`), `loginThrottle.py`, la sección de `RateLimiter.retryAfter` y el bloque `error_page` / `@auth_limite` del template. El bloqueo anterior se restaura sin migración de base.
+
+**Cambio de contrato:** el login sigue respondiendo `CUENTA_BLOQUEADA` (429 con `Retry-After`), igual que antes, así que el frontend no cambia. Lo que cambia: cuando la cuenta existe, el quinto fallo desde un origen recibe `401 CREDENCIALES_INVALIDAS` (antes el tercero recibía 429), y el límite es por origen.
 
 ### M-3 · Longitud de la contraseña en login (PARCIAL)
 

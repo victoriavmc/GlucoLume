@@ -29,8 +29,9 @@ Menú de `/app`: Inicio, Mediciones, Conectar dispositivo, Grupo, Perfil y Segur
 - **Google:** el registro con Google es un flujo aparte (exige aceptar la política); el inicio de sesión con Google no crea cuentas
   (`CUENTA_NO_REGISTRADA`). Con el mismo correo se vinculan automáticamente solo si Google lo informa verificado **y** la cuenta de GlucoLume ya
   está ACTIVA. Una cuenta puede tener contraseña, Google o ambos.
-- **Inicio de sesión:** correo o usuario y contraseña; «Recordarme» define si la sesión persiste. **3 intentos fallidos** bloquean 15 min
-  (`AUTH_LOCKOUT_MINUTES`), con contadores atómicos. Con MFA se pide después el código o uno de recuperación.
+- **Inicio de sesión:** correo o usuario y contraseña; «Recordarme» define si la sesión persiste. **5 intentos fallidos** desde el mismo
+  origen limitan ese origen 15 min (y 15 fallos en una hora, una hora), sin bloquear la cuenta para terceros (`app/services/loginThrottle.py`).
+  Con MFA se pide después el código o uno de recuperación.
 - **Recuperar contraseña:** enlace de un solo uso al correo; la pantalla no revela si el correo existe.
 
 ## 3. Perfil

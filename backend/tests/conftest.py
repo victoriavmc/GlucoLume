@@ -14,12 +14,14 @@ def resetRateLimits():
     """Los límites por IP (app/api/rateLimit.py) cuentan en memoria durante todo el proceso: cada prueba parte de cero para que no se
     afecten entre sí (las pruebas HTTP llegan todas desde la misma IP de TestClient)."""
     from app.api import rateLimit
-    from app.services import resultEmailConfirmation
+    from app.services import loginThrottle, resultEmailConfirmation
 
     rateLimit.resetLimits()
     resultEmailConfirmation.resetLimits()
+    loginThrottle.reset()
     yield
     rateLimit.resetLimits()
+    loginThrottle.reset()
 
 
 @pytest.fixture(autouse=True)

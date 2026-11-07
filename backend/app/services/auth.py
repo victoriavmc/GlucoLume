@@ -49,7 +49,7 @@ from app.services import email as emailService
 from app.models.consent import TipoConsentimiento
 from app.services import accountGrace
 from app.services import consent as consentService
-from app.services import invitedAccounts, knownAccess, mfa, unverifiedAccounts
+from app.services import invitedAccounts, knownAccess, loginThrottle, mfa, unverifiedAccounts
 from app.services import user as userService
 from app.services import userNotifications
 from app.services import adminAccessAlerts, auditClassification, schemaCompat
@@ -656,88 +656,97 @@ def _alertAdministratorAttempt(db: Session, user: User | None, administrativo: b
 def _loginLocal(
     db: Session, identificador: str, password: str, clientInfo: ClientInfo | None, acceso: str
 ) -> LoginResponse:
-    """Cuerpo de loginLocal. `acceso` separa el login general del administrativo (requireAccesoLogin)."""
+    """Cuerpo de loginLocal. `acceso` separa el login general del administrativo (requireAccesoLogin).
+
+    Límite de intentos (M-2, auditoría 07/11/2026): la decisión (comprobar el límite, verificar la contraseña y registrar el fallo) se toma
+    con exclusión mutua por (identificador, origen) (loginThrottle.exclusivo), para que una ráfaga simultánea no se salte el límite.
+    """
+    origen = loginThrottle.origenDe(clientInfo)
+    with loginThrottle.exclusivo(identificador, origen):
+        return _loginLocalBajoLimite(db, identificador, password, origen, acceso, clientInfo)
+
+
+def _loginLocalBajoLimite(
+    db: Session, identificador: str, password: str, origen: str, acceso: str, clientInfo: ClientInfo | None
+) -> LoginResponse:
+    """Se controla por (identificador, origen) en loginThrottle ANTES de buscar la cuenta. La respuesta es la misma para una cuenta
+    existente y una inexistente (sin enumeración), un tercero desde otra IP no bloquea a la víctima, y el límite no consulta la base ni
+    verifica la contraseña. El bloqueo global por cuenta del login se quitó: permitía bloquear una cuenta ajena con tres intentos. La
+    reautenticación con sesión (verifyCurrentPassword) conserva su propio bloqueo."""
     now = nowForDb()
+    espera = loginThrottle.retryAfter(identificador, origen)
+    if espera is not None:
+        # Mismo rechazo para cualquier identificador, exista o no: no se consulta la base ni se verifica la contraseña.
+        raise AuthError("CUENTA_BLOQUEADA", ACCOUNT_LOCKED_MESSAGE, retryAfterSeconds=espera)
+
     user = _findUserByIdentifier(db, identificador)
 
-    if user is None:
-        # Cuenta inexistente: no hay Usuario identificable. Se audita el intento SIN guardar el identificador ingresado (solo un HMAC: ver
-        # _auditFailedLogin). La respuesta es la misma y cuesta el mismo tiempo que una contraseña incorrecta, para no revelar si la cuenta existe.
+    if user is None or _purgeIfExpired(db, user):
+        # Cuenta inexistente (o pendiente vencida, que se elimina): la misma respuesta y el mismo costo que una contraseña incorrecta.
         security.verifyDummyPassword(password)
         _auditFailedLogin(db, "LOGIN_LOCAL", None, "CUENTA_INEXISTENTE", "Cuenta inexistente", identificador)
         db.commit()
-        raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
-
-    if _purgeIfExpired(db, user):
-        # Cuenta pendiente vencida: se elimina y se trata como inexistente (misma respuesta y mismo registro).
-        security.verifyDummyPassword(password)
-        _auditFailedLogin(db, "LOGIN_LOCAL", None, "CUENTA_INEXISTENTE", "Cuenta inexistente", identificador)
-        db.commit()
+        _registrarFallo(db, identificador, origen, None, now)
         raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
 
     # A partir de acá el Usuario está identificado: los eventos relevantes se auditan.
     credential = _getLocalCredential(db, user)
     if credential is None:
-        # Cuenta solo Google: respuesta genérica, sin contador de intentos (no hay CredencialLocal).
+        # Cuenta solo Google: respuesta genérica (no hay CredencialLocal que verificar).
         security.verifyDummyPassword(password)
         _auditFailedLogin(db, "LOGIN_LOCAL", user, "SIN_CREDENCIAL_LOCAL", "Cuenta sin credencial local")
         db.commit()
+        _registrarFallo(db, identificador, origen, user, now)
         raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
-
-    # Durante el bloqueo no se procesa el intento: no se verifica la contraseña ni se suma al contador.
-    if _isLocked(credential, now):
-        _auditFailedLogin(db, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA", "Cuenta bloqueada")
-        db.commit()
-        userNotifications.notifyRejectedAccess(db, user, now)
-        raise _lockedError(credential.bloqueadoHasta, now)
-    # Bloqueo vencido: se restablece el contador antes de evaluar este intento (3 intentos completos).
-    _unlockIfExpired(db, credential, now)
-    db.commit()
 
     valid, newHash = security.verifyPassword(password, credential.passwordHash)
-    try:
-        if valid:
+    if valid:
+        try:
             _registerSuccessfulPassword(db, credential, now, newHash)
-            locked = False
-        else:
-            locked = _registerFailedPassword(db, credential, now)
-    except AuthError:
-        # Otra solicitud simultánea bloqueó la cuenta: este intento no se procesa ni se cuenta.
-        _auditFailedLogin(db, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA", "Cuenta bloqueada")
+        except AuthError:
+            # Otra solicitud (reautenticación con sesión) bloqueó la credencial mientras tanto: el acceso se rechaza.
+            _auditFailedLogin(db, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA", "Cuenta bloqueada")
+            db.commit()
+            raise
         db.commit()
-        raise
+        _requireActive(db, user, "LOGIN_LOCAL")
+        requireAccesoLogin(db, user, acceso, "LOGIN_LOCAL")
+        return _completePrimaryAuthentication(db, user, METHOD_PASSWORD, clientInfo)
 
-    if not valid:
-        _auditFailedLogin(db, "LOGIN_LOCAL", user, "PASSWORD_INCORRECTA", "Contraseña inválida")
-        if locked:
-            # Control de seguridad activado: queda como evento propio (hecho comprobado; no implica por sí solo un ataque).
-            registerEvent(
-                db, "LOGIN", auditClassification.ACCION_BLOQUEO_CUENTA, False, user.idUsuario, motivo="INTENTOS_EXCEDIDOS",
-                idInstitucion=singleInstitutionOf(db, user.idUsuario), modulo="SEGURIDAD",
-                observacion=f"Bloqueo temporal tras {credential.intentosFallidosConsecutivos} contraseñas incorrectas seguidas",
-                datosNuevos={"intentos": credential.intentosFallidosConsecutivos, "minutos": getSettings().AUTH_LOCKOUT_MINUTES},
-            )
-        db.commit()
-        userNotifications.notifyRejectedAccess(db, user, now)
-        if locked:
-            if userNotifications.correoActivo(db, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
-                _notify(
-                    EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
-                    cantidadIntentos=credential.intentosFallidosConsecutivos,
-                    bloqueadoHasta=credential.bloqueadoHasta, urlSeguridad=_securityUrl(),
-                )
-            userNotifications.notifySecurity(
-                db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
-                "Hubo varios intentos fallidos de entrar a tu cuenta y la bloqueamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
-                f"BLOQUEO:{credential.bloqueadoHasta}",  # sin formato: nunca puede romper el rechazo del acceso
-            )
-            raise _lockedError(credential.bloqueadoHasta, now)
-        raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
+    _auditFailedLogin(db, "LOGIN_LOCAL", user, "PASSWORD_INCORRECTA", "Contraseña inválida")
     db.commit()
+    userNotifications.notifyRejectedAccess(db, user, now)
+    _registrarFallo(db, identificador, origen, user, now)
+    # Mismo rechazo que una contraseña incorrecta, también al alcanzar el límite: el siguiente intento ya recibe CUENTA_BLOQUEADA.
+    raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
 
-    _requireActive(db, user, "LOGIN_LOCAL")
-    requireAccesoLogin(db, user, acceso, "LOGIN_LOCAL")
-    return _completePrimaryAuthentication(db, user, METHOD_PASSWORD, clientInfo)
+
+def _registrarFallo(db: Session, identificador: str, origen: str, user: User | None, now: datetime) -> None:
+    """Cuenta el fallo en loginThrottle. Si con él el par alcanza un límite y la cuenta existe, avisa al titular una vez.
+
+    El aviso va al titular (página y correo), nunca a quien ataca: la respuesta no cambia, así que no revela nada.
+    """
+    if not loginThrottle.registrarFallo(identificador, origen) or user is None:
+        return
+    espera = loginThrottle.retryAfter(identificador, origen) or 0
+    bloqueadoHasta = now + timedelta(seconds=espera)
+    registerEvent(
+        db, "LOGIN", auditClassification.ACCION_BLOQUEO_CUENTA, False, user.idUsuario, motivo="INTENTOS_EXCEDIDOS",
+        idInstitucion=singleInstitutionOf(db, user.idUsuario), modulo="SEGURIDAD",
+        observacion=f"Límite temporal de intentos fallidos desde un mismo origen (hasta {espera} s)",
+        datosNuevos={"segundos": espera},
+    )
+    db.commit()
+    if userNotifications.correoActivo(db, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
+        _notify(
+            EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
+            cantidadIntentos=loginThrottle.LIMITES[0][1], bloqueadoHasta=bloqueadoHasta, urlSeguridad=_securityUrl(),
+        )
+    userNotifications.notifySecurity(
+        db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
+        "Hubo varios intentos fallidos de entrar a tu cuenta desde un mismo lugar y los limitamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
+        f"BLOQUEO:{bloqueadoHasta}",  # sin formato: nunca puede romper el rechazo del acceso
+    )
 
 
 def loginGoogle(db: Session, identity: GoogleIdentity, clientInfo: ClientInfo | None = None) -> LoginResponse:

@@ -1,0 +1,19 @@
+# M-2 · ANTES (estado previo a la rama de M-2, backend con la lógica de bloqueo por cuenta).
+# Sonda temporal de la app real (TestClient + SQLite), mismo entorno de pruebas que el resto de la evidencia.
+# S1: cuenta existente, 3 contraseñas erróneas desde la IP A, luego la 4.ª
+# S2: cuenta inexistente, 4 intentos desde la IP A
+# S3: atacante desde la IP B contra la víctima; víctima con la contraseña CORRECTA desde la IP C
+# S4: 16 min después, un fallo del atacante; víctima con la contraseña correcta justo después
+
+S1 existente, 3 erróneas IP A: [(401, 'CREDENCIALES_INVALIDAS', None), (401, 'CREDENCIALES_INVALIDAS', None), (429, 'CUENTA_BLOQUEADA', '900')]
+S1 4ta (existente, IP A): (429, 'CUENTA_BLOQUEADA', '900')
+S2 inexistente x4 IP A: (401, 'CREDENCIALES_INVALIDAS', None)
+S3 atacante IP B contra víctima:  (429, 'CUENTA_BLOQUEADA', '900')
+S3 víctima con clave CORRECTA desde IP C: (429, 'CUENTA_BLOQUEADA', '900')
+S4 tras 16 min, una errónea de atacante: (401, 'CREDENCIALES_INVALIDAS', None)
+S4 víctima correcta inmediatamente después: (200, None, None)
+
+# Lectura:
+#  - Oráculo de enumeración: la cuenta existente responde 429 CUENTA_BLOQUEADA tras 3 fallos; la inexistente, 401 siempre (S1 vs S2).
+#  - Bloqueo por terceros: el atacante desde otra IP deja fuera a la víctima con la clave correcta (S3).
+#  - Renovable: el bloqueo vence a los 15 min y el atacante lo reabre con 3 intentos (S4, por diseño del contador).

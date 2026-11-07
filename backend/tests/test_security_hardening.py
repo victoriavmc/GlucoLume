@@ -238,6 +238,17 @@ def test_nginx_limita_el_cuerpo_de_autenticacion():
     assert "client_max_body_size 1m;" in conf
 
 
+def test_nginx_responde_el_limite_de_rafaga_de_autenticacion_como_la_api():
+    """M-2 (auditoría 07/11/2026): el 429 del borde era la página HTML de Nginx, sin Retry-After. Ahora es el mismo JSON de la API."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "error_page 429 = @auth_limite;" in auth
+    block = re.search(r"location @auth_limite \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "internal;" in block and "default_type application/json;" in block and "add_header Retry-After 1 always;" in block
+    assert "DEMASIADAS_SOLICITUDES" in block and "return 429" in block
+    assert "Content-Security-Policy" in block and "X-Content-Type-Options" in block  # sin el server, hay que repetirlas
+
+
 def test_nginx_expone_solo_la_liveness_de_la_api():
     """B-6 (auditoría 07/11/2026): /api/v1/healthz reenvía el /healthz del backend (sin base de datos). La readiness no se publica."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")

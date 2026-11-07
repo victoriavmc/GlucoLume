@@ -1,0 +1,20 @@
+== 1) Secuencia del auditor (15 intentos incorrectos, cuenta inexistente, misma IP)
+   Nota: la parte 1 solo es concluyente con SQL Server. Sin base, la app responde 500 antes de registrar el fallo; la evidencia
+   con base de prueba es resultados_login_pytest.txt (test_quince_intentos_seguidos_desde_una_ip_quedan_limitados_con_retry_after).
+   intento  1 -> 500  Retry-After=
+   intento  2 -> 500  Retry-After=
+   intento  3 -> 500  Retry-After=
+   intento  4 -> 500  Retry-After=
+   intento  5 -> 500  Retry-After=
+   intento  6 -> 500  Retry-After=
+   intento  7 -> 500  Retry-After=
+   intento  8 -> 500  Retry-After=
+   intento  9 -> 500  Retry-After=
+   intento 10 -> 500  Retry-After=
+   intento 11 -> 500  Retry-After=
+   intento 12 -> 500  Retry-After=
+   intento 13 -> 500  Retry-After=
+   intento 14 -> 500  Retry-After=
+   intento 15 -> 500  Retry-After=
+== 2) X-Forwarded-For falsificado distinto en cada pedido (70 pedidos)
+   primer 429 en el pedido: 46  (esperado: 46 = 61 - 15 de la parte 1; Retry-After=600 de la aplicación)
