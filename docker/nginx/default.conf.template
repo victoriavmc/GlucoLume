@@ -62,6 +62,9 @@ server {
     index index.html;
 
     server_tokens off;
+    # Redirecciones de Nginx relativas (p. ej. /api → /api/): sin esto, Nginx escribe http://<host>:8080/... en Location y expone el puerto
+    # interno y el esquema sin TLS (auditoría 07/11/2026, M-1). El navegador resuelve la ruta contra el origen público.
+    absolute_redirect off;
     client_max_body_size 1m;
     access_log /dev/stdout sin_query;
 
@@ -91,6 +94,27 @@ server {
         return 200 "ok\n";
     }
 
+    # Liveness para monitoreo externo (auditoría 07/11/2026, B-6): el mismo /healthz del backend que usa el healthcheck del contenedor. No
+    # consulta la base, así que no publica el estado de SQL Server (la readiness con base queda fuera de la exposición pública).
+    location = /api/v1/healthz {
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $backend ${BACKEND_UPSTREAM};
+        rewrite ^ /healthz break;
+        proxy_pass http://$backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;  # correlación: la API lo guarda en cada evento de auditoría (valor propio de Nginx, el del cliente se descarta)
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 10s;
+        proxy_hide_header X-Content-Type-Options;  # cabeceras duplicadas: ver /api/ (B-3)
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
+    }
+
     # Flujos en vivo (Server-Sent Events): muestras del Arduino (/stream) y telemetría del dispositivo (/telemetry/stream).
     # Sin buffer ni límite de lectura.
     location ~ ^/api/v1/acquisition/(telemetry/)?stream$ {
@@ -104,6 +128,11 @@ server {
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Request-ID $request_id;  # correlación: la API lo guarda en cada evento de auditoría (valor propio de Nginx, el del cliente se descarta)
         proxy_set_header X-Forwarded-Proto $fwd_proto;
+        # Cabeceras que el backend repite (SecurityHeadersMiddleware): se descartan las suyas y queda una sola, la de Nginx (auditoría
+        # 07/11/2026, B-3). La CSP del backend se conserva aquí porque esta ubicación no define una propia.
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Strict-Transport-Security;
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
@@ -118,10 +147,17 @@ server {
     location ^~ /api/v1/auth/ {
         limit_req zone=auth_zone burst=60 nodelay;
         limit_req_status 429;
+        # Los formularios de autenticación no pasan de unos cientos de bytes (contraseña ≤256, correo ≤254): 16 KB sobra. El tope general de
+        # /api/ (1 MB) se conserva porque el puente envía lotes de hasta 200 líneas (auditoría 07/11/2026, B-1).
+        client_max_body_size 16k;
         resolver ${DNS_RESOLVER} valid=10s ipv6=off;
         set $backend ${BACKEND_UPSTREAM};
         proxy_pass http://$backend;
         proxy_http_version 1.1;
+        proxy_hide_header X-Content-Type-Options;  # cabeceras duplicadas: ver /api/ (B-3)
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
@@ -136,6 +172,12 @@ server {
         set $backend ${BACKEND_UPSTREAM};
         proxy_pass http://$backend;
         proxy_http_version 1.1;
+        # Nginx es el único emisor de estas cabeceras: el backend las repite (SecurityHeadersMiddleware) y el navegador recibía dos CSP y
+        # dos Referrer-Policy (auditoría 07/11/2026, B-3). Las demás (Cache-Control: no-store, X-Request-ID...) siguen viniendo del backend.
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
@@ -153,6 +195,10 @@ server {
         set $backend ${BACKEND_UPSTREAM};
         proxy_pass http://$backend;
         proxy_http_version 1.1;
+        proxy_hide_header X-Content-Type-Options;  # cabeceras duplicadas: ver /api/ (B-3)
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;

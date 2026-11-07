@@ -230,6 +230,48 @@ def test_nginx_no_registra_la_query_de_los_enlaces_con_token():
     assert not re.search(r"access_log\s+(?!off\b)(?!/dev/stdout sin_query;)", conf)  # ningún otro access_log con el formato por defecto
 
 
+def test_nginx_limita_el_cuerpo_de_autenticacion():
+    """B-1 (auditoría 07/11/2026): los formularios de autenticación no necesitan más de unos KB; el tope general de /api/ se mantiene."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "client_max_body_size 16k;" in auth
+    assert "client_max_body_size 1m;" in conf
+
+
+def test_nginx_expone_solo_la_liveness_de_la_api():
+    """B-6 (auditoría 07/11/2026): /api/v1/healthz reenvía el /healthz del backend (sin base de datos). La readiness no se publica."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    block = re.search(r"location = /api/v1/healthz \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "rewrite ^ /healthz break;" in block and "proxy_pass http://$backend;" in block
+    assert "readyz" not in conf
+
+
+def test_login_acota_la_contrasena_de_entrada():
+    """M-3 (auditoría 07/11/2026): el login aceptaba contraseñas de cualquier longitud. Tope de 256, por encima de la política de 128
+    para no bloquear contraseñas creadas antes de ella."""
+    from app.schemas.auth import LoginRequest
+
+    LoginRequest(identificador="persona@example.com", password="x" * 256)
+    with pytest.raises(ValidationError):
+        LoginRequest(identificador="persona@example.com", password="x" * 257)
+
+
+def test_nginx_es_unico_emisor_de_cabeceras_que_el_backend_repite():
+    """B-3 (auditoría 07/11/2026): la API recibía dos CSP y dos Referrer-Policy. Cada ubicación proxy descarta las del backend que Nginx
+    también agrega; la CSP del backend se conserva solo en el flujo SSE, que no define una propia."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    proxies = conf.count("proxy_pass http://$backend;")
+    for header in ("X-Content-Type-Options", "Referrer-Policy", "Strict-Transport-Security"):
+        assert conf.count(f"proxy_hide_header {header};") == proxies, header
+    assert conf.count("proxy_hide_header Content-Security-Policy;") == proxies - 1
+
+
+def test_nginx_redirige_con_ruta_relativa_sin_puerto_interno():
+    """M-1 (auditoría 07/11/2026): /api redirigía a http://<host>:8080/api/, con el puerto interno y sin TLS. Redirección relativa."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert re.search(r"^    absolute_redirect off;$", conf, re.M)
+
+
 def test_controles_de_infraestructura_preparados():
     """GL-18/19/03/21: configuraciones que no se pueden verificar sin desplegar, fijadas para que no retrocedan."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")

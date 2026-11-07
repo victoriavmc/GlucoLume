@@ -92,7 +92,10 @@ class LoginRequest(BaseModel):
             examples=["persona@example.com", "victoria"],
         ),
     ]
-    password: Password
+    # Tope de entrada (auditoría 07/11/2026, M-3): sin él se aceptaban contraseñas de 100 000 caracteres. Se usa 256 y no 128 (el límite de
+    # la política de contraseñas nueva) porque las creadas antes de que existiera ese tope pueden superar 128; 256 es el que ya usa la
+    # reautenticación de plataforma (app/schemas/platform.py).
+    password: Annotated[SecretStr, Field(min_length=1, max_length=256)]
     acceso: AccesoLogin = Field(
         default="GENERAL",
         description=(
