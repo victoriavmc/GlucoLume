@@ -249,6 +249,34 @@ def test_nginx_responde_el_limite_de_rafaga_de_autenticacion_como_la_api():
     assert "Content-Security-Policy" in block and "X-Content-Type-Options" in block  # sin el server, hay que repetirlas
 
 
+def test_api_sin_barra_redirige_relativo_con_308_y_sin_proxy():
+    """M-1 (auditoría 07/11/2026): /api no debe generar una URL absoluta con esquema y puerto internos. Redirección relativa, 308 (conserva el
+    método) y sin llegar al backend."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "absolute_redirect off;" in conf
+    bloque = re.search(r"location = /api \{(.*?)\n    \}", conf, re.S)
+    assert bloque is not None
+    assert "return 308 /api/$is_args$args;" in bloque.group(1)
+    assert "proxy_pass" not in bloque.group(1)
+
+
+def test_nginx_no_apunta_a_su_propio_loopback_ni_a_localhost():
+    """La propuesta del informe (proxy_pass a 127.0.0.1:8080 dentro del contenedor del frontend) se proxifica a sí misma: 502 en medición."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "proxy_pass http://127.0.0.1" not in conf and "proxy_pass http://localhost" not in conf
+    assert "proxy_pass http://$backend;" in conf
+
+
+def test_upstream_por_defecto_coincide_con_el_puerto_real_del_backend():
+    """Dockerfile del frontend, compose y backend deben apuntar al mismo puerto: el backend escucha en 8000 (uvicorn y EXPOSE)."""
+    frontend = (REPO / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    assert re.search(r"ENV BACKEND_UPSTREAM=backend:8000 \\", frontend)
+    compose = (REPO / "compose.yaml").read_text(encoding="utf-8")
+    assert re.search(r"BACKEND_UPSTREAM:\s*\$\{FRONTEND_BACKEND_UPSTREAM:-backend:8000\}", compose)
+    backend = (REPO / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "EXPOSE 8000" in backend and '"--port", "8000"' in backend
+
+
 def test_nginx_expone_solo_la_liveness_de_la_api():
     """B-6 (auditoría 07/11/2026): /api/v1/healthz reenvía el /healthz del backend (sin base de datos). La readiness no se publica."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")

@@ -186,6 +186,13 @@ server {
         return 429 '{"codigo":"DEMASIADAS_SOLICITUDES","detail":"Hiciste demasiadas solicitudes seguidas. Esperá unos minutos e intentá de nuevo."}';
     }
 
+    # /api sin barra final (M-1, auditoría 07/11/2026): redirección RELATIVA a /api/ con 308, que conserva el método y la query. No hay
+    # proxy aquí, así que no llega al backend. Sin esta ubicación, Nginx la genera solo y su Location lleva $scheme y el puerto de escucha
+    # (http://<host>:8080/api/), que es el puerto interno del contenedor.
+    location = /api {
+        return 308 /api/$is_args$args;
+    }
+
     location /api/ {
         resolver ${DNS_RESOLVER} valid=10s ipv6=off;
         set $backend ${BACKEND_UPSTREAM};

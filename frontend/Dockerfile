@@ -87,7 +87,7 @@ USER 101
 COPY --from=nginxconf default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 # TRUSTED_PROXY_CIDR: desde qué red se confía en X-Forwarded-For (proxy HTTPS delante). Por defecto, las redes privadas de Docker.
-ENV BACKEND_UPSTREAM=backend:8080 \
+ENV BACKEND_UPSTREAM=backend:8000 \
     DNS_RESOLVER=127.0.0.11 \
     TRUSTED_PROXY_CIDR=172.16.0.0/12
 EXPOSE 8080

@@ -8,7 +8,7 @@
 
 | ID | Sev. (PDF) | Estado | Resumen |
 |---|---|---|---|
-| M-1 | Media | **CORREGIDO** (código + validación local) | `/api` redirigía a `http://<host>:8080/api/`. Ahora `Location: /api/`. |
+| M-1 | Media | **CORREGIDO en la rama** (pendiente de despliegue) | `/api` redirigía a `http://<host>:8080/api/`. Ahora `308` a `/api/` relativo. Ver §2. |
 | M-2 | Media | **CORREGIDO** (con riesgo residual: ataque distribuido) | El PDF no reprodujo el límite porque probó 15 intentos. Sí había fallas reales: oráculo de enumeración, bloqueo de la cuenta por terceros y 429 del borde sin forma de API. Ver §2. |
 | M-3 | Media | **CORREGIDO** (coste acotado; el sobrecoste por longitud no se reproduce) | Argon2 con control de concurrencia (2 a la vez, 8 en espera, 503 con `Retry-After`). Sin cambios de coste ni de hashes. Ver §2. |
 | M-4 | Media | **PENDIENTE** (requiere aprobación de diseño) | El access token ya está en memoria y el refresh en cookie HttpOnly. Quedan tokens en la URL de 4 flujos. |
@@ -23,16 +23,85 @@
 
 ## 2. Detalle por hallazgo
 
-### M-1 · Redirección de `/api` (CORREGIDO)
+### M-1 · Redirección de `/api` a HTTP con el puerto 8080 (CORREGIDO en la rama, pendiente de despliegue)
 
-- **Diagnóstico (reproducido):** `GET /api` → `301 Location: http://127.0.0.1:8080/api/` en Nginx 1.24 con la plantilla de `HEAD`.
-- **Causa raíz:** Nginx redirige automáticamente la ubicación prefija `/api/` cuando se pide `/api`. Con `absolute_redirect` activo (valor por defecto), la URL absoluta toma el esquema y el puerto del socket de escucha.
-- **Archivos:** `docker/nginx/default.conf.template`; `backend/tests/test_security_hardening.py`.
-- **Solución:** `absolute_redirect off;` en el bloque `server`.
-- **Pruebas:** sonda `sondas_nginx.sh` antes/después (evidencias); `verificar-rutas.sh` 17/17 con ambas plantillas; `test_nginx_redirige_con_ruta_relativa_sin_puerto_interno` (no existe en `HEAD`).
-- **Efecto colateral:** todas las redirecciones que genera Nginx pasan a relativas (p. ej. `/assets` → `/assets/`). Los navegadores las resuelven igual.
-- **Fuera de alcance:** las redirecciones que genera **el backend** (FastAPI `redirect_slashes`, p. ej. `/api/v1/auth/login/` → 307) usan el `Host` del pedido y el esquema del proxy. Local, con esquema `http`: `Location: http://127.0.0.1:8080/api/v1/auth/login`. Verificar en el servidor (ver Anexo C).
-- **Riesgos y rollback:** bajo. Rollback: quitar la línea `absolute_redirect off;` y recargar Nginx.
+**1. Componente que genera la redirección: el Nginx del contenedor `frontend`.** Reproducido con la plantilla de `a3908c0` y el `Host` del acceso por Tailscale (sin puerto):
+
+```
+GET /api                  → 301  Location: http://glucolume-server.tailb27487.ts.net:8080/api/
+GET /api?x=1              → 301  Location: http://glucolume-server.tailb27487.ts.net:8080/api/?x=1
+POST /api                 → 301  Location: http://glucolume-server.tailb27487.ts.net:8080/api/
+```
+
+- El **esquema** es `$scheme`: el Nginx del contenedor recibe la conexión por HTTP. La cabecera `X-Forwarded-Proto: https` **no** la cambia (la redirección automática no usa `$fwd_proto`).
+- El **puerto** es el de escucha del contenedor (`listen 8080`), que es el puerto interno, no el público.
+- El **host** es el `Host` del cliente. Tailscale Serve no aparece en esta cadena: solo reenvía la respuesta; nada en el repo añade `:8080`. Confirmarlo en el servidor con `tailscale serve status` (§6).
+- **No es FastAPI**: `/api` no es una ruta del backend. La redirección ocurre antes de llegar a él.
+
+**2. Configuración real verificada (no la del PDF):**
+
+| Elemento | Valor real | Fuente |
+|---|---|---|
+| Puerto de escucha del frontend | 8080 (dentro del contenedor) | `frontend/Dockerfile` `EXPOSE 8080`; `compose.yaml` `ports` |
+| Publicación del frontend | `127.0.0.1:80` y `127.0.0.1:8080` del host | `compose.yaml` (`FRONTEND_PORT`, `FRONTEND_LOGIN_PORT`) |
+| Upstream del backend | `backend:8000` | `compose.yaml` `BACKEND_UPSTREAM: ${FRONTEND_BACKEND_UPSTREAM:-backend:8000}`; `backend/Dockerfile` `EXPOSE 8000` y `uvicorn --port 8000` |
+| Default de la imagen del frontend | **`backend:8080` (incorrecto)** | `frontend/Dockerfile` `ENV BACKEND_UPSTREAM` — corregido a `backend:8000` en este parche |
+| TLS | Caddy (perfil `https`) → `frontend:8080`, o un proxy del host | `docker/caddy/Caddyfile`, `compose.prod.yaml`, `docs/DESPLIEGUE.md` |
+
+**3. Causa raíz.** Nginx redirige por sí mismo una ubicación prefija (`location /api/`) cuando se pide `/api`. Con `absolute_redirect on` (el valor por defecto), la URL absoluta se arma con `$scheme`, `$host` y el puerto de escucha. Es un defecto de la configuración por omisión, no de la API.
+
+**4. Por qué no se copia la propuesta del PDF.** El informe propone `proxy_pass http://127.0.0.1:8080` y `proxy_redirect off; port_in_redirect off;`. Medido:
+
+- **`proxy_pass` a `127.0.0.1:8080` dentro del contenedor → 502.** Ese `127.0.0.1` es el propio Nginx: se proxifica a sí mismo (`upstream sent too big header…` en `error.log`).
+- `proxy_redirect` reescribe cabeceras del **upstream**; el `Location` de `/api` lo genera Nginx, no el upstream. No tiene efecto aquí.
+- `port_in_redirect` es irrelevante una vez que la redirección es relativa.
+
+**5. Solución (parche mínimo, `docs/auditorias/evidencias/auditoria_seguridad_2026-11-07/M1_redireccion_api.patch`):**
+
+1. `docker/nginx/default.conf.template`: ubicación exacta `location = /api { return 308 /api/$is_args$args; }`, sin proxy. El `308` conserva el método (un `POST /api` no se convierte en `GET`), y la query se mantiene.
+2. `absolute_redirect off;` en el `server` (ya en `446f967`): defensa para cualquier otra redirección de Nginx.
+3. `frontend/Dockerfile`: `ENV BACKEND_UPSTREAM=backend:8000` (antes `8080`). Compose ya fija `backend:8000`, así que en el despliegue por compose no cambia nada; evita un 502 si la imagen se usa sin compose.
+
+**Antes y después** (`evidencias/.../resultados_redireccion_api_*.txt`, sonda `sondas_redireccion_api.sh`):
+
+| Solicitud | `a3908c0` (auditoría) | HEAD previo (`1931580`) | Este parche |
+|---|---|---|---|
+| `GET /api` (Host tailnet) | 301 `http://…:8080/api/` | 301 `/api/` | **308 `/api/`** |
+| `POST /api` | 301 `http://…:8080/api/` | 301 `/api/` | **308 `/api/`** (método conservado) |
+| `GET /api?x=1` | 301 `http://…:8080/api/?x=1` | 301 `/api/?x=1` | **308 `/api/?x=1`** |
+| Seguimiento `curl -L` | 1 salto, al puerto interno | 1 salto | 1 salto, sin 5xx |
+| `GET /api/` | 404 JSON del backend | 404 JSON | 404 JSON (sin cambio) |
+| `GET /api/v1/auth/login` | 405 JSON | 405 JSON | 405 JSON (sin cambio) |
+| `GET /api/v1/healthz` | 404 (anterior a B-6) | 200 | 200 |
+| `POST /api/v1/auth/login` | 500 (sin base en el banco) | 500 | 500 (sin cambio) |
+| Mixed content (`X-Forwarded-Proto: https`) | `Location` `http://…` | `/api/` | `/api/` |
+
+Notas: el `500` del login es el banco sin SQL Server, igual en ambas columnas; la fila de healthz de la primera columna no aísla M-1 (es anterior a B-6). `verificar-rutas.sh` (17/17) pasa en las tres plantillas.
+
+**6. Verificación en el servidor (solo lectura, antes del despliegue):**
+
+```bash
+# Redirección actual (esperado hoy: 301 con http:// y :8080)
+curl -sI https://glucolume-server.tailb27487.ts.net/api | grep -i '^HTTP\|^location'
+# Plantilla renderizada dentro del contenedor (esperado hoy: sin "location = /api")
+docker compose -f compose.yaml -f compose.prod.yaml exec frontend grep -n "location = /api\|absolute_redirect" /etc/nginx/conf.d/default.conf
+# Upstream efectivo
+docker compose -f compose.yaml -f compose.prod.yaml config | grep BACKEND_UPSTREAM
+# Proxy del host (si existe): ¿agrega o reescribe redirecciones?
+sudo nginx -T 2>/dev/null | grep -n "location\|proxy_pass\|absolute_redirect" | head -20
+tailscale serve status
+```
+
+**7. Procedimiento de despliegue (no aplicado; requiere aprobación):**
+
+1. Respaldo de la imagen actual: anotar `GLUCOLUME_VERSION` vigente (no borrar su imagen).
+2. `GLUCOLUME_VERSION=<nueva>`; `docker compose -f compose.yaml -f compose.prod.yaml build frontend`; `docker compose … up -d frontend`. El backend, la base y los workers no se tocan. Corte esperado: segundos del frontend; la API sigue respondiendo.
+3. Validación: `sondas_redireccion_api.sh http://127.0.0.1:8080 glucolume-server.tailb27487.ts.net` y `verificar-rutas.sh`. Esperado: `308 /api/` y 17/17.
+4. Validación externa por HTTPS: `curl -sI https://<dominio>/api` → `308` con `Location: /api/`.
+
+**8. Rollback:** `GLUCOLUME_VERSION=<anterior>` y `docker compose … up -d frontend`. Sin cambios de base ni de datos. Comprobación: `curl -sI …/api` vuelve a `301` (comportamiento anterior, con el `Location` previo). Riesgo: los clientes que cacheen un `301` de `/api` verán el `308`; nadie usa `/api` como endpoint.
+
+**Pendiente (decisión, no implementado):** la barra final en la **API** (`/api/v1/auth/login/`) produce un `307` del backend (`redirect_slashes`) con URL absoluta armada desde el `Host` y el esquema. Medido: con un peer no confiable, `http://<host>/…`; con un proxy HTTPS de confianza, `https://<host>/…`. El puerto no aparece con el `Host` de Tailscale. Ningún cliente del proyecto usa barra final (frontend: 0 rutas; bridge: `/api/v1/acquisition/bridge/check`). Dos opciones: (a) `FastAPI(redirect_slashes=False)`, que cambia el 307 por 404 para barras finales (cambio de contrato para clientes externos); (b) dejarlo y verificar que el proxy del host envíe `X-Forwarded-Proto: https` y esté en `TRUSTED_PROXY_CIDR`. Requiere tu decisión.
 
 ### M-2 · Protección del inicio de sesión contra intentos automatizados (CORREGIDO, con riesgo residual)
 

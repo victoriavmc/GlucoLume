@@ -11,6 +11,11 @@ Estas evidencias respaldan `docs/auditorias/CORRECCIONES_AUDITORIA_SEGURIDAD_202
 | `resultados_despues.txt` | Salida de las sondas con la plantilla de la rama de trabajo. |
 | `verificar_rutas_antes.txt` | Salida de `docker/nginx/verificar-rutas.sh` con la plantilla de `HEAD`. |
 | `verificar_rutas_despues.txt` | Salida de `docker/nginx/verificar-rutas.sh` con la plantilla de la rama. |
+| `sondas_redireccion_api.sh` | M-1: redirección de `/api` (Host de Tailscale), rutas proxificadas, seguimiento de redirecciones y mixed content. |
+| `resultados_redireccion_api_antes.txt` | M-1: plantilla de `a3908c0` (la de la auditoría). |
+| `resultados_redireccion_api_rama_previa.txt` | M-1: plantilla de `HEAD` previo a este parche (`1931580`). |
+| `resultados_redireccion_api_despues.txt` | M-1: plantilla de la rama con este parche. |
+| `M1_redireccion_api.patch` | M-1: parche (plantilla, Dockerfile del frontend, pruebas). Reversible con `git apply -R`. |
 
 ## Cómo se obtuvieron
 
