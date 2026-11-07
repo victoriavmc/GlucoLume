@@ -24,6 +24,7 @@ Estas evidencias respaldan `docs/auditorias/CORRECCIONES_AUDITORIA_SEGURIDAD_202
 | `sondas_rutas_spa.sh` / `resultados_rutas_spa_antes.txt` / `_despues.txt` | B-2: código y tipo de una matriz de rutas (válidas, desconocidas, sensibles, API) con la plantilla de `HEAD` y con la de la rama. |
 | `verificar_navegacion_spa.cjs` / `resultados_navegacion_spa_antes.txt` / `_despues.txt` | B-2: navegación en Chromium (clic interno, acceso directo, recarga, desconocidas, API). Requiere Playwright y el build del frontend. |
 | `sondas_cabeceras_csp.sh` / `resultados_cabeceras_csp_antes.txt` / `_despues.txt` | B-7: cabecera CSP de la SPA y de la API antes y después de `report-uri`. |
+| `sondas_hsts.sh` / `resultados_hsts_antes.txt` / `_despues.txt` | B-4: HSTS, Location y código por host (dominio, localhost) y X-Forwarded-Proto. Requiere `TRUSTED_PROXY_CIDR=127.0.0.0/8` en el banco. |
 | `verificar_reportes_csp.cjs` / `resultados_reportes_csp.txt` | B-7: navegación normal (0 reportes) y violación provocada (2 reportes sanitizados, sin tokens en el log). Requiere Playwright y el build del frontend. |
 
 ## Cómo se obtuvieron

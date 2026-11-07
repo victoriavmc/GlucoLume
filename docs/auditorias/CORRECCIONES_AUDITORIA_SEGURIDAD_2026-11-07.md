@@ -15,7 +15,7 @@
 | B-1 | Baja | **CORREGIDO** | Tope general de 160 KB (antes 1 MB); tramos por operación para lotes legítimos (ingesta 768 KB, muestras y offboarding 384 KB); autenticación 16 KB; 413 en JSON. Ver §2. |
 | B-2 | Baja | **PARCIAL** | Rutas desconocidas, archivos sensibles (`.git`, `.env`, `.php`, copias) y `/administracion/*` inexistentes ahora dan 404. Pendiente: subrutas inexistentes dentro de `/app` y `/plataforma` (siguen con 200, la SPA las redirige). Ver §2. |
 | B-3 | Baja | **CORREGIDO** (código + validación local) | Cada cabecera de seguridad aparece una sola vez en la API. |
-| B-4 | Baja | **NO APLICA** (preload) / **PENDIENTE** (308) | `preload` no es posible sobre `*.ts.net`. El 302→308 lo emite Tailscale Serve, fuera del repo. |
+| B-4 | Baja | **PARCIAL** | HSTS: sin `includeSubDomains`, 30 días (antes 1 año), y sin emitir en `localhost` (Nginx). Pendiente: el `Caddyfile` del perfil `https` (validar en servidor). `preload`: no aplica. El 302 HTTP→HTTPS no está en el repo: verificar en el borde. Ver §2. |
 | B-5 | Baja | **PENDIENTE** | HTTP/2 lo negocia el borde de Tailscale. COOP/CORP requiere validar el flujo de login en navegador. |
 | B-6 | Baja | **CORREGIDO** | Liveness `/api/v1/healthz` publicada. Readiness `/api/v1/readyz` implementada para monitoreo interno: Nginx la responde 404 y el backend la expone con valores enumerados, sin versiones ni cadenas de conexión. |
 | B-7 | Baja | **CORREGIDO** (monitoreo en los logs del backend) | La CSP de la app tiene `report-uri`: cada bloqueo llega a `/api/v1/security/csp-report`, se sanitiza y se registra. Sin servicios externos ni base de datos. Ver §2. |
@@ -328,10 +328,53 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 
 **Rollback:** revertir el commit (plantilla y pruebas). No hay cambios de datos ni de API.
 
-### B-4 · HSTS y redirección (NO APLICA / PENDIENTE)
+### B-4 · HSTS y redirección HTTP→HTTPS (PARCIAL)
 
-- **`preload`:** la lista de preload exige un dominio registrable que controlemos. El nombre `glucolume-server.tailb27487.ts.net` cuelga de `ts.net`, que es de Tailscale. Agregarlo sería rechazado. **No aplicar.**
-- **302 → 308:** la redirección HTTP→HTTPS la hace Tailscale Serve, que está fuera del repo. Verificar con `tailscale serve status` en el servidor. Con el perfil `https` (Caddy + dominio), Caddy redirige automáticamente.
+- **Configuración real (medida y leída en el repo):**
+  - Nginx (`docker/nginx/default.conf.template`) emite HSTS solo si el pedido llega con `X-Forwarded-Proto: https` **desde un proxy de confianza** (`TRUSTED_PROXY_CIDR`). Sin proxy de confianza, Nginx ignora la cabecera y no emite nada. El HSTS medido en el demo en la auditoría (`max-age=31536000; includeSubDomains`) solo puede venir de este mapa: inferimos que el borde de Tailscale llega como proxy de confianza. Confirmarlo en el servidor.
+  - Nginx **no tiene ninguna redirección HTTP→HTTPS**: escucha solo en 8080, no tiene `return 30x` de esquema, y su única redirección es `/api`→`/api/` con 308 relativo (M-1).
+  - Backend (`securityHeaders.py`): mismo valor que Nginx; solo en producción y solo por HTTPS. Nginx oculta el suyo en `/api/` (`proxy_hide_header`).
+  - Caddy (`docker/caddy/Caddyfile`, perfil `https`): `header Strict-Transport-Security "max-age=31536000; includeSubDomains"`. Caddy redirige HTTP→HTTPS por sí mismo (con 308, según su documentación; no verificado aquí).
+- **Origen del 302:** en el repo no hay ninguna redirección HTTP→HTTPS que responda 302. El único 302 medido en la auditoría es el inicio de OAuth (backend → Google), que es correcto. El 302 que señala el PDF sale del borde: Tailscale Serve, si el acceso va por HTTP. Confirmar en el servidor con `tailscale serve status` y `curl -sI http://glucolume-server.tailb27487.ts.net/`. No se puede verificar desde el repo ni desde este banco.
+- **Preload: no aplica.** La lista de preload exige un dominio registrable del operador, `max-age` de un año, `includeSubDomains` y `preload`. El host del demo cuelga de `ts.net`, que no administramos. En producción, con un dominio propio, sería una decisión posterior: es casi irreversible (retirar un dominio de la lista tarda meses).
+- **includeSubDomains: se quitó.** Esta política cubre todos los subdominios del host. En el demo afecta el nombre de un tailnet que no administramos; en producción, cualquier subdominio sin HTTPS quedaría inaccesible para quien ya visitó el sitio. Sin ganancia real para un único host.
+- **max-age: de 1 año a 30 días.** Un año obliga a los navegadores a usar HTTPS durante ese plazo aunque el HTTPS falle o cambie el certificado. Treinta días deja margen para corregir. Subir el valor es una decisión tomada después de validar HTTPS en el servidor. El navegador reemplaza la política guardada al recibir la nueva cabecera por HTTPS, así que el cambio se aplica al próximo acceso.
+- **localhost: sin HSTS.** HSTS es por host, no por puerto. Con el HSTS anterior, un navegador que hubiera visitado `https://localhost` (perfil `https` de prueba) forzaría `http://localhost:5173` (desarrollo) a HTTPS durante un año. Nginx ya no lo emite para `localhost`, `127.0.0.1` ni `[::1]`.
+- **302 → 308: no se cambia.** Razones:
+  - Nginx no emite esa redirección; cambiarla requeriría agregar una redirección global de HTTP a HTTPS en Nginx. Eso rompería el despliegue local por HTTP, que `DESPLIEGUE.md` documenta como válido (`FRONTEND_URL=http://glucolume.local`).
+  - Un 308 es permanente: los navegadores lo cachean sin plazo. Un 302 se puede corregir después.
+  - El beneficio del 308 es que conserva el método de un POST enviado por HTTP. Con HSTS, tras la primera visita por HTTPS el navegador no envía HTTP, así que el beneficio es marginal.
+- **Flujos verificados:**
+  - Login, MFA, recuperación de contraseña, Google OAuth, cookies de sesión y redirecciones internas: 259 pruebas de `test_auth_access*`, `test_google*`, `test_password*`, `test_mfa*`, `test_refresh_cookie`, `test_login_*` y `test_link_auth`, todas en verde. El HSTS no toca cookies, redirecciones ni URL de OAuth.
+  - Cookies: `Secure` se decide por `API_ENV=production` o por un `FRONTEND_URL` https (`sessionCookie._secure`), no por HSTS.
+  - Redirecciones internas: `absolute_redirect off` y el 308 relativo de `/api` (M-1) no cambian. Matriz con y sin `X-Forwarded-Proto` (`resultados_hsts_*.txt`): ni un código ni un `Location` cambió en las 24 combinaciones; solo cambia la columna HSTS.
+  - Enlaces de correo (recuperación, verificación, activación): dependen de `FRONTEND_URL`, no de HSTS.
+- **Pendiente: `Caddyfile` (perfil `https`).** Caddy emite el HSTS anterior. Según la semántica de `header` de Caddy (reemplazo, no suma; no verificado aquí), ese valor reemplaza el de Nginx. El perfil `https` no está cubierto por el cambio del mapa. Propuesta, sin aplicar (no pudimos validar la sintaxis en este banco: el binario de Caddy quedó bloqueado por la política de ejecución, y no hay daemon de Docker):
+
+  ```caddy
+  {$GLUCOLUME_DOMAIN} {
+      encode zstd gzip
+      reverse_proxy frontend:8080
+      @publico {
+          not host localhost 127.0.0.1
+      }
+      header @publico Strict-Transport-Security "max-age=2592000"
+  }
+  ```
+
+  Validación en el servidor, con la imagen fijada del proyecto (sin cambiar nada):
+
+  ```bash
+  docker run --rm -e GLUCOLUME_DOMAIN=app.ejemplo.com -v "$PWD/docker/caddy:/etc/caddy:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile
+  ```
+
+  Después de aplicarlo: `curl -sI https://<dominio> | grep -i strict` debe mostrar `max-age=2592000` y `curl -sI https://localhost` no debe mostrarlo.
+- **Pruebas:** `backend/tests/test_hsts.py` (lee la regla real de la plantilla): HSTS solo para hosts públicos por HTTPS; ninguno para `localhost`, `127.0.0.1`, `[::1]` ni por HTTP; valor igual en Nginx y en el backend, sin `includeSubDomains` ni `preload`; `max-age` de 30 días. `test_security_hardening::test_hsts_de_nginx_y_del_backend_son_el_mismo_valor` actualizado al nuevo formato del mapa.
+- **Verificación pendiente en el servidor:**
+  1. `tailscale serve status`: confirmar qué sirve HTTP y si hay redirección en el borde.
+  2. `curl -sI http://glucolume-server.tailb27487.ts.net/` y `curl -sI https://glucolume-server.tailb27487.ts.net/ | grep -i strict`.
+  3. Tras validar el Caddyfile propuesto, las dos comprobaciones del perfil `https` de arriba.
+- **Riesgos y rollback:** el HSTS anterior queda en los navegadores que ya lo recibieron hasta su vencimiento (un año); el nuevo lo reemplaza al volver a visitar por HTTPS. Rollback: restaurar `"max-age=31536000; includeSubDomains"` en el mapa de Nginx y en `HSTS_VALUE`, y el test de paridad. No hay cambios de base de datos ni de API.
 
 ### B-5 · HTTP/2 y COOP/CORP (PENDIENTE)
 
@@ -430,3 +473,4 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 5. **B-6:** confirmar que el monitoreo interno llama al backend directamente (`http://backend:8000/api/v1/readyz`) y que la readiness no se publica por Nginx. Si se quiere exponerla, debe ser con restricción por origen, y el origen real de cliente hoy no se distingue detrás de Tailscale Serve.
 6. **B-2:** ¿tabla completa de rutas privadas en Nginx (404 real para `/app/xyz`) o manifiesto generado desde el router? Y el destino de los correos de seguridad (`/cuenta/seguridad` no existe; apuntar a `/app/seguridad` o `/plataforma/seguridad` según el tipo de cuenta).
 7. **B-7:** ¿agregar una alerta sobre el conteo de `CSP incumplida` (requiere un recolector de logs) o basta la revisión periódica con `docker compose logs`? Y ¿verificar Trusted Types en `Report-Only` antes de activarlo?
+8. **B-4:** validar el `Caddyfile` propuesto con `caddy validate` en el servidor antes de aplicarlo, y confirmar con `tailscale serve status` si el 302 HTTP→HTTPS viene del borde de Tailscale.

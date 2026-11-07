@@ -24,10 +24,17 @@ map "$trusted_peer:$http_x_forwarded_proto" $fwd_proto {
     "1:http"  http;
 }
 
-# HSTS solo cuando el pedido original fue HTTPS (con valor vacío Nginx no envía la cabecera).
-map $fwd_proto $hsts_value {
+# HSTS (B-4, auditoría 07/11/2026). Solo cuando el pedido original fue HTTPS y el host no es local (con valor vacío Nginx no envía la
+# cabecera). Motivos de los valores:
+#  - Sin includeSubDomains: la política cubriría todos los subdominios del dominio. El del demo es de Tailscale (no lo administramos) y el
+#    de producción puede tener subdominios que no sirven HTTPS.
+#  - 30 días, no un año: si HTTPS falla, un navegador que ya guardó la política no puede volver a HTTP durante todo el max-age. Subir el
+#    valor solo después de validar HTTPS en el servidor.
+#  - Sin localhost ni IP: HSTS es por host, no por puerto. Un HSTS en localhost obligaría a http://localhost:5173 (desarrollo) a HTTPS.
+#  - Sin preload: exige un dominio registrable propio (ts.net no lo es) y es casi irreversible.
+map "$fwd_proto:$host" $hsts_value {
     default "";
-    https   "max-age=31536000; includeSubDomains";
+    "~^https:(?!localhost$|127\.0\.0\.1$|\[::1\]$)" "max-age=2592000";
 }
 
 # Registro de accesos SIN la query (H-14): los enlaces de verificación, recuperación y activación llevan un token de un solo uso en

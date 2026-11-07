@@ -245,7 +245,7 @@ def test_csp_de_la_api_en_nginx_es_la_misma_que_la_del_backend():
 def test_hsts_de_nginx_y_del_backend_son_el_mismo_valor():
     """Un solo valor de HSTS en el código: el de Nginx (map $hsts_value) y el del backend (HSTS_VALUE)."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
-    assert '    https   "%s";' % HSTS_VALUE in conf
+    assert '" "%s";' % HSTS_VALUE in conf  # la línea del map: "~^https:..." "max-age=...";
 
 
 def test_ubicaciones_con_cabeceras_propias_declaran_las_que_el_server_no_puede_heredar():
