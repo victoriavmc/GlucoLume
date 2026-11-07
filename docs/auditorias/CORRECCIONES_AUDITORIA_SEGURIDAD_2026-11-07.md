@@ -19,7 +19,7 @@
 | B-5 | Baja | **CORREGIDO** (COOP y CORP en la SPA y los estáticos) / **PENDIENTE** (COEP, y HTTP/2 en el borde) | `Cross-Origin-Opener-Policy: same-origin` y `Cross-Origin-Resource-Policy: same-origin` en las respuestas de la SPA y los estáticos; la API no las recibe. COEP no se activa. HTTP/2 lo negocia el borde (fuera del repo). Ver §2. |
 | B-6 | Baja | **CORREGIDO** | Liveness `/api/v1/healthz` publicada. Readiness `/api/v1/readyz` implementada para monitoreo interno: Nginx la responde 404 y el backend la expone con valores enumerados, sin versiones ni cadenas de conexión. |
 | B-7 | Baja | **CORREGIDO** (monitoreo en los logs del backend) | La CSP de la app tiene `report-uri`: cada bloqueo llega a `/api/v1/security/csp-report`, se sanitiza y se registra. Sin servicios externos ni base de datos. Ver §2. |
-| Anexo C | — | **PENDIENTE** | Requiere acceso al host (nginx -T, cookies en vivo, kernel, Tailscale). `pip-audit` local: sin vulnerabilidades conocidas. |
+| Anexo C | — | **EN DIAGNÓSTICO** (análisis estático hecho; el servidor, pendiente) | Dependencias: `pip-audit` (44 paquetes) y `npm audit` de producción, 0 vulnerabilidades conocidas el 07/11/2026. Compose endurecido. Pendiente de confirmar en el servidor: parches de Ubuntu, puertos publicados y UFW, grupo `docker`, permisos del `.env`, cifrado del disco, Tailscale, SSH, y un procedimiento de respaldo para Linux (hoy solo hay para Windows). Ver §2. |
 
 ## 2. Detalle por hallazgo
 
@@ -460,6 +460,26 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
   - `test_security_hardening` y `test_rutas_spa` siguen pasando (140 con las pruebas de rate limit).
 - **Riesgos y rollback:** quitar `; report-uri /api/v1/security/csp-report` del `$csp_value` y el bloque `location = /api/v1/security/csp-report`; quitar `cspReportRouter` de `main.py`. No hay cambios de base de datos ni de contratos de la API.
 
+### Anexo C · Infraestructura: Ubuntu, Docker, dependencias y acceso (EN DIAGNÓSTICO)
+
+- **Alcance:** el servidor es una notebook HP con Ubuntu Server, Docker Compose, Nginx, FastAPI, SQL Server y Tailscale. No se pide reinstalación ni migración.
+- **Hecho en el repo y en el banco (07/11/2026):**
+  - Dependencias Python: `pip-audit` sobre los 44 paquetes del lock del backend, **0 vulnerabilidades conocidas**.
+  - Dependencias npm del frontend (producción, solo lock): **0**.
+  - Endurecimiento de Compose confirmado: `cap_drop: ALL`, `no-new-privileges`, `read_only`, redes separadas, puertos del backend y de SQL Server sin publicar en producción, imágenes fijadas por digest, usuarios no root.
+  - Secretos fuera de Git, sin historial de `.env` ni de claves.
+  - Validación de configuración al arrancar en producción (secretos distintos y de al menos 32 caracteres, certificado de SQL Server verificado).
+- **Hallazgos (ordenados por severidad, ver detalle en `evidencias/.../anexo_c/ANALISIS_Y_REMEDIACION.md`):**
+  - **Alta:** no hay procedimiento de respaldo para la base en Ubuntu. Todo lo documentado es para Windows (PowerShell, DPAPI, tareas programadas). Si la base está en el volumen de Docker, un fallo del disco la destruye sin copia.
+  - **Alta (condicional):** Docker publica puertos por sus propias reglas de `iptables`, antes que UFW. Un puerto publicado fuera de `127.0.0.1` queda abierto aunque UFW diga `deny`. Verificar con `02` y `01` §5.
+  - **Alta (condicional):** quien esté en el grupo `docker` es root en la práctica, y `docker inspect` muestra las variables de entorno con los secretos.
+  - **Media:** disco de la notebook sin cifrado (riesgo aceptado mientras no se reinstale); parches de Ubuntu y reinicio pendiente (sin datos aún); Tailscale (Funnel, ACL, expiración de clave) y SSH sin revisar; `.env` sin permisos verificados.
+  - **Media:** la imagen del backend tiene zlib y 44 HIGH del sistema base sin parche de Debian (H-10, Trivy del 23/10/2026). Mitigada por contenedor de solo lectura, sin puertos y usuario no root. El escaneo está desactualizado.
+  - **Baja:** `DESPLIEGUE.md` §6 dice que las bases no se fijan por digest, pero los Dockerfile sí.
+- **Procedimiento preparado (solo lectura, no ejecutado en el servidor):** `anexo_c/01_ubuntu_host.sh` (host), `02_docker_host.sh` (Docker), `03_contenedores.sh` (dentro de los contenedores), `04_sqlserver.sh` (caso A en el contenedor, caso B prueba de alcance). Dependencias: en el PC de desarrollo. Cada script no escribe nada, no imprime valores de secretos y comprueba su sintaxis; la prueba de humo se hizo en el banco, no en el servidor. Dos partes no se probaron contra un contenedor real: las consultas de `04` (por `stdin` a `sqlcmd`) y `03`.
+- **Plan de remediación (ver el análisis):** fase 1 (reversible, sin cortes): grupo `docker`, permisos de `.env`, `FRONTEND_BIND`, Tailscale (Funnel y ACL), SSH (solo claves), parches de seguridad, UFW con SSH permitido antes de habilitarlo, corregir `DESPLIEGUE.md`. Fase 2 (ventana): respaldo Linux con restauración de prueba, reconstrucción de imágenes con escaneo, rotación de secretos solo si hay acceso no autorizado. Fase 3 (fuera de alcance sin aprobación): cifrado de disco (LUKS) y rootless Docker.
+- **Pendiente de la persona que administra el servidor:** las cuatro respuestas del README (base real, ACL y administradores de Tailscale, ubicación del último respaldo, usuarios humanos con acceso).
+
 ## 3. Pruebas ejecutadas
 
 | Prueba | Resultado |
@@ -500,3 +520,4 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 7. **B-7:** ¿agregar una alerta sobre el conteo de `CSP incumplida` (requiere un recolector de logs) o basta la revisión periódica con `docker compose logs`? Y ¿verificar Trusted Types en `Report-Only` antes de activarlo?
 8. **B-4:** validar el `Caddyfile` propuesto con `caddy validate` en el servidor antes de aplicarlo, y confirmar con `tailscale serve status` si el 302 HTTP→HTTPS viene del borde de Tailscale.
 9. **B-5:** activar COEP solo después de inventariar los recursos embebidos; confirmar en el borde (Tailscale Serve o Caddy) si negocia HTTP/2 y si agrega COOP/CORP propios.
+10. **Anexo C:** ejecutar `01` a `04` en el servidor y responder las cuatro preguntas del README; con esas salidas se confirma o descarta cada hallazgo de la tabla de severidad, y se decide la fase 2 (respaldo Linux, reconstrucción de imágenes).
