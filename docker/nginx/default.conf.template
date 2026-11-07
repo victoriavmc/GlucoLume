@@ -75,7 +75,11 @@ server {
     # Redirecciones de Nginx relativas (p. ej. /api → /api/): sin esto, Nginx escribe http://<host>:8080/... en Location y expone el puerto
     # interno y el esquema sin TLS (auditoría 07/11/2026, M-1). El navegador resuelve la ruta contra el origen público.
     absolute_redirect off;
-    client_max_body_size 1m;
+    # Tope general de cuerpo (B-1, auditoría 07/11/2026): 160 KB, el peor caso legítimo medido de las demás operaciones (exportaciones
+    # 123 KB, matrices 96 KB). Las operaciones con lotes grandes tienen su propio tramo más abajo; autenticación, 16 KB.
+    client_max_body_size 160k;
+    # 413 con el mismo formato JSON que la API (codigo + detail), no la página HTML de Nginx.
+    error_page 413 = @cuerpo_grande;
     access_log /dev/stdout sin_query;
 
     # Cabeceras de seguridad. CSP sin 'unsafe-inline' (GL-19): React aplica los estilos en línea por CSSOM (element.style), que la CSP no
@@ -160,6 +164,8 @@ server {
         limit_req_status 429;
         # Rechazo por ráfaga en el borde: misma forma que el de la API (JSON con codigo y Retry-After), no la página HTML de Nginx (M-2).
         error_page 429 = @auth_limite;
+        # error_page de una ubicación reemplaza a los del server: el 413 se declara también acá (B-1).
+        error_page 413 = @cuerpo_grande;
         # Los formularios de autenticación no pasan de unos cientos de bytes (contraseña ≤256, correo ≤254): 16 KB sobra. El tope general de
         # /api/ (1 MB) se conserva porque el puente envía lotes de hasta 200 líneas (auditoría 07/11/2026, B-1).
         client_max_body_size 16k;
@@ -178,6 +184,12 @@ server {
         proxy_set_header X-Forwarded-Proto $fwd_proto;
         proxy_connect_timeout 5s;
         proxy_read_timeout 60s;
+    }
+
+    location @cuerpo_grande {
+        internal;
+        default_type application/json;
+        return 413 '{"codigo":"CUERPO_DEMASIADO_GRANDE","detail":"La solicitud supera el tamaño máximo permitido para esta operación."}';
     }
 
     # Respuesta del límite de ráfaga de autenticación (ver error_page en /api/v1/auth/). Define sus propias cabeceras de seguridad: un
@@ -202,6 +214,66 @@ server {
     # (http://<host>:8080/api/), que es el puerto interno del contenedor.
     location = /api {
         return 308 /api/$is_args$args;
+    }
+
+    # Ingesta de mediciones del puente y del navegador: lote de hasta 200 líneas de 512 caracteres (peor caso legítimo medido: ~665 KB con caracteres no ASCII escapados).
+    location ~ ^/api/v1/acquisition/(bridge|browser)/ingest$ {
+        client_max_body_size 768k;
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $backend ${BACKEND_UPSTREAM};
+        proxy_pass http://$backend;
+        proxy_http_version 1.1;
+        proxy_hide_header X-Content-Type-Options;  # cabeceras duplicadas: ver /api/ (B-3)
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;  # correlación: la API lo guarda en cada evento de auditoría (valor propio de Nginx, el del cliente se descarta)
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+
+    # Muestras de una medición: hasta 2000 muestras de 4 enteros (peor caso ~280 KB).
+    location ~ ^/api/v1/measurements/[^/]+/samples$ {
+        client_max_body_size 384k;
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $backend ${BACKEND_UPSTREAM};
+        proxy_pass http://$backend;
+        proxy_http_version 1.1;
+        proxy_hide_header X-Content-Type-Options;  # cabeceras duplicadas: ver /api/ (B-3)
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;  # correlación: la API lo guarda en cada evento de auditoría (valor propio de Nginx, el del cliente se descarta)
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+
+    # Desvinculación de un operador: hasta 2000 asignaciones de dos UUID (peor caso ~260 KB).
+    location ~ ^/api/v1/institutions/[^/]+/operators/[^/]+/offboard$ {
+        client_max_body_size 384k;
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $backend ${BACKEND_UPSTREAM};
+        proxy_pass http://$backend;
+        proxy_http_version 1.1;
+        proxy_hide_header X-Content-Type-Options;  # cabeceras duplicadas: ver /api/ (B-3)
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;  # correlación: la API lo guarda en cada evento de auditoría (valor propio de Nginx, el del cliente se descarta)
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
     }
 
     location /api/ {

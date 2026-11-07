@@ -259,12 +259,41 @@ def test_ubicaciones_con_cabeceras_propias_declaran_las_que_el_server_no_puede_h
         assert "add_header X-Frame-Options" in bloque and "add_header Permissions-Policy" in bloque, nombre
 
 
+def test_tamano_del_cuerpo_por_operacion_y_sin_tope_global_de_1_mb():
+    """B-1 (auditoría 07/11/2026): tope general de 160 KB, 16 KB en autenticación y tramos con lotes legítimos (sin el global de 1 MB)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "client_max_body_size 1m;" not in conf
+    server = conf.split("server {", 1)[1]
+    assert server.count("client_max_body_size 160k;") == 1
+    tramos = {
+        r"^/api/v1/acquisition/(bridge|browser)/ingest$": "768k",
+        r"^/api/v1/measurements/[^/]+/samples$": "384k",
+        r"^/api/v1/institutions/[^/]+/operators/[^/]+/offboard$": "384k",
+    }
+    for regex, limite in tramos.items():
+        bloque = re.search(r"location ~ " + re.escape(regex) + r" \{(.*?)\n    \}", conf, re.S)
+        assert bloque is not None, regex
+        assert f"client_max_body_size {limite};" in bloque.group(1), regex
+        assert "proxy_pass http://$backend;" in bloque.group(1), regex
+    auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "client_max_body_size 16k;" in auth and "error_page 413 = @cuerpo_grande;" in auth
+
+
+def test_413_responde_en_formato_json_de_la_api():
+    """El 413 de Nginx tiene el mismo formato que las respuestas de la API (codigo + detail), no la página HTML de Nginx."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "error_page 413 = @cuerpo_grande;" in conf
+    bloque = re.search(r"location @cuerpo_grande \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "internal;" in bloque and "default_type application/json;" in bloque
+    assert "CUERPO_DEMASIADO_GRANDE" in bloque and "return 413" in bloque
+
+
 def test_nginx_limita_el_cuerpo_de_autenticacion():
     """B-1 (auditoría 07/11/2026): los formularios de autenticación no necesitan más de unos KB; el tope general de /api/ se mantiene."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
     auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
     assert "client_max_body_size 16k;" in auth
-    assert "client_max_body_size 1m;" in conf
+    assert "client_max_body_size 160k;" in conf  # tope general (B-1): ya no 1 MB
 
 
 def test_nginx_responde_el_limite_de_rafaga_de_autenticacion_como_la_api():

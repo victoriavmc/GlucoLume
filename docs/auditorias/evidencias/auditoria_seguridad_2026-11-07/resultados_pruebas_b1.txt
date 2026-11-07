@@ -1,0 +1,25 @@
+# B-1 · Resultados de pruebas (rama con este cambio)
+
+## Inventario (OpenAPI generado por la app)
+- 104 operaciones con cuerpo; todas application/json. No hay multipart, formularios ni lectores de cuerpo crudo en la API
+  (los dos is_disconnected son de SSE, no de cuerpo).
+- Peor caso legítimo por operación (bytes, json.dumps con escapes): ver maximos.tsv en la sesión; resumen en CORRECCIONES, B-1.
+
+## Backend (pytest)
+- test_tamano_solicitudes.py: 14 passed. Cerca del límite pasa; por encima, ValidationError (422 en la API).
+  Lotes del puente 200/201 líneas; línea 512/513; muestras 2000/2001 y 0; reglas de matriz 300/301; asignaciones de offboarding 2000/2001;
+  código MFA: 16 caracteres pasa, 20 espacios + 6 dígitos se rechaza, letras se rechazan; JSON inválido y fuera de esquema responden 422.
+- test_security_hardening.py + test_retencion_logs.py + test_healthz.py + test_login_throttle.py + test_argon2_gate.py: 89 passed.
+- Subconjunto amplio de auth, MFA y seguridad (33 archivos, 4 procesos): 670 passed, 79 failed. Las 79 son las conocidas de entorno
+  (test_emails banner CID y test_security_config), que fallan igual en HEAD.
+- Contra HEAD (sin este cambio), fallan: test_tamano_tope_global_de_1_mb, test_413_responde_en_formato_json, test_nginx_limita_el_cuerpo_de_autenticacion
+  (versión nueva) y test_codigo_mfa_con_espacios_excesivos. Las demás pasan en HEAD: son guardas de límites que ya existían.
+
+## Nginx (medición con sondas_tamano_cuerpo.sh; backend uvicorn real)
+- Ver resultados_tamano_cuerpo_antes.txt y resultados_tamano_cuerpo_despues.txt.
+- Límites exactos verificados: general 163840 (160k), autenticación 16384, ingesta 786432, muestras y offboarding 393216.
+- 413 en formato JSON en todas las ubicaciones (incluida autenticación, donde el error_page de la ubicación tuvo que declararse de nuevo).
+
+## Otros
+- verificar-rutas.sh: 17/17.
+- Cabeceras de seguridad en los tramos nuevos (samples, ingest): una sola vez cada una.

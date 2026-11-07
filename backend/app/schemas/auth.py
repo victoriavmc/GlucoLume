@@ -171,7 +171,7 @@ class MfaRecoveryVerifyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     recoveryToken: Annotated[str, Field(min_length=1, max_length=2048)]
-    codigo: Annotated[str, Field(pattern=r"^\s*\d{6}\s*$")]
+    codigo: Annotated[str, Field(pattern=r"^\s*\d{6}\s*$", max_length=16)]  # 6 dígitos y espacios; el patrón solo no acota el largo
 
 
 class AccountMfaRecoveryStartRequest(BaseModel):
@@ -190,7 +190,7 @@ class AccountMfaRecoveryStartResponse(BaseModel):
 class AccountMfaRecoveryVerifyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    codigo: Annotated[str, Field(pattern=r"^\s*\d{6}\s*$")]
+    codigo: Annotated[str, Field(pattern=r"^\s*\d{6}\s*$", max_length=16)]  # 6 dígitos y espacios; el patrón solo no acota el largo
 
 
 class MfaCodeRequest(BaseModel):

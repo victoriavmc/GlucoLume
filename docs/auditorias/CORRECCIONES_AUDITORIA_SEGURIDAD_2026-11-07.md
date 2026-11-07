@@ -12,7 +12,7 @@
 | M-2 | Media | **CORREGIDO** (con riesgo residual: ataque distribuido) | El PDF no reprodujo el límite porque probó 15 intentos. Sí había fallas reales: oráculo de enumeración, bloqueo de la cuenta por terceros y 429 del borde sin forma de API. Ver §2. |
 | M-3 | Media | **CORREGIDO** (coste acotado; el sobrecoste por longitud no se reproduce) | Argon2 con control de concurrencia (2 a la vez, 8 en espera, 503 con `Retry-After`). Sin cambios de coste ni de hashes. Ver §2. |
 | M-4 | Media | **PENDIENTE** (requiere aprobación de diseño) | El access token ya está en memoria y el refresh en cookie HttpOnly. Quedan tokens en la URL de 4 flujos. |
-| B-1 | Baja | **PARCIAL** | Auth limitado a 16 KB. `/api/` general sigue en 1 MB (el puente lo necesita). |
+| B-1 | Baja | **CORREGIDO** | Tope general de 160 KB (antes 1 MB); tramos por operación para lotes legítimos (ingesta 768 KB, muestras y offboarding 384 KB); autenticación 16 KB; 413 en JSON. Ver §2. |
 | B-2 | Baja | **PENDIENTE** | El soft 404 se reproduce. `noindex` en rutas sensibles ya estaba en la plantilla. |
 | B-3 | Baja | **CORREGIDO** (código + validación local) | Cada cabecera de seguridad aparece una sola vez en la API. |
 | B-4 | Baja | **NO APLICA** (preload) / **PENDIENTE** (308) | `preload` no es posible sobre `*.ts.net`. El 302→308 lo emite Tailscale Serve, fuera del repo. |
@@ -202,11 +202,60 @@ El precio: con 8 simultáneas, la latencia p95 sube (≈770 ms frente a ≈500 m
 - **Cambio de contraseña y reset**: `previousPasswordError` verifica la actual y hasta `PASSWORD_HISTORY_SIZE` (3) anteriores, así que un cambio hace hasta 6 verificaciones por pedido (~360 ms de CPU). Está protegido por sesión (cambio) o por token de un solo uso con límite por IP (reset), y el control lo acota. Cerrar la transacción antes de ese bucle exige decidir qué commit corresponde al llamador: queda para una revisión aparte.
 - **Medición en el servidor**: la tabla es de la máquina de prueba, sin SQL Server. Medir con `docker stats` durante un login lento y con `bench_argon2.py` en el equipo del servidor antes de fijar `ARGON2_MAX_CONCURRENT`.
 
-### B-1 · Tamaño del cuerpo (PARCIAL)
+### B-1 · Tamaño del cuerpo de las solicitudes (CORREGIDO)
 
-- **Diagnóstico (medido):** con `HEAD`, `client_max_body_size 1m` aceptaba cualquier cuerpo hasta 1 MiB (1 MB → 422, 10 MB → 413).
-- **Solución aplicada:** `client_max_body_size 16k;` en `location ^~ /api/v1/auth/`. Medido: 1 MB y 17 KB → 413; 15 KB → llega al backend (422).
-- **Por qué no 256 KB en `/api/`:** el puente envía lotes de hasta 200 líneas (`MAX_BATCH = 200`, `backend/acquisition/bridge/glucolume_bridge.py`) con texto de hasta 512 caracteres. El JSON escapado llega a ~600 KB en el peor caso. Un 413 haría que el puente reintente sin fin. Medir el lote real antes de bajar el límite general.
+**Inventario (medido, no estimado a mano):** la API es JSON puro. Hay 104 operaciones con cuerpo, todas `application/json`. No hay subida de archivos, ni formularios `multipart`, ni lectura de cuerpo crudo: los dos `is_disconnected` son de SSE. El peor caso legítimo de cada operación se calculó generando el JSON máximo que permite su esquema (`evidencias/.../calcular_tamanos_maximos.py`, `json.dumps` con escapes; salida en `resultados_tamanos_maximos.tsv`):
+
+| Operación | Peor caso legítimo | Límite final |
+|---|---|---|
+| Ingesta del puente / navegador (`lineas` ≤ 200, texto ≤ 512) | 665 KB / 627 KB | **768 KB** |
+| Muestras de medición (`muestras` ≤ 2000) | 196 KB (enteros; hasta ~280 KB con 19 dígitos) | **384 KB** |
+| Offboarding (`asignaciones` ≤ 2000 UUID) | ~260 KB | **384 KB** |
+| Reglas de matriz (`reglas` ≤ 300) | 96 KB | 160 KB (general) |
+| Exportaciones de pacientes/personal | 123 KB (artificial; 22 KB reales) | 160 KB (general) |
+| Resto (contacto, vínculos, administración…) | ≤ 25 KB | 160 KB (general) |
+| Autenticación | ≤ 12,6 KB | **16 KB** |
+
+**Revisión de `client_max_body_size` y de Pydantic:**
+- Nginx tenía `client_max_body_size 1m` global: aceptaba 1 MB en **cualquier** operación, incluidas las de 24 KB. Un 413 de Nginx era HTML.
+- Pydantic acota casi todo: `max_length` en strings, `max_length` en listas. Quedaban dos huecos de largo: el patrón `^\s*\d{6}\s*$` de los códigos MFA admite cualquier cantidad de espacios (corregido con `max_length=16`), y los `Decimal` aceptan ceros a la izquierda sin límite en el patrón del OpenAPI (en tiempo de ejecución no se usa ese patrón; lo acota el tope de cuerpo).
+- Un falso positivo de mi estimación: el `Offboarding` daba 1,06 MB en el peor caso, pero ese valor usaba UUID con caracteres no ASCII, que el esquema no admite. El real es ~260 KB.
+
+**Solución implementada (acotada, sin límite global de 1 MB):**
+1. `client_max_body_size 160k` como tope general (antes 1m).
+2. Tramos por operación con lotes legítimos grandes, con el mismo proxy que `/api/` y las mismas cabeceras ocultas de B-3: ingesta (`bridge|browser/ingest`) 768k, muestras 384k y offboarding 384k.
+3. Autenticación: 16k (ya en el commit de B-1 previo); su `error_page` también declara el 413 (si no, el de la ubicación reemplaza al del server).
+4. 413 en formato JSON de la API: `error_page 413 = @cuerpo_grande` devuelve `{"codigo":"CUERPO_DEMASIADO_GRANDE","detail":"…"}`. El frontend muestra el `detail` cuando no conoce el código.
+5. Pydantic: `max_length=16` en los dos códigos MFA con patrón de espacios.
+
+**Códigos de error:** el tamaño lo corta Nginx con **413** en JSON. Los errores de contenido los responde la API con **422** (validación: listas fuera de rango, JSON inválido, campos fuera de esquema). La prueba `test_cuerpo_fuera_de_esquema_responde_422_no_413` cubre esa diferencia.
+
+**Antes y después (mismo backend, mismos pedidos de tamaño exacto, `sondas_tamano_cuerpo.sh`):**
+
+| Caso | Antes (HEAD) | Después |
+|---|---|---|
+| Contacto, 163 840 B (bajo 160k) | llega al backend | llega al backend |
+| Contacto, 163 841 B (160k + 1) | llega al backend | **413 JSON** |
+| Contacto, 1 000 000 B | llega al backend | **413 JSON** |
+| Login, 16 384 B | llega al backend | llega al backend |
+| Login, 16 385 B | 413 **HTML** | **413 JSON** |
+| Puente, 786 432 B (bajo 768k) | llega al backend | llega al backend |
+| Puente, 786 433 B (768k + 1) | llega al backend | **413 JSON** |
+| Muestras, 393 217 B (384k + 1) | llega al backend | **413 JSON** |
+| Offboarding, 393 217 B (384k + 1) | llega al backend | **413 JSON** |
+
+Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del entorno de prueba (sin SQL Server), no del tamaño.
+
+**Compatibilidad verificada:**
+- El lote más grande legítimo del puente (665 KB) cabe en 768 KB; el mayor por operación cabe en su tramo con margen.
+- Mediciones, matrices, exportaciones, registros, formularios y funciones institucionales: mismos contratos. Ninguna operación cuyo peor caso legítimo supere su tope.
+- Frontend: sin cambios de código. No reejecuté su suite en esta fase (no tocó ningún archivo del frontend).
+
+**Pruebas:** `test_tamano_solicitudes.py` (14: cerca y por encima de cada límite de elementos, código MFA, 422 para JSON inválido), y en `test_security_hardening.py` los tres tests de tramos, 413 JSON y el tope de autenticación. Contra HEAD fallan los que dependen del cambio. Resultados en `evidencias/.../resultados_pruebas_b1.txt`.
+
+**Riesgos y rollback:** el riesgo es rechazar un cuerpo legítimo grande que hoy pasa. Está medido: ninguna operación supera su tope legítimo. Rollback: restaurar `client_max_body_size 1m` y quitar los tramos y el `error_page 413`.
+
+**Pendiente (no es parte de B-1):** el puente decodifica las líneas con `errors="replace"`, y cada byte no ASCII viaja como `\ufffd` (6 bytes en JSON). Si el puente usara `errors="ignore"` o un carácter ASCII, el peor caso bajaría de 665 KB a ~110 KB. Es un cambio del software del puente, que se despliega en Windows: se propone aparte.
 
 ### B-2 · Soft 404 (PENDIENTE)
 

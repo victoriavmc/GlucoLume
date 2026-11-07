@@ -15,6 +15,10 @@ Estas evidencias respaldan `docs/auditorias/CORRECCIONES_AUDITORIA_SEGURIDAD_202
 | `resultados_redireccion_api_antes.txt` | M-1: plantilla de `a3908c0` (la de la auditoría). |
 | `resultados_redireccion_api_rama_previa.txt` | M-1: plantilla de `HEAD` previo a este parche (`1931580`). |
 | `resultados_redireccion_api_despues.txt` | M-1: plantilla de la rama con este parche. |
+| `sondas_tamano_cuerpo.sh` | B-1: límites de tamaño exactos por operación (justo bajo, justo encima y casos normales). |
+| `resultados_tamano_cuerpo_antes.txt` / `_despues.txt` | B-1: medición con HEAD (1 MB global) y con la rama (tramos por operación). |
+| `calcular_tamanos_maximos.py` / `resultados_tamanos_maximos.tsv` | B-1: peor caso legítimo de cada operación, generado desde el OpenAPI de la app. |
+| `resultados_pruebas_b1.txt` | B-1: resultados de pruebas (backend, nginx, verificar-rutas). |
 | `M1_redireccion_api.patch` | M-1: parche (plantilla, Dockerfile del frontend, pruebas). Reversible con `git apply -R`. |
 
 ## Cómo se obtuvieron
