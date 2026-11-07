@@ -47,6 +47,16 @@ log_format sin_query '$ip_anon - [$time_local] "$request_method $log_path" $stat
 
 # Páginas que no deben indexarse (la SPA devuelve el mismo index.html para todas: la diferencia se hace por cabecera, no por archivo). Con valor
 # vacío Nginx no envía la cabecera, igual que HSTS. Se usa $request_uri porque try_files reescribe $uri a /index.html.
+# Content-Security-Policy por tipo de respuesta (B-3, auditoría 07/11/2026). Una sola cabecera por respuesta, elegida acá:
+#  - API (JSON/SSE, /api y /api/...): la política estricta del backend (SecurityHeadersMiddleware.API_CSP). Es la misma restricción efectiva
+#    que antes daba la intersección de las dos (default-src 'none' domina), así que no se debilita.
+#  - Resto (SPA, estáticos, páginas de error de Nginx): la política de la aplicación.
+# Swagger (/docs) y la ubicación de login con límite de ráfaga tienen su propia CSP: ver sus ubicaciones.
+map $request_uri $csp_value {
+    "~^/api(/|\?|$)" "default-src 'none'; frame-ancestors 'none'";
+    default "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+}
+
 map $request_uri $robots_tag {
     ~^/(app|plataforma|administracion|auth|cuenta|login|registro|verificar-correo|activar-cuenta|recuperar-contrasena|restablecer-contrasena|confirmar-correo-resultados)(/|\?|$) "noindex, nofollow";
     default "";
@@ -76,7 +86,7 @@ server {
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+    add_header Content-Security-Policy $csp_value always;
 
     # Compresión. Los archivos estáticos de la SPA se precomprimen al construir la imagen (gzip -9, Dockerfile) y se sirven tal cual (gzip_static:
     # 283 KB en vez de 344 KB para el JS y el CSS iniciales, sin CPU por pedido). El resto (la API, index.html) se comprime al vuelo en nivel 5 (el
@@ -141,6 +151,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     }
 
     # Autenticación: igual que /api/, con tope de pedidos por IP (30/s, ráfaga de 60) contra inundación y fuerza bruta masiva.
@@ -181,7 +192,7 @@ server {
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-        add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
+        add_header Content-Security-Policy $csp_value always;
         add_header Strict-Transport-Security $hsts_value always;
         return 429 '{"codigo":"DEMASIADAS_SOLICITUDES","detail":"Hiciste demasiadas solicitudes seguidas. Esperá unos minutos e intentá de nuevo."}';
     }
@@ -234,6 +245,8 @@ server {
         proxy_read_timeout 60s;
         add_header Strict-Transport-Security $hsts_value always;
         add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: https://fastapi.tiangolo.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" always;
     }

@@ -230,6 +230,35 @@ def test_nginx_no_registra_la_query_de_los_enlaces_con_token():
     assert not re.search(r"access_log\s+(?!off\b)(?!/dev/stdout sin_query;)", conf)  # ningún otro access_log con el formato por defecto
 
 
+def test_csp_de_la_api_en_nginx_es_la_misma_que_la_del_backend():
+    """B-3: una sola fuente de la política de la API. Nginx la elige por ruta y debe coincidir con SecurityHeadersMiddleware.API_CSP."""
+    from app.api.securityHeaders import API_CSP
+
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    mapa = re.search(r"map \$request_uri \$csp_value \{\n(.*?)\n\}", conf, re.S).group(1)
+    apiCsp = re.search(r'"~\^/api[^"]*" "([^"]+)";', mapa).group(1)
+    assert apiCsp == API_CSP
+    assert conf.count(API_CSP) == 1  # el literal aparece una sola vez: no se copia en cada ubicación
+    assert "add_header Content-Security-Policy $csp_value always;" in conf
+
+
+def test_hsts_de_nginx_y_del_backend_son_el_mismo_valor():
+    """Un solo valor de HSTS en el código: el de Nginx (map $hsts_value) y el del backend (HSTS_VALUE)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert '    https   "%s";' % HSTS_VALUE in conf
+
+
+def test_ubicaciones_con_cabeceras_propias_declaran_las_que_el_server_no_puede_heredar():
+    """Una ubicación con add_header propio no hereda las del server: debe declarar X-Frame-Options y Permissions-Policy (B-3)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    for nombre, patron in (
+        ("swagger", r"location ~ \^/\(docs\|redoc\|openapi\\\.json\)\$ \{(.*?)\n    \}"),
+        ("sse", r"location ~ \^/api/v1/acquisition/\(telemetry/\)\?stream\$ \{(.*?)\n    \}"),
+    ):
+        bloque = re.search(patron, conf, re.S).group(1)
+        assert "add_header X-Frame-Options" in bloque and "add_header Permissions-Policy" in bloque, nombre
+
+
 def test_nginx_limita_el_cuerpo_de_autenticacion():
     """B-1 (auditoría 07/11/2026): los formularios de autenticación no necesitan más de unos KB; el tope general de /api/ se mantiene."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
@@ -314,7 +343,7 @@ def test_nginx_redirige_con_ruta_relativa_sin_puerto_interno():
 def test_controles_de_infraestructura_preparados():
     """GL-18/19/03/21: configuraciones que no se pueden verificar sin desplegar, fijadas para que no retrocedan."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
-    appCsp = re.search(r"^    add_header Content-Security-Policy \"([^\"]+)\"", conf, re.M).group(1)  # la del server (no la de /docs)
+    appCsp = re.search(r"^    \"~\^/api\(/\|\\\?\|\$\)\" \"[^\"]+\";\n    default \"([^\"]+)\";", conf, re.M).group(1)  # la de la app: default del map $csp_value
     assert "unsafe-inline" not in appCsp and "style-src 'self';" in appCsp and "script-src 'self';" in appCsp
     dev = (REPO / "compose.dev.yaml").read_text(encoding="utf-8")
     assert 'FORWARDED_ALLOW_IPS: "127.0.0.1"' in dev  # el backend publicado en desarrollo no confía en X-Forwarded-*

@@ -1,0 +1,11 @@
+{"ruta":"/","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/login","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/registro","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/ayuda","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/caracteristicas","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/privacidad","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/plataforma/login","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/ruta-que-no-existe","codigo":200,"reactMontado":true,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/docs","codigo":200,"reactMontado":null,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":3,"ejemplosError":["Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED","Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"],"fallosRed":2,"ejemplosRed":["https://cdn.jsdelivr.net net::ERR_TUNNEL_CONNECTION_FAILED","https://cdn.jsdelivr.net net::ERR_TUNNEL_CONNECTION_FAILED"]}
+{"ruta":"/api/v1/healthz","codigo":200,"reactMontado":null,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":0,"ejemplosError":[],"fallosRed":0,"ejemplosRed":[]}
+{"ruta":"/api/v1/auth/google/login","codigo":503,"reactMontado":null,"violacionesCSP":0,"ejemplosCSP":[],"erroresConsola":1,"ejemplosError":["Failed to load resource: the server responded with a status of 503 (Service Unavailable)"],"fallosRed":0,"ejemplosRed":[]}

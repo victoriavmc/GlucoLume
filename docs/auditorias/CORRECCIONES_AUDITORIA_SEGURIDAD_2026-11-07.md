@@ -216,12 +216,52 @@ El precio: con 8 simultáneas, la latencia p95 sube (≈770 ms frente a ≈500 m
 
 ### B-3 · Cabeceras de seguridad duplicadas (CORREGIDO)
 
-- **Diagnóstico (reproducido en `HEAD`):** `/api/` recibía `Content-Security-Policy` ×2 (`default-src 'none'` del backend y la completa de Nginx), `Referrer-Policy` ×2 y `X-Content-Type-Options` ×2.
-- **Causa raíz:** Nginx agrega con `add_header` y el `SecurityHeadersMiddleware` del backend (`backend/app/api/securityHeaders.py`) agrega las mismas.
-- **Solución:** en las ubicaciones proxy (`/api/`, `^~ /api/v1/auth/`, `/docs`, SSE) se usa `proxy_hide_header` para X-Content-Type-Options, Referrer-Policy, Strict-Transport-Security y Content-Security-Policy. Nginx queda como único emisor. La ubicación SSE conserva la CSP del backend (no define una propia).
-- **Trade-off:** detrás de Nginx, la API pasa a usar la CSP de Nginx en lugar de la más estricta del backend (`default-src 'none'`). Para respuestas JSON no cambia nada práctico. Si prefieren la del backend, el cambio es el inverso (ocultar en Nginx, no en el backend).
-- **Pruebas:** `test_nginx_es_unico_emisor_de_cabeceras_que_el_backend_repite` (no existe en `HEAD`); medido después: cada cabecera ×1 en `/api/`, `/api/v1/auth/login`, `/api/v1/acquisition/stream`, `/docs`, `/index.html`; HSTS ×1 tras un proxy de confianza con `X-Forwarded-Proto: https`.
-- **Rollback:** quitar las líneas `proxy_hide_header` del template.
+**Diagnóstico (medido, `evidencias/.../resultados_cabeceras_antes.txt` y `resultados_politicas_antes.txt`):** en `a3908c0`, las respuestas de la API recibían `Content-Security-Policy` ×2, `Referrer-Policy` ×2 y `X-Content-Type-Options` ×2; `/docs` recibía `X-Content-Type-Options` ×2.
+
+**Componentes que generan cada cabecera:**
+
+| Cabecera | Nginx (`docker/nginx/default.conf.template`) | Backend (`app/api/securityHeaders.py`) |
+|---|---|---|
+| Content-Security-Policy | Server (SPA), `/docs`, respuesta de ráfaga | `API_CSP` solo en rutas `/api/` |
+| Referrer-Policy | Server, `/docs`, SSE | `no-referrer` solo en rutas `/api/` |
+| X-Content-Type-Options | Server y cada ubicación con `add_header` | `nosniff` en todas las respuestas |
+| Strict-Transport-Security | Server (según `$fwd_proto`) | En producción, si el pedido es HTTPS |
+
+**Análisis de compatibilidad:**
+- **CSP duplicada en la API:** el navegador aplica las dos, es decir, la intersección. Como la del backend es `default-src 'none'`, la intersección equivale a `'none'` para cualquier recurso. No había restricciones inesperadas, pero la política efectiva dependía de dos fuentes.
+- **Referrer-Policy duplicada:** el navegador usa la **última** cabecera válida. Nginx venía después del backend, así que la efectiva era `strict-origin-when-cross-origin`; el `no-referrer` del backend nunca tuvo efecto.
+- **X-Content-Type-Options:** mismo valor en ambas fuentes; sin efecto funcional.
+- **Riesgo de corregir mal:** quitar la CSP del backend sin cuidado habría **debilitado** la API (la intersección era más estricta que la política de la aplicación sola). Por eso la corrección no la descarta: la elige.
+
+**Solución implementada (cambio mínimo):**
+1. **Un único punto de decisión para la CSP:** `map $request_uri $csp_value` en nginx. `/api` y `/api/…` reciben exactamente `API_CSP`; el resto, la política de la aplicación. La cadena de la API aparece una sola vez en la plantilla, y una prueba verifica que sea igual a `API_CSP`.
+2. **Las ubicaciones proxy descartan las cabeceras que el backend repite** (`proxy_hide_header`, de la corrección anterior). La CSP del backend ya no se pierde: nginx la reemplaza por la misma política.
+3. **Cabeceras que faltaban** (porque su `add_header` propio anula las del server): `Permissions-Policy` en SSE y `X-Frame-Options` + `Permissions-Policy` en `/docs`.
+4. **Sin cambios** en la política de la aplicación, en Referrer-Policy, en HSTS ni en las páginas de error de nginx (fuera de la CSP que ahora se elige por ruta).
+
+**Diferencias que se conservan:** la API recibe su política estricta (`default-src 'none'`); la SPA y los estáticos, la de la aplicación; `/docs` tiene la suya (permite cdn.jsdelivr.net para Swagger); la respuesta de ráfaga de autenticación usa la de la API.
+
+**Antes y después (política efectiva por respuesta, `resultados_politicas_*.txt`):**
+
+| Respuesta | CSP antes | CSP después | Referrer antes → después |
+|---|---|---|---|
+| API JSON (`/api/…`) | intersección de dos (efectiva: `'none'`) | `default-src 'none'; frame-ancestors 'none'` | `no-referrer` + `strict-…` → `strict-…` (efectiva igual) |
+| SSE `/api/v1/acquisition/stream` | igual que la API | igual (backend) | igual |
+| Redirección `/api` | política de la app | política de la API | igual |
+| SPA, estáticos, 404 de nginx | política de la app | sin cambio | sin cambio |
+| `/docs` | sin cambio | sin cambio | sin cambio |
+
+**Matriz de cabeceras (conteo por respuesta, `resultados_cabeceras_*.txt`):** antes, CSP, Referrer y XCTO ×2 en la API; después, todas ×1 en las 15 respuestas medidas.
+
+**Funcionamiento verificado** (`resultados_pruebas_b3.txt` y `resultados_errores_y_oauth.txt`):
+- **Frontend:** SPA en Chromium con 0 violaciones de CSP y 0 errores de consola en las 8 páginas del SPA, antes y después. Vitest: 856 de 857; la que falla es un timeout de 5 s ajeno a las cabeceras.
+- **Backend:** 111 pruebas de cabeceras, errores, OAuth (SQLite) y cookies pasan.
+- **OAuth:** el inicio devuelve `302` a `accounts.google.com` con los mismos parámetros antes y después. El callback responde 500 en ambos casos por falta del driver ODBC del contenedor de prueba; su lógica se prueba con SQLite.
+- **Páginas de error:** el 502 con backend caído conserva las cabeceras de seguridad. El 429 de ráfaga pasó de HTML sin `Retry-After` a JSON con `Retry-After: 1`, con las cabeceras completas.
+
+**Pendiente de verificar en el servidor:** Caddy (perfil `https`) declara HSTS con `header`, que reemplaza el valor de la respuesta, así que no debería duplicarse. No lo pude probar aquí porque no hay Docker. Verificar con `curl -sI https://<dominio>/` que aparezca una sola `Strict-Transport-Security`.
+
+**Rollback:** revertir el commit (plantilla y pruebas). No hay cambios de datos ni de API.
 
 ### B-4 · HSTS y redirección (NO APLICA / PENDIENTE)
 
