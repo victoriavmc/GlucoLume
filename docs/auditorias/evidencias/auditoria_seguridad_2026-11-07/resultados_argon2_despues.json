@@ -1,0 +1,87 @@
+{
+  "coste": {
+    "verificacion_ms_mediana": 58.8,
+    "cpu_ms_mediana": 178.6,
+    "ratio_cpu_sobre_reloj": 3.04
+  },
+  "longitud_ms_por_tamano_de_contrasena": {
+    "8": 52.6,
+    "128": 50.8,
+    "256": 50.7,
+    "4000": 64.7,
+    "100000": 53.5
+  },
+  "concurrencia": [
+    {
+      "k": 1,
+      "ops": 2,
+      "errores": [],
+      "pared_ms": 107.1,
+      "latencia_p50_ms": 50.6,
+      "latencia_p95_ms": 56.3,
+      "pico_rss_mb": 107.4
+    },
+    {
+      "k": 2,
+      "ops": 4,
+      "errores": [],
+      "pared_ms": 222.5,
+      "latencia_p50_ms": 108.1,
+      "latencia_p95_ms": 113.9,
+      "pico_rss_mb": 171.3
+    },
+    {
+      "k": 4,
+      "ops": 8,
+      "errores": [],
+      "pared_ms": 466.1,
+      "latencia_p50_ms": 121.4,
+      "latencia_p95_ms": 339.0,
+      "pico_rss_mb": 171.2
+    },
+    {
+      "k": 8,
+      "ops": 16,
+      "errores": [],
+      "pared_ms": 914.8,
+      "latencia_p50_ms": 122.9,
+      "latencia_p95_ms": 773.8,
+      "pico_rss_mb": 171.4
+    },
+    {
+      "k": 16,
+      "ops": 19,
+      "errores": [
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO",
+        "SERVIDOR_OCUPADO"
+      ],
+      "pared_ms": 1057.5,
+      "latencia_p50_ms": 118.2,
+      "latencia_p95_ms": 885.4,
+      "pico_rss_mb": 171.6
+    }
+  ],
+  "loop": [
+    {
+      "k": 1,
+      "retraso_max_ms": 3.8,
+      "retraso_p95_ms": 2.4
+    },
+    {
+      "k": 8,
+      "retraso_max_ms": 8.8,
+      "retraso_p95_ms": 4.4
+    }
+  ]
+}

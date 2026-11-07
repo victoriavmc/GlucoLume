@@ -599,7 +599,8 @@ def loginLocal(
     try:
         return _loginLocal(db, identificador, password, clientInfo, acceso)
     except AuthError as error:
-        _alertAdministratorAttempt(db, _identifiedUser(db, identificador), acceso == ACCESO_PLATAFORMA, TIPO_CONTRASENA, error.code)
+        if error.code != "SERVIDOR_OCUPADO":  # saturación del servidor (M-3): no es un intento contra la cuenta, no se alerta
+            _alertAdministratorAttempt(db, _identifiedUser(db, identificador), acceso == ACCESO_PLATAFORMA, TIPO_CONTRASENA, error.code)
         raise
 
 
@@ -683,6 +684,7 @@ def _loginLocalBajoLimite(
 
     if user is None or _purgeIfExpired(db, user):
         # Cuenta inexistente (o pendiente vencida, que se elimina): la misma respuesta y el mismo costo que una contraseña incorrecta.
+        db.commit()  # cierra la lectura antes de Argon2: la conexión no queda ocupada mientras el hash espera un lugar (M-3)
         security.verifyDummyPassword(password)
         _auditFailedLogin(db, "LOGIN_LOCAL", None, "CUENTA_INEXISTENTE", "Cuenta inexistente", identificador)
         db.commit()
@@ -693,12 +695,14 @@ def _loginLocalBajoLimite(
     credential = _getLocalCredential(db, user)
     if credential is None:
         # Cuenta solo Google: respuesta genérica (no hay CredencialLocal que verificar).
+        db.commit()  # ver arriba: no se verifica con la transacción abierta
         security.verifyDummyPassword(password)
         _auditFailedLogin(db, "LOGIN_LOCAL", user, "SIN_CREDENCIAL_LOCAL", "Cuenta sin credencial local")
         db.commit()
         _registrarFallo(db, identificador, origen, user, now)
         raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
 
+    db.commit()  # cierra la lectura antes de Argon2 (M-3): la conexión no queda ocupada mientras el hash espera un lugar
     valid, newHash = security.verifyPassword(password, credential.passwordHash)
     if valid:
         try:

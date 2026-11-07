@@ -10,7 +10,7 @@
 |---|---|---|---|
 | M-1 | Media | **CORREGIDO** (código + validación local) | `/api` redirigía a `http://<host>:8080/api/`. Ahora `Location: /api/`. |
 | M-2 | Media | **CORREGIDO** (con riesgo residual: ataque distribuido) | El PDF no reprodujo el límite porque probó 15 intentos. Sí había fallas reales: oráculo de enumeración, bloqueo de la cuenta por terceros y 429 del borde sin forma de API. Ver §2. |
-| M-3 | Media | **PARCIAL** | Login acotado a 256 caracteres. El sobrecoste de CPU **no se reprodujo**. |
+| M-3 | Media | **CORREGIDO** (coste acotado; el sobrecoste por longitud no se reproduce) | Argon2 con control de concurrencia (2 a la vez, 8 en espera, 503 con `Retry-After`). Sin cambios de coste ni de hashes. Ver §2. |
 | M-4 | Media | **PENDIENTE** (requiere aprobación de diseño) | El access token ya está en memoria y el refresh en cookie HttpOnly. Quedan tokens en la URL de 4 flujos. |
 | B-1 | Baja | **PARCIAL** | Auth limitado a 16 KB. `/api/` general sigue en 1 MB (el puente lo necesita). |
 | B-2 | Baja | **PENDIENTE** | El soft 404 se reproduce. `noindex` en rutas sensibles ya estaba en la plantilla. |
@@ -85,29 +85,53 @@
 
 **Cambio de contrato:** el login sigue respondiendo `CUENTA_BLOQUEADA` (429 con `Retry-After`), igual que antes, así que el frontend no cambia. Lo que cambia: cuando la cuenta existe, el quinto fallo desde un origen recibe `401 CREDENCIALES_INVALIDAS` (antes el tercero recibía 429), y el límite es por origen.
 
-### M-3 · Longitud de la contraseña en login (PARCIAL)
+### M-3 · Coste de Argon2 y procesamiento de intentos de login (CORREGIDO)
 
-- **Diagnóstico (medido):** el login aceptaba contraseñas de 100 000 caracteres. El tiempo de respuesta no creció (≈0,06 s para 100 000 caracteres frente a ≈0,18 s en la primera llamada, que incluye calentamiento). Argon2id (`app/core/security.py`) no trunca.
-- **Causa:** `LoginRequest.password` era `Password` (`min_length=1`, sin máximo). El registro sí limita a 128 (`PASSWORD_MAX_LENGTH`).
-- **Solución:** tope de 256 en `LoginRequest.password`. Se usa 256 y no 128 porque las contraseñas creadas antes de que existiera el tope de 128 pueden superarlo. 256 es el tope que ya usa `app/schemas/platform.py`.
-- **Pruebas:** `test_login_acota_la_contrasena_de_entrada` (nueva); subconjunto de login (ver §3).
-- **Cambio de contrato:** un login con más de 256 caracteres responde `422` en lugar de `401`. Afecta solo a entradas que no pueden corresponder a ninguna cuenta.
-- **Rollback:** restaurar `password: Password` en `backend/app/schemas/auth.py`.
+**Diagnóstico (medido en la máquina de prueba: Xeon 2,1 GHz, 4 núcleos, 16 GB; `evidencias/.../bench_argon2.py`):**
 
-### M-4 · Tokens en la URL y sesión (PENDIENTE, requiere aprobación)
+1. **Algoritmo y coste.** Argon2id con t=3, m=64 MiB, p=4 (OWASP). Están fijados en `core/security.py` y **no se cambian**. Una verificación cuesta 59 ms de reloj y ~180 ms de CPU (Argon2 con p=4 usa varios núcleos).
+2. **Validación previa al hash.** Ya existían topes antes de cualquier operación costosa: identificador ≤254, contraseña de login ≤256 (agregado en M-3 previo), contraseña nueva o cambio ≤128, reautenticación ≤256, y el cuerpo de auth ≤16 KB (B-1). Verificado: un login de 257 caracteres o un identificador de 300 responden 422 sin consultar la base ni calcular Argon2.
+3. **Contraseñas excesivamente largas.** La longitud **no es la causa del coste**: 50 ms para 8 caracteres, 53 ms para 100 000. El problema es la *cantidad* de verificaciones simultáneas.
+4. **Bloqueos de workers y del event loop.** Los handlers de login son síncronos, así que FastAPI los corre en el threadpool (40 hilos por defecto), no en el event loop (`inspect.iscoroutinefunction` es falso; prueba de regresión). Argon2 libera el GIL: con 8 verificaciones en hilos, el retraso máximo del loop fue ~20 ms. El riesgo real no es el loop sino el **threadpool compartido**: sin límite, las verificaciones podían ocupar los 40 hilos y dejar sin hilo a los endpoints que consultan la base.
+5. **Interacción con M-2.** Los intentos limitados por M-2 no calculan Argon2 (prueba de regresión). El rechazo por saturación nuevo **no** cuenta como fallo de contraseña: un equipo ocupado no bloquea usuarios.
+6. **Memoria y CPU.** Sin límite: 8 verificaciones simultáneas → 556 MB de pico; 16 → 1068 MB. Con 40 hilos se estimaban ~2,5 GB, sobre una notebook con 16 GB y un contenedor de 512 MB–1 GB (`compose.yaml`).
 
-- **Diagnóstico (verificado en código):**
-  - El access token vive solo en memoria (`frontend/src/auth/tokenStore.js`). `localStorage` solo guarda una marca no secreta.
-  - El refresh token va en la cookie `glucolume_refresh`: `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`, `Secure` en producción (`backend/app/api/sessionCookie.py`). Esto ya es H-09.
-  - El SSE usa `fetch` con cabecera `Authorization`, no `EventSource` con token en la URL.
-  - Quedan tokens en la URL de cuatro páginas: `/verificar-correo?token=`, `/activar-cuenta?token=`, `/restablecer-contrasena?token=` y `/cuenta/eliminar/confirmar?token=`. Y un GET con token en query a la API: `GET /api/v1/auth/verify-email?token=` (`frontend/src/api/authApi.js:57`).
-  - Nginx no registra la query (`log_format sin_query`, H-14). Uvicorn corre con `--no-access-log`. El riesgo residual es el historial del navegador, capturas y el GET.
-- **Diseño propuesto (no implementado):**
-  1. Los enlaces de correo nuevos llevan el token en el fragmento `#token=`, igual que el correo de resultados (`/confirmar-correo-resultados#token=`) y la activación de plataforma (`#codigo=`). La página lo lee del hash, lo borra con `history.replaceState` y lo envía por **POST** en el cuerpo.
-  2. El backend agrega los POST equivalentes: verificación de correo, activación, recuperación y eliminación. Los GET y los `?token=` actuales se mantienen durante una ventana de transición (propuesta: `EMAIL_VERIFICATION_EXPIRE_HOURS`, 24 h) para los enlaces ya enviados.
-  3. Sin cambios en el access token ni en la cookie de refresh. Mover el access token a cookie HttpOnly romperia el SSE y el modelo Bearer; no se recomienda.
-- **Archivos afectados (estimado):** `backend/app/api/v1/auth.py`, `backend/app/api/v1/platform.py`, `backend/app/emails/**` (enlaces), `frontend/src/pages/**` (cuatro páginas), `frontend/src/api/authApi.js`, pruebas de correo y de flujos de cuenta.
-- **Riesgos:** cambia el formato de los enlaces enviados por correo; requiere la ventana de compatibilidad; afecta a flujos de autenticación. Por eso espera tu aprobación.
+**Hallazgo adicional, corregido.** En la reescritura de M-2 quité un `db.commit()` que cerraba la transacción de lectura antes de verificar la contraseña. La conexión a SQL Server quedaba ocupada durante Argon2, y con el control nuevo esa espera (hasta 5 s) podía agotar el pool. Prueba de regresión: `test_ninguna_verificacion_ocurre_con_la_transaccion_de_lectura_abierta` (falla en `HEAD`: `[('real', True), ('dummy', True)]`).
+
+**Lo que no se reproduce:** los **2,7–3,5 s** del informe. En esta máquina una verificación cuesta 59 ms. La diferencia probablemente viene de SQL Server en el mismo equipo y de la red tailnet, y hay que medirla en el servidor (§5).
+
+**Solución implementada:**
+
+- `core/security.py`: `_argonSlot` envuelve `hashPassword`, `verifyPassword` y `verifyDummyPassword`. Corren a la vez como máximo `ARGON2_MAX_CONCURRENT` (2), esperan como máximo `ARGON2_MAX_WAITING` (8) y la espera tiene tope de 5 s. Lo que no entra responde **503 `SERVIDOR_OCUPADO`** con `Retry-After: 2`; si la lista de espera está llena, responde de inmediato (no retiene hilos). El lugar se libera también si la operación falla.
+- `app/api/errors.py`: `SERVIDOR_OCUPADO` → 503. `loginLocal` no alerta a administradores por este rechazo.
+- `_loginLocal`: cierra la transacción antes de cada verificación (real y dummy).
+- Configuración: `ARGON2_MAX_CONCURRENT` (1–16) y `ARGON2_MAX_WAITING` (0–64). En una notebook con poca memoria, `ARGON2_MAX_CONCURRENT=1` reduce el pico a ~64 MB a costa de latencia.
+- **Sin cambios de coste ni de formato**: los parámetros no cambian, y un hash fijado como literal sigue verificando sin pedir rehash (`test_un_hash_existente_sigue_verificando_sin_rehashearse`).
+
+**Medición (mismo script, `HEAD` frente a la rama; 2 operaciones por hilo):**
+
+| Medida | Sin control (`HEAD`) | Con control |
+|---|---|---|
+| Verificación (reloj / CPU) | 58,8 ms / 187 ms | 58,8 ms / 179 ms (sin cambio) |
+| Longitud 8 → 100 000 caracteres | 50 → 56 ms | 53 → 54 ms (sin efecto) |
+| 8 simultáneas: pico de memoria | 556 MB | **171 MB** |
+| 8 simultáneas: latencia p50 | 460 ms | **123 ms** |
+| 16 simultáneas: pico de memoria | 1068 MB | **172 MB** |
+| 16 simultáneas: respuestas | 32 atendidas | 19 atendidas, **13 × 503** |
+| Retraso máximo del loop (8 hilos) | 20 ms | 9 ms |
+
+El precio: con 8 simultáneas, la latencia p95 sube (≈770 ms frente a ≈500 ms) porque las últimas esperan su lugar. Con 16, las que exceden la espera reciben 503.
+
+**Pruebas:**
+
+- `backend/tests/test_argon2_gate.py` (17): concurrencia acotada, 503 inmediato con la espera llena, tope de espera sin contar la espera fallida, liberación ante excepciones, cada operación pasa por el control, validación antes del hash, login síncrono, intentos limitados por M-2 sin Argon2, saturación sin contar como fallo, 503 con `Retry-After` por HTTP, coste fijo, compatibilidad de hashes, y transacción cerrada antes de verificar.
+- **Regresión comprobada contra `HEAD`** (worktree sin el control): fallan 2 y dan error 7 de las pruebas de concurrencia y saturación (el fixture usa `_argonSlots`, que no existe sin el control); la prueba de transacción falla. Las demás pasan en `HEAD` a propósito: son guardas de comportamiento que ya existía.
+- Suite del subconjunto de login/auth (32 archivos, 4 procesos): ver el resultado final en el commit.
+
+**Pendiente (no bloquea el login):**
+
+- **Cambio de contraseña y reset**: `previousPasswordError` verifica la actual y hasta `PASSWORD_HISTORY_SIZE` (3) anteriores, así que un cambio hace hasta 6 verificaciones por pedido (~360 ms de CPU). Está protegido por sesión (cambio) o por token de un solo uso con límite por IP (reset), y el control lo acota. Cerrar la transacción antes de ese bucle exige decidir qué commit corresponde al llamador: queda para una revisión aparte.
+- **Medición en el servidor**: la tabla es de la máquina de prueba, sin SQL Server. Medir con `docker stats` durante un login lento y con `bench_argon2.py` en el equipo del servidor antes de fijar `ARGON2_MAX_CONCURRENT`.
 
 ### B-1 · Tamaño del cuerpo (PARCIAL)
 
@@ -176,6 +200,7 @@
 | B-1 `client_max_body_size 16k` en auth | Un formulario de auth > 16 KB daría 413 (ninguno legítimo) | Quitar la línea |
 | B-6 `/api/v1/healthz` | Nueva ruta pública (solo liveness) | Quitar el bloque `location` |
 | M-3 tope 256 en login | Contraseñas > 256 caracteres → 422 en lugar de 401 | Restaurar `password: Password` |
+| M-3 control Argon2 | Login con más de 2 verificaciones en curso responde 503 tras 8 en espera; la latencia sube en pico | `ARGON2_MAX_CONCURRENT` / `ARGON2_MAX_WAITING`, o quitar `_argonSlot` en `core/security.py` |
 
 **Despliegue:** requiere reconstruir la imagen `frontend` (la plantilla se procesa al arrancar el contenedor) y reiniciar el backend por el cambio de esquema. **No hay migraciones de base de datos.**
 
