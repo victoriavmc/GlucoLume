@@ -16,7 +16,7 @@
 | B-2 | Baja | **PARCIAL** | Rutas desconocidas, archivos sensibles (`.git`, `.env`, `.php`, copias) y `/administracion/*` inexistentes ahora dan 404. Pendiente: subrutas inexistentes dentro de `/app` y `/plataforma` (siguen con 200, la SPA las redirige). Ver §2. |
 | B-3 | Baja | **CORREGIDO** (código + validación local) | Cada cabecera de seguridad aparece una sola vez en la API. |
 | B-4 | Baja | **PARCIAL** | HSTS: sin `includeSubDomains`, 30 días (antes 1 año), y sin emitir en `localhost` (Nginx). Pendiente: el `Caddyfile` del perfil `https` (validar en servidor). `preload`: no aplica. El 302 HTTP→HTTPS no está en el repo: verificar en el borde. Ver §2. |
-| B-5 | Baja | **PENDIENTE** | HTTP/2 lo negocia el borde de Tailscale. COOP/CORP requiere validar el flujo de login en navegador. |
+| B-5 | Baja | **CORREGIDO** (COOP y CORP en la SPA y los estáticos) / **PENDIENTE** (COEP, y HTTP/2 en el borde) | `Cross-Origin-Opener-Policy: same-origin` y `Cross-Origin-Resource-Policy: same-origin` en las respuestas de la SPA y los estáticos; la API no las recibe. COEP no se activa. HTTP/2 lo negocia el borde (fuera del repo). Ver §2. |
 | B-6 | Baja | **CORREGIDO** | Liveness `/api/v1/healthz` publicada. Readiness `/api/v1/readyz` implementada para monitoreo interno: Nginx la responde 404 y el backend la expone con valores enumerados, sin versiones ni cadenas de conexión. |
 | B-7 | Baja | **CORREGIDO** (monitoreo en los logs del backend) | La CSP de la app tiene `report-uri`: cada bloqueo llega a `/api/v1/security/csp-report`, se sanitiza y se registra. Sin servicios externos ni base de datos. Ver §2. |
 | Anexo C | — | **PENDIENTE** | Requiere acceso al host (nginx -T, cookies en vivo, kernel, Tailscale). `pip-audit` local: sin vulnerabilidades conocidas. |
@@ -376,10 +376,35 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
   3. Tras validar el Caddyfile propuesto, las dos comprobaciones del perfil `https` de arriba.
 - **Riesgos y rollback:** el HSTS anterior queda en los navegadores que ya lo recibieron hasta su vencimiento (un año); el nuevo lo reemplaza al volver a visitar por HTTPS. Rollback: restaurar `"max-age=31536000; includeSubDomains"` en el mapa de Nginx y en `HSTS_VALUE`, y el test de paridad. No hay cambios de base de datos ni de API.
 
-### B-5 · HTTP/2 y COOP/CORP (PENDIENTE)
+### B-5 · HTTP/2 y aislamiento entre orígenes (CORREGIDO en COOP y CORP; COEP y HTTP/2 pendientes)
 
-- HTTP/2 lo negocia el borde (Tailscale Serve); Nginx escucha HTTP/1.1 en 8080.
-- COOP/CORP: el frontend no usa `window.open` ni `opener` (verificado con grep), y el login de Google es navegación completa (`window.location.assign`). Por eso COOP `same-origin` parece seguro, pero el flujo login (`localhost`) → app (`glucolume.local`) entre orígenes debe validarse en navegador antes de activarlo. CORP solo debería aplicarse a HTML y estáticos, no a la API.
+- **Quién termina TLS y negocia HTTP:**
+  - **Nginx no termina TLS.** Escucha en texto plano en `8080` (`listen 8080;`, sin `ssl`). Solo negocia HTTP/1.1: `curl --http2 http://127.0.0.1:8080/login` devuelve `http_version=1.1`, y h2c con conocimiento previo no está habilitado.
+  - **Perfil `https` del repo (Caddy):** termina TLS con Let's Encrypt (o su CA interna para `localhost`) y negocia HTTP/2 y HTTP/3 por defecto, según su documentación (no medido aquí). Hacia Nginx habla HTTP/1.1 en la red de Docker. Caddy no está validado en este banco (ver B-4).
+  - **Demo con Tailscale Serve:** termina TLS con el certificado del tailnet. Que negocie HTTP/2 **no se puede verificar desde el repo**; es el borde del servidor. Comprobación: `curl -s -o /dev/null -w '%{http_version}\n' --http2 https://glucolume-server.tailb27487.ts.net/login`.
+- **¿HTTP/2 mejoraría algo?** Medido en Chromium, carga en frío de `/login`: **15 recursos, unos 670 KB** (1 documento, 3 hojas de estilo, 11 scripts). Con HTTP/1.1 y varias conexiones, 15 recursos caben en pocas rondas; el costo dominante de un SPA con módulos es la cadena de imports (cada módulo espera al anterior), que HTTP/2 no reduce. El beneficio existe, pero es modesto para este volumen. Por eso **no se agrega HTTP/2 en Nginx** (`listen 8080 http2` requeriría h2c, que ningún cliente usa). El borde ya lo negocia si está configurado.
+- **Qué se cambió (Nginx, `docker/nginx/default.conf.template`):**
+  - `Cross-Origin-Opener-Policy: same-origin` (mapa `$coop_value`) y `Cross-Origin-Resource-Policy: same-origin` (mapa `$corp_value`), en el `server`, para la SPA, los estáticos, `/ayuda` y los 404 del mismo origen.
+  - **Excluidas:** `/api/` (vacío en el mapa, Nginx no envía la cabecera). Sus respuestas JSON y sus redirecciones no son documentos de navegación. El callback de Google es una redirección de la API: no recibe COOP ni CORP.
+  - `/docs` conserva sus cabeceras propias (sin COOP ni CORP, como antes).
+  - Las ubicaciones que sirven la SPA y los estáticos no declaran `add_header` propio, así que heredan estas cabeceras (la prueba lo verifica, igual que en B-3).
+- **Análisis por flujo:**
+  - **Google OAuth:** el inicio y el callback son navegaciones de nivel superior (`window.location`) y redirecciones de la API. COOP no afecta navegaciones sin `opener`, y la API no recibe COOP. Verificado: el canje del código en la transferencia entre orígenes llega a la API (ver abajo). El flujo completo con Google no se puede probar aquí (sin credenciales ni `GOOGLE_*` configurados; `google/login` responde 503 localmente).
+  - **Redirecciones:** `/api`→`/api/` (308 relativo, M-1) y las de la API no cambian: su `Location` y su código son idénticos.
+  - **Transferencia entre orígenes** (login en `localhost` → app en `glucolume.local`, `originGuard.goToApp`): es `window.location.replace` con el código en el fragmento. Medido con dos orígenes reales: la app recibe el código, hace el canje y renderiza. Nadie usa `window.opener`.
+  - **Recursos estáticos:** el mismo origen los carga sin cambios. Un `<img>` de otro origen hacia un estático nuestro **se bloquea** (CORP): lo medí. La app no pide recursos no-CORS de otros orígenes: el único stream es un `fetch` (CORS, que CORP no restringe).
+  - **Funciones con otros orígenes:** `target="_blank"` ya usa `rel="noopener"`. No hay `window.open`, `postMessage` ni `BroadcastChannel`. Los enlaces a terceros (`DiabetesArticle`, `MatrixReference`) son navegaciones normales.
+- **COEP: no se activa.** `Cross-Origin-Embedder-Policy: require-corp` exige que cada recurso embebido declare CORP o CORS, y la app depende de recursos de terceros (`/docs` carga Swagger desde jsDelivr; las referencias de matrices y artículos son enlaces, no embebidos). Activarlo sin ese inventario rompería la página de documentación y pondría en riesgo los enlaces externos. Pendiente: inventario de recursos embebidos y `credentialless` si hace falta.
+- **Pendiente: `same-origin-allow-popups`.** Si en el futuro se agrega un flujo con popup (p. ej. Google Identity Services), COOP `same-origin` lo rompería. Cambiar a `same-origin-allow-popups` en ese caso.
+- **CORP en la API: no se activa.** Protegería frente a consultas por `<img>`/`<script>` de otros sitios, pero las respuestas de la API ya son JSON sin caché y con CSP `default-src 'none'`. Requiere inventariar cada `img`/`script`/`iframe` que apunte a la API (hoy ninguno, según `frontend/src`). Pendiente por bajo beneficio y costo de verificación.
+- **Verificación:**
+  - `backend/tests/test_aislamiento_origenes.py` (4): COOP y CORP `same-origin` por defecto, declarados una sola vez; la API queda excluida (sin falsos positivos en `/apix` ni `/login`); las ubicaciones de la SPA y de los estáticos no declaran `add_header` propio; COEP ausente.
+  - Matriz de cabeceras antes/después (`resultados_aislamiento_cabeceras_*.txt`): SPA, `/ayuda`, 404 y estáticos con COOP y CORP; API, `/docs` y 308 sin ellas; ninguna respuesta con COEP.
+  - Navegador, dos orígenes (`resultados_aislamiento_navegador.txt`): **9/9**.
+  - Navegación y recarga de B-2 (`verificar_navegacion_spa.cjs`): **18/18** con la configuración nueva.
+  - `verificar-rutas.sh` y 128 pruebas de cabeceras, CSP, HSTS, rutas y readiness: en verde.
+- **Pendiente en el servidor:** confirmar que el borde negocia HTTP/2 (comando de arriba) y que el borde no agrega sus propios COOP/CORP (`curl -sI https://<host>/login`).
+- **Riesgos y rollback:** la SPA deja de compartir grupo de navegación con documentos de otros orígenes; si algún flujo futuro usa popups, rompería (ver arriba). Rollback: quitar las dos líneas `add_header Cross-Origin-*` del `server` y los mapas `$coop_value` y `$corp_value`. Sin cambios de base de datos ni de API.
 
 ### B-6 · Monitoreo: liveness y readiness (CORREGIDO)
 
@@ -474,3 +499,4 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 6. **B-2:** ¿tabla completa de rutas privadas en Nginx (404 real para `/app/xyz`) o manifiesto generado desde el router? Y el destino de los correos de seguridad (`/cuenta/seguridad` no existe; apuntar a `/app/seguridad` o `/plataforma/seguridad` según el tipo de cuenta).
 7. **B-7:** ¿agregar una alerta sobre el conteo de `CSP incumplida` (requiere un recolector de logs) o basta la revisión periódica con `docker compose logs`? Y ¿verificar Trusted Types en `Report-Only` antes de activarlo?
 8. **B-4:** validar el `Caddyfile` propuesto con `caddy validate` en el servidor antes de aplicarlo, y confirmar con `tailscale serve status` si el 302 HTTP→HTTPS viene del borde de Tailscale.
+9. **B-5:** activar COEP solo después de inventariar los recursos embebidos; confirmar en el borde (Tailscale Serve o Caddy) si negocia HTTP/2 y si agrega COOP/CORP propios.

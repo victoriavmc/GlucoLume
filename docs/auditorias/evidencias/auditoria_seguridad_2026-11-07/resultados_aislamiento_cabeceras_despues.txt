@@ -1,0 +1,9 @@
+/login                                   200  COOP=same-origin    CORP=same-origin  COEP=-
+/ayuda                                   200  COOP=same-origin    CORP=same-origin  COEP=-
+/ayuda/                                  200  COOP=same-origin    CORP=same-origin  COEP=-
+/api/v1/healthz                          200  COOP=-              CORP=-            COEP=-
+/api/v1/security/csp-report              204  COOP=-              CORP=-            COEP=-
+/api                                     308  COOP=-              CORP=-            COEP=-
+/docs                                    200  COOP=-              CORP=-            COEP=-
+/no-existe-xyz                           404  COOP=same-origin    CORP=same-origin  COEP=-
+/assets/AnalyticsCharts-Da-fgWbK.js      200  COOP=same-origin    CORP=same-origin  COEP=-

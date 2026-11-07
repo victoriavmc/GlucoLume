@@ -67,6 +67,21 @@ map $request_uri $csp_value {
 
 # noindex para las áreas privadas y de acceso. Es higiene, no control de acceso: lo que protege es la autenticación de la API y de la SPA.
 # ~* (sin distinguir mayúsculas): React Router tampoco distingue, así /APP/inicio es el mismo espacio privado.
+# Aislamiento entre orígenes (B-5, auditoría 07/11/2026). Solo en las respuestas de la SPA y de los estáticos; la API queda sin ellas
+# (sus respuestas JSON y sus redirecciones no son documentos de navegación; el callback de Google es una redirección de la API).
+#  - COOP same-origin: la ventana de la app no comparte grupo de navegación con documentos de otro origen. La app no usa window.open ni
+#    postMessage; el login de Google y la transferencia entre orígenes son navegaciones de nivel superior, que COOP no afecta.
+#  - CORP same-origin: otro sitio no puede cargar nuestros estáticos con <script> o <img>. Las llamadas de la app a la API usan fetch con
+#    CORS, que CORP no restringe. Con valor vacío Nginx no envía la cabecera (como HSTS).
+map $request_uri $coop_value {
+    "~^/api(/|\?|$)" "";
+    default "same-origin";
+}
+map $request_uri $corp_value {
+    "~^/api(/|\?|$)" "";
+    default "same-origin";
+}
+
 map $request_uri $robots_tag {
     ~*^/(app|plataforma|administracion|auth|cuenta|login|registro|verificar-correo|activar-cuenta|recuperar-contrasena|restablecer-contrasena|confirmar-correo-resultados)(/|\?|$) "noindex, nofollow";
     default "";
@@ -110,6 +125,8 @@ server {
     # Cabeceras de seguridad. CSP sin 'unsafe-inline' (GL-19): React aplica los estilos en línea por CSSOM (element.style), que la CSP no
     # bloquea; sí bloquea <style> y atributos style inyectados. Verificado el 19/10/2026 con el build y la galería de componentes.
     add_header Strict-Transport-Security $hsts_value always;
+    add_header Cross-Origin-Opener-Policy $coop_value always;
+    add_header Cross-Origin-Resource-Policy $corp_value always;
     add_header X-Robots-Tag $robots_tag always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;

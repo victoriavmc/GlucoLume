@@ -1,0 +1,4 @@
+# Versión HTTP negociada por Nginx en 8080 (interno, sin TLS): curl --http2
+http_version=1.1
+# Carga en frío de /login (Chromium): recursos y bytes
+{"ruta":"/login","recursos":15,"bytesAprox":670051,"porTipo":{"document":1,"stylesheet":3,"script":11}}

@@ -1,0 +1,10 @@
+PASA  login en localhost renderiza  HTTP 200 COOP=same-origin CORP=same-origin
+PASA  transferencia entre orígenes llega al callback de la app  url=http://127.0.0.1:8080/auth/google/callback canjes=1
+PASA  la app renderiza tras la transferencia (no queda en blanco)  
+PASA  window.opener es null en la app (sin relación de ventana con el login)  
+PASA  CORP: imagen propia carga desde su origen  mismo=ok
+PASA  CORP: el mismo estático pedido desde otro origen se bloquea (no-cors)  cruzado=error
+PASA  navegación interna en la app con COOP/CORP  http://127.0.0.1:8080/consejos
+PASA  recarga en /consejos  
+PASA  sin errores de consola por COOP/CORP/COEP  ninguno
+Resumen: 9/9 pasan
