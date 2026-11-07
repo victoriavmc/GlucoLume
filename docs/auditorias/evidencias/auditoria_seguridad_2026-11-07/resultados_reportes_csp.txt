@@ -1,0 +1,15 @@
+# Navegación normal y violación provocada (verificar_reportes_csp.cjs), Chromium, Nginx local con la plantilla de la rama
+# Nota: la primera línea de CSP en el log viene de un POST manual con curl, previo a la prueba de navegador.
+## Salida del navegador
+{"parte":"navegacion_normal","paginas":11,"reportesEnviados":0,"violacionesConsola":0}
+{"parte":"violacion_provocada","reportesEnviados":2,"ejecutoElScript":false}
+
+## Líneas del log del backend (uvicorn). La primera es la prueba manual con curl (ver nota); las dos últimas son del navegador
+WARNING glucolume.csp: CSP incumplida: directiva=img-src bloqueado=https://evil.example documento=/restablecer-contrasena fuente=desconocida linea=1 columna=None disposicion=enforce
+WARNING glucolume.csp: CSP incumplida: directiva=script-src-elem bloqueado=inline documento=/restablecer-contrasena fuente=desconocida linea=4 columna=19 disposicion=enforce
+WARNING glucolume.csp: CSP incumplida: directiva=img-src bloqueado=https://evil.example documento=/restablecer-contrasena fuente=desconocida linea=None columna=None disposicion=enforce
+
+## Cadenas sensibles en el log (SECRETO123, CLAVE-ABC, evil.example/pixel): 0
+
+## Reporte de 9 KB por Nginx: 413 JSON de la API (límite de la ubicación del reporte, 8 KB)
+HTTP 413 application/json

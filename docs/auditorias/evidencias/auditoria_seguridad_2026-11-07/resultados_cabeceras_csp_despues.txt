@@ -1,0 +1,12 @@
+== GET /login
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; report-uri /api/v1/security/csp-report
+== GET /app/inicio
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; report-uri /api/v1/security/csp-report
+== GET /api/v1/healthz
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+== POST /api/v1/security/csp-report
+HTTP/1.1 204 No Content
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'

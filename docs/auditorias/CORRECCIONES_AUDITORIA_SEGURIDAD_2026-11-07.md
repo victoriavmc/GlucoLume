@@ -18,7 +18,7 @@
 | B-4 | Baja | **NO APLICA** (preload) / **PENDIENTE** (308) | `preload` no es posible sobre `*.ts.net`. El 302→308 lo emite Tailscale Serve, fuera del repo. |
 | B-5 | Baja | **PENDIENTE** | HTTP/2 lo negocia el borde de Tailscale. COOP/CORP requiere validar el flujo de login en navegador. |
 | B-6 | Baja | **CORREGIDO** | Liveness `/api/v1/healthz` publicada. Readiness `/api/v1/readyz` implementada para monitoreo interno: Nginx la responde 404 y el backend la expone con valores enumerados, sin versiones ni cadenas de conexión. |
-| B-7 | Baja | **PENDIENTE** | Requiere un colector de reportes CSP. Los reportes incluyen URLs, que pueden llevar tokens. |
+| B-7 | Baja | **CORREGIDO** (monitoreo en los logs del backend) | La CSP de la app tiene `report-uri`: cada bloqueo llega a `/api/v1/security/csp-report`, se sanitiza y se registra. Sin servicios externos ni base de datos. Ver §2. |
 | Anexo C | — | **PENDIENTE** | Requiere acceso al host (nginx -T, cookies en vivo, kernel, Tailscale). `pip-audit` local: sin vulnerabilidades conocidas. |
 
 ## 2. Detalle por hallazgo
@@ -357,9 +357,40 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 - **Riesgos:** cada monitor genera como mucho una consulta de readiness por ventana de 5 s. Si la base queda colgada, la comprobación ocupa un slot del semáforo hasta el tope de 3 s; el hilo puede seguir bloqueado en el driver mientras la base no responda, pero no se apilan comprobaciones (`_probing`) y las respuestas siguen siendo `503 tiempo_agotado`.
 - **Rollback:** quitar `app.include_router(healthRouter, ...)` de `backend/app/main.py`, el bloque `location = /api/v1/readyz` de la plantilla de Nginx, y los archivos `api/v1/health.py`, `services/readiness.py` y `tests/test_readyz.py`. Sin migraciones ni cambios de datos.
 
-### B-7 · Reporte de CSP (PENDIENTE)
+### B-7 · Monitoreo de incumplimientos de CSP (CORREGIDO)
 
-- Propuesta: `Content-Security-Policy-Report-Only` con `report-to` a un colector. **Antes**, definir el colector: los reportes incluyen la URL bloqueada, que puede contener `?token=`. El colector debe descartar la query y no guardar IP completa (política de retención del proyecto).
+- **Diagnóstico:** la CSP de la app (`docker/nginx/default.conf.template`, `$csp_value`) ya era estricta: `script-src 'self'`, `style-src 'self'`, `object-src 'none'`, sin `unsafe-inline` ni `unsafe-eval`. Pero no tenía `report-uri` ni `report-to`: un bloqueo ocurría en silencio y no había forma de saber si una extensión, un cambio de dependencia o un intento de inyección lo provocaba.
+- **Compatibilidad con React y Vite (verificada en Chromium con el build real):** 11 páginas recorridas sin una sola violación de consola. El `index.html` solo tiene un `<script type="application/ld+json">` (dato, no se ejecuta) y el módulo `/assets/`. En `frontend/src` no hay `innerHTML`, `dangerouslySetInnerHTML` ni `eval`. Los estilos de React van por CSSOM, que `style-src 'self'` permite.
+- **Mecanismo elegido: `report-uri` dentro de la CSP que ya se aplica.**
+  - `Content-Security-Policy-Report-Only` no aporta aquí: sirve para probar una política *más estricta* antes de aplicarla, y esta no cambia la política. Además, B-3 dejó una sola CSP por respuesta, y agregar otra cabecera de CSP reintroduce la duplicidad que se corrigió.
+  - `report-to` (Reporting API) requiere la cabecera `Reporting-Endpoints` y Firefox no la soporta. `report-uri` lo cubre en Chromium y Firefox.
+  - Lo único que cambia en la cabecera es `; report-uri /api/v1/security/csp-report`. La API conserva su CSP (`default-src 'none'`) y no envía reportes.
+- **Receptor:** `POST /api/v1/security/csp-report` (`backend/app/api/v1/cspReport.py`), público, sin cookies ni sesión. Responde siempre `204` (no sirve de oráculo). Límites: 8 KB en Nginx (ubicación exacta con su propio `client_max_body_size`, un reporte grande da el 413 JSON de la API), 8 KB en el backend (sin leer el cuerpo si `Content-Length` lo supera), y `rateLimit("cspReport")`: 30 reportes por IP cada 10 minutos.
+- **Sanitización (`backend/app/services/cspReports.py`):**
+  - Se registra: la directiva que bloqueó, el origen del recurso bloqueado (`esquema://host`, o solo el esquema para `inline`, `data:` y extensiones), la ruta de la pantalla con hasta tres segmentos, el archivo fuente sin query, línea, columna y `disposition` (`enforce` o `report`).
+  - **No se registra:** query ni fragmento de ninguna URL (ahí van los tokens de un solo uso, `?token=`), credenciales en la URL, la IP, el user-agent, el referrer, la política completa (`original-policy`) ni el fragmento del script (`script-sample`, que puede contener datos).
+  - Los segmentos de ruta con aspecto de identificador (UUID, token largo con dígitos) se reemplazan por `:id`, y los que llevan `@` o caracteres base64 por `:x`. Los nombres de archivo con extensión (p. ej. `index-hL8qm7aU.js`) se conservan porque son públicos.
+  - Los caracteres de control se reemplazan por `?`, para que un reporte no inyecte líneas falsas en el log.
+- **Medido:**
+  - Navegación normal (11 páginas, Chromium): **0 reportes**, 0 violaciones de consola. No hay falsos positivos.
+  - Violación provocada en `/restablecer-contrasena?token=SECRETO123`: un script inline y una imagen de un host ajeno con token en la URL. El navegador envió **2 reportes**, el script no se ejecutó, y el log quedó con las dos líneas sanitizadas (`directiva=script-src-elem bloqueado=inline ...`, `bloqueado=https://evil.example`). **Cadenas sensibles en el log: 0.**
+  - Un reporte de 9 KB por Nginx: **413 JSON** de la API.
+  - Cabeceras antes/después (`evidencias/.../resultados_cabeceras_csp_*.txt`): en la SPA solo cambia la directiva `report-uri`; la API sigue con `default-src 'none'; frame-ancestors 'none'` y una sola cabecera CSP por respuesta.
+- **Cómo usarlo (sin cambiar el despliegue hasta aprobarlo):**
+  - Revisar: `docker compose logs --since 24h backend | grep "CSP incumplida"`. Cada línea indica la directiva, el recurso bloqueado y la pantalla.
+  - Triaje: `bloqueado=chrome-extension` o `moz-extension` suele ser una extensión del usuario (ignorar). `bloqueado=inline` o un host propio en una pantalla es un defecto de la app a corregir. Un host de terceros legítimo se agrega a la política de forma explícita.
+  - Retención: los logs de Compose ya rotan (`json-file`, 10 MB × 5 archivos por contenedor). No hay tabla ni servicio de terceros.
+  - **Riesgo a aceptar:** el endpoint es público, así que cualquiera puede enviar reportes falsos (contaminar el log). Por eso el tope por IP y la sanitización. Un atacante con muchas IP puede llenar la rotación del log; con el límite por IP, el volumen de un solo origen es bajo.
+  - **Lo que no hace:** no alerta por sí solo. Una alerta (conteo por hora sobre `CSP incumplida`) requiere un recolector de logs; no se agregó para no sumar servicios.
+- **Lo que se evaluó y no se incorporó (con verificación pendiente):**
+  - **nonce y `strict-dynamic`:** no hace falta mientras no haya scripts inline. La app no tiene ninguno (solo el módulo `/assets/`), así que agregar nonces sería cambio sin beneficio. Se revisará si se incorpora un script inline.
+  - **Trusted Types:** la app no usa sinks de HTML (`innerHTML`, `dangerouslySetInnerHTML`, `eval`) en su código, pero no está verificado para las dependencias (`react-router`, `lucide-react`, gráficos). Su activación requiere primero `Report-Only` con `require-trusted-types-for 'script'` y revisar los reportes de este mismo endpoint. Queda pendiente.
+  - **`Content-Security-Policy-Report-Only`:** el procedimiento para endurecer la política en el futuro es: agregar la cabecera con la política candidata, observar 1–2 semanas de reportes en este endpoint y luego promoverla. No se usa hoy porque la política actual no cambia.
+- **Pendiente fuera de la SPA:** `/docs` (Swagger, CDN de jsdelivr) sigue con su propia CSP sin `report-uri`. Y si se usan los orígenes separados de login y app (`VITE_LOGIN_ORIGIN` / `VITE_APP_ORIGIN`), `connect-src 'self'` bloquearía las llamadas entre orígenes y el reporte lo mostraría: es un beneficio del monitoreo.
+- **Pruebas:**
+  - `backend/tests/test_csp_reports.py` (27): sanitización (query, fragmento, script, política, referrer, token en el segmento, correo, control de caracteres), los dos formatos de reporte, cuerpos inválidos y grandes, endpoint 204 con y sin basura, 405 en GET, límite por IP (30 + 429), y la plantilla: `report-uri` presente, lista exacta de directivas sin relajar, tope de 8 KB y proxy sin CSP duplicada.
+  - `test_security_hardening` y `test_rutas_spa` siguen pasando (140 con las pruebas de rate limit).
+- **Riesgos y rollback:** quitar `; report-uri /api/v1/security/csp-report` del `$csp_value` y el bloque `location = /api/v1/security/csp-report`; quitar `cspReportRouter` de `main.py`. No hay cambios de base de datos ni de contratos de la API.
 
 ## 3. Pruebas ejecutadas
 
@@ -398,3 +429,4 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 4. **B-1:** medir el lote real del puente antes de bajar `/api/` de 1 MB.
 5. **B-6:** confirmar que el monitoreo interno llama al backend directamente (`http://backend:8000/api/v1/readyz`) y que la readiness no se publica por Nginx. Si se quiere exponerla, debe ser con restricción por origen, y el origen real de cliente hoy no se distingue detrás de Tailscale Serve.
 6. **B-2:** ¿tabla completa de rutas privadas en Nginx (404 real para `/app/xyz`) o manifiesto generado desde el router? Y el destino de los correos de seguridad (`/cuenta/seguridad` no existe; apuntar a `/app/seguridad` o `/plataforma/seguridad` según el tipo de cuenta).
+7. **B-7:** ¿agregar una alerta sobre el conteo de `CSP incumplida` (requiere un recolector de logs) o basta la revisión periódica con `docker compose logs`? Y ¿verificar Trusted Types en `Report-Only` antes de activarlo?

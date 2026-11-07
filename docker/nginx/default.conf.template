@@ -55,7 +55,7 @@ log_format sin_query '$ip_anon - [$time_local] "$request_method $log_path" $stat
 # Swagger (/docs) y la ubicación de login con límite de ráfaga tienen su propia CSP: ver sus ubicaciones.
 map $request_uri $csp_value {
     "~^/api(/|\?|$)" "default-src 'none'; frame-ancestors 'none'";
-    default "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+    default "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; report-uri /api/v1/security/csp-report";
 }
 
 # noindex para las áreas privadas y de acceso. Es higiene, no control de acceso: lo que protege es la autenticación de la API y de la SPA.
@@ -145,6 +145,27 @@ server {
         proxy_hide_header Referrer-Policy;
         proxy_hide_header Content-Security-Policy;
         proxy_hide_header Strict-Transport-Security;
+    }
+
+    # Reportes de incumplimiento de la CSP de la app (B-7, auditoría 07/11/2026). El navegador los envía a report-uri del $csp_value.
+    # Reportes pequeños: 8 KB como máximo (el backend sanitiza y registra; ver app/services/cspReports.py). Mismo proxy que /api/.
+    location = /api/v1/security/csp-report {
+        client_max_body_size 8k;
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $backend ${BACKEND_UPSTREAM};
+        proxy_pass http://$backend;
+        proxy_http_version 1.1;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Strict-Transport-Security;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 10s;
     }
 
     # Readiness (B-6): consulta la base de datos, así que no se publica por Nginx. Los monitores internos la leen en el backend

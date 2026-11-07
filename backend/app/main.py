@@ -19,6 +19,7 @@ from app.api.requestContext import RequestContextMiddleware
 from app.api.securityHeaders import SecurityHeadersMiddleware
 from app.api.unhandledErrors import UnhandledErrorMiddleware
 from app.api.v1.health import router as healthRouter
+from app.api.v1.cspReport import router as cspReportRouter
 from app.api.v1.acquisition import router as acquisitionRouter
 from app.api.v1.auth import router as authRouter
 from app.api.v1.telemetry import router as telemetryRouter
@@ -117,6 +118,7 @@ for warning in settings.securityWarnings():
 app.add_exception_handler(AuthError, authErrorHandler)
 app.add_exception_handler(RequestValidationError, validationErrorHandler)
 app.include_router(healthRouter, prefix="/api/v1")
+app.include_router(cspReportRouter, prefix="/api/v1")
 app.include_router(authRouter, prefix="/api/v1")
 app.include_router(contactRouter, prefix="/api/v1")
 app.include_router(institutionsRouter, prefix="/api/v1")
