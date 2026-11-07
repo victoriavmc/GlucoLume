@@ -1,0 +1,20 @@
+PASA  navegación: clic a /consejos desde la portada  http://127.0.0.1:8080/consejos
+PASA  acceso directo /login  HTTP 200 url=/login
+PASA  acceso directo /caracteristicas  HTTP 200 url=/caracteristicas
+PASA  acceso directo /ayuda  HTTP 200 url=/ayuda
+PASA  acceso directo /privacidad  HTTP 200 url=/privacidad
+PASA  acceso directo /consejos/abc  HTTP 200 url=/consejos/abc
+PASA  acceso directo /recuperar-contrasena  HTTP 200 url=/recuperar-contrasena
+PASA  acceso directo /plataforma/login  HTTP 200 url=/plataforma/login
+PASA  recarga en /caracteristicas  http://127.0.0.1:8080/caracteristicas
+PASA  acceso directo /app/inicio sin sesión redirige a login  HTTP 200 -> /login
+PASA  desconocida /nonexistent-xyz  HTTP 404
+PASA  desconocida /phpinfo.php  HTTP 404
+PASA  desconocida /.git/config  HTTP 404
+PASA  desconocida /.env  HTTP 404
+PASA  desconocida /administracion/xyz  HTTP 404
+PASA  API inexistente /api/v1/no-existe responde JSON 404  {"status":404,"tipo":"application/json"}
+PASA  API /api/v1/healthz sigue respondiendo 200 JSON  {"status":200,"tipo":"application/json"}
+PASA  recursos de /ayuda y /assets sin 404  ninguno
+
+Resumen: 18/18 pasan

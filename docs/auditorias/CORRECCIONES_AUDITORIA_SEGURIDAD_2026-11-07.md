@@ -13,7 +13,7 @@
 | M-3 | Media | **CORREGIDO** (coste acotado; el sobrecoste por longitud no se reproduce) | Argon2 con control de concurrencia (2 a la vez, 8 en espera, 503 con `Retry-After`). Sin cambios de coste ni de hashes. Ver §2. |
 | M-4 | Media | **PENDIENTE** (requiere aprobación de diseño) | El access token ya está en memoria y el refresh en cookie HttpOnly. Quedan tokens en la URL de 4 flujos. |
 | B-1 | Baja | **CORREGIDO** | Tope general de 160 KB (antes 1 MB); tramos por operación para lotes legítimos (ingesta 768 KB, muestras y offboarding 384 KB); autenticación 16 KB; 413 en JSON. Ver §2. |
-| B-2 | Baja | **PENDIENTE** | El soft 404 se reproduce. `noindex` en rutas sensibles ya estaba en la plantilla. |
+| B-2 | Baja | **PARCIAL** | Rutas desconocidas, archivos sensibles (`.git`, `.env`, `.php`, copias) y `/administracion/*` inexistentes ahora dan 404. Pendiente: subrutas inexistentes dentro de `/app` y `/plataforma` (siguen con 200, la SPA las redirige). Ver §2. |
 | B-3 | Baja | **CORREGIDO** (código + validación local) | Cada cabecera de seguridad aparece una sola vez en la API. |
 | B-4 | Baja | **NO APLICA** (preload) / **PENDIENTE** (308) | `preload` no es posible sobre `*.ts.net`. El 302→308 lo emite Tailscale Serve, fuera del repo. |
 | B-5 | Baja | **PENDIENTE** | HTTP/2 lo negocia el borde de Tailscale. COOP/CORP requiere validar el flujo de login en navegador. |
@@ -257,11 +257,27 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 
 **Pendiente (no es parte de B-1):** el puente decodifica las líneas con `errors="replace"`, y cada byte no ASCII viaja como `\ufffd` (6 bytes en JSON). Si el puente usara `errors="ignore"` o un carácter ASCII, el peor caso bajaría de 665 KB a ~110 KB. Es un cambio del software del puente, que se despliega en Windows: se propone aparte.
 
-### B-2 · Soft 404 (PENDIENTE)
+### B-2 · Rutas inexistentes con 200 (PARCIAL)
 
-- **Diagnóstico (medido):** `/ruta-inexistente`, `/.git/config`, `/phpinfo.php` → `200 text/html` (index de la SPA). No hay fuga de contenido: son el mismo HTML de la SPA.
-- **Ya presente:** `X-Robots-Tag: noindex` en `/login`, `/registro`, `/app`, `/plataforma`, `/administracion` (mapa `$robots_tag`).
-- **Pendiente:** devolver 404 real exige la lista de rutas de la SPA (`frontend/src/App.jsx`). Una ruta omitida daría 404 de estado aunque la SPA la renderice. Requiere inventario y decisión.
+- **Diagnóstico (medido en `HEAD`):** `/nonexistent-xyz`, `/phpinfo.php`, `/.git/config`, `/.env`, `/gallery.html`, `/administracion/xyz` → `200 text/html` (la shell de la SPA). El `location /` de Nginx hacía `try_files $uri $uri/ /index.html` para cualquier ruta. El router de React tiene un `*` que redirige a `/` (o a `/app/inicio`), así que el usuario veía la portada: el 200 era un soft 404 de punta a punta. No había fuga de contenido, pero un escáner recibía "existe" para cualquier ruta.
+- **Ya presente:** `X-Robots-Tag: noindex` en las áreas privadas (`$robots_tag`). Se pasó a `~*` (sin distinguir mayúsculas, igual que React Router): `/APP/inicio` no tenía la cabecera.
+- **Solución (Nginx, `docker/nginx/default.conf.template`):**
+  - `map $uri $ruta_spa`: lista exacta de las rutas públicas de `App.jsx` (`/login`, `/registro`, `/ayuda`, `/consejos[/:id]`, `/auth/google/callback`, `/administracion/activar|login`, etc.). `/app` y `/plataforma` pasan completas: su router resuelve las subrutas. `location /` responde 404 si la ruta no está en la lista.
+  - Reglas que responden 404 antes de la SPA: cualquier segmento que empiece con punto (`/.git/`, `/.env`, `/.htaccess`) y extensiones de scripts o copias (`php`, `asp`, `jsp`, `cgi`, `bak`, `sql`, `zip`, `log`, etc.). Excluyen `/api/`, que sigue yendo al backend.
+  - **No se tocó:** los estáticos (`/assets/`, `/ayuda/`, `robots.txt`, `sitemap.xml`), `/api/`, ni las rutas válidas. Los 404 de Nginx mantienen las cabeceras de seguridad y no revelan versión (`server_tokens off`).
+- **Pendiente (PARCIAL):**
+  - Subrutas inexistentes dentro de `/app/...` y `/plataforma/...` (`/app/xyz`) siguen con 200 y la shell: el router las redirige a su inicio. Un 404 real exige la tabla completa de rutas privadas en Nginx (unas 100 rutas con parámetros) o un manifiesto generado desde el router. Se dejó fuera para no duplicar la tabla sin prueba de sincronía; es la decisión siguiente.
+  - `/cuenta/seguridad` y `/cuenta/notificaciones/desuscribir`: **no son rutas de la SPA**, pero los correos de seguridad (MFA, borrado de cuenta, auditoría de plataforma) las envían. Hoy caen en la portada y se mantienen en la lista para no cambiar lo que ve el usuario. El destino correcto (p. ej. `/app/seguridad`) es una decisión de producto aparte: la prueba `test_los_enlaces_de_correo_son_rutas_de_la_spa_salvo_los_conocidos` la documenta.
+  - `robots.txt` lista `Disallow: /app/`, `/plataforma/`, `/administracion/`. Un `Disallow` impide que el buscador vea la cabecera `noindex` de esas páginas. `noindex` y `Disallow` no deben combinarse; no se cambió `robots.txt` en esta corrección.
+- **Pruebas:**
+  - `backend/tests/test_rutas_spa.py` (46): lee la plantilla, `App.jsx` y `email.py`. Toda ruta pública de `App.jsx` (con parámetros de ejemplo) pasa el mapa; las rutas desconocidas y los archivos sensibles no; `/api/` queda fuera de las reglas; cada enlace de correo es una ruta válida o uno de los conocidos sin pantalla; `noindex` no distingue mayúsculas.
+  - `docs/auditorias/evidencias/auditoria_seguridad_2026-11-07/sondas_rutas_spa.sh`: 49 rutas, código y tipo, antes (`HEAD`) y después. Solo cambian 11 filas (desconocidas, archivos sensibles, `/cuenta` y `/administracion/xyz`); las rutas válidas, `/api/` y los estáticos no cambian.
+  - `verificar_navegacion_spa.cjs` (Chromium, build real del frontend con `VITE_API_BASE_URL=/`): navegación interna desde la portada, acceso directo a 7 rutas públicas, recarga, `/app/inicio` sin sesión → `/login`, desconocidas y sensibles → 404, API inexistente → JSON 404, `/api/v1/healthz` → 200, recursos de `/ayuda` sin 404. **Antes: 13/18. Después: 18/18.**
+  - `docker/nginx/verificar-rutas.sh`: todas las comprobaciones pasan.
+- **Riesgos y rollback:**
+  - Una ruta pública nueva en `App.jsx` sin reflejarla en `$ruta_spa` daría 404 en producción. La prueba de contrato la detecta antes de desplegar.
+  - Un enlace externo a una ruta inexistente (antes portada) ahora da 404; las únicas rutas que lo son hoy están listadas arriba.
+  - Rollback: restaurar la plantilla anterior (`git checkout <commit-previo> -- docker/nginx/default.conf.template`) y recargar Nginx. No hay cambios de base de datos ni de API.
 
 ### B-3 · Cabeceras de seguridad duplicadas (CORREGIDO)
 
@@ -381,3 +397,4 @@ Los casos "llega al backend" devuelven 422 o 500 según el caso; el 500 es del e
 3. **B-3:** confirmar que Nginx sea el único emisor de la CSP de la API.
 4. **B-1:** medir el lote real del puente antes de bajar `/api/` de 1 MB.
 5. **B-6:** confirmar que el monitoreo interno llama al backend directamente (`http://backend:8000/api/v1/readyz`) y que la readiness no se publica por Nginx. Si se quiere exponerla, debe ser con restricción por origen, y el origen real de cliente hoy no se distingue detrás de Tailscale Serve.
+6. **B-2:** ¿tabla completa de rutas privadas en Nginx (404 real para `/app/xyz`) o manifiesto generado desde el router? Y el destino de los correos de seguridad (`/cuenta/seguridad` no existe; apuntar a `/app/seguridad` o `/plataforma/seguridad` según el tipo de cuenta).

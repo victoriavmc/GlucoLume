@@ -20,6 +20,9 @@ Estas evidencias respaldan `docs/auditorias/CORRECCIONES_AUDITORIA_SEGURIDAD_202
 | `calcular_tamanos_maximos.py` / `resultados_tamanos_maximos.tsv` | B-1: peor caso legítimo de cada operación, generado desde el OpenAPI de la app. |
 | `resultados_pruebas_b1.txt` | B-1: resultados de pruebas (backend, nginx, verificar-rutas). |
 | `M1_redireccion_api.patch` | M-1: parche (plantilla, Dockerfile del frontend, pruebas). Reversible con `git apply -R`. |
+| `sondas_salud.sh` / `resultados_salud_antes.txt` / `resultados_salud_despues.txt` | B-6: liveness `/api/v1/healthz` y readiness `/api/v1/readyz` (404 por Nginx; 503 directo al backend sin base). |
+| `sondas_rutas_spa.sh` / `resultados_rutas_spa_antes.txt` / `_despues.txt` | B-2: código y tipo de una matriz de rutas (válidas, desconocidas, sensibles, API) con la plantilla de `HEAD` y con la de la rama. |
+| `verificar_navegacion_spa.cjs` / `resultados_navegacion_spa_antes.txt` / `_despues.txt` | B-2: navegación en Chromium (clic interno, acceso directo, recarga, desconocidas, API). Requiere Playwright y el build del frontend. |
 
 ## Cómo se obtuvieron
 

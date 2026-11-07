@@ -1,7 +1,8 @@
 # Nginx del frontend GlucoLume (imagen nginx-unprivileged: escucha en 8080, sin root).
 # Variables sustituidas al iniciar el contenedor: ${BACKEND_UPSTREAM}, ${DNS_RESOLVER} y ${TRUSTED_PROXY_CIDR} (el resto de $ es de Nginx).
 #
-# - Sirve la SPA de React: cualquier ruta que no sea un archivo devuelve index.html (react-router).
+# - Sirve la SPA de React: las rutas válidas de la aplicación devuelven index.html (react-router). Las que no existen, los archivos
+#   sensibles (.git, .env, .php, copias) y los nombres que no son de la app responden 404 (B-2, auditoría 07/11/2026). Ver $ruta_spa.
 # - Reenvía /api/, /docs, /redoc y /openapi.json al backend FastAPI. La API no se publica por separado.
 # - El destino se resuelve en cada consulta (resolver + variable): el frontend arranca aunque el backend todavía no esté.
 #
@@ -57,9 +58,26 @@ map $request_uri $csp_value {
     default "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
 }
 
+# noindex para las áreas privadas y de acceso. Es higiene, no control de acceso: lo que protege es la autenticación de la API y de la SPA.
+# ~* (sin distinguir mayúsculas): React Router tampoco distingue, así /APP/inicio es el mismo espacio privado.
 map $request_uri $robots_tag {
-    ~^/(app|plataforma|administracion|auth|cuenta|login|registro|verificar-correo|activar-cuenta|recuperar-contrasena|restablecer-contrasena|confirmar-correo-resultados)(/|\?|$) "noindex, nofollow";
+    ~*^/(app|plataforma|administracion|auth|cuenta|login|registro|verificar-correo|activar-cuenta|recuperar-contrasena|restablecer-contrasena|confirmar-correo-resultados)(/|\?|$) "noindex, nofollow";
     default "";
+}
+
+# Rutas de la SPA (B-2, auditoría 07/11/2026). Una ruta que no es archivo y no está acá responde 404, no la shell de React con 200.
+#  - Públicas: lista exacta, sincronizada con frontend/src/App.jsx. La prueba backend/tests/test_rutas_spa.py la verifica contra esa tabla.
+#  - Privadas (/app y /plataforma): pasan completas. Su router resuelve las subrutas (y redirige las desconocidas a su inicio); duplicar
+#    su tabla acá sería frágil. Una subruta inexistente de esas secciones sigue devolviendo 200 con la shell: ver la sección B-2.
+#  - Coincide sin distinguir mayúsculas, igual que React Router. La barra final es opcional.
+#  - cuenta/seguridad y cuenta/notificaciones/desuscribir no son rutas del frontend, pero los correos las envían: se mantienen para no
+#    cambiar lo que ve hoy quien hace clic (caen en la portada). Corregir el destino de los correos es una decisión aparte.
+map $uri $ruta_spa {
+    default 0;
+    ~*^/$ 1;
+    ~*^/(?:login|privacidad|caracteristicas|ayuda|registro|recuperar-contrasena|restablecer-contrasena|verificar-correo|activar-cuenta|confirmar-correo-resultados|auth/google/callback|cuenta/eliminar/confirmar|cuenta/seguridad|cuenta/notificaciones/desuscribir|administracion/activar|administracion/login)/?$ 1;
+    ~*^/consejos(?:/[^/]+)?/?$ 1;
+    ~*^/(?:app|plataforma)(?:/|$) 1;
 }
 
 # Protección contra inundación de los endpoints de autenticación (complementa los límites de la API, que cuentan por IP y endpoint).
@@ -363,13 +381,27 @@ server {
         try_files $uri =404;
     }
 
+    # Rutas que no son de la aplicación ni de la API, pero que los escáneres buscan: control de versiones (/.git/, /.svn/), archivos de
+    # configuración y entorno (/.env, /.htaccess), scripts de otros servidores (*.php, *.asp, *.jsp, *.cgi) y copias (*.bak, *.sql, *.zip).
+    # Responden 404 sin importar si el archivo existe: no se revela nada (B-2). Antes eran el index.html de la SPA con estado 200.
+    location ~ ^(?!/api/).*/\. {
+        return 404;
+    }
+    location ~* ^(?!/api/).*\.(?:php\d?|phtml|asp|aspx|jsp|cgi|pl|py|sh|bak|old|orig|swp|sql|env|ini|conf|log|tar|gz|tgz|zip|rar|7z|bkp|dist)$ {
+        return 404;
+    }
+
     # Un archivo que no existe (robots.txt, sitemap.xml, un .map, un .png) es un 404, no el index.html de la SPA con estado 200 («soft 404»:
     # un buscador leía HTML como si fuera robots.txt). Sin add_header propio: hereda las cabeceras de seguridad del server.
     location ~* ^(?!/api/).+\.(?:txt|xml|json|map|ico|png|jpe?g|gif|webp|svg|woff2?|webmanifest)$ {
         try_files $uri =404;
     }
 
+    # SPA: solo las rutas de $ruta_spa reciben index.html. Cualquier otra ruta (una inexistente, /phpinfo.php, /nonexistent-xyz) es 404.
     location / {
+        if ($ruta_spa = 0) {
+            return 404;
+        }
         try_files $uri $uri/ /index.html;
     }
 }
