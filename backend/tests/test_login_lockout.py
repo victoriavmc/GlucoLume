@@ -4,8 +4,8 @@
 #     python -m pytest tests/test_login_lockout.py -v
 #
 # El login se limita por (identificador, origen) en app/services/loginThrottle.py: 5 fallos en 15 min y 15 en 1 h. Esas ventanas usan el
-# reloj monotónico de RateLimiter, que estas pruebas reemplazan por uno controlable (`steps`). La reautenticación con sesión conserva el
-# contador de CredencialLocal, controlado con el reloj del servicio (`clock`).
+# reloj monotónico de RateLimiter, que estas pruebas reemplazan por uno controlable (`steps`). La reautenticación con sesión tiene su propio
+# límite en memoria por (usuario, operación) en app/services/auth.py (`_reautenticacion`); no persiste entre reinicios del proceso.
 
 import asyncio
 import threading
