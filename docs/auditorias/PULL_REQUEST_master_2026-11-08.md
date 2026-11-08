@@ -30,7 +30,7 @@ Detalle por hallazgo: [CORRECCIONES_AUDITORIA_SEGURIDAD_2026-11-07.md](CORRECCIO
 
 ## Alcance
 
-**154 archivos** entre `a3908c0` y HEAD (109 agregados, 45 modificados; 7716 líneas agregadas, 331 eliminadas). Por área:
+**156 archivos** entre `master` (`a3908c0`) y la rama (111 agregados, 45 modificados). Por área:
 
 | Área | Contenido principal |
 |---|---|
@@ -59,6 +59,8 @@ agregadas: 190; eliminadas: 13 (11 de la lista de equivalencia y 2 de retención
 
 **SQL Server 2022 CU16 descartable (las pruebas omitidas arriba):** **204 pasadas, 0 fallidas, 0 omitidas** (`sqlserver_descartable_resultados_2026-11-08.txt`).
 Procedimiento reproducible: `sqlserver_descartable.sh`.
+
+**CI remoto:** el repositorio no tiene workflows de GitHub Actions configurados (`list_workflows` devuelve 0). Las verificaciones son las ejecutadas localmente que se documentan aquí.
 
 **Frontend (vitest, por identificador):** sin regresiones. Una falla preexistente en ambas versiones (`PatientMeasure`, timeout). 8 pruebas agregadas (generador de rutas).
 
@@ -161,6 +163,8 @@ Restaurar el respaldo solo si hay corrupción de datos.
 | 11 | Anexo C: scripts listos, no ejecutados en el servidor | Pendiente; solo lectura cuando se ejecute |
 | 12 | Esquemas `LocalCredentialCreate/Update` sin uso | Limpieza posterior; sin rutas |
 | 13 | Pruebas sensibles al reloj en la línea base | Misma base y entorno en la comparación; fijar zona horaria en CI |
+| 14 | Nombre de host de la tailnet (`…ts.net`) en documentación y pruebas | Preexistente en `master` (frontend); no es un secreto. Reemplazar por ejemplo en una etapa de limpieza |
+| 15 | Rutas absolutas del entorno de trabajo (`/home/user/GlucoLume/...`) en `bench_m3_concurrencia.py` y en la salida de pytest versionada | Artefactos de evidencia; sin efecto en producción. Limpieza posterior |
 
 ## Qué no cubre esta verificación
 
