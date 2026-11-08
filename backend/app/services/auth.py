@@ -539,8 +539,9 @@ def replacePassword(db: Session, credential: LocalCredential, password: str, now
 
 
 # Reconfirmación de la contraseña dentro de una sesión o de un desafío ya abierto (verifyCurrentPassword). M-2, decisión aprobada:
-# 3 fallos en 15 min bloquean SOLO esa operación para ese usuario. No escribe en la credencial, así que no afecta al login ni a las
-# demás operaciones, y un tercero no puede dejar fuera a la cuenta. El contador vive en memoria (por proceso, o compartido con Redis).
+# 3 fallos en 15 min bloquean SOLO esa operación para ese usuario. El contador es la auditoría de la base (REAUTENTICACION_CONTADOR):
+# es común a todas las réplicas, sobrevive a reinicios y no escribe en CredencialLocal, así que no afecta al login ni a las demás
+# operaciones, y un tercero no puede dejar fuera a la cuenta. En SQL Server lo serializa UPDLOCK sobre la fila de la credencial.
 MAX_FAILED_REAUTH_ATTEMPTS = 3
 REAUTH_WINDOW_SECONDS = 15 * 60
 REAUTH_LOCKED_MESSAGE = "Demasiados intentos de confirmar tu contraseña. Esperá unos minutos antes de intentarlo de nuevo."

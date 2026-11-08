@@ -12,8 +12,9 @@ rutas=(/ /login /LOGIN/ /registro /privacidad /caracteristicas /ayuda /consejos 
   /nonexistent-xyz /phpinfo.php /.git/config /app/.git/config /.env /config.php.bak /backup.sql /gallery.html /cuenta /wp-admin/
   /index.html /robots.txt /sitemap.xml /favicon.svg /assets/no-existe.js /ayuda/no-existe.png
   /api/v1/no-existe /api/v1/healthz /api/v1/readyz /api/v1/contact)
+CUERPO="$(mktemp)"
 for r in "${rutas[@]}"; do
-  out=$(curl -s -m 10 -o /tmp/claude-0/b2body -w '%{http_code} %{content_type}' -H "Host: glucolume-server.tailb27487.ts.net" "$BASE$r")
-  if grep -q '<div id="root"' /tmp/claude-0/b2body 2>/dev/null; then shell="shell-SPA"; else shell="-"; fi
+  out=$(curl -s -m 10 -o "$CUERPO" -w '%{http_code} %{content_type}' -H "Host: glucolume-server.tailb27487.ts.net" "$BASE$r")
+  if grep -q '<div id="root"' "$CUERPO" 2>/dev/null; then shell="shell-SPA"; else shell="-"; fi
   printf '%-40s %-28s %s\n' "$r" "$out" "$shell"
 done

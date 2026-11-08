@@ -1,8 +1,11 @@
 # Medición de M-3 en el banco: ráfagas simultáneas de verificaciones Argon2 reales con el control de concurrencia activo.
 # Mide: cuántas pasan, cuántas reciben SERVIDOR_OCUPADO (503), latencia de las que pasan, y la recuperación posterior.
 import os, sys, threading, time, statistics, json
-os.environ["GLUCOLUME_ENV_FILE"] = "/home/user/GlucoLume/backend/tests/test.env"
-sys.path.insert(0, "/home/user/GlucoLume/backend")
+# Ruta relativa a la raíz del repo (esta carpeta está en docs/auditorias/evidencias/...): sirve en cualquier copia del repositorio.
+RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."))
+BACKEND = os.path.join(RAIZ, "backend")
+os.environ["GLUCOLUME_ENV_FILE"] = os.path.join(BACKEND, "tests", "test.env")  # configuración sintética de pruebas
+sys.path.insert(0, BACKEND)
 from app.core import security
 from app.core.exceptions import AuthError
 
