@@ -131,11 +131,12 @@ class RateLimiter:
 
     # Memoria acotada: a partir de PURGE_THRESHOLD claves se descartan las vencidas, a lo sumo una vez cada PURGE_INTERVAL_SECONDS (no
     # en cada llamada: con muchas claves vigentes recorrerlas todas bajo el candado por pedido saturaría el proceso). Con MAX_KEYS claves
-    # vigentes, las claves NUEVAS comparten un único cubo de desborde (límite conjunto) en lugar de crecer sin tope.
+    # vigentes, se expulsa el 10 % menos activo (las claves BLOQUEADAS, las que alcanzaron el máximo, solo si no queda otra) para dar
+    # lugar a la clave nueva con su propio presupuesto. Nunca se comparte un cubo: un atacante que llena la tabla no puede anular el límite
+    # de una clave bloqueada (auditoría 08/11/2026, hallazgo bloqueante del PR #9).
     PURGE_THRESHOLD = 5000
     PURGE_INTERVAL_SECONDS = 30.0
     MAX_KEYS = 50_000
-    OVERFLOW_KEY = "__desborde__"
 
     def allow(self, key: str, now: float | None = None) -> bool:
         if self.name is not None and now is None:
@@ -192,7 +193,7 @@ class RateLimiter:
             if len(self._events) > self.PURGE_THRESHOLD and now - self._lastPurge >= self.PURGE_INTERVAL_SECONDS:
                 self._purge(now)
             if key not in self._events and len(self._events) >= self.MAX_KEYS:
-                key = self.OVERFLOW_KEY
+                self._liberarLugar(now)
             events = self._events.setdefault(key, deque())
             while events and now - events[0] >= self.windowSeconds:
                 events.popleft()
@@ -206,6 +207,15 @@ class RateLimiter:
         with self._lock:
             events = self._events.get(key)
             return bool(events) and sum(1 for moment in events if now - moment < self.windowSeconds) >= self.maxEvents
+
+    def _liberarLugar(self, now: float) -> None:
+        """Expulsa el 10 % de las claves con el último evento más antiguo. Las bloqueadas van al final: solo se expulsan si no hay otras.
+        El costo (ordenar la tabla) se paga una vez por cada MAX_KEYS / 10 claves nuevas, no en cada pedido."""
+        def bloqueada(events: deque[float]) -> bool:
+            return sum(1 for moment in events if now - moment < self.windowSeconds) >= self.maxEvents
+        orden = sorted(self._events.items(), key=lambda kv: (bloqueada(kv[1]), kv[1][-1] if kv[1] else float("-inf")))
+        for key, _ in orden[: max(1, self.MAX_KEYS // 10)]:
+            del self._events[key]
 
     def _purge(self, now: float) -> None:
         self._lastPurge = now
