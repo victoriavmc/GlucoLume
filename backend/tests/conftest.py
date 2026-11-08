@@ -27,11 +27,9 @@ def resetRateLimits():
     rateLimit.resetLimits()
     resultEmailConfirmation.resetLimits()
     loginThrottle.reset()
-    authService._reautenticacion.clear()
     yield
     rateLimit.resetLimits()
     loginThrottle.reset()
-    authService._reautenticacion.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -39,13 +37,23 @@ def avisosEnLinea(monkeypatch):
     """Los avisos al titular del login (INTENTO_INGRESO, bloqueo) corren en segundo plano en producción (emailService.runInBackground).
     En las pruebas se ejecutan en línea: así el resultado es el mismo en cada corrida y las pruebas pueden verificarlo al terminar la solicitud.
     """
+    from concurrent.futures import Future
+
+    from app.services import auth as authService
     from app.services import email as emailService
 
     class EnLinea:
         def submit(self, fn, *args, **kwargs):
-            return fn(*args, **kwargs)
+            futuro = Future()
+            try:
+                futuro.set_result(fn(*args, **kwargs))
+            except BaseException as error:  # noqa: BLE001 - como en un hilo: el error queda en el futuro
+                futuro.set_exception(error)
+            return futuro
 
     monkeypatch.setattr(emailService, "_executor", EnLinea())
+    monkeypatch.setattr(authService._colaAvisosLimite, "_executor", EnLinea())
+    monkeypatch.setattr(authService._colaAuditoriaLimite, "_executor", EnLinea())
 
 
 @pytest.fixture(autouse=True)

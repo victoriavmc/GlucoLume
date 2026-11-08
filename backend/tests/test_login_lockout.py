@@ -4,8 +4,8 @@
 #     python -m pytest tests/test_login_lockout.py -v
 #
 # El login se limita por (identificador, origen) en app/services/loginThrottle.py: 5 fallos en 15 min y 15 en 1 h. Esas ventanas usan el
-# reloj monotónico de RateLimiter, que estas pruebas reemplazan por uno controlable (`steps`). La reautenticación con sesión tiene su propio
-# límite en memoria por (usuario, operación) en app/services/auth.py (`_reautenticacion`); no persiste entre reinicios del proceso.
+# reloj monotónico de RateLimiter, que estas pruebas reemplazan por uno controlable (`steps`). La reautenticación con sesión cuenta sus fallos
+# en la auditoría (persistente, por operación) y usa el reloj de la aplicación (`clock`).
 
 import asyncio
 import threading
@@ -285,7 +285,7 @@ def test_reautenticacion_no_comparte_el_contador_con_el_login(db, mails, clock, 
     assert locked.value.code == "CUENTA_BLOQUEADA"
     assert attempt(db, PASSWORD).estado == "AUTENTICADO"  # el login sigue disponible
 
-    steps.advance(15 * 60 + 1)  # vence la ventana de la reconfirmación
+    clock.advance(minutes=15, seconds=1)  # vence la ventana de la reconfirmación
     assert authService.verifyCurrentPassword(db, row, PASSWORD, "cambio_contrasena") is True
     db.commit()
     assert user.idUsuario == credential(db).idUsuario

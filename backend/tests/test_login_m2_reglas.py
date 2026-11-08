@@ -97,6 +97,12 @@ def test_respuesta_y_trabajo_de_la_solicitud_no_revelan_si_la_cuenta_existe(db, 
         return original(tarea, *args)
 
     monkeypatch.setattr(emailService, "runInBackground", contando)
+    # Los avisos y la auditoría del límite van por colas acotadas: también cuentan (la comparación debe cubrirlas)
+    for cola in (authService._colaAvisosLimite, authService._colaAuditoriaLimite):
+        def encolando(tarea, *args, _enviar=cola.enviar):
+            llamadas.append(tarea.__name__)
+            return _enviar(tarea, *args)
+        monkeypatch.setattr(cola, "enviar", encolando)
 
     def secuencia(identificador, ip):
         resultados = []
@@ -116,7 +122,7 @@ def test_respuesta_y_trabajo_de_la_solicitud_no_revelan_si_la_cuenta_existe(db, 
 # --- Reconfirmación de la contraseña dentro de una sesión ----------------------------------------------------------------------------------
 
 
-def test_la_reconfirmacion_bloquea_solo_su_operacion_y_no_el_login(db, mails, steps):
+def test_la_reconfirmacion_bloquea_solo_su_operacion_y_no_el_login(db, mails, clock):
     makeUser(db)
     row = credential(db)
     for _ in range(3):
@@ -132,7 +138,7 @@ def test_la_reconfirmacion_bloquea_solo_su_operacion_y_no_el_login(db, mails, st
     assert attempt(db, PASSWORD).estado == "AUTENTICADO"
 
 
-def test_la_reconfirmacion_es_por_usuario(db, mails, steps):
+def test_la_reconfirmacion_es_por_usuario(db, mails, clock):
     victima = makeUser(db)
     makeUser(db, email="otra.persona@example.com", usuario="otra")
     row_victima = db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == victima.idUsuario))
@@ -146,7 +152,7 @@ def test_la_reconfirmacion_es_por_usuario(db, mails, steps):
     assert authService.verifyCurrentPassword(db, otra, PASSWORD, "cambio_contrasena") is True
 
 
-def test_la_reconfirmacion_se_libera_cuando_vence_la_ventana(db, mails, steps):
+def test_la_reconfirmacion_se_libera_cuando_vence_la_ventana(db, mails, clock):
     makeUser(db)
     row = credential(db)
     for _ in range(3):
@@ -154,7 +160,7 @@ def test_la_reconfirmacion_se_libera_cuando_vence_la_ventana(db, mails, steps):
         db.commit()
     with pytest.raises(AuthError):
         authService.verifyCurrentPassword(db, row, PASSWORD, "cambio_contrasena")
-    steps.advance(15 * 60 + 1)
+    clock.advance(minutes=15, seconds=1)
     assert authService.verifyCurrentPassword(db, row, PASSWORD, "cambio_contrasena") is True
 
 
@@ -251,3 +257,52 @@ def test_intento_limitado_de_cuenta_inexistente_se_audita_solo_con_hmac(db, mail
     assert len(filas) == 3
     assert all(c.identificadorHash for _, c in filas)
     assert all("nadie.inexistente" not in (a.observacion or "") for a, _ in filas)
+
+
+# --- Reautenticación: contador persistente en la auditoría, por operación y sin afectar al login ---------------------------------------
+
+def _fallosReauth(db, operacion):
+    from app.models.audit import Audit
+
+    db.expire_all()
+    return db.scalars(select(Audit).where(Audit.accion == "REAUTENTICACION_FALLIDA", Audit.observacion == operacion)).all()
+
+
+def test_el_conteo_de_reautenticacion_queda_en_la_auditoria_por_operacion(db, mails, clock):
+    makeUser(db)
+    row = credential(db)
+    for _ in range(3):
+        assert authService.verifyCurrentPassword(db, row, WRONG, "cambio_contrasena") is False
+        db.commit()
+    assert len(_fallosReauth(db, "cambio_contrasena")) == 3  # un fallo = una fila, sin duplicar
+    assert _fallosReauth(db, "eliminacion_cuenta") == []  # otra operación no hereda los fallos
+
+
+def test_el_bloqueo_de_reautenticacion_sobrevive_a_un_proceso_nuevo(db, mails, clock):
+    """Persistente: el estado vive en la base, no en la memoria del proceso. Una sesión nueva (como tras reiniciar) sigue bloqueada."""
+    from sqlalchemy.orm import sessionmaker
+
+    makeUser(db)
+    row = credential(db)
+    for _ in range(3):
+        authService.verifyCurrentPassword(db, row, WRONG, "cambio_contrasena")
+        db.commit()
+    nueva = sessionmaker(bind=db.get_bind())()
+    try:
+        otra = nueva.scalar(select(LocalCredential))
+        with pytest.raises(AuthError) as bloqueada:
+            authService.verifyCurrentPassword(nueva, otra, PASSWORD, "cambio_contrasena")
+        assert bloqueada.value.code == "CUENTA_BLOQUEADA" and bloqueada.value.retryAfterSeconds >= 1
+    finally:
+        nueva.close()
+
+
+def test_una_rafaga_que_llena_la_cola_no_rompe_el_rechazo_y_se_cuenta(db, mails, steps, monkeypatch):
+    makeUser(db)
+    for _ in range(5):
+        attempt(db)
+    monkeypatch.setattr(authService._colaAuditoriaLimite, "maximo", 0)  # cola llena
+    antes = authService._colaAuditoriaLimite.desbordadas
+    assert attempt(db).code == "CUENTA_BLOQUEADA"  # el rechazo es el mismo
+    assert authService._colaAuditoriaLimite.desbordadas == antes + 1  # y el desborde queda contado
+    assert len(_filas(db, "LOGIN_LOCAL", "CUENTA_BLOQUEADA")) == 0  # sin escritura extra cuando la cola está llena

@@ -15,7 +15,9 @@
 import logging
 import math
 import re
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import get_args
 
@@ -30,6 +32,7 @@ from app.core.config import getSettings
 from app.core.exceptions import AuthError
 from app.emails.eventTypes import EmailEventType
 from app.integrations.google.oauth import GOOGLE_PROVIDER, GoogleIdentity
+from app.models.audit import Audit
 from app.models.accountToken import TOKEN_TYPE_CHECK_NAME, AccountToken, TipoTokenCuenta
 from app.models.externalIdentity import ExternalIdentity
 from app.models.localCredential import LocalCredential
@@ -46,7 +49,6 @@ from app.schemas.auth import (
 )
 from app.schemas.user import USERNAME_MIN_LENGTH, TipoCuentaPublica, UserRead
 from app.services import email as emailService
-from app.services.rateLimiter import RateLimiter
 from app.models.consent import TipoConsentimiento
 from app.services import accountGrace
 from app.services import consent as consentService
@@ -542,32 +544,58 @@ def replacePassword(db: Session, credential: LocalCredential, password: str, now
 MAX_FAILED_REAUTH_ATTEMPTS = 3
 REAUTH_WINDOW_SECONDS = 15 * 60
 REAUTH_LOCKED_MESSAGE = "Demasiados intentos de confirmar tu contraseña. Esperá unos minutos antes de intentarlo de nuevo."
-_reautenticacion = RateLimiter(MAX_FAILED_REAUTH_ATTEMPTS, REAUTH_WINDOW_SECONDS, name="reautenticacion")
+ACCION_REAUTENTICACION_FALLIDA = "REAUTENTICACION_FALLIDA"
 
 
-def _claveReautenticacion(credential: LocalCredential, operacion: str) -> str:
-    return f"{credential.idUsuario}|{operacion}"
+def _fallosDeReautenticacion(db: Session, idUsuario: uuid.UUID, operacion: str, now: datetime) -> list[datetime]:
+    """Instantes de hora de Argentina (como se guardan en Auditoria) de las reautenticaciones fallidas de ESTA operación dentro de la ventana.
+
+    La fuente es la auditoría de la base, compartida por todas las réplicas y sobreviviente a reinicios: no depende de la memoria del
+    proceso. Solo cuenta eventos de la propia reautenticación (no el login, que tiene su propio límite en loginThrottle)."""
+    desde = now - timedelta(seconds=REAUTH_WINDOW_SECONDS)
+    return list(db.scalars(
+        select(Audit.fechaHora).where(
+            Audit.idUsuario == idUsuario,
+            Audit.accion == ACCION_REAUTENTICACION_FALLIDA,
+            Audit.resultado == "FALLO",
+            Audit.observacion == operacion,
+            Audit.fechaHora > desde,
+        ).order_by(Audit.fechaHora)
+    ))
 
 
 def verifyCurrentPassword(db: Session, credential: LocalCredential, password: str, operacion: str = "reautenticacion") -> bool:
     """Reautenticación con la contraseña actual para una operación sensible (dentro de la sesión o del desafío ya abiertos).
 
-    Lanza CUENTA_BLOQUEADA si ESA operación para ESE usuario superó los fallos permitidos. Devuelve si la contraseña es correcta y deja
-    los cambios pendientes: quien llama audita y confirma (también en el fallo, para que cuente el intento).
+    Lanza CUENTA_BLOQUEADA si ESA operación para ESE usuario acumuló MAX_FAILED_REAUTH_ATTEMPTS fallos en la ventana. Los fallos quedan en
+    la auditoría (fila REAUTENTICACION_FALLIDA, observacion = operación) dentro de la misma transacción: quien llama audita y confirma, como
+    siempre. Login y reautenticación no comparten contador: un fallo aquí nunca bloquea el inicio de sesión.
     """
     now = nowForDb()
-    if _isLocked(credential, now):  # bloqueo heredado de la versión anterior (vence en 15 min como máximo): solo se respeta hasta vencer
+    if _isLocked(credential, now):  # bloqueo heredado de CredencialLocal (versión anterior): solo se respeta hasta vencer
         raise _lockedError(credential.bloqueadoHasta, now)
     _unlockIfExpired(db, credential, now)
-    clave = _claveReautenticacion(credential, operacion)
-    espera = _reautenticacion.retryAfter(clave)
-    if espera > 0:
+    # Serializa las reautenticaciones de esta cuenta entre procesos y réplicas (SQL Server: UPDLOCK sobre la fila de la credencial).
+    # El bloqueo dura hasta que quien llama confirme la transacción; así dos intentos simultáneos no pasan ambos el límite.
+    db.execute(
+        select(LocalCredential.idCredencialLocal)
+        .where(LocalCredential.idCredencialLocal == credential.idCredencialLocal)
+        .with_for_update()
+    )
+    fallos = _fallosDeReautenticacion(db, credential.idUsuario, operacion, now)
+    if len(fallos) >= MAX_FAILED_REAUTH_ATTEMPTS:
+        # Vuelve a permitirse cuando vence el más antiguo de los últimos MAX fallos (el conteo baja a MAX - 1).
+        liberaEn = fallos[len(fallos) - MAX_FAILED_REAUTH_ATTEMPTS] + timedelta(seconds=REAUTH_WINDOW_SECONDS)
+        espera = (liberaEn - now).total_seconds()
         raise AuthError("CUENTA_BLOQUEADA", REAUTH_LOCKED_MESSAGE, retryAfterSeconds=max(1, math.ceil(espera)))
     valid, newHash = security.verifyPassword(password, credential.passwordHash)
     if valid:
         _registerSuccessfulPassword(db, credential, now, newHash)
         return True
-    _reautenticacion.allow(clave)  # cuenta el fallo en memoria: no depende de que la transacción del llamador confirme
+    registerEvent(
+        db, "PERMISO", ACCION_REAUTENTICACION_FALLIDA, False, credential.idUsuario, "LocalCredential",
+        credential.idCredencialLocal, observacion=operacion, motivo="PASSWORD_INCORRECTA",
+    )
     return False
 
 
@@ -714,6 +742,45 @@ def _tareaAuditarIntentoLimitado(bind, identificador: str, origen: str) -> None:
         session.close()
 
 
+class _ColaAcotada:
+    """Trabajo en segundo plano con tope de pendientes. Una ráfaga de intentos rechazados no crea trabajo sin límite ni satura SQL
+    Server: lo que no entra en la cola se cuenta (y se registra en el log) y no se escribe. Así el costo máximo es fijo."""
+
+    def __init__(self, nombre: str, maximo: int, hilos: int) -> None:
+        self.nombre = nombre
+        self.maximo = maximo
+        self._executor = ThreadPoolExecutor(max_workers=hilos, thread_name_prefix=f"glucolume-{nombre}")
+        self._lock = threading.Lock()
+        self._pendientes = 0
+        self.desbordadas = 0
+
+    def enviar(self, tarea, *args) -> bool:
+        with self._lock:
+            if self._pendientes >= self.maximo:
+                self.desbordadas += 1
+                logger.warning("Cola %s llena: no se registró un intento rechazado (acumulados sin registro: %s)",
+                               self.nombre, self.desbordadas)
+                return False
+            self._pendientes += 1
+        self._executor.submit(tarea, *args).add_done_callback(self._terminada)
+        return True
+
+    def _terminada(self, _future) -> None:
+        with self._lock:
+            self._pendientes -= 1
+
+
+_colaAvisosLimite = _ColaAcotada("avisos-limite", maximo=200, hilos=2)
+_colaAuditoriaLimite = _ColaAcotada("auditoria-limite", maximo=200, hilos=1)  # un solo escritor: escrituras en serie a SQL Server
+
+
+def _avisoYAuditoriaDelLimite(db: Session, identificador: str, origen: str, instante: datetime) -> None:
+    """Un intento rechazado por el límite: aviso (una vez por ventana) y fila de auditoría (una por intento), en colas acotadas."""
+    bind = db.get_bind()
+    _colaAvisosLimite.enviar(_tareaIntentoLimitado, bind, identificador, origen, instante)
+    _colaAuditoriaLimite.enviar(_tareaAuditarIntentoLimitado, bind, identificador, origen)
+
+
 def _tareaBloqueoRecien(bind, identificador: str, origen: str, instante: datetime, espera: int) -> None:
     """Un fallo que activó el límite: auditoría, aviso en la página y correo al titular (como antes de M-2, pero fuera de la solicitud)."""
     session = _sesionDeAviso(bind)
@@ -766,8 +833,7 @@ def _loginLocalBajoLimite(
     espera = loginThrottle.retryAfter(identificador, origen)
     if espera is not None:
         # Mismo rechazo para cualquier identificador, exista o no: no se consulta la base ni se verifica la contraseña.
-        _programarAviso(db, _tareaIntentoLimitado, identificador, origen, now)
-        _programarAviso(db, _tareaAuditarIntentoLimitado, identificador, origen)
+        _avisoYAuditoriaDelLimite(db, identificador, origen, now)
         raise AuthError("CUENTA_BLOQUEADA", ACCOUNT_LOCKED_MESSAGE, retryAfterSeconds=espera)
 
     user = _findUserByIdentifier(db, identificador)
