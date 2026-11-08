@@ -52,3 +52,10 @@ instantes y las expectativas numéricas no cambian; cambia la escala en la que s
 | `test_technical_retention::test_vencimiento_usa_utc_del_evento_no_la_hora_local` | `test_vencimiento_usa_la_hora_que_guarda_la_aplicacion` | Igual: el vencimiento se calcula en hora de Argentina |
 
 Además, `test_un_evento_escrito_por_la_aplicacion_se_guarda_en_hora_argentina` verifica directamente que la aplicación escribe la hora de Argentina.
+
+## Otras correcciones de pruebas en esta etapa (sin pruebas eliminadas)
+
+- `test_telemetry_sqlserver.py`: dos pruebas usaban una variable de otra prueba (`legacy`, `NameError`) desde `a3908c0`. Se apuntan a la
+  medición que la misma prueba crea; las restricciones CHECK verificadas no cambian. La aserción «un DEMO borrado» espera solo la medición real.
+- `tests/test_reautenticacion_sqlserver.py` (nueva): ocho sesiones simultáneas sobre la misma cuenta; deben registrarse exactamente 3 fallos
+  y 5 rechazos. Detectó el defecto de `UPDLOCK` corregido en `auth.py` (ver `docs/auditorias/SQLSERVER_DESCARTABLE_2026-11-08.md`).

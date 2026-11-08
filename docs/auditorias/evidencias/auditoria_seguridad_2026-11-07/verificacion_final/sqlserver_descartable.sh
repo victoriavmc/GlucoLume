@@ -92,7 +92,7 @@ with open(informe, "w", encoding="utf-8") as f:
     old = sys.stdout
     sys.stdout = f
     try:
-        codigo = pytest.main(["-p", "no:cacheprovider", "-q", "-rs", "-v"] + pruebas)
+        codigo = pytest.main(["-p", "no:cacheprovider", "-rs", "-v"] + pruebas)
     finally:
         sys.stdout = old
 texto = open(informe, encoding="utf-8").read()
