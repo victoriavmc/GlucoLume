@@ -578,9 +578,11 @@ def verifyCurrentPassword(db: Session, credential: LocalCredential, password: st
     _unlockIfExpired(db, credential, now)
     # Serializa las reautenticaciones de esta cuenta entre procesos y réplicas (SQL Server: UPDLOCK sobre la fila de la credencial).
     # El bloqueo dura hasta que quien llama confirme la transacción; así dos intentos simultáneos no pasan ambos el límite.
+    # SQLAlchemy NO emite bloqueo para with_for_update en SQL Server: el hint de tabla es el que llega al motor.
     db.execute(
         select(LocalCredential.idCredencialLocal)
         .where(LocalCredential.idCredencialLocal == credential.idCredencialLocal)
+        .with_hint(LocalCredential, "WITH (UPDLOCK, ROWLOCK)", "mssql")
         .with_for_update()
     )
     fallos = _fallosDeReautenticacion(db, credential.idUsuario, operacion, now)
