@@ -306,3 +306,33 @@ def test_una_rafaga_que_llena_la_cola_no_rompe_el_rechazo_y_se_cuenta(db, mails,
     assert attempt(db).code == "CUENTA_BLOQUEADA"  # el rechazo es el mismo
     assert authService._colaAuditoriaLimite.desbordadas == antes + 1  # y el desborde queda contado
     assert len(_filas(db, "LOGIN_LOCAL", "CUENTA_BLOQUEADA")) == 0  # sin escritura extra cuando la cola está llena
+
+
+# --- Errores de persistencia: la respuesta no cambia y la operación no pasa sin registrar -------------------------------------------------
+
+def test_un_fallo_al_escribir_la_auditoria_del_limite_no_cambia_la_respuesta(db, mails, steps, monkeypatch, caplog):
+    import logging
+
+    makeUser(db)
+    for _ in range(5):
+        attempt(db)
+
+    def caida(*args, **kwargs):
+        raise RuntimeError("persistencia caída")
+
+    monkeypatch.setattr(authService, "_auditFailedLogin", caida)
+    with caplog.at_level(logging.ERROR):
+        assert attempt(db).code == "CUENTA_BLOQUEADA"  # el rechazo es el mismo aunque la escritura falle
+    assert "No se pudo auditar el intento bloqueado por el límite" in caplog.text  # y el fallo queda en el log
+
+
+def test_si_no_se_puede_registrar_el_fallo_de_reautenticacion_la_operacion_no_pasa(db, mails, clock, monkeypatch):
+    makeUser(db)
+    row = credential(db)
+
+    def caida(*args, **kwargs):
+        raise RuntimeError("persistencia caída")
+
+    monkeypatch.setattr(authService, "registerEvent", caida)
+    with pytest.raises(RuntimeError):
+        authService.verifyCurrentPassword(db, row, WRONG, "cambio_contrasena")  # falla cerrada: no devuelve False sin registrar
