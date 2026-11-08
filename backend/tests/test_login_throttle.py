@@ -194,3 +194,20 @@ def test_retry_after_exacto_en_la_ventana_deslizante(steps):
     assert limitador.retryAfter("clave") == pytest.approx(60)
     steps.advance(60)
     assert limitador.retryAfter("clave") == 0 and limitador.allow("clave")
+
+
+def test_una_rafaga_de_pares_nuevos_no_anula_el_limite_del_par_de_la_victima(monkeypatch):
+    """Regresión del hallazgo bloqueante del PR #9: llenar la tabla de claves no debe desactivar el límite por (cuenta, origen)."""
+    from app.services import loginThrottle
+
+    for limitador in loginThrottle._limitadores:
+        monkeypatch.setattr(limitador, "MAX_KEYS", 200)
+    loginThrottle.reset()
+    try:
+        for i in range(600):  # primero el atacante llena la tabla con pares de un solo fallo
+            loginThrottle.registrarFallo(f"nadie{i}@example.com", f"203.0.113.{i % 250}")
+        for _ in range(5):  # después la víctima falla desde su origen
+            loginThrottle.registrarFallo("victima@example.com", "198.51.100.9")
+        assert loginThrottle.retryAfter("victima@example.com", "198.51.100.9") is not None, "el par de la víctima queda limitado"
+    finally:
+        loginThrottle.reset()

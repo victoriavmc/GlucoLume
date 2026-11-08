@@ -24,14 +24,27 @@ def test_la_purga_no_se_ejecuta_en_cada_pedido():
     assert len(calls) <= 1, f"purga por pedido: {len(calls)} llamadas"
 
 
-def test_el_numero_de_claves_tiene_tope_y_las_nuevas_comparten_un_cubo():
+def test_el_numero_de_claves_tiene_tope_y_una_clave_nueva_tiene_su_presupuesto():
+    # Antes, las claves nuevas compartían un cubo de desborde: una clave nueva quedaba bloqueada por el presupuesto de otras.
+    # Ahora la tabla expulsa claves poco activas y cada clave nueva empieza con su propio presupuesto.
     limiter = RateLimiter(2, 3600)
     limiter.MAX_KEYS = 100
     for i in range(300):
         limiter.allow(f"ip-{i}", now=1.0)
-    assert len(limiter._events) <= 101  # 100 claves + el cubo de desborde
-    assert limiter.allow("otra-nueva", now=1.0) is False, "el cubo de desborde ya agotó su presupuesto conjunto"
-    assert limiter.allow("ip-0", now=1.0) is True, "una clave ya conocida conserva su propio presupuesto"
+    assert len(limiter._events) <= 100
+    assert limiter.allow("otra-nueva", now=1.0) is True
+
+
+def test_una_rafaga_que_llena_la_tabla_no_anula_el_limite_de_una_clave_nueva():
+    # Orden real del ataque: primero el atacante llena la tabla; después la víctima falla y debe quedar limitada.
+    limiter = RateLimiter(2, 3600)
+    limiter.MAX_KEYS = 100
+    for i in range(300):
+        limiter.allow(f"atacante-{i}", now=1.0)
+    assert limiter.allow("victima", now=1.0) is True
+    assert limiter.allow("victima", now=1.0) is True
+    assert limiter.allow("victima", now=1.0) is False, "la víctima alcanza su máximo aunque la tabla estuviera llena"
+    assert limiter.retryAfter("victima", now=1.0) > 0
 
 
 def test_las_claves_vencidas_se_descartan_pasado_el_intervalo():
