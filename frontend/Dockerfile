@@ -72,7 +72,8 @@ ENV VITE_LOGIN_ORIGIN=${VITE_LOGIN_ORIGIN}
 ENV VITE_APP_ORIGIN=${VITE_APP_ORIGIN}
 COPY . .
 # Precompresión (gzip -9) de lo que Nginx sirve con gzip_static: no se comprime en cada pedido y pesa ~18 % menos que el gzip al vuelo.
-RUN npm run build && find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.html' -o -name '*.txt' \) -exec gzip -9 -k -f {} +
+# Mapa de rutas para Nginx generado desde el router (src/App.jsx): la misma fuente que usa la SPA. Si el router no se puede leer, el build falla.
+RUN npm run build && node scripts/generar-rutas-spa.mjs /app/rutas-spa.conf && find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.html' -o -name '*.txt' \) -exec gzip -9 -k -f {} +
 
 
 FROM ${NGINX_IMAGE} AS runtime
@@ -86,6 +87,8 @@ USER 101
 # La plantilla se procesa al iniciar (envsubst): BACKEND_UPSTREAM y DNS_RESOLVER vienen de Compose.
 COPY --from=nginxconf default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
+# Rutas de la SPA para $ruta_spa (la plantilla lo incluye en el bloque http): ver scripts/generar-rutas-spa.mjs.
+COPY --from=build /app/rutas-spa.conf /etc/nginx/rutas-spa.conf
 # TRUSTED_PROXY_CIDR: desde qué red se confía en X-Forwarded-For (proxy HTTPS delante). Por defecto, las redes privadas de Docker.
 ENV BACKEND_UPSTREAM=backend:8000 \
     DNS_RESOLVER=127.0.0.11 \

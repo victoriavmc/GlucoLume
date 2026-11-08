@@ -1,6 +1,7 @@
 # Configuración común de las pruebas.
 
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -8,20 +9,43 @@ import pytest
 # GL-12: las pruebas nunca leen el .env real (base, SMTP, claves). Se fija antes de que cualquier prueba importe la aplicación.
 os.environ["GLUCOLUME_ENV_FILE"] = str(Path(__file__).with_name("test.env"))
 
+# Zona horaria fija: la aplicación trabaja con la hora de Argentina (utils/timeZone.py) y algunas pruebas usan date.today(). Sin esto, esas
+# pruebas dependían de la hora del reloj del equipo (fallaban entre las 00:00 y las 03:00 UTC). Solo tiene efecto en sistemas POSIX.
+os.environ["TZ"] = "America/Argentina/Buenos_Aires"
+if hasattr(time, "tzset"):
+    time.tzset()
+
 
 @pytest.fixture(autouse=True)
 def resetRateLimits():
     """Los límites por IP (app/api/rateLimit.py) cuentan en memoria durante todo el proceso: cada prueba parte de cero para que no se
     afecten entre sí (las pruebas HTTP llegan todas desde la misma IP de TestClient)."""
     from app.api import rateLimit
+    from app.services import auth as authService
     from app.services import loginThrottle, resultEmailConfirmation
 
     rateLimit.resetLimits()
     resultEmailConfirmation.resetLimits()
     loginThrottle.reset()
+    authService._reautenticacion.clear()
     yield
     rateLimit.resetLimits()
     loginThrottle.reset()
+    authService._reautenticacion.clear()
+
+
+@pytest.fixture(autouse=True)
+def avisosEnLinea(monkeypatch):
+    """Los avisos al titular del login (INTENTO_INGRESO, bloqueo) corren en segundo plano en producción (emailService.runInBackground).
+    En las pruebas se ejecutan en línea: así el resultado es el mismo en cada corrida y las pruebas pueden verificarlo al terminar la solicitud.
+    """
+    from app.services import email as emailService
+
+    class EnLinea:
+        def submit(self, fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+
+    monkeypatch.setattr(emailService, "_executor", EnLinea())
 
 
 @pytest.fixture(autouse=True)

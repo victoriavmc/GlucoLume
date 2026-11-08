@@ -87,20 +87,10 @@ map $request_uri $robots_tag {
     default "";
 }
 
-# Rutas de la SPA (B-2, auditoría 07/11/2026). Una ruta que no es archivo y no está acá responde 404, no la shell de React con 200.
-#  - Públicas: lista exacta, sincronizada con frontend/src/App.jsx. La prueba backend/tests/test_rutas_spa.py la verifica contra esa tabla.
-#  - Privadas (/app y /plataforma): pasan completas. Su router resuelve las subrutas (y redirige las desconocidas a su inicio); duplicar
-#    su tabla acá sería frágil. Una subruta inexistente de esas secciones sigue devolviendo 200 con la shell: ver la sección B-2.
-#  - Coincide sin distinguir mayúsculas, igual que React Router. La barra final es opcional.
-#  - cuenta/seguridad y cuenta/notificaciones/desuscribir no son rutas del frontend, pero los correos las envían: se mantienen para no
-#    cambiar lo que ve hoy quien hace clic (caen en la portada). Corregir el destino de los correos es una decisión aparte.
-map $uri $ruta_spa {
-    default 0;
-    ~*^/$ 1;
-    ~*^/(?:login|privacidad|caracteristicas|ayuda|registro|recuperar-contrasena|restablecer-contrasena|verificar-correo|activar-cuenta|confirmar-correo-resultados|auth/google/callback|cuenta/eliminar/confirmar|cuenta/seguridad|cuenta/notificaciones/desuscribir|administracion/activar|administracion/login)/?$ 1;
-    ~*^/consejos(?:/[^/]+)?/?$ 1;
-    ~*^/(?:app|plataforma)(?:/|$) 1;
-}
+# Rutas de la SPA (B-2, auditoría 07/11/2026). Una ruta que no es archivo y no figura en el router responde 404 en vez de la shell de React.
+# La lista NO se escribe a mano: la genera frontend/scripts/generar-rutas-spa.mjs desde src/App.jsx durante el build de la imagen (y
+# docker/nginx/rutas-spa.generado.conf es su copia versionada, que la prueba de sincronía compara con el router). Define $ruta_spa.
+include /etc/nginx/rutas-spa.conf;
 
 # Protección contra inundación de los endpoints de autenticación (complementa los límites de la API, que cuentan por IP y endpoint).
 limit_req_zone $binary_remote_addr zone=auth_zone:10m rate=30r/s;

@@ -31,7 +31,7 @@ def _notify(eventType: EmailEventType, user: User, **context) -> None:
     emailService.sendEmailEventInBackground(
         eventType,
         user.correoElectronico,
-        {"nombre": user.nombre, "urlSeguridad": emailService.frontendUrl("seguridad"), **context},
+        {"nombre": user.nombre, "urlSeguridad": emailService.urlSeguridad(user.tipoCuenta), **context},
     )
 
 

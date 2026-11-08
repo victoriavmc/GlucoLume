@@ -53,9 +53,9 @@ def test_contrasena_actual_incorrecta_se_rechaza_y_cuenta_para_el_bloqueo(db, ma
     response = web.post(URL, headers=headers, json={"passwordActual": "Incorrecta#1234", "passwordNueva": NEW})
     assert response.status_code == 403 and response.json()["codigo"] == "PASSWORD_INCORRECTA"
     assert hash_of(db, user) == before and not [m for m in mails if "Cambiaste" in m["subject"]]
-    db.expire_all()
-    credential = db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == user.idUsuario))
-    assert credential.intentosFallidosConsecutivos == 1
+    # Regla aprobada (M-2): un fallo no bloquea la operación; el intento con la contraseña correcta sigue disponible.
+    ok = web.post(URL, headers=headers, json={"passwordActual": PASSWORD, "passwordNueva": NEW})
+    assert ok.status_code == 200
     assert db.scalar(select(Audit).where(Audit.accion == "CAMBIAR_PASSWORD", Audit.resultado != "EXITO")) is not None
 
 

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from typing import get_args
 
 import jwt
-from sqlalchemy import and_, case, delete, desc, null, or_, select, update
+from sqlalchemy import and_, delete, desc, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
@@ -46,6 +46,7 @@ from app.schemas.auth import (
 )
 from app.schemas.user import USERNAME_MIN_LENGTH, TipoCuentaPublica, UserRead
 from app.services import email as emailService
+from app.services.rateLimiter import RateLimiter
 from app.models.consent import TipoConsentimiento
 from app.services import accountGrace
 from app.services import consent as consentService
@@ -62,7 +63,6 @@ from app.utils.userAgent import ClientInfo
 logger = logging.getLogger(__name__)
 
 # Límite de CK_CredencialLocal_intentos.
-MAX_FAILED_LOGIN_ATTEMPTS = 3
 ACCOUNT_LOCKED_MESSAGE = "Demasiados intentos fallidos. Intentá más tarde."
 # Contraseñas anteriores (además de la vigente) que no se pueden volver a usar al cambiarla.
 PASSWORD_HISTORY_SIZE = 3
@@ -94,8 +94,8 @@ def _notify(eventType: EmailEventType, user: User, **context) -> None:
     )
 
 
-def _securityUrl() -> str:
-    return emailService.frontendUrl("seguridad")
+def _securityUrl(user: User) -> str:
+    return emailService.urlSeguridad(user.tipoCuenta)
 
 
 def _passwordNotice(db: Session, user: User, mensaje: str, when: datetime) -> None:
@@ -451,7 +451,7 @@ def _setCommitted(credential: LocalCredential, **values) -> None:
 
 # El contador y el bloqueo se modifican siempre con UPDATE condicionados ejecutados en la base: cada
 # UPDATE toma el lock de la fila y evalúa la condición sobre el valor vigente, así dos solicitudes
-# simultáneas no pisan el contador ni permiten superar MAX_FAILED_LOGIN_ATTEMPTS.
+# simultáneas no pisan el contador ni permiten superar el máximo de fallos.
 
 
 def _unlockIfExpired(db: Session, credential: LocalCredential, now: datetime) -> None:
@@ -477,41 +477,6 @@ def _unlockIfExpired(db: Session, credential: LocalCredential, now: datetime) ->
 def _raiseConcurrentLock(db: Session, credential: LocalCredential, now: datetime) -> None:
     db.refresh(credential)
     raise _lockedError(credential.bloqueadoHasta, now)
-
-
-def _registerFailedPassword(db: Session, credential: LocalCredential, now: datetime) -> bool:
-    """Suma un intento fallido; al llegar a MAX_FAILED_LOGIN_ATTEMPTS activa el bloqueo temporal.
-
-    Devuelve si este intento activó el bloqueo. Si otra solicitud bloqueó la cuenta mientras tanto, el
-    intento no se cuenta y se lanza CUENTA_BLOQUEADA. Un contador que quedó de un bloqueo vencido (o en
-    el máximo sin bloqueo vigente) se reinicia: nunca provoca un bloqueo anticipado.
-    """
-    lockUntil = now + timedelta(minutes=getSettings().AUTH_LOCKOUT_MINUTES)
-    restart = or_(
-        and_(LocalCredential.bloqueadoHasta.is_not(None), LocalCredential.bloqueadoHasta <= now),
-        LocalCredential.intentosFallidosConsecutivos >= MAX_FAILED_LOGIN_ATTEMPTS,
-    )
-    newCount = case((restart, 1), else_=LocalCredential.intentosFallidosConsecutivos + 1)
-    attempts = db.execute(
-        update(LocalCredential)
-        .where(LocalCredential.idCredencialLocal == credential.idCredencialLocal, _withoutActiveLock(now))
-        .values(
-            intentosFallidosConsecutivos=newCount,
-            bloqueadoHasta=case((newCount >= MAX_FAILED_LOGIN_ATTEMPTS, lockUntil), else_=null()),
-            fechaUltimoIntentoFallido=now,
-            fechaActualizacion=now,
-        )
-        .returning(LocalCredential.intentosFallidosConsecutivos)
-        .execution_options(synchronize_session=False)
-    ).scalar_one_or_none()
-    if attempts is None:
-        _raiseConcurrentLock(db, credential, now)
-    locked = attempts >= MAX_FAILED_LOGIN_ATTEMPTS
-    _setCommitted(
-        credential, intentosFallidosConsecutivos=attempts, bloqueadoHasta=lockUntil if locked else None,
-        fechaUltimoIntentoFallido=now, fechaActualizacion=now,
-    )
-    return locked
 
 
 def _registerSuccessfulPassword(
@@ -571,23 +536,38 @@ def replacePassword(db: Session, credential: LocalCredential, password: str, now
     credential.passwordHash = security.hashPassword(password)
 
 
-def verifyCurrentPassword(db: Session, credential: LocalCredential, password: str) -> bool:
-    """Reautenticación con la contraseña actual (operaciones sensibles con la sesión o el desafío ya abiertos).
+# Reconfirmación de la contraseña dentro de una sesión o de un desafío ya abierto (verifyCurrentPassword). M-2, decisión aprobada:
+# 3 fallos en 15 min bloquean SOLO esa operación para ese usuario. No escribe en la credencial, así que no afecta al login ni a las
+# demás operaciones, y un tercero no puede dejar fuera a la cuenta. El contador vive en memoria (por proceso, o compartido con Redis).
+MAX_FAILED_REAUTH_ATTEMPTS = 3
+REAUTH_WINDOW_SECONDS = 15 * 60
+REAUTH_LOCKED_MESSAGE = "Demasiados intentos de confirmar tu contraseña. Esperá unos minutos antes de intentarlo de nuevo."
+_reautenticacion = RateLimiter(MAX_FAILED_REAUTH_ATTEMPTS, REAUTH_WINDOW_SECONDS, name="reautenticacion")
 
-    Comparte el contador y el bloqueo temporal de CredencialLocal con el login: lanza CUENTA_BLOQUEADA si
-    está bloqueada. Devuelve si la contraseña es correcta y deja los cambios pendientes: quien llama audita y
-    confirma (también en el fallo, para que cuente el intento).
+
+def _claveReautenticacion(credential: LocalCredential, operacion: str) -> str:
+    return f"{credential.idUsuario}|{operacion}"
+
+
+def verifyCurrentPassword(db: Session, credential: LocalCredential, password: str, operacion: str = "reautenticacion") -> bool:
+    """Reautenticación con la contraseña actual para una operación sensible (dentro de la sesión o del desafío ya abiertos).
+
+    Lanza CUENTA_BLOQUEADA si ESA operación para ESE usuario superó los fallos permitidos. Devuelve si la contraseña es correcta y deja
+    los cambios pendientes: quien llama audita y confirma (también en el fallo, para que cuente el intento).
     """
     now = nowForDb()
-    if _isLocked(credential, now):
+    if _isLocked(credential, now):  # bloqueo heredado de la versión anterior (vence en 15 min como máximo): solo se respeta hasta vencer
         raise _lockedError(credential.bloqueadoHasta, now)
     _unlockIfExpired(db, credential, now)
-
+    clave = _claveReautenticacion(credential, operacion)
+    espera = _reautenticacion.retryAfter(clave)
+    if espera > 0:
+        raise AuthError("CUENTA_BLOQUEADA", REAUTH_LOCKED_MESSAGE, retryAfterSeconds=max(1, math.ceil(espera)))
     valid, newHash = security.verifyPassword(password, credential.passwordHash)
     if valid:
         _registerSuccessfulPassword(db, credential, now, newHash)
         return True
-    _registerFailedPassword(db, credential, now)
+    _reautenticacion.allow(clave)  # cuenta el fallo en memoria: no depende de que la transacción del llamador confirme
     return False
 
 
@@ -667,17 +647,106 @@ def _loginLocal(
         return _loginLocalBajoLimite(db, identificador, password, origen, acceso, clientInfo)
 
 
+def _programarAviso(db: Session, tarea, *args) -> None:
+    """Ejecuta un aviso al titular en segundo plano, con su propia sesión (ver emailService.runInBackground)."""
+    emailService.runInBackground(tarea, db.get_bind(), *args)
+
+
+def _sesionDeAviso(bind) -> Session:
+    return Session(bind=bind, autoflush=False, expire_on_commit=False)
+
+
+def _tareaFalloDeContrasena(bind, identificador: str, instante: datetime) -> None:
+    """Aviso en la página por una contraseña incorrecta. Si no hay cuenta con ese identificador, no hace nada."""
+    session = _sesionDeAviso(bind)
+    try:
+        user = _findUserByIdentifier(session, identificador)
+        if user is not None:
+            userNotifications.notifyRejectedAccess(session, user, instante)
+    except Exception:  # noqa: BLE001 - un aviso que falla no cambia la respuesta ni deshace nada
+        session.rollback()
+        logger.exception("No se pudo registrar el aviso de contraseña incorrecta")
+    finally:
+        session.close()
+
+
+def _tareaIntentoLimitado(bind, identificador: str, origen: str, instante: datetime) -> None:
+    """Traza de un intento rechazado por el límite (M-2). Distinta de una contraseña incorrecta (título propio) y acotada: como mucho un
+    aviso por cuenta, por origen y por ventana del límite, así un atacante no puede generar registros sin fin. El origen se guarda como HMAC."""
+    session = _sesionDeAviso(bind)
+    try:
+        user = _findUserByIdentifier(session, identificador)
+        if user is None:
+            return
+        segundos = int((instante - datetime(1970, 1, 1)).total_seconds())
+        ventana = segundos // loginThrottle.LIMITES[0][2]
+        clave = f"{userNotifications.INTENTO_INGRESO}:limite:{hashIdentifier(origen)}:{ventana}"
+        userNotifications.notify(
+            session, user, userNotifications.INTENTO_INGRESO,
+            "Intento de ingreso bloqueado por seguridad",
+            "Hubo intentos de entrar a tu cuenta desde un mismo lugar y los bloqueamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
+            url=userNotifications.URL_SEGURIDAD, clave=clave,
+        )
+    except Exception:  # noqa: BLE001
+        session.rollback()
+        logger.exception("No se pudo registrar el intento bloqueado por el límite")
+    finally:
+        session.close()
+
+
+def _tareaBloqueoRecien(bind, identificador: str, origen: str, instante: datetime, espera: int) -> None:
+    """Un fallo que activó el límite: auditoría, aviso en la página y correo al titular (como antes de M-2, pero fuera de la solicitud)."""
+    session = _sesionDeAviso(bind)
+    try:
+        user = _findUserByIdentifier(session, identificador)
+        if user is None:
+            return
+        registerEvent(
+            session, "LOGIN", auditClassification.ACCION_BLOQUEO_CUENTA, False, user.idUsuario, motivo="INTENTOS_EXCEDIDOS",
+            idInstitucion=singleInstitutionOf(session, user.idUsuario), modulo="SEGURIDAD",
+            observacion=f"Límite temporal de intentos fallidos desde un mismo origen (hasta {espera} s)",
+            datosNuevos={"segundos": espera},
+        )
+        session.commit()
+        if userNotifications.correoActivo(session, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
+            _notify(
+                EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=instante,
+                cantidadIntentos=loginThrottle.LIMITES[0][1], bloqueadoHasta=instante + timedelta(seconds=espera),
+                urlSeguridad=_securityUrl(user),
+            )
+        userNotifications.notifySecurity(
+            session, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
+            "Hubo varios intentos fallidos de entrar a tu cuenta desde un mismo lugar y los limitamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
+            f"BLOQUEO:{instante + timedelta(seconds=espera)}",  # sin formato: nunca puede romper el rechazo del acceso
+        )
+    except Exception:  # noqa: BLE001
+        session.rollback()
+        logger.exception("No se pudo registrar el bloqueo por intentos fallidos")
+    finally:
+        session.close()
+
+
+def _rechazarFallo(db: Session, identificador: str, origen: str, now: datetime) -> None:
+    """Cuenta un fallo de contraseña y programa sus avisos. Es el mismo trabajo en la solicitud para cuentas existentes e inexistentes:
+    la respuesta y su costo no revelan si el identificador corresponde a una cuenta (protección contra enumeración por tiempo)."""
+    alcanzado = loginThrottle.registrarFallo(identificador, origen)
+    _programarAviso(db, _tareaFalloDeContrasena, identificador, now)
+    if alcanzado:
+        espera = loginThrottle.retryAfter(identificador, origen) or 0
+        _programarAviso(db, _tareaBloqueoRecien, identificador, origen, now, espera)
+
+
 def _loginLocalBajoLimite(
     db: Session, identificador: str, password: str, origen: str, acceso: str, clientInfo: ClientInfo | None
 ) -> LoginResponse:
     """Se controla por (identificador, origen) en loginThrottle ANTES de buscar la cuenta. La respuesta es la misma para una cuenta
     existente y una inexistente (sin enumeración), un tercero desde otra IP no bloquea a la víctima, y el límite no consulta la base ni
-    verifica la contraseña. El bloqueo global por cuenta del login se quitó: permitía bloquear una cuenta ajena con tres intentos. La
-    reautenticación con sesión (verifyCurrentPassword) conserva su propio bloqueo."""
+    verifica la contraseña. Los avisos al titular se escriben en segundo plano para todas las cuentas (ver _rechazarFallo)."""
     now = nowForDb()
     espera = loginThrottle.retryAfter(identificador, origen)
     if espera is not None:
         # Mismo rechazo para cualquier identificador, exista o no: no se consulta la base ni se verifica la contraseña.
+        _programarAviso(db, _tareaIntentoLimitado, identificador, origen, now)
         raise AuthError("CUENTA_BLOQUEADA", ACCOUNT_LOCKED_MESSAGE, retryAfterSeconds=espera)
 
     user = _findUserByIdentifier(db, identificador)
@@ -688,7 +757,7 @@ def _loginLocalBajoLimite(
         security.verifyDummyPassword(password)
         _auditFailedLogin(db, "LOGIN_LOCAL", None, "CUENTA_INEXISTENTE", "Cuenta inexistente", identificador)
         db.commit()
-        _registrarFallo(db, identificador, origen, None, now)
+        _rechazarFallo(db, identificador, origen, now)
         raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
 
     # A partir de acá el Usuario está identificado: los eventos relevantes se auditan.
@@ -699,7 +768,7 @@ def _loginLocalBajoLimite(
         security.verifyDummyPassword(password)
         _auditFailedLogin(db, "LOGIN_LOCAL", user, "SIN_CREDENCIAL_LOCAL", "Cuenta sin credencial local")
         db.commit()
-        _registrarFallo(db, identificador, origen, user, now)
+        _rechazarFallo(db, identificador, origen, now)
         raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
 
     db.commit()  # cierra la lectura antes de Argon2 (M-3): la conexión no queda ocupada mientras el hash espera un lugar
@@ -708,7 +777,7 @@ def _loginLocalBajoLimite(
         try:
             _registerSuccessfulPassword(db, credential, now, newHash)
         except AuthError:
-            # Otra solicitud (reautenticación con sesión) bloqueó la credencial mientras tanto: el acceso se rechaza.
+            # Bloqueo heredado de la versión anterior que venció mientras tanto: el acceso se rechaza como antes.
             _auditFailedLogin(db, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA", "Cuenta bloqueada")
             db.commit()
             raise
@@ -719,38 +788,9 @@ def _loginLocalBajoLimite(
 
     _auditFailedLogin(db, "LOGIN_LOCAL", user, "PASSWORD_INCORRECTA", "Contraseña inválida")
     db.commit()
-    userNotifications.notifyRejectedAccess(db, user, now)
-    _registrarFallo(db, identificador, origen, user, now)
+    _rechazarFallo(db, identificador, origen, now)
     # Mismo rechazo que una contraseña incorrecta, también al alcanzar el límite: el siguiente intento ya recibe CUENTA_BLOQUEADA.
     raise AuthError("CREDENCIALES_INVALIDAS", "Credenciales inválidas.")
-
-
-def _registrarFallo(db: Session, identificador: str, origen: str, user: User | None, now: datetime) -> None:
-    """Cuenta el fallo en loginThrottle. Si con él el par alcanza un límite y la cuenta existe, avisa al titular una vez.
-
-    El aviso va al titular (página y correo), nunca a quien ataca: la respuesta no cambia, así que no revela nada.
-    """
-    if not loginThrottle.registrarFallo(identificador, origen) or user is None:
-        return
-    espera = loginThrottle.retryAfter(identificador, origen) or 0
-    bloqueadoHasta = now + timedelta(seconds=espera)
-    registerEvent(
-        db, "LOGIN", auditClassification.ACCION_BLOQUEO_CUENTA, False, user.idUsuario, motivo="INTENTOS_EXCEDIDOS",
-        idInstitucion=singleInstitutionOf(db, user.idUsuario), modulo="SEGURIDAD",
-        observacion=f"Límite temporal de intentos fallidos desde un mismo origen (hasta {espera} s)",
-        datosNuevos={"segundos": espera},
-    )
-    db.commit()
-    if userNotifications.correoActivo(db, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
-        _notify(
-            EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=now,
-            cantidadIntentos=loginThrottle.LIMITES[0][1], bloqueadoHasta=bloqueadoHasta, urlSeguridad=_securityUrl(),
-        )
-    userNotifications.notifySecurity(
-        db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
-        "Hubo varios intentos fallidos de entrar a tu cuenta desde un mismo lugar y los limitamos unos minutos. Si no fuiste vos, revisá tu seguridad.",
-        f"BLOQUEO:{bloqueadoHasta}",  # sin formato: nunca puede romper el rechazo del acceso
-    )
 
 
 def loginGoogle(db: Session, identity: GoogleIdentity, clientInfo: ClientInfo | None = None) -> LoginResponse:
@@ -815,7 +855,7 @@ def identifyGoogleUser(
     elif outcome == GOOGLE_ACCOUNT_LINKED:
         _notify(
             EmailEventType.GOOGLE_VINCULADO, user, fechaEvento=now, correoGoogle=identity.email,
-            urlSeguridad=_securityUrl(),
+            urlSeguridad=_securityUrl(user),
         )
     return user
 
@@ -1074,7 +1114,7 @@ def _requireNoOtherActiveSession(db: Session, user: User, clientInfo: ClientInfo
     client = clientInfo or ClientInfo()
     _notify(
         EmailEventType.INICIO_BLOQUEADO_SESION_ACTIVA, user, fechaEvento=now, navegador=client.navegador,
-        sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo, urlSeguridad=_securityUrl(),
+        sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo, urlSeguridad=_securityUrl(user),
     )
     userNotifications.notify(
         db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Inicio de sesión bloqueado",
@@ -1118,7 +1158,7 @@ def _authenticatedResponse(
         _notify(
             EmailEventType.NUEVO_INICIO_SESION, user, fechaEvento=nowForDb(), metodo=methodLabel,
             navegador=client.navegador, sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo,
-            urlSeguridad=_securityUrl(), urlDesuscribir=_newLoginUnsubscribeUrl(user),
+            urlSeguridad=_securityUrl(user), urlDesuscribir=_newLoginUnsubscribeUrl(user),
         )
     # El inicio de sesión ya quedó auditado (LOGIN_*). Aviso visible solo si viene de un equipo que la cuenta nunca había usado
     # (services/knownAccess.py); el correo sigue arriba, con su propio enlace de desuscripción.
@@ -1362,7 +1402,7 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     registerEvent(db, "PERMISO", "RESTABLECER_PASSWORD", True, user.idUsuario, "CredencialLocal", credential.idCredencialLocal)
     db.commit()
     if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_CONTRASENA):
-        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl(user))
     _passwordNotice(db, user, "Se restableció la contraseña de tu cuenta.", now)
 
 
@@ -1420,7 +1460,7 @@ def setLocalPassword(db: Session, user: User, password: str) -> None:
     db.commit()
     now = nowForDb()
     if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_CONTRASENA):
-        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl(user))
     _passwordNotice(db, user, "Se agregó una contraseña a tu cuenta.", now)
 
 
@@ -1432,7 +1472,7 @@ def changeLocalPassword(db: Session, user: User, currentSession: UserSession, ac
     credential = _getLocalCredential(db, user)
     if credential is None:
         raise AuthError("CREDENCIAL_LOCAL_INEXISTENTE", "Tu cuenta no tiene contraseña local: creala primero.")
-    if not verifyCurrentPassword(db, credential, actual):
+    if not verifyCurrentPassword(db, credential, actual, "cambio_contrasena"):
         registerEvent(db, "PERMISO", "CAMBIAR_PASSWORD", False, user.idUsuario, "CredencialLocal",
                       credential.idCredencialLocal, observacion="Contraseña actual incorrecta")
         db.commit()  # el intento fallido cuenta para el bloqueo
@@ -1456,7 +1496,7 @@ def changeLocalPassword(db: Session, user: User, currentSession: UserSession, ac
     registerEvent(db, "PERMISO", "CAMBIAR_PASSWORD", True, user.idUsuario, "CredencialLocal", credential.idCredencialLocal)
     db.commit()
     if userNotifications.correoActivo(db, user, userNotifications.CAMBIO_CONTRASENA):
-        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl())
+        _notify(EmailEventType.PASSWORD_CAMBIADA, user, fechaEvento=now, urlSeguridad=_securityUrl(user))
     _passwordNotice(db, user, "Se cambió la contraseña de tu cuenta.", now)
 
 

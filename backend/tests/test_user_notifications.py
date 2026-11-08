@@ -42,6 +42,7 @@ from app.services import auth as authService
 from app.services import group as groups
 from app.services import email as emailService
 from app.services import knownAccess, notificationRetention, notifications, schemaCompat
+from app.services import loginThrottle
 from app.services import userNotifications as service
 from app.utils.timeZone import nowForDb
 from app.utils.userAgent import ClientInfo
@@ -787,7 +788,7 @@ def test_el_bloqueo_real_de_la_cuenta_por_intentos_fallidos_avisa_una_sola_vez(d
     from tests.test_account_deletion import EMAIL
 
     user = makeUser(db)
-    limit = authService.MAX_FAILED_LOGIN_ATTEMPTS
+    limit = loginThrottle.LIMITES[0][1]
 
     for _ in range(limit):
         with pytest.raises(AuthError):
@@ -808,7 +809,7 @@ def test_el_correo_de_bloqueo_se_apaga_y_el_aviso_de_pagina_sigue(db, mails):
 
     user = makeUser(db)
     service.updatePreference(db, user, "ACTIVIDAD_SOSPECHOSA", porCorreo=False)
-    for _ in range(authService.MAX_FAILED_LOGIN_ATTEMPTS):
+    for _ in range(loginThrottle.LIMITES[0][1]):
         with pytest.raises(AuthError):
             authService.loginLocal(db, EMAIL, "OtraClave#2026")
 

@@ -184,10 +184,10 @@ def _fail(db: Session, idUsuario: uuid.UUID | None, etapa: str, error: AuthError
 
 
 def _verifyCurrentPassword(db: Session, user: User, credential: LocalCredential, password: str | None) -> None:
-    """Reautenticación local. Comparte el contador y el bloqueo temporal de CredencialLocal con el login."""
+    """Reautenticación local para confirmar el borrado. Su límite de fallos es propio de esta operación (no bloquea el login)."""
     if password is None:
         raise AuthError("PASSWORD_REQUERIDA", "Ingresá tu contraseña actual para eliminar la cuenta.")
-    if verifyCurrentPassword(db, credential, password):
+    if verifyCurrentPassword(db, credential, password, "eliminacion_cuenta"):
         return
     raise _fail(
         db, user.idUsuario, ETAPA_CONFIRMACION, AuthError(MOTIVO_PASSWORD_INCORRECTA, "La contraseña es incorrecta.")
@@ -255,7 +255,7 @@ def requestDeletion(db: Session, user: User) -> DeletionRequest:
             "fechaEvento": now,
             "fechaExpiracion": expiration,
             "urlConfirmacion": f"{emailService.frontendUrl('eliminarCuenta')}?token={token}",
-            "urlProteccion": emailService.frontendUrl("seguridad"),
+            "urlProteccion": emailService.urlSeguridad(user.tipoCuenta),
         },
     )
     if not sent:

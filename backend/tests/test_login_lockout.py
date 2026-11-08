@@ -272,18 +272,20 @@ def test_retry_after_se_expresa_en_la_cabecera_del_rechazo(db, mails, steps):
 # --- Reautenticación con sesión (bloqueo de CredencialLocal, sin cambios) -----------------------------------------------------------
 
 
-def test_reautenticacion_comparte_el_mismo_contador(db, mails, clock):
+def test_reautenticacion_no_comparte_el_contador_con_el_login(db, mails, clock, steps):
+    """Regla aprobada (M-2): la reconfirmación de la contraseña dentro de una sesión bloquea solo su operación y su usuario, por 15 min.
+    No afecta al login, que tiene su propio límite por (cuenta, origen)."""
     user = makeUser(db)
     row = credential(db)
     for _ in range(3):
-        assert authService.verifyCurrentPassword(db, row, WRONG) is False
+        assert authService.verifyCurrentPassword(db, row, WRONG, "cambio_contrasena") is False
         db.commit()
     with pytest.raises(AuthError) as locked:
-        authService.verifyCurrentPassword(db, row, PASSWORD)
+        authService.verifyCurrentPassword(db, row, PASSWORD, "cambio_contrasena")
     assert locked.value.code == "CUENTA_BLOQUEADA"
+    assert attempt(db, PASSWORD).estado == "AUTENTICADO"  # el login sigue disponible
 
-    clock.advance(minutes=lockMinutes(), seconds=1)
-    assert authService.verifyCurrentPassword(db, row, WRONG) is False
+    steps.advance(15 * 60 + 1)  # vence la ventana de la reconfirmación
+    assert authService.verifyCurrentPassword(db, row, PASSWORD, "cambio_contrasena") is True
     db.commit()
-    assert credential(db).intentosFallidosConsecutivos == 1
     assert user.idUsuario == credential(db).idUsuario

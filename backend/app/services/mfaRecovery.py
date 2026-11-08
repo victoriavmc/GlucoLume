@@ -119,11 +119,11 @@ def _requireNotLocked(factor: MfaFactor) -> None:
         raise AuthError("MFA_BLOQUEADO", "Demasiados códigos inválidos. Intentá más tarde.")
 
 
-def _revalidatePassword(db: Session, user: User, credential: LocalCredential, password: str | None) -> None:
-    """Contraseña actual (mismo contador y bloqueo que el login). Un fallo se audita y no envía nada."""
+def _revalidatePassword(db: Session, user: User, credential: LocalCredential, password: str | None, operacion: str) -> None:
+    """Contraseña actual para esta operación de recuperación (límite propio de la operación). Un fallo se audita y no envía nada."""
     if not password:
         raise AuthError("PASSWORD_REQUERIDA", "Confirmá tu contraseña actual para continuar.")
-    if not authService.verifyCurrentPassword(db, credential, password):
+    if not authService.verifyCurrentPassword(db, credential, password, operacion):
         registerEvent(db, "LOGIN", "MFA_RECUPERACION_SOLICITADA", False, user.idUsuario,
                       observacion="Contraseña incorrecta", motivo="PASSWORD_INCORRECTA")
         db.commit()
@@ -168,7 +168,7 @@ def _issueAndSendCode(db: Session, user: User, verification: str, eventType: Ema
             "nombre": user.nombre,
             "codigoSeguridad": code,
             "minutosValidez": CODE_VALIDITY_MINUTES,
-            "urlSeguridad": emailService.frontendUrl("seguridad"),
+            "urlSeguridad": emailService.urlSeguridad(user.tipoCuenta),
             # Pedido desde Seguridad: perdió también los códigos de recuperación (cambia el texto del correo).
             "desvincular": eventType == EmailEventType.RECUPERACION_MFA_DESVINCULAR,
         },
@@ -200,7 +200,7 @@ def startRecovery(db: Session, challengeToken: str, password: str | None,
     credential = _localCredential(db, user)
     if credential is not None:
         # Cuenta con contraseña local: siempre contraseña actual + correo, aunque haya ingresado con Google.
-        _revalidatePassword(db, user, credential, password)
+        _revalidatePassword(db, user, credential, password, "recuperacion_mfa_inicio")
     elif method != METHOD_GOOGLE:
         # Cuenta solo Google: el primer factor válido es un ingreso con Google recién hecho (el desafío).
         raise AuthError("REAUTENTICACION_REQUERIDA", "Volvé a ingresar con Google para recuperar el acceso.")
@@ -230,7 +230,7 @@ def startAccountRecovery(db: Session, user: User, password: str | None) -> tuple
             "Tu cuenta usa Google: cerrá sesión, volvé a ingresar con Google y elegí "
             "«¿Perdiste acceso a tu aplicación autenticadora?».",
         )
-    _revalidatePassword(db, user, credential, password)
+    _revalidatePassword(db, user, credential, password, "recuperacion_mfa_cuenta")
     return _issueAndSendCode(db, user, "PASSWORD", EmailEventType.RECUPERACION_MFA_DESVINCULAR), CODE_VALIDITY_MINUTES
 
 
@@ -318,7 +318,7 @@ def _verifyCodeAndUnlink(db: Session, user: User, factor: MfaFactor, codigo: str
         emailService.sendEmailEventInBackground(
             EmailEventType.MFA_DESACTIVADO,
             user.correoElectronico,
-            {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad"),
+            {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.urlSeguridad(user.tipoCuenta),
              "porRecuperacion": True},
         )
     userNotifications.notifySecurity(

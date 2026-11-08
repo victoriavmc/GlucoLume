@@ -222,6 +222,11 @@ export function AppRoutes() {
         <Route path="/verificar-correo" element={<VerifyEmail />} />
         <Route path="/activar-cuenta" element={<ActivateAccount />} />
         <Route path="/cuenta/eliminar/confirmar" element={<ConfirmDeletionPage />} />
+        {/* Enlaces de correos que no tienen pantalla propia. Se declaran (en vez de caer en la redirección «*») para que el servidor los
+            reconozca como rutas de la aplicación y se comporten como antes: el de seguridad de correos enviados antes de este cambio va al
+            inicio de seguridad; el de desuscripción del aviso de inicio de sesión sigue yendo a la portada (pantalla pendiente de decidir). */}
+        <Route path="/cuenta/seguridad" element={<Navigate to="/app/seguridad" replace />} />
+        <Route path="/cuenta/notificaciones/desuscribir" element={<Navigate to="/" replace />} />
         <Route path="/confirmar-correo-resultados" element={<ConfirmResultEmailPage />} />
         {/* Administración de la plataforma: accesos propios y panel con su layout. */}
         <Route path="/administracion/activar" element={<PlatformActivateWithCode />} />

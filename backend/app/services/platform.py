@@ -132,7 +132,7 @@ def reauthenticate(db: Session, user: User, data: Reauthentication, action: str,
     ok = True
     if credential is not None:
         password = data.password.get_secret_value() if data.password else None
-        ok = bool(password) and authService.verifyCurrentPassword(db, credential, password)
+        ok = bool(password) and authService.verifyCurrentPassword(db, credential, password, f"plataforma:{action}")
     if ok:
         factor = mfa.getFactor(db, user)
         if factor is not None and factor.habilitado:
@@ -526,7 +526,7 @@ def resetPassword(db: Session, token: str, password: str) -> None:
     db.commit()
     if userNotifications.correoActivo(db, user, avisos.CAMBIO_CONTRASENA):
         emailService.sendEmailEventInBackground(EmailEventType.PASSWORD_CAMBIADA, user.correoElectronico,
-                                                {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
+                                                {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.urlSeguridad(user.tipoCuenta)})
 
 
 def requestPasswordChangeCode(db: Session, user: User, actual: str) -> str:
@@ -564,7 +564,7 @@ def changeOwnPassword(db: Session, user: User, currentSession: UserSession, actu
     db.commit()
     if userNotifications.correoActivo(db, user, avisos.CAMBIO_CONTRASENA):
         emailService.sendEmailEventInBackground(EmailEventType.PASSWORD_CAMBIADA, user.correoElectronico,
-                                                {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.frontendUrl("seguridad")})
+                                                {"nombre": user.nombre, "fechaEvento": now, "urlSeguridad": emailService.urlSeguridad(user.tipoCuenta)})
 
 
 # --- Transferencia del control principal ----------------------------------------------------------------------

@@ -52,6 +52,7 @@ from app.services import auth as authService
 from app.services import email as emailService
 from app.services import mfa as mfaService
 from app.utils.timeZone import nowForDb
+from app.utils.userAgent import ClientInfo
 
 PASSWORD = "Glucolume#Prueba2026"  # nosec B105 - contraseña de prueba
 EMAIL = "victoria.prueba@example.com"
@@ -405,7 +406,6 @@ def test_confirmacion_password_correcta_e_incorrecta(db, mails):
     with pytest.raises(AuthError) as wrong:
         confirm(db, token, password="OtraClave#2026")
     assert wrong.value.code == "PASSWORD_INCORRECTA"
-    assert db.scalar(select(LocalCredential)).intentosFallidosConsecutivos == 1
     fail = audits(db, "ELIMINACION_CUENTA")[-1]
     assert json.loads(fail.datosNuevos) == {"etapa": "CONFIRMACION", "motivo": "PASSWORD_INCORRECTA"}
     # Un error de reautenticación no consume el token ni elimina la cuenta.
@@ -416,7 +416,7 @@ def test_confirmacion_password_correcta_e_incorrecta(db, mails):
     assert reload(db, User, user.idUsuario).estado == "ELIMINADO"
 
 
-def test_password_incorrecta_reiterada_bloquea_como_el_login(db, mails):
+def test_password_incorrecta_reiterada_bloquea_solo_la_confirmacion(db, mails):
     user = makeUser(db)
     token = requestAndGetToken(db, user, mails)
     for _ in range(3):
@@ -427,6 +427,8 @@ def test_password_incorrecta_reiterada_bloquea_como_el_login(db, mails):
         confirm(db, token)
     assert locked.value.code == "CUENTA_BLOQUEADA"
     assert reload(db, User, user.idUsuario).estado == "ACTIVO"
+    # Regla aprobada (M-2): el bloqueo afecta solo la confirmación de borrado. El login de la cuenta sigue disponible.
+    assert authService.loginLocal(db, EMAIL, PASSWORD, ClientInfo(ip="198.51.100.30")).estado == "AUTENTICADO"
 
 
 def test_confirmacion_sin_mfa_no_pide_codigo(db, mails):

@@ -27,7 +27,8 @@ SELECT name, type_desc, is_disabled FROM sys.server_principals WHERE type IN ('S
 SELECT name, state_desc, recovery_model_desc FROM sys.databases;
 SELECT auth_scheme, encrypt_option FROM sys.dm_exec_connections WHERE session_id = @@SPID;
 '
-SQLCMD='/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -b -W -s "|" -i /dev/stdin'
+# La contraseña va por la variable de entorno SQLCMDPASSWORD y no por -P: así no aparece en la lista de procesos (argv).
+SQLCMD='SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -b -W -s "|" -i /dev/stdin'
 sec "11. SQL Server en el contenedor db (caso A)"
 printf '%s' "$SQL_BASE" | docker compose exec -T db sh -c "$SQLCMD" 2>&1
 echo "--- último respaldo registrado por base (fecha y tipo de cifrado):"

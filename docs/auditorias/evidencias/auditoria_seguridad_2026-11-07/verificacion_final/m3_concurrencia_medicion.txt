@@ -1,0 +1,25 @@
+# M-3: control de concurrencia de Argon2 (08/11/2026, banco). Script: bench_m3_concurrencia.py (verificaciones reales de security.verifyPassword,
+# sin HTTP ni base). Parámetros del hash SIN CAMBIOS (t=3, m=64 MiB, p=4). Control: 2 en curso, 8 en espera, 5 s de espera máxima.
+# Hardware del banco: rápido (mediana de una verificación = 0,058 s). En la notebook de demo el tiempo por verificación será mayor;
+# la capacidad (10 simultáneas) no depende del tiempo, pero la latencia sí (ver el límite de 5 s en la guía).
+
+verificación secuencial: 0,055 0,061 0,058 s (mediana 0,058 s)
+
+n_simultáneas  pasan  SERVIDOR_OCUPADO(503)  latencia_p50_s  latencia_max_s  Retry-After
+      1          1            0                 0,055          0,055           -
+      2          2            0                 0,118          0,122           -
+      4          4            0                 0,199          0,267           -
+      8          8            0                 0,367          0,582           -
+     10         10            0                 0,403          0,639           -
+     12         10            2                 0,377          0,630           2
+     16         10            6                 0,403          0,668           2
+     24         10           14                 0,387          0,612           2
+
+Recuperación: tras cada ráfaga, en espera = 0 y una verificación posterior tarda 0,052–0,083 s.
+
+Lectura:
+- Hasta 10 verificaciones simultáneas (2 en curso + 8 en espera) no hay ningún rechazo legítimo.
+- Por encima de 10, solo las que no caben reciben 503 con Retry-After; las que pasan mantienen la latencia.
+- La recuperación es inmediata: el control no queda ocupado después de la ráfaga.
+- Riesgo a medir en la notebook: si una verificación tarda más de ~1,2 s, la cola de 8 supera los 5 s de espera y aparecen 503 con menos de 10
+  simultáneas. Medir allí con el mismo script antes de cualquier ajuste (ARGON2_MAX_CONCURRENT / ARGON2_MAX_WAITING, o ARGON2_WAIT_SECONDS).

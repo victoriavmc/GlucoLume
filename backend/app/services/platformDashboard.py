@@ -19,7 +19,6 @@ from app.models.group import Group
 from app.models.groupUser import GroupUser
 from app.models.institution import Institution
 from app.models.institutionUser import InstitutionUser
-from app.models.localCredential import LocalCredential
 from app.models.matrix import Matrix
 from app.models.matrixRule import MatrixRule
 from app.models.technicalAudit import TechnicalAudit
@@ -60,6 +59,18 @@ COMPLETADA = "COMPLETADA"
 
 def _count(db: Session, model, *conditions) -> int:
     return db.scalar(select(func.count()).select_from(model).where(*conditions)) or 0
+
+
+# Ventana de la mayor duración del límite de login (M-2: 1 h). El contador del límite vive en cada proceso del backend; la auditoría es
+# compartida, así que el número de cuentas con un bloqueo por intentos iniciado en la última hora sale de ella.
+VENTANA_BLOQUEOS_TEMPORALES = timedelta(hours=1)
+
+
+def _bloqueosRecientes(db: Session, now: datetime) -> int:
+    return db.scalar(select(func.count(func.distinct(Audit.idUsuario))).where(
+        Audit.accion == classification.ACCION_BLOQUEO_CUENTA,
+        Audit.fechaHora >= now - VENTANA_BLOQUEOS_TEMPORALES,
+    )) or 0
 
 
 def _users(db: Session, start: datetime, end: datetime | None) -> UserCounters:
@@ -159,7 +170,7 @@ def _security(db: Session, start: datetime, end: datetime | None) -> SecuritySum
         loginsFallidos=access.fallidos, loginsExitosos=access.exitosos, accesosPorTipo=access,
         motivosFallo=[CountBy(clave=r[0] or "SIN_MOTIVO", total=r[1]) for r in reasons],
         cuentasBloqueadas=_count(db, User, User.estado == "BLOQUEADO"),
-        bloqueosTemporales=_count(db, LocalCredential, LocalCredential.bloqueadoHasta > now),
+        bloqueosTemporales=_bloqueosRecientes(db, now),
         cuentasConFallosRepetidos=repeated,
         eventosCriticos=_count(db, Audit, Audit.accion.in_(ACCIONES_CRITICAS), *inPeriod),
         operacionesAdministrativas=_count(db, Audit, Audit.modulo == "PLATAFORMA", *inPeriod),

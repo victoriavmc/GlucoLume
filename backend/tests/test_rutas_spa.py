@@ -1,12 +1,12 @@
 # Rutas de la SPA en Nginx (B-2, auditoría 07/11/2026).
 #
 # Antes, cualquier ruta que no fuera archivo devolvía la shell de React con 200: /nonexistent-xyz, /phpinfo.php y /.git/config
-# «existían». Ahora Nginx solo sirve la shell para las rutas de la aplicación (bloque `map $uri $ruta_spa` en
-# docker/nginx/default.conf.template) y responde 404 al resto, incluidos los archivos sensibles.
+# «existían». Ahora Nginx solo sirve la shell para las rutas que declara el router, y responde 404 al resto, incluidos los archivos
+# sensibles. La lista de rutas la GENERA frontend/scripts/generar-rutas-spa.mjs desde src/App.jsx (fuente única); su copia versionada
+# docker/nginx/rutas-spa.generado.conf es la que leen estas pruebas, y una prueba de frontend verifica que no esté desactualizada.
 #
-# Estas pruebas no levantan Nginx: leen la plantilla y comparan su lista con las rutas reales del frontend (App.jsx) y los
-# enlaces que genera el backend (FRONTEND_ROUTES en services/email.py). Así, una ruta nueva en la SPA sin reflejarla en Nginx, o un
-# correo que apunte a una ruta inexistente, hace fallar la suite. El comportamiento medido en un Nginx real está en
+# Estas pruebas no levantan Nginx: comparan el mapa con el router, con los enlaces que genera el backend (FRONTEND_ROUTES en
+# services/email.py) y con las reglas de archivos sensibles de la plantilla. El comportamiento medido en un Nginx real está en
 # docs/auditorias/evidencias/auditoria_seguridad_2026-11-07/sondas_rutas_spa.sh.
 
 import re
@@ -16,12 +16,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 PLANTILLA = REPO / "docker" / "nginx" / "default.conf.template"
+MAPA_RUTAS = REPO / "docker" / "nginx" / "rutas-spa.generado.conf"
 APP_JSX = REPO / "frontend" / "src" / "App.jsx"
 EMAIL_PY = REPO / "backend" / "app" / "services" / "email.py"
 
-# Enlaces que los correos envían y que el frontend NO implementa como ruta. Hoy caen en la portada (la redirección `*`). Se mantienen
-# para no cambiar lo que ve quien hace clic; corregirlos (apuntar a una pantalla real) es una decisión aparte.
-ENLACES_DE_CORREO_SIN_PANTALLA = {"/cuenta/seguridad", "/cuenta/notificaciones/desuscribir"}
+# Enlace de correo que el router solo redirige (no tiene pantalla propia). Se declara como <Navigate> en App.jsx y la prueba exige que
+# siga siendo una redirección: si alguien le da una pantalla, o si aparece otro enlace así, hay que actualizar esta lista a propósito.
+ENLACES_DE_CORREO_SOLO_REDIRECCION = {"/cuenta/notificaciones/desuscribir"}
 
 
 def _texto(ruta: Path) -> str:
@@ -29,15 +30,13 @@ def _texto(ruta: Path) -> str:
 
 
 def _patrones_de_mapa_publica() -> list[re.Pattern]:
-    """Los patrones `~* ... 1;` del mapa $ruta_spa, compilados sin distinguir mayúsculas (como ~* de Nginx)."""
-    conf = _texto(PLANTILLA)
-    bloque = re.search(r"map \$uri \$ruta_spa \{(.*?)\n\}", conf, re.S).group(1)
+    """Los patrones `~* ... 1;` del mapa generado $ruta_spa, compilados sin distinguir mayúsculas (como ~* de Nginx)."""
     patrones = []
-    for linea in bloque.splitlines():
+    for linea in _texto(MAPA_RUTAS).splitlines():
         linea = linea.strip()
-        if linea.startswith("~*") and linea.endswith(" 1;"):
-            patrones.append(re.compile(linea[2:-3], re.IGNORECASE))
-    assert patrones, "no se encontró el mapa $ruta_spa en la plantilla"
+        if linea.startswith("~*") and " 1;" in linea:
+            patrones.append(re.compile(linea[2:linea.index(" 1;")], re.IGNORECASE))
+    assert patrones, "no se encontró el mapa $ruta_spa generado"
     return patrones
 
 
@@ -109,16 +108,20 @@ def test_la_api_no_la_alcanzan_las_reglas_de_archivos_sensibles():
         assert not _sensible(ruta), f"{ruta} no debe caer en las reglas de la SPA"
 
 
-def test_los_enlaces_de_correo_son_rutas_de_la_spa_salvo_los_conocidos():
-    rutas_app = set(_rutas_de_app_jsx())
-    sin_pantalla = set()
+def test_los_enlaces_de_correo_son_rutas_de_la_spa_y_los_conocidos_solo_redirigen():
     for ruta in _rutas_de_correo():
         assert _ruta_spa_valida(ruta), f"el correo apunta a {ruta} y Nginx la respondería 404"
-        if ruta not in rutas_app and not ruta.startswith(("/app", "/plataforma")):
-            sin_pantalla.add(ruta)
-    assert sin_pantalla == ENLACES_DE_CORREO_SIN_PANTALLA, (
-        "Un enlace de correo nuevo no tiene pantalla en App.jsx, o uno de los conocidos ya la tiene: revisar y actualizar la lista."
-    )
+    texto_app = _texto(APP_JSX)
+    for ruta in ENLACES_DE_CORREO_SOLO_REDIRECCION:
+        assert re.search(r'path="' + re.escape(ruta) + r'" element=\{<Navigate', texto_app), (
+            f"{ruta} debe seguir siendo una redirección declarada en App.jsx (no tiene pantalla propia)")
+
+
+def test_ningun_correo_apunta_a_la_ruta_inexistente_cuenta_seguridad():
+    """El enlace de seguridad de los correos era /cuenta/seguridad (no existe). Ahora va a /app/seguridad o /plataforma/seguridad según la
+    cuenta. Solo los correos ya enviados antes del cambio lo siguen usando, y ese enlace redirige a /app/seguridad."""
+    assert "/cuenta/seguridad" not in _rutas_de_correo()
+    assert {"/app/seguridad", "/plataforma/seguridad"} <= _rutas_de_correo()
 
 
 def test_el_mapa_de_noindex_no_distingue_mayusculas():

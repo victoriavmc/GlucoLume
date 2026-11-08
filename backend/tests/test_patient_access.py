@@ -211,12 +211,23 @@ def test_un_usuario_de_otra_institucion_no_consulta_pacientes_ni_mediciones(db, 
 def test_la_api_directa_sin_autenticacion_es_rechazada(db, scene, client_without_login=None):
     from fastapi.testclient import TestClient
 
+    from app.db.session import getDb
     from app.main import app
-    anonymous = TestClient(app)
-    base = f"/api/v1/institutions/{scene.team.id}/patients/{scene.p1.idPerfilMedicion}"
-    for path in ("", "/measurements", "/measurements/statistics", "/dashboard"):
-        assert anonymous.get(base + path).status_code in (401, 403), path
-    assert anonymous.get(f"/api/v1/measurements/{scene.m1.idMedicion}").status_code in (401, 403)
+
+    # Base de prueba (SQLite) como en las demás pruebas HTTP: la dependencia real intentaba SQL Server antes de la autenticación y el
+    # resultado era un 500 del banco, no el rechazo que se quiere verificar.
+    def testDb():
+        yield db
+
+    app.dependency_overrides[getDb] = testDb
+    try:
+        anonymous = TestClient(app)
+        base = f"/api/v1/institutions/{scene.team.id}/patients/{scene.p1.idPerfilMedicion}"
+        for path in ("", "/measurements", "/measurements/statistics", "/dashboard"):
+            assert anonymous.get(base + path).status_code in (401, 403), path
+        assert anonymous.get(f"/api/v1/measurements/{scene.m1.idMedicion}").status_code in (401, 403)
+    finally:
+        app.dependency_overrides.pop(getDb, None)
 
 
 # --- 12. Auditoría de los intentos rechazados --------------------------------------------------------------------------------
