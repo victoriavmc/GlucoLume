@@ -1,0 +1,28 @@
+REGRESION_NUEVA: 0
+CORREGIDA: 1
+PREEXISTENTE_FALLA_EN_AMBAS: 0
+FALLABA_AHORA_OMITIDA: 0
+OMITIDA_NUEVA: 0
+OMITIDA_AHORA_EJECUTADA: 0
+AGREGADA: 189
+ELIMINADA: 13
+OMITIDA_EN_AMBAS: 203
+SIN_CAMBIO_PASA: 2394
+--- detalle (no PASA-sin-cambio):
+CORREGIDA tests.test_patient_access::test_la_api_directa_sin_autenticacion_es_rechazada | base: FAILED | actual: PASSED | 
+ELIMINADA tests.test_account_deletion::test_password_incorrecta_reiterada_bloquea_como_el_login | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_al_vencer_el_bloqueo_el_contador_vuelve_a_cero | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_bloqueo_informa_retry_after | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_contador_residual_sin_bloqueo_vigente_no_bloquea_anticipadamente | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_cuenta_inexistente_responde_igual_que_contraseña_incorrecta | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_durante_el_bloqueo_no_se_procesan_intentos_ni_suman | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_inicio_de_sesion_exitoso_reinicia_el_contador | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_reautenticacion_comparte_el_mismo_contador | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_tres_errores_consecutivos_bloquean | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_tres_nuevos_errores_despues_del_desbloqueo_vuelven_a_bloquear | base: PASSED | actual: - | 
+ELIMINADA tests.test_login_lockout::test_un_error_despues_del_desbloqueo_deja_el_contador_en_uno | base: PASSED | actual: - | 
+ELIMINADA tests.test_purga_utc::test_la_purga_mensual_vence_al_instante_utc_y_no_3_horas_despues | base: PASSED | actual: - | 
+ELIMINADA tests.test_technical_retention::test_vencimiento_usa_utc_del_evento_no_la_hora_local | base: PASSED | actual: - | 
+--- motivos de omisión en la rama actual:
+192 Prueba opcional con SQL Server descartable: ver el encabezado del archivo.
+11 Prueba opcional: requiere TEST_SQLSERVER_RET_URL (cuenta de mantenimiento) en una base descartable localhost.
