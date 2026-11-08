@@ -544,7 +544,8 @@ def replacePassword(db: Session, credential: LocalCredential, password: str, now
 MAX_FAILED_REAUTH_ATTEMPTS = 3
 REAUTH_WINDOW_SECONDS = 15 * 60
 REAUTH_LOCKED_MESSAGE = "Demasiados intentos de confirmar tu contraseña. Esperá unos minutos antes de intentarlo de nuevo."
-ACCION_REAUTENTICACION_FALLIDA = "REAUTENTICACION_FALLIDA"
+# Acción propia del contador: no es la fila de dominio de cada operación (p. ej. platform.py ya registra REAUTENTICACION_FALLIDA).
+ACCION_REAUTENTICACION_FALLIDA = "REAUTENTICACION_CONTADOR"
 
 
 def _fallosDeReautenticacion(db: Session, idUsuario: uuid.UUID, operacion: str, now: datetime) -> list[datetime]:

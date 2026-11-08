@@ -265,7 +265,7 @@ def _fallosReauth(db, operacion):
     from app.models.audit import Audit
 
     db.expire_all()
-    return db.scalars(select(Audit).where(Audit.accion == "REAUTENTICACION_FALLIDA", Audit.observacion == operacion)).all()
+    return db.scalars(select(Audit).where(Audit.accion == "REAUTENTICACION_CONTADOR", Audit.observacion == operacion)).all()
 
 
 def test_el_conteo_de_reautenticacion_queda_en_la_auditoria_por_operacion(db, mails, clock):
