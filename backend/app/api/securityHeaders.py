@@ -14,7 +14,8 @@
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-HSTS_VALUE = "max-age=31536000; includeSubDomains"
+# Mismo valor que Nginx (map $hsts_value). Sin includeSubDomains ni un año: ver el comentario de la plantilla (B-4).
+HSTS_VALUE = "max-age=2592000"
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
 
 

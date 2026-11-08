@@ -37,6 +37,7 @@ LIMITS: dict[str, tuple[int, int]] = {
     "refresh": (120, 10 * 60),
     "unsubscribe": (20, 10 * 60),
     "resultEmailConfirm": (20, 10 * 60),  # confirmación del correo de resultados por el paciente (enlace del correo)
+    "cspReport": (30, 10 * 60),  # reporte de incumplimiento de CSP del navegador (B-7): unos pocos por página con un bloqueo persistente
     "bridgeCheck": (60, 10 * 60),  # instalación del puente: unas pocas consultas por equipo
     # Endpoints con sesión (H-11): ~30 pedidos por segundo desde una misma IP. Muy por encima de lo que hace una institución entera detrás de
     # un NAT (la telemetría va por SSE, una conexión por pantalla) y muy por debajo de lo que necesita extraer datos con un token robado.

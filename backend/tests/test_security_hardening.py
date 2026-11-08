@@ -230,10 +230,151 @@ def test_nginx_no_registra_la_query_de_los_enlaces_con_token():
     assert not re.search(r"access_log\s+(?!off\b)(?!/dev/stdout sin_query;)", conf)  # ningún otro access_log con el formato por defecto
 
 
+def test_csp_de_la_api_en_nginx_es_la_misma_que_la_del_backend():
+    """B-3: una sola fuente de la política de la API. Nginx la elige por ruta y debe coincidir con SecurityHeadersMiddleware.API_CSP."""
+    from app.api.securityHeaders import API_CSP
+
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    mapa = re.search(r"map \$request_uri \$csp_value \{\n(.*?)\n\}", conf, re.S).group(1)
+    apiCsp = re.search(r'"~\^/api[^"]*" "([^"]+)";', mapa).group(1)
+    assert apiCsp == API_CSP
+    assert conf.count(API_CSP) == 1  # el literal aparece una sola vez: no se copia en cada ubicación
+    assert "add_header Content-Security-Policy $csp_value always;" in conf
+
+
+def test_hsts_de_nginx_y_del_backend_son_el_mismo_valor():
+    """Un solo valor de HSTS en el código: el de Nginx (map $hsts_value) y el del backend (HSTS_VALUE)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert '" "%s";' % HSTS_VALUE in conf  # la línea del map: "~^https:..." "max-age=...";
+
+
+def test_ubicaciones_con_cabeceras_propias_declaran_las_que_el_server_no_puede_heredar():
+    """Una ubicación con add_header propio no hereda las del server: debe declarar X-Frame-Options y Permissions-Policy (B-3)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    for nombre, patron in (
+        ("swagger", r"location ~ \^/\(docs\|redoc\|openapi\\\.json\)\$ \{(.*?)\n    \}"),
+        ("sse", r"location ~ \^/api/v1/acquisition/\(telemetry/\)\?stream\$ \{(.*?)\n    \}"),
+    ):
+        bloque = re.search(patron, conf, re.S).group(1)
+        assert "add_header X-Frame-Options" in bloque and "add_header Permissions-Policy" in bloque, nombre
+
+
+def test_tamano_del_cuerpo_por_operacion_y_sin_tope_global_de_1_mb():
+    """B-1 (auditoría 07/11/2026): tope general de 160 KB, 16 KB en autenticación y tramos con lotes legítimos (sin el global de 1 MB)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "client_max_body_size 1m;" not in conf
+    server = conf.split("server {", 1)[1]
+    assert server.count("client_max_body_size 160k;") == 1
+    tramos = {
+        r"^/api/v1/acquisition/(bridge|browser)/ingest$": "768k",
+        r"^/api/v1/measurements/[^/]+/samples$": "384k",
+        r"^/api/v1/institutions/[^/]+/operators/[^/]+/offboard$": "384k",
+    }
+    for regex, limite in tramos.items():
+        bloque = re.search(r"location ~ " + re.escape(regex) + r" \{(.*?)\n    \}", conf, re.S)
+        assert bloque is not None, regex
+        assert f"client_max_body_size {limite};" in bloque.group(1), regex
+        assert "proxy_pass http://$backend;" in bloque.group(1), regex
+    auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "client_max_body_size 16k;" in auth and "error_page 413 = @cuerpo_grande;" in auth
+
+
+def test_413_responde_en_formato_json_de_la_api():
+    """El 413 de Nginx tiene el mismo formato que las respuestas de la API (codigo + detail), no la página HTML de Nginx."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "error_page 413 = @cuerpo_grande;" in conf
+    bloque = re.search(r"location @cuerpo_grande \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "internal;" in bloque and "default_type application/json;" in bloque
+    assert "CUERPO_DEMASIADO_GRANDE" in bloque and "return 413" in bloque
+
+
+def test_nginx_limita_el_cuerpo_de_autenticacion():
+    """B-1 (auditoría 07/11/2026): los formularios de autenticación no necesitan más de unos KB; el tope general de /api/ se mantiene."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "client_max_body_size 16k;" in auth
+    assert "client_max_body_size 160k;" in conf  # tope general (B-1): ya no 1 MB
+
+
+def test_nginx_responde_el_limite_de_rafaga_de_autenticacion_como_la_api():
+    """M-2 (auditoría 07/11/2026): el 429 del borde era la página HTML de Nginx, sin Retry-After. Ahora es el mismo JSON de la API."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    auth = re.search(r"location \^~ /api/v1/auth/ \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "error_page 429 = @auth_limite;" in auth
+    block = re.search(r"location @auth_limite \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "internal;" in block and "default_type application/json;" in block and "add_header Retry-After 1 always;" in block
+    assert "DEMASIADAS_SOLICITUDES" in block and "return 429" in block
+    assert "Content-Security-Policy" in block and "X-Content-Type-Options" in block  # sin el server, hay que repetirlas
+
+
+def test_api_sin_barra_redirige_relativo_con_308_y_sin_proxy():
+    """M-1 (auditoría 07/11/2026): /api no debe generar una URL absoluta con esquema y puerto internos. Redirección relativa, 308 (conserva el
+    método) y sin llegar al backend."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "absolute_redirect off;" in conf
+    bloque = re.search(r"location = /api \{(.*?)\n    \}", conf, re.S)
+    assert bloque is not None
+    assert "return 308 /api/$is_args$args;" in bloque.group(1)
+    assert "proxy_pass" not in bloque.group(1)
+
+
+def test_nginx_no_apunta_a_su_propio_loopback_ni_a_localhost():
+    """La propuesta del informe (proxy_pass a 127.0.0.1:8080 dentro del contenedor del frontend) se proxifica a sí misma: 502 en medición."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert "proxy_pass http://127.0.0.1" not in conf and "proxy_pass http://localhost" not in conf
+    assert "proxy_pass http://$backend;" in conf
+
+
+def test_upstream_por_defecto_coincide_con_el_puerto_real_del_backend():
+    """Dockerfile del frontend, compose y backend deben apuntar al mismo puerto: el backend escucha en 8000 (uvicorn y EXPOSE)."""
+    frontend = (REPO / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    assert re.search(r"ENV BACKEND_UPSTREAM=backend:8000 \\", frontend)
+    compose = (REPO / "compose.yaml").read_text(encoding="utf-8")
+    assert re.search(r"BACKEND_UPSTREAM:\s*\$\{FRONTEND_BACKEND_UPSTREAM:-backend:8000\}", compose)
+    backend = (REPO / "backend" / "Dockerfile").read_text(encoding="utf-8")
+    assert "EXPOSE 8000" in backend and '"--port", "8000"' in backend
+
+
+def test_nginx_expone_solo_la_liveness_de_la_api():
+    """B-6 (auditoría 07/11/2026): /api/v1/healthz reenvía el /healthz del backend (sin base de datos). La readiness consulta la base
+    y no se publica: Nginx la responde 404 (la ruta exacta gana al prefijo /api/)."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    block = re.search(r"location = /api/v1/healthz \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "rewrite ^ /healthz break;" in block and "proxy_pass http://$backend;" in block
+    ready = re.search(r"location = /api/v1/readyz \{(.*?)\n    \}", conf, re.S).group(1)
+    assert "return 404" in ready and "proxy_pass" not in ready
+
+
+def test_login_acota_la_contrasena_de_entrada():
+    """M-3 (auditoría 07/11/2026): el login aceptaba contraseñas de cualquier longitud. Tope de 256, por encima de la política de 128
+    para no bloquear contraseñas creadas antes de ella."""
+    from app.schemas.auth import LoginRequest
+
+    LoginRequest(identificador="persona@example.com", password="x" * 256)
+    with pytest.raises(ValidationError):
+        LoginRequest(identificador="persona@example.com", password="x" * 257)
+
+
+def test_nginx_es_unico_emisor_de_cabeceras_que_el_backend_repite():
+    """B-3 (auditoría 07/11/2026): la API recibía dos CSP y dos Referrer-Policy. Cada ubicación proxy descarta las del backend que Nginx
+    también agrega; la CSP del backend se conserva solo en el flujo SSE, que no define una propia."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    proxies = conf.count("proxy_pass http://$backend;")
+    for header in ("X-Content-Type-Options", "Referrer-Policy", "Strict-Transport-Security"):
+        assert conf.count(f"proxy_hide_header {header};") == proxies, header
+    assert conf.count("proxy_hide_header Content-Security-Policy;") == proxies - 1
+
+
+def test_nginx_redirige_con_ruta_relativa_sin_puerto_interno():
+    """M-1 (auditoría 07/11/2026): /api redirigía a http://<host>:8080/api/, con el puerto interno y sin TLS. Redirección relativa."""
+    conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
+    assert re.search(r"^    absolute_redirect off;$", conf, re.M)
+
+
 def test_controles_de_infraestructura_preparados():
     """GL-18/19/03/21: configuraciones que no se pueden verificar sin desplegar, fijadas para que no retrocedan."""
     conf = (REPO / "docker" / "nginx" / "default.conf.template").read_text(encoding="utf-8")
-    appCsp = re.search(r"^    add_header Content-Security-Policy \"([^\"]+)\"", conf, re.M).group(1)  # la del server (no la de /docs)
+    appCsp = re.search(r"^    \"~\^/api\(/\|\\\?\|\$\)\" \"[^\"]+\";\n    default \"([^\"]+)\";", conf, re.M).group(1)  # la de la app: default del map $csp_value
     assert "unsafe-inline" not in appCsp and "style-src 'self';" in appCsp and "script-src 'self';" in appCsp
     dev = (REPO / "compose.dev.yaml").read_text(encoding="utf-8")
     assert 'FORWARDED_ALLOW_IPS: "127.0.0.1"' in dev  # el backend publicado en desarrollo no confía en X-Forwarded-*

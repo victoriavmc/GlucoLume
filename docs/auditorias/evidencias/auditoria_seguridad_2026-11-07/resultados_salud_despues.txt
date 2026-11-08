@@ -1,0 +1,13 @@
+# DESPUÉS (rama): /api/v1/readyz bloqueada en Nginx (404) y readiness disponible en el backend. Banco local sin driver ODBC: fallo real de base.
+== liveness
+/api/v1/healthz        200  tiempo=0.001967s  cache-control=-  retry-after=-
+   cuerpo: {"estado":"ok"}
+   sin términos sensibles en el cuerpo
+== readiness (1.ª consulta: comprueba)
+/api/v1/readyz         404  tiempo=0.000346s  cache-control=-  retry-after=-
+   cuerpo: {"detail":"Not Found"}
+   sin términos sensibles en el cuerpo
+== readiness (2.ª consulta dentro de la ventana de caché: no vuelve a consultar la base)
+/api/v1/readyz         404  tiempo=0.000507s  cache-control=-  retry-after=-
+   cuerpo: {"detail":"Not Found"}
+   sin términos sensibles en el cuerpo

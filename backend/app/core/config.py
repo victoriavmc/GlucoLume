@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_SECURE: bool | None = None
     REFRESH_TOKEN_IN_BODY: bool = True
     AUTH_LOCKOUT_MINUTES: int = 15
+    # Hash de contraseñas (Argon2id; parámetros fijos en core/security.py): verificaciones que corren a la vez y que esperan un lugar (M-3).
+    # Cada una reserva ~64 MiB y usa varios núcleos: con más de unas pocas, el equipo se satura. Lo que no entra responde 503 SERVIDOR_OCUPADO.
+    ARGON2_MAX_CONCURRENT: int = 2
+    ARGON2_MAX_WAITING: int = 8
     # Plazo para verificar una cuenta local desde Usuario.fechaCreacion (los reenvíos no lo extienden).
     # Vencido, la cuenta pendiente se elimina (app/services/unverifiedAccounts.py).
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
@@ -290,6 +294,15 @@ class Settings(BaseSettings):
     def validarIntervaloDeAvisos(cls, value: int) -> int:
         if not 10 <= value <= 3600:
             raise ValueError("NOTIFICATIONS_INTERVAL_SECONDS debe estar entre 10 y 3600 (no se puede desactivar: los recordatorios dependen de él).")
+        return value
+
+    @field_validator("ARGON2_MAX_CONCURRENT", "ARGON2_MAX_WAITING")
+    @classmethod
+    def validarLimitesArgon2(cls, value: int, info) -> int:
+        if info.field_name == "ARGON2_MAX_CONCURRENT" and not 1 <= value <= 16:
+            raise ValueError("ARGON2_MAX_CONCURRENT debe estar entre 1 y 16.")
+        if info.field_name == "ARGON2_MAX_WAITING" and not 0 <= value <= 64:
+            raise ValueError("ARGON2_MAX_WAITING debe estar entre 0 y 64.")
         return value
 
     @field_validator("DB_MAX_CONCURRENT_CALLS")

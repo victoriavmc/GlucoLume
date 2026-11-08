@@ -1,0 +1,11 @@
+# Clasificación de los fallos de la corrida C (HEAD final, zona horaria de la aplicación)
+# Columna 'en a3908c0': resultado del mismo test en el commit base de la auditoría (medido).
+# Clase: PREEXISTENTE = falla igual en la base; REGRESION_M2 = pasa en 446f967 y falla desde bd525e3; ENTORNO = requiere recursos no disponibles en el banco.
+test	en_a3908c0	clase y causa
+tests/test_emails.py (78)	fallan	PREEXISTENTE (medido en a3908c0). Causa según la guía de auditoría (entorno sintético de pruebas); no reanalizada en esta verificación
+tests/test_security_config.py::test_las_pruebas_no_leen_el_env_real	fallan	PREEXISTENTE (medido en a3908c0). Causa según la guía de auditoría (entorno de pruebas)
+tests/test_patient_access.py::test_la_api_directa_sin_autenticacion_es_rechazada	fallan	PREEXISTENTE / ENTORNO: la dependencia getDb real intenta SQL Server (500) antes de la autenticación; con base disponible responde 401 (verificado)
+tests/test_smtp_limits.py (3)	fallan	PREEXISTENTE (medido en a3908c0). Observado: AttributeError 'NoneType' has no attribute 'encode' en email/utils; causa no investigada más allá de eso
+tests/test_platform_dashboard.py::test_el_resumen_de_seguridad_...	pasan	REGRESION_M2: espera bloqueosTemporales==1 tras 4 fallos; el umbral vigente por origen es 5 (fallo esperado del cambio de comportamiento)
+tests/test_user_notifications.py::test_el_bloqueo_real_...	pasan	REGRESION_M2: usa MAX_FAILED_LOGIN_ATTEMPTS=3 (constante vieja) y exige un INTENTO_INGRESO por cada rechazo; con el umbral 5 el aviso se dispara una vez y los rechazos bloqueados no dejan INTENTO_INGRESO (verificado)
+tests/test_user_notifications.py::test_el_correo_de_bloqueo_se_apaga_...	pasan	REGRESION_M2: mismo motivo (constante de 3 intentos)

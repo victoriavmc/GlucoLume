@@ -47,7 +47,8 @@ FORBIDDEN_CONTEXT_KEYS = frozenset(
 # Rutas del frontend a las que apuntan los botones (las implementa el frontend).
 FRONTEND_ROUTES = {
     "ingreso": "/login",
-    "seguridad": "/cuenta/seguridad",
+    "seguridad": "/app/seguridad",  # página de seguridad de la aplicación (cuentas de la aplicación)
+    "plataformaSeguridad": "/plataforma/seguridad",  # la misma página para cuentas de plataforma (ver urlSeguridad)
     # Pantalla que confirma la eliminación con POST /api/v1/auth/account-deletion/confirm.
     "eliminarCuenta": "/cuenta/eliminar/confirmar",
     # Pantalla que desactiva el aviso con POST /api/v1/auth/notifications/new-login/unsubscribe.
@@ -80,6 +81,15 @@ _cacheBuzones = mailboxCheck.CacheVeredictos()
 
 class EmailContextError(ValueError):
     """Datos inválidos para un correo (error de programación del llamador)."""
+
+
+# Cuentas de plataforma: su página de seguridad es la del área /plataforma, no la de la aplicación (B-2, auditoría 07/11/2026).
+TIPOS_PLATAFORMA = ("ADMINISTRADOR_PLATAFORMA", "MODERADOR_PLATAFORMA")
+
+
+def urlSeguridad(tipoCuenta: str | None) -> str:
+    """Página de seguridad a la que apuntan los correos de alerta: la de /app, o la de /plataforma para cuentas de plataforma."""
+    return frontendUrl("plataformaSeguridad" if tipoCuenta in TIPOS_PLATAFORMA else "seguridad")
 
 
 def frontendUrl(route: str) -> str:

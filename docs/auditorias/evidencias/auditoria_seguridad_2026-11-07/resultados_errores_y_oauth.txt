@@ -1,0 +1,30 @@
+# B-3 · Páginas de error y OAuth: cabeceras antes y después (mismo entorno; backend uvicorn con flags del contenedor)
+# Se transcriben las salidas medidas (curl -D). Las cabeceras que cambian entre ANTES y DESPUÉS son las de Content-Security-Policy.
+
+## 1. 502 de nginx con el backend caído (GET /api/v1/healthz)
+ANTES   HTTP/1.1 502 Bad Gateway | Content-Type: text/html | X-Content-Type-Options: nosniff | X-Frame-Options: DENY
+        Referrer-Policy: strict-origin-when-cross-origin | Permissions-Policy: camera=(), microphone=(), geolocation=()
+        Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; ... (la de la aplicación)
+DESPUÉS HTTP/1.1 502 Bad Gateway | Content-Type: text/html | X-Content-Type-Options: nosniff | X-Frame-Options: DENY
+        Referrer-Policy: strict-origin-when-cross-origin | Permissions-Policy: camera=(), microphone=(), geolocation=()
+        Content-Security-Policy: default-src 'none'; frame-ancestors 'none'  (la de la API; la página es HTML de nginx sin scripts)
+
+## 2. 429 de ráfaga de autenticación (POST /api/v1/auth/login)
+ANTES   HTTP/1.1 429 Too Many Requests | Content-Type: text/html | (sin Retry-After) | cuerpo: "<html><title>429 Too Many Requests</title>"
+        cabeceras de seguridad: una vez cada una (CSP de la aplicación)
+DESPUÉS HTTP/1.1 429 Too Many Requests | Content-Type: application/json | Retry-After: 1 | Cache-Control: no-store
+        cuerpo: {"codigo":"DEMASIADAS_SOLICITUDES","detail":"Hiciste demasiadas solicitudes seguidas. Esperá unos minutos e intentá de nuevo."}
+        X-Content-Type-Options: nosniff | X-Frame-Options: DENY | Referrer-Policy: strict-origin-when-cross-origin
+        Permissions-Policy: camera=(), microphone=(), geolocation=() | Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+        (Medido en una IP nueva: el 429 de la aplicación, con "retry-after: 600", tiene la misma CSP de la API y una sola copia de cada cabecera.)
+
+## 3. OAuth: GET /api/v1/auth/google/login (credenciales SINTÉTICAS en el backend de prueba)
+ANTES   HTTP/1.1 302 Found | location: https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=…&redirect_uri=…&state=…&nonce=…&code_challenge=…&code_challenge_method=S256
+        Antes: x-content-type-options ×2 · referrer-policy ×2 (la última gana: strict-origin-when-cross-origin) · content-security-policy ×2
+DESPUÉS HTTP/1.1 302 Found | location: https://accounts.google.com/o/oauth2/v2/auth?… (mismos parámetros; state, nonce y PKCE nuevos)
+        Después: X-Content-Type-Options ×1 · Referrer-Policy: strict-origin-when-cross-origin ×1 · Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+        (La CSP no aplica a una respuesta de redirección; la Referrer-Policy efectiva es la misma que antes.)
+
+## 4. OAuth: GET /api/v1/auth/google/callback?code=x&state=y (sin cookie de estado)
+ANTES y DESPUÉS: HTTP 500 {"codigo":"ERROR_SERVIDOR"}. Causa: ImportError libodbc.so.2 (el contenedor de prueba no tiene el driver ODBC de SQL Server); no es una regresión de cabeceras.
+        La lógica del callback se prueba con SQLite en tests/test_google_exchange.py y tests/test_google_registro_datos.py (ver resultados_pruebas_b3.txt).

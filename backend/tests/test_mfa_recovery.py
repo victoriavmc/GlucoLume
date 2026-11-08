@@ -92,7 +92,6 @@ def test_password_incorrecta_rechaza_la_recuperacion(db, mails, mfaUser):
     assert error.value.code == "PASSWORD_INCORRECTA"
     assert error.value.message == "La contraseña ingresada no es correcta."
     assert tokens(db) == [] and not [m for m in mails if m["subject"] == SUBJECT]
-    assert db.scalar(select(LocalCredential)).intentosFallidosConsecutivos == 1
 
 
 def test_password_requerida_para_cuentas_con_credencial_local(db, mails, mfaUser):

@@ -1,0 +1,12 @@
+operaciones base: 257 head: 257
+solo en base: []
+solo en head: []
+cambios de códigos de respuesta: 0
+cambios de parámetros: 0
+cambios de requestBody.required: 0
+componentes solo en base: []
+componentes solo en head: []
+cambios de restricciones o campos en esquemas: 3
+   ('AccountMfaRecoveryVerifyRequest', 'codigo', {'pattern': '^\\s*\\d{6}\\s*$'}, {'maxLength': 16, 'pattern': '^\\s*\\d{6}\\s*$'})
+   ('LoginRequest', 'password', {'minLength': 1, 'format': 'password'}, {'maxLength': 256, 'minLength': 1, 'format': 'password'})
+   ('MfaRecoveryVerifyRequest', 'codigo', {'pattern': '^\\s*\\d{6}\\s*$'}, {'maxLength': 16, 'pattern': '^\\s*\\d{6}\\s*$'})

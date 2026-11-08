@@ -8,7 +8,9 @@ import hashlib
 import hmac
 import re
 import secrets
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +22,7 @@ from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 
 from app.core.config import getSettings
+from app.core.exceptions import AuthError
 from app.utils.timeZone import nowArgentina
 
 JWT_ISSUER = "glucolume"
@@ -47,6 +50,45 @@ ARGON2_PARALLELISM = 4
 _passwordHash = PasswordHash((Argon2Hasher(time_cost=ARGON2_TIME_COST, memory_cost=ARGON2_MEMORY_COST_KIB, parallelism=ARGON2_PARALLELISM),))
 # Hash de referencia para igualar el tiempo de respuesta cuando el usuario no existe.
 _DUMMY_PASSWORD_HASH = _passwordHash.hash(secrets.token_urlsafe(16))
+
+# Control de concurrencia de Argon2 (M-3, auditoría 07/11/2026). Cada operación reserva ~64 MiB y usa varios núcleos: sin límite, N logins
+# simultáneos reservan N × 64 MiB y ocupan el threadpool compartido (los endpoints que consultan la base también esperan ahí).
+# - Corren a la vez como máximo ARGON2_MAX_CONCURRENT (memoria y CPU acotadas).
+# - Esperan como máximo ARGON2_MAX_WAITING. Lo que no entra responde 503 SERVIDOR_OCUPADO de inmediato: no retiene hilos del threadpool.
+# - Esperar un lugar tiene tope de ARGON2_WAIT_SECONDS; después también 503.
+# Un rechazo por saturación NO es un fallo de contraseña: loginThrottle (M-2) no lo cuenta, así que un equipo ocupado no bloquea usuarios.
+# No cambia el coste criptográfico ni el formato de los hashes: solo cuántos se calculan a la vez.
+ARGON2_WAIT_SECONDS = 5.0
+ARGON2_RETRY_AFTER_SECONDS = 2
+SERVER_BUSY_MESSAGE = "El servidor está procesando muchos ingresos. Intentá de nuevo en unos segundos."
+_argonSlots = threading.BoundedSemaphore(getSettings().ARGON2_MAX_CONCURRENT)
+_argonWaitingLock = threading.Lock()
+_argonWaiting = 0
+
+
+def _serverBusy() -> AuthError:
+    return AuthError("SERVIDOR_OCUPADO", SERVER_BUSY_MESSAGE, retryAfterSeconds=ARGON2_RETRY_AFTER_SECONDS)
+
+
+@contextmanager
+def _argonSlot():
+    """Reserva un lugar para una operación Argon2 y lo libera al salir, también si la operación falla."""
+    global _argonWaiting
+    with _argonWaitingLock:
+        if _argonWaiting >= getSettings().ARGON2_MAX_WAITING:
+            raise _serverBusy()
+        _argonWaiting += 1
+    try:
+        acquired = _argonSlots.acquire(timeout=ARGON2_WAIT_SECONDS)
+    finally:
+        with _argonWaitingLock:
+            _argonWaiting -= 1
+    if not acquired:
+        raise _serverBusy()
+    try:
+        yield
+    finally:
+        _argonSlots.release()
 
 
 
@@ -135,17 +177,20 @@ def passwordContainsPersonalData(password: str, *identifiers: str | None) -> boo
 
 
 def hashPassword(password: str) -> str:
-    return _passwordHash.hash(password)
+    with _argonSlot():
+        return _passwordHash.hash(password)
 
 
 def verifyPassword(password: str, passwordHash: str) -> tuple[bool, str | None]:
-    """Devuelve (válida, nuevoHash). nuevoHash no es None si conviene rehashear."""
-    return _passwordHash.verify_and_update(password, passwordHash)
+    """Devuelve (válida, nuevoHash). nuevoHash no es None si conviene rehashear. Puede lanzar AuthError SERVIDOR_OCUPADO."""
+    with _argonSlot():
+        return _passwordHash.verify_and_update(password, passwordHash)
 
 
 def verifyDummyPassword(password: str) -> None:
     """Consume el mismo tiempo que una verificación real para no revelar si la cuenta existe."""
-    _passwordHash.verify(password, _DUMMY_PASSWORD_HASH)
+    with _argonSlot():
+        _passwordHash.verify(password, _DUMMY_PASSWORD_HASH)
 
 
 # --- Tokens opacos -----------------------------------------------------------------------

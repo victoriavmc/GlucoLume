@@ -164,7 +164,8 @@ def test_cien_solicitudes_simultaneas_en_sql_server_dejan_una_sola_medicion(sql,
     assert real.origenGlucosa == "SIN_CALIBRAR" and real.glucosaDispositivo is None and real.unidadGlucosa is None
     assert measurements.ownStatistics(db, user, 7).cantidadMediciones == 1
 
-    # Los CHECK de la migración rechazan combinaciones imposibles.
+    # Los CHECK de la migración rechazan combinaciones imposibles (sobre la medición recién guardada, `real`).
+    realId = real.idMedicion
     for values in ({"origenGlucosa": None, "glucosaDispositivo": 100, "unidadGlucosa": "mg/dL"},  # valor sin origen
                    {"origenGlucosa": "DEMO", "glucosaDispositivo": None},  # DEMO sin valor
                    {"origenGlucosa": "DEMO", "glucosaDispositivo": 100, "unidadGlucosa": "mmol/L"},  # unidad desconocida
@@ -172,7 +173,7 @@ def test_cien_solicitudes_simultaneas_en_sql_server_dejan_una_sola_medicion(sql,
         with pytest.raises(IntegrityError):
             db.execute(text(
                 "UPDATE dbo.Medicion SET " + ", ".join(f"{k} = :{k}" for k in values) + " WHERE idMedicion = :id"),
-                {**values, "id": legacy.idMedicion})
+                {**values, "id": realId})
         db.rollback()
 
     # Guardar dos veces la misma sesión no duplica nada; los DEMO se eliminan sin tocar lo real.
@@ -183,7 +184,8 @@ def test_cien_solicitudes_simultaneas_en_sql_server_dejan_una_sola_medicion(sql,
         measurements.deleteDemoMeasurement(db, user, real.idMedicion)
     assert protected.value.code == "DATO_NO_ELIMINABLE"
     remaining = {i.idMedicion for i in measurements.listOwnHistory(db, user).items}
-    assert remaining == {legacy.idMedicion, real.idMedicion}
+    # Se borró la única medición DEMO de la carrera (un solo borrado): queda solo la real.
+    assert remaining == {real.idMedicion}
     assert measurements.listOwnHistory(db, user, origen="DEMO").total == 0
 
 

@@ -17,6 +17,7 @@ from app.models.measurement import Measurement
 from app.models.technicalAudit import TechnicalAudit
 from app.models.user import User
 from app.services import auth as authService
+from app.services import loginThrottle
 from app.services import institutionPatients as patients
 from app.services import platformDashboard
 from app.utils.timeZone import nowForDb
@@ -181,7 +182,7 @@ def test_las_mediciones_son_volumen_operativo_con_errores_tecnicos_y_demo_aparte
 
 def test_el_resumen_de_seguridad_sale_de_la_auditoria_y_del_estado_real_de_las_cuentas(db, mails, admin):
     target = makeUser(db, email="objetivo@example.com", usuario="objetivo")
-    for _ in range(4):  # 4 contraseñas incorrectas: bloqueo temporal
+    for _ in range(loginThrottle.LIMITES[0][1]):  # límite de login por origen (M-2): al quinto fallo, bloqueo temporal
         with pytest.raises(AuthError):
             authService.loginLocal(db, "objetivo", "incorrecta-1A#")
     with pytest.raises(AuthError):

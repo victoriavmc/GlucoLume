@@ -1,0 +1,5 @@
+# Ensayo de rollback (07/11/2026): git revert --no-commit a3908c0..HEAD en un worktree desechable
+conflictos: ninguno
+código de producción (backend/app, docker, frontend) tras el rollback vs a3908c0: IDÉNTICO
+pruebas (backend/tests) tras el rollback vs a3908c0: IDÉNTICAS
+(el worktree se eliminó; no se confirmó ningún revert en la rama)

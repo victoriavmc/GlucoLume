@@ -1,0 +1,27 @@
+# M-2 · Respuesta del límite de ráfaga de nginx (limit_req en /api/v1/auth/), Nginx 1.24 local, backend de prueba sin base.
+# Ráfaga: 150 POST en ~1 s desde una IP de loopback. Las respuestas 500 son del backend sin base (cuentan para el límite).
+# Se separan los 429 del borde (nginx) de los de la aplicación (límite por IP) mirando el cuerpo y Retry-After.
+
+## ANTES (plantilla con limit_req sin error_page)
+#   90 × 429 (72 con cuerpo HTML «429 Too Many Requests» de nginx, sin Retry-After; 18 JSON de la aplicación)
+#   60 × 500 (backend sin base)
+#   Conclusión: la respuesta del borde no tenía la forma de la API ni Retry-After.
+
+## DESPUÉS (plantilla con error_page 429 = @auth_limite)
+#   90 × 429, 0 respuestas con cuerpo HTML (grep «<html»: 0)
+#   60 × 500 (backend sin base)
+#   Respuesta de borde (curl -D):
+#   HTTP/1.1 429 Too Many Requests
+#   Server: nginx
+#   Content-Type: application/json
+#   Content-Length: 129
+#   Connection: keep-alive
+#   Retry-After: 1
+#   Cache-Control: no-store
+#   X-Content-Type-Options: nosniff
+#   X-Frame-Options: DENY
+#   Referrer-Policy: strict-origin-when-cross-origin
+#   Permissions-Policy: camera=(), microphone=(), geolocation=()
+#   Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+#   
+#   cuerpo: {"codigo":"DEMASIADAS_SOLICITUDES",...}

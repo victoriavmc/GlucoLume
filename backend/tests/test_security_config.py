@@ -3,6 +3,8 @@
 #
 #     python -m pytest tests/test_security_config.py -v
 
+import os
+import types
 import smtplib
 import ssl
 from email.message import EmailMessage
@@ -248,7 +250,9 @@ def test_en_produccion_se_verifica_el_certificado_de_sql_server(monkeypatch):
     monkeypatch.setattr(sessionModule, "getSettings", lambda: production)
     # Rama de Windows (ServerCertificate estricto): se fija el sistema para que la prueba no dependa de dónde corre; en Linux esa rama no aplica el
     # parámetro y lee el archivo (cubierto en la prueba siguiente).
-    monkeypatch.setattr(sessionModule.os, "name", "nt")
+    # Solo la referencia `os` de app.db.session: cambiar os.name del módulo os global dejaba a pathlib (y al guard de DELETE de las
+    # pruebas) creyendo que corre en Windows durante el teardown. environ se conserva.
+    monkeypatch.setattr(sessionModule, "os", types.SimpleNamespace(name="nt", environ=os.environ))
     captured = {}
     monkeypatch.setattr(sessionModule, "create_engine", lambda url, **kw: captured.setdefault("url", url))
     sessionModule._createEngine("app", "x")

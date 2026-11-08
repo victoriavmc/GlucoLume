@@ -1,0 +1,17 @@
+# DESPUÉS: plantilla de HEAD (6b8b7a5). Mismo entorno y mismo backend.
+RESPUESTA                          METODO RUTA                           CODIGO CABECERAS (veces)
+API JSON 404 backend               GET  /api/                          404   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+API JSON 405 backend               GET  /api/v1/auth/login             405   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+API JSON 422 validación           POST /api/v1/auth/login             500   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+API salud (liveness)               GET  /api/v1/healthz                200   content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+API SSE sin credenciales           GET  /api/v1/acquisition/stream     500   cache-control=1 content-security-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+Google login (sin configurar)      GET  /api/v1/auth/google/login      503   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+Swagger /docs (HTML)               GET  /docs                          200   content-security-policy=1 referrer-policy=1 x-content-type-options=1 
+SPA index (HTML)                   GET  /                              200   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+SPA ruta inexistente (200)         GET  /ruta-inexistente-xyz          200   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+Estático JS                       GET  /assets/index-prueba.js        200   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+robots.txt                         GET  /robots.txt                    200   content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+Estático inexistente (404)        GET  /assets/no-existe.js           404   content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+API inexistente (404 JSON)         GET  /api/no-existe                 404   cache-control=1 content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+Cuerpo 2 MB en /api (413)          POST /api/v1/contact                413   content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 
+Redirección /api (308)            GET  /api                           308   content-security-policy=1 permissions-policy=1 referrer-policy=1 x-content-type-options=1 x-frame-options=1 

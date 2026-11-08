@@ -191,7 +191,7 @@ docker compose down                       # quitar contenedores (conserva volúm
 docker stats                              # consumo frente a límites
 ```
 
-Salud: backend `GET /healthz` (no consulta la base, para no reiniciar en bucle si SQL Server cae); Nginx `GET /nginx-health`.
+Salud: backend `GET /healthz` (liveness: el proceso responde; no consulta la base, para no reiniciar en bucle si SQL Server cae); readiness para monitoreo interno en `http://backend:8000/api/v1/readyz` (la base responde y la tabla de sesiones existe; 200 `listo` o 503 `no_listo` con `Retry-After`, cacheado 5 s). Nginx responde 404 a `/api/v1/readyz`, así que no es pública. Ninguno expone versión ni detalles. Nginx `GET /nginx-health`.
 `restart: unless-stopped` (producción: `always`). La conexión a SQL Server se reintenta por pedido (`pool_pre_ping`).
 
 ## 6. Imágenes y dependencias

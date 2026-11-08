@@ -1,0 +1,21 @@
+# B-3 · Resultados de pruebas (rama con este cambio). Entorno: backend con SQLite de prueba; frontend con build real; Chromium local.
+
+## Backend (pytest)
+- test_security_hardening.py, test_retencion_logs.py, test_healthz.py, test_unhandled_errors.py,
+  test_google_exchange.py, test_google_registro_datos.py, test_refresh_cookie.py: 111 passed.
+- Nuevas o adaptadas (B-3): test_csp_de_la_api_en_nginx_es_la_misma_que_la_del_backend,
+  test_hsts_de_nginx_y_del_backend_son_el_mismo_valor, test_ubicaciones_con_cabeceras_propias_declaran_las_que_el_server_no_puede_heredar,
+  test_controles_de_infraestructura_preparados (parser de la CSP de la aplicación, ahora por map).
+- Contra HEAD (sin este cambio): fallan test_csp_de_la_api_en_nginx_es_la_misma_que_la_del_backend,
+  test_ubicaciones_con_cabeceras_propias_declaran_las_que_el_server_no_puede_heredar y test_controles_de_infraestructura_preparados.
+  test_hsts_de_nginx_y_del_backend_son_el_mismo_valor pasa en ambos (guarda contra deriva, sin cambio de valor).
+
+## Frontend
+- Build de producción (npm run build) en copia de trabajo: correcto.
+- Vitest: 856 de 857 pasan. La que falla, "PatientMeasure … última comida", excede el timeout de 5 s en este contenedor
+  (5260 ms, reproducible en aislamiento). frontend/src no cambió desde a3908c0: no tiene relación con las cabeceras.
+
+## SPA en Chromium servido por Nginx (verificar_spa_csp.cjs), antes y después
+- 11 páginas. React monta en las 8 páginas del SPA, con 0 violaciones de CSP y 0 errores de consola en ambas plantillas.
+- /docs (Swagger) necesita cdn.jsdelivr.net: el contenedor no tiene salida a internet (ERR_TUNNEL_CONNECTION_FAILED); no es un problema de CSP.
+- /api/v1/healthz: 404 antes (no existía, B-6) y 200 después.

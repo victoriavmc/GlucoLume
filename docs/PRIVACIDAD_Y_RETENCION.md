@@ -38,8 +38,9 @@ El consentimiento de los **pacientes institucionales** es responsabilidad de la 
 
 IP, cliente y correlación viven en `AuditoriaContexto`, separados del evento, solo los ve la administración y se anulan a los 90 días
 (`AUDIT_CONTEXT_RETENTION_DAYS`). El identificador escrito en un intento sobre una cuenta inexistente nunca se guarda en claro (HMAC). Los
-intentos sin cuenta identificable se eliminan a los 12 meses; el resto de la auditoría se conserva sin plazo hasta que se apruebe uno
-(`AUDIT_RETENTION_MONTHS=0`, propuesta técnica 24–36 meses). La auditoría no guarda datos de salud. Detalle: [SEGURIDAD.md](SEGURIDAD.md) §3.
+intentos sin cuenta identificable se eliminan a los 12 meses. Para el resto de la auditoría, el plazo inicial decidido es de 12 meses,
+salvo exigencia normativa o funcional que requiera otro. Estado: la depuración sigue desactivada (`AUDIT_RETENTION_MONTHS=0`) hasta informar
+`RETENTION_APPROVAL_REFERENCE` y verificar la purga en la base real (ver `docs/auditorias/PULL_REQUEST_master_2026-11-08.md`, riesgo 2). La auditoría no guarda datos de salud. Detalle: [SEGURIDAD.md](SEGURIDAD.md) §3.
 
 ## 4. Resultados por correo
 

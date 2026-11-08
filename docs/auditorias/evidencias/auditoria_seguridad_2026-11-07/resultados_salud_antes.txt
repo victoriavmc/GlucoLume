@@ -1,0 +1,5 @@
+# ANTES (HEAD, sin /api/v1/readyz). Medido con el backend de HEAD en un puerto de prueba (directo) y el mismo nginx (rama previa).
+/api/v1/readyz    (backend HEAD, directo)  404  {"detail":"Not Found"}    -> no existe readiness
+/api/v1/healthz   (backend HEAD, directo)  404  {"detail":"Not Found"}    -> la ruta del backend es /healthz (raíz)
+/api/v1/healthz   (nginx, rama previa)     200  {"estado":"ok"}           -> nginx reescribe a /healthz (B-6 previo)
+# Conclusión: solo había liveness. No había forma de saber si la base estaba disponible sin una petición que la use.

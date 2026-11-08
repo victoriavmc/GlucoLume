@@ -18,8 +18,9 @@ experimental**: sus resultados no reemplazan una medición clínica ni un consej
    **Reenviar correo de verificación** (no extiende el plazo).
 3. También podés **registrarte con Google**. Para entrar con Google tu cuenta ya tiene que existir; si ya tenías una con ese correo
    verificado, se vinculan solas.
-4. Para entrar: correo o usuario y contraseña; **Recordarme** mantiene la sesión en ese equipo. Con **3 intentos fallidos** el acceso se
-   bloquea 15 minutos. Si activaste la verificación en dos pasos, se pide el código (o uno de recuperación).
+4. Para entrar: correo o usuario y contraseña; **Recordarme** mantiene la sesión en ese equipo. Con **5 intentos fallidos seguidos desde
+   el mismo equipo** el ingreso se limita 15 minutos (y hasta una hora si insistís). Desde otro equipo podés entrar sin esperar. Si activaste
+   la verificación en dos pasos, se pide el código (o uno de recuperación).
 5. ¿Olvidaste la contraseña? **Recuperar contraseña** → enlace al correo.
 
 ### Inicio, perfil y seguridad
@@ -73,7 +74,7 @@ experimental**: sus resultados no reemplazan una medición clínica ni un consej
 | Qué ves | Qué hacer |
 |---|---|
 | «Cuenta pendiente de verificación» | Abrí el enlace o reenviá el correo |
-| Acceso bloqueado | Esperá 15 minutos |
+| Demasiados intentos desde este equipo | Esperá el tiempo indicado (15 minutos, o hasta una hora) o entrá desde otro equipo |
 | «Se necesita tu autorización» | Aceptá la autorización de datos experimentales en Mediciones |
 | El dispositivo está en uso por otra cuenta | Esperá a que termine o lo libere |
 | El botón de medir está deshabilitado | Revisá el estado de la conexión y que el dispositivo esté operativo |

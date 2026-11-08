@@ -1,0 +1,25 @@
+# ANTES DEL PARCHE (HEAD previo, 1931580): absolute_redirect off, sin location = /api.
+== 1) Redirección de /api (Host público: glucolume-server.tailb27487.ts.net)
+   GET /api
+   HTTP/1.1 301 Moved Permanently
+   Location: /api/
+   POST /api
+   HTTP/1.1 301 Moved Permanently
+   Location: /api/
+   GET /api?x=1
+   HTTP/1.1 301 Moved Permanently
+   Location: /api/?x=1
+   GET /api sin Host (acceso local)
+   HTTP/1.1 301 Moved Permanently
+   Location: /api/
+== 2) Rutas proxificadas (código y cuerpo del backend)
+   GET /api/                -> 404  {"detail":"Not Found"}
+   GET /api/v1/healthz      -> 200  {"estado":"ok"}
+   GET  /api/v1/auth/login -> 405  {"detail":"Method Not Allowed"}
+   POST /api/v1/auth/login -> 500  {"codigo":"ERROR_SERVIDOR","detail":"El servidor no pudo procesar la solicitud. 
+== 3) Seguimiento de redirecciones (curl -L, máx. 5 saltos)
+   /api -> final=http://127.0.0.1:8080/api/ codigo=404 saltos=1
+   /api?x=1 -> final=http://127.0.0.1:8080/api/?x=1 codigo=404 saltos=1
+== 4) Mixed content: Location de /api con acceso HTTPS de confianza (X-Forwarded-Proto: https)
+   Location: /api/
+   (vacío = sin Location absoluta; relativa = se resuelve contra el origen HTTPS del navegador)

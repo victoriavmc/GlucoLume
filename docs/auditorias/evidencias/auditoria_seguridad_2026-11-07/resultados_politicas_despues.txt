@@ -1,0 +1,22 @@
+# DESPUÉS (rama): política por respuesta
+API JSON 404 backend       /api/                       
+   CSP: default-src 'none'; frame-ancestors 'none'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin
+API SSE sin credenciales   /api/v1/acquisition/stream  
+   CSP: default-src 'none'; frame-ancestors 'none'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin
+Swagger /docs              /docs                       
+   CSP: default-src 'self'; img-src 'self' data: https://fastapi.tiangolo.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin
+SPA index (HTML)           /                           
+   CSP: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin
+Estático JS               /assets/index-prueba.js     
+   CSP: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin
+Error nginx 404 estático  /assets/no-existe.js        
+   CSP: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin
+Redirección /api          /api                        
+   CSP: default-src 'none'; frame-ancestors 'none'
+   Referrer-Policy (en orden): strict-origin-when-cross-origin

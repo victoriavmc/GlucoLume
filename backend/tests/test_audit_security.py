@@ -203,11 +203,12 @@ def test_cuenta_inactiva_y_sin_verificar_se_registran_con_su_motivo(db, mails, w
 
 def test_el_bloqueo_temporal_es_un_evento_confirmado_propio(db, mails, web):
     user = makeUser(db)
-    for _ in range(3):
+    for _ in range(5):
         login(web(), EMAIL)
-    login(web(), EMAIL, PASSWORD)  # cuenta bloqueada: ni siquiera la contraseña correcta entra
-    motives = sorted((e.accion, contextOf(db, e).motivo) for e in events(db) if e.tipoEvento == "LOGIN")  # el 3.º fallo y el bloqueo comparten instante
-    assert motives == sorted([("LOGIN_LOCAL", "PASSWORD_INCORRECTA")] * 3 + [("BLOQUEO_TEMPORAL_CUENTA", "INTENTOS_EXCEDIDOS"), ("LOGIN_LOCAL", "CUENTA_BLOQUEADA")])
+    login(web(), EMAIL, PASSWORD)  # límite alcanzado desde este origen: ni siquiera la contraseña correcta entra (M-2)
+    motives = sorted((e.accion, contextOf(db, e).motivo) for e in events(db) if e.tipoEvento == "LOGIN")  # el 5.º fallo y el límite comparten instante
+    # Cada intento rechazado por el límite queda auditado (LOGIN_LOCAL / CUENTA_BLOQUEADA), además del evento de activación del límite.
+    assert motives == sorted([("LOGIN_LOCAL", "PASSWORD_INCORRECTA")] * 5 + [("BLOQUEO_TEMPORAL_CUENTA", "INTENTOS_EXCEDIDOS"), ("LOGIN_LOCAL", "CUENTA_BLOQUEADA")])
     [lock] = events(db, "BLOQUEO_TEMPORAL_CUENTA")
     assert lock.idUsuario == user.idUsuario and lock.modulo == "SEGURIDAD"
     assert classification.classify(lock.accion, lock.resultado) == classification.CONFIRMADO

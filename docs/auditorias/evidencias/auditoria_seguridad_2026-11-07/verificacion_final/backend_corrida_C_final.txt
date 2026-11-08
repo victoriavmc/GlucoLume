@@ -1,0 +1,100 @@
+# Corrida C (FINAL): HEAD 1db54a6 con todos los fixes, zona horaria de la aplicación
+# Comando: python -m pytest tests -n 4 -q -p no:warnings -rfE  (en backend/, venv del banco)
+
+86 failed, 2480 passed, 203 skipped in 482.73s (0:08:02)
+
+## Fallidas (86)
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CUENTA_CREADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[EMAIL_VERIFICACION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[EMAIL_CAMBIADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ELIMINACION_SOLICITADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CUENTA_ELIMINADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PERIODO_GRACIA_INICIADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[RECUPERACION_PASSWORD]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PASSWORD_CAMBIADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CODIGO_CAMBIO_PASSWORD]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[NUEVO_INICIO_SESION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INTENTO_ACCESO_INUSUAL]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INICIO_BLOQUEADO_SESION_ACTIVA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MFA_ACTIVADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MFA_DESACTIVADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CODIGO_MFA_EMAIL]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[RECUPERACION_MFA_CODIGO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[RECUPERACION_MFA_DESVINCULAR]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[METODO_MFA_CAMBIADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[GOOGLE_VINCULADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[GOOGLE_DESVINCULADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[GRUPO_CREADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_GRUPO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_GRUPO_NUEVA_CUENTA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_GRUPO_ENVIADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[AGREGADO_GRUPO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ELIMINADO_GRUPO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MIEMBRO_ABANDONO_GRUPO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MIEMBRO_AGREGADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MEDICION_MIEMBRO_GRUPO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[NOVEDAD_GRUPO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MIEMBRO_ELIMINADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ADMIN_GRUPO_ASIGNADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ADMIN_GRUPO_CAMBIADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[GRUPO_ELIMINADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[GRUPO_ELIMINADO_CONFIRMACION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INSTITUCION_CREADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_INSTITUCION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_INSTITUCION_NUEVA_CUENTA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_ACEPTADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_RECHAZADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[AGREGADO_INSTITUCION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ELIMINADO_INSTITUCION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PACIENTE_REGISTRADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PACIENTE_ASIGNADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PACIENTE_REASIGNADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PACIENTE_BAJA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ASIGNACION_PACIENTE_GESTION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[TRANSFERENCIA_SOLICITADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[TRANSFERENCIA_ACEPTADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[TRANSFERENCIA_RECHAZADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[TRANSFERENCIA_CANCELADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[OPERADOR_AGREGADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[OPERADOR_ELIMINADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[PACIENTES_PENDIENTES_REASIGNACION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ROL_INSTITUCIONAL_CAMBIADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INSTITUCION_ELIMINADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INSTITUCION_ELIMINADA_ADMINISTRATIVAMENTE]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[AVISO_INSTITUCION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MEDICION_REGISTRADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[RESULTADO_MEDICION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CONFIRMAR_CORREO_RESULTADOS]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[MEDICION_FUERA_UMBRAL]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ERROR_MEDICION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[AVISO_RESULTADO_ENVIADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[RECORDATORIO_MEDICION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INFORMACION_RETENCION_DATOS]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CONTACTO_RECIBIDO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[CONTACTO_CONFIRMACION]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_PLATAFORMA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INVITACION_PLATAFORMA_ENVIADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ACCESO_PLATAFORMA_REVOCADO]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ALERTA_SEGURIDAD_PLATAFORMA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ALERTA_INTENTO_ACCESO_ADMIN]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[TRANSFERENCIA_ADMIN_SOLICITADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[TRANSFERENCIA_ADMIN_RESPONDIDA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[ADMINISTRACION_ASIGNADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INSTITUCION_PAUSADA]
+FAILED tests/test_emails.py::test_banner_adjunto_como_cid[INSTITUCION_REACTIVADA]
+FAILED tests/test_patient_access.py::test_la_api_directa_sin_autenticacion_es_rechazada
+FAILED tests/test_platform_dashboard.py::test_el_resumen_de_seguridad_sale_de_la_auditoria_y_del_estado_real_de_las_cuentas
+FAILED tests/test_security_config.py::test_las_pruebas_no_leen_el_env_real
+FAILED tests/test_smtp_limits.py::test_nunca_hay_mas_conexiones_que_el_limite
+FAILED tests/test_smtp_limits.py::test_sin_lugar_en_el_limite_el_envio_falla_sin_conectar
+FAILED tests/test_smtp_limits.py::test_vencimiento_durante_la_transmision_se_informa_como_tiempo_total
+FAILED tests/test_user_notifications.py::test_el_bloqueo_real_de_la_cuenta_por_intentos_fallidos_avisa_una_sola_vez
+FAILED tests/test_user_notifications.py::test_el_correo_de_bloqueo_se_apaga_y_el_aviso_de_pagina_sigue
+
+## Saltadas por motivo
+     33 1 x Prueba opcional con SQL Server descartable: ver el encabezado del archivo. (tests/test_device_connection.py)
+     20 1 x Prueba opcional con SQL Server descartable: ver el encabezado del archivo. (tests/test_platform_recovery.py)
+      5 1 x Prueba opcional con SQL Server descartable: ver el encabezado del archivo. (tests/test_platform_sqlserver.py)
+      2 1 x Prueba opcional con SQL Server descartable: ver el encabezado del archivo. (tests/test_telemetry_sqlserver.py)
+    101 1 x Prueba opcional con SQL Server descartable: ver el encabezado del archivo. (tests/test_user_notifications.py)
+     11 1 x Prueba opcional: requiere TEST_SQLSERVER_RET_URL (cuenta de mantenimiento) en una base descartable localhost. (tests/test_technical_retention_sqlserver.py)

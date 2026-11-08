@@ -1319,7 +1319,7 @@ def _reauthenticate(
     if credential is not None:
         if data.password is None:
             raise AuthError("PASSWORD_REQUERIDA", "Ingresá tu contraseña actual para confirmar la operación.")
-        if not authService.verifyCurrentPassword(db, credential, data.password.get_secret_value()):
+        if not authService.verifyCurrentPassword(db, credential, data.password.get_secret_value(), f"institucion:{accion}"):
             registerEvent(db, "CRUD", accion, False, actor.idUsuario, "Institucion", idInstitucion,
                           observacion="Motivo: PASSWORD_INCORRECTA")
             db.commit()

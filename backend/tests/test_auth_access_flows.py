@@ -134,12 +134,13 @@ def test_sesiones_denegadas_o_bloqueadas_son_fallidas_y_no_abren_sesion(db, mail
     with pytest.raises(AuthError):
         authService.loginLocal(db, "bloqueada", PASSWORD)  # contraseña correcta, cuenta que no puede entrar
     makeUser(db, email="otra@example.com", usuario="otra")
-    for _ in range(3):
+    for _ in range(5):
         with pytest.raises(AuthError):
-            authService.loginLocal(db, "otra", WRONG)  # el tercero bloquea temporalmente: sigue siendo un intento, no dos
+            authService.loginLocal(db, "otra", WRONG)  # cinco fallos desde el mismo origen: cada uno cuenta una vez
     with pytest.raises(AuthError):
-        authService.loginLocal(db, "otra", PASSWORD)  # durante el bloqueo ni la contraseña correcta sirve
-    assert sessions(db) == 0 and individual(db) == (5, 0)
+        authService.loginLocal(db, "otra", PASSWORD)  # límite alcanzado: ni la contraseña correcta sirve desde ese origen (M-2)
+    # 1 de la cuenta bloqueada + 5 contraseñas incorrectas + 1 intento rechazado por el límite (auditado como CUENTA_BLOQUEADA, M-2)
+    assert sessions(db) == 0 and individual(db) == (7, 0)
 
 
 def test_el_segundo_factor_bloqueado_cuenta_cada_intento_una_vez(db, mails):

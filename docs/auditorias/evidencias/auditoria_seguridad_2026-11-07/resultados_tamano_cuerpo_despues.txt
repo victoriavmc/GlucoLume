@@ -1,0 +1,16 @@
+# DESPUÉS (rama): 160k general, 16k auth, 768k ingesta, 384k muestras/offboarding; 413 JSON en todas las ubicaciones. Backend uvicorn real.
+OPERACION                                RUTA                               BYTES CODIGO             CONTENT-TYPE           RECHAZADO POR NGINX
+General (contacto), justo bajo 160k      /api/v1/contact                   163840 422                application/json       no (llega al backend)
+General (contacto), 160k + 1 byte        /api/v1/contact                   163841 413                application/json       SI (nginx 413)
+General (contacto), 1 MB (antes aceptado) /api/v1/contact                  1000000 413                application/json       SI (nginx 413)
+Autenticación login, justo bajo 16k     /api/v1/auth/login                 16384 500                application/json       no (llega al backend)
+Autenticación login, 16k + 1 byte       /api/v1/auth/login                 16385 413                application/json       SI (nginx 413)
+Ingesta puente, justo bajo 768k          /api/v1/acquisition/bridge/ingest    786432 500                application/json       no (llega al backend)
+Ingesta puente, 768k + 1 byte            /api/v1/acquisition/bridge/ingest    786433 413                application/json       SI (nginx 413)
+Ingesta navegador, 700 KB                /api/v1/acquisition/browser/ingest    716800 500                application/json       no (llega al backend)
+Muestras, justo bajo 384k                /api/v1/measurements/00000000-0000-0000-0000-000000000000/samples    393216 500                application/json       no (llega al backend)
+Muestras, 384k + 1 byte                  /api/v1/measurements/00000000-0000-0000-0000-000000000000/samples    393217 413                application/json       SI (nginx 413)
+Offboarding, justo bajo 384k             /api/v1/institutions/00000000-0000-0000-0000-000000000000/operators/00000000-0000-0000-0000-000000000000/offboard    393216 500                application/json       no (llega al backend)
+Offboarding, 384k + 1 byte               /api/v1/institutions/00000000-0000-0000-0000-000000000000/operators/00000000-0000-0000-0000-000000000000/offboard    393217 413                application/json       SI (nginx 413)
+Matrices (reglas, peor caso 96 KB)       /api/v1/matrices                   98304 500                application/json       no (llega al backend)
+Exportación (peor caso 123 KB)          /api/v1/institutions/00000000-0000-0000-0000-000000000000/patients/export    125952 500                application/json       no (llega al backend)

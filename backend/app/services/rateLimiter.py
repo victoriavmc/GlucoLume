@@ -160,6 +160,32 @@ class RateLimiter:
                     return True
         return self._exceededLocal(key, now)
 
+    def retryAfter(self, key: str, now: float | None = None) -> float:
+        """Segundos hasta que `key` pueda volver a registrar un evento (0 si no está en el máximo). Exacto en memoria; con Redis
+        compartido, la cota superior (la ventana entera)."""
+        if self.name is not None and now is None:
+            backend, onFailure = sharedBackend()
+            if backend is not None:
+                outcome = backend.exceeded(self.name, key, self.maxEvents, self.windowSeconds)
+                if outcome is not None:
+                    return float(self.windowSeconds) if outcome else 0.0
+                if onFailure == "deny":
+                    return float(self.windowSeconds)
+        return self._retryAfterLocal(key, now)
+
+    def _retryAfterLocal(self, key: str, now: float | None) -> float:
+        now = time.monotonic() if now is None else now
+        with self._lock:
+            events = self._events.get(key)
+            if not events:
+                return 0.0
+            vigentes = [moment for moment in events if now - moment < self.windowSeconds]
+            if len(vigentes) < self.maxEvents:
+                return 0.0
+            # Para liberar un lugar vence el evento (len - max)-ésimo más antiguo: ese instante marca el fin del bloqueo.
+            liberador = vigentes[len(vigentes) - self.maxEvents]
+            return max(0.0, liberador + self.windowSeconds - now)
+
     def _allowLocal(self, key: str, now: float | None) -> bool:
         now = time.monotonic() if now is None else now
         with self._lock:

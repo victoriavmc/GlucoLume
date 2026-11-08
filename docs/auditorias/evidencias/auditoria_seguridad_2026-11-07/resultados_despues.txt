@@ -1,0 +1,28 @@
+# Después: plantilla de la rama de trabajo (cambios de auditoría 07/11/2026) — Nginx 1.24 local, backend uvicorn local
+== M-1: redirección de /api (Location relativa, sin puerto interno ni esquema)
+   HTTP/1.1 301 Moved Permanently
+   Location: /api/
+== B-1: límite de cuerpo en autenticación (16 KB) y en /api/ general (1 MB, sin cambio)
+   login cuerpo 1mb -> 413
+   login cuerpo 17k -> 413
+   login cuerpo 15k -> 422
+   /api/v1/contact cuerpo 1mb -> 422
+== B-2: rutas inexistentes (soft 404 de la SPA: 200 con index.html; no es fuga de datos)
+   /ruta-inexistente-xyz -> 200 text/html
+   /.git/config -> 200 text/html
+   /phpinfo.php -> 200 text/html
+   /robots.txt -> 200 text/plain
+   /assets/no-existe.js -> 404 text/html
+== B-3: cabeceras de seguridad por respuesta (cada una debe aparecer UNA sola vez)
+   /api/                          cache-control x1  content-security-policy x1  permissions-policy x1  referrer-policy x1  x-content-type-options x1  x-frame-options x1  
+   /api/v1/auth/login             cache-control x1  content-security-policy x1  permissions-policy x1  referrer-policy x1  x-content-type-options x1  x-frame-options x1  
+   /api/v1/acquisition/stream     cache-control x1  content-security-policy x1  referrer-policy x1  x-content-type-options x1  x-frame-options x1  
+   /docs                          content-security-policy x1  referrer-policy x1  x-content-type-options x1  
+   /index.html                    cache-control x1  content-security-policy x1  permissions-policy x1  referrer-policy x1  x-content-type-options x1  x-frame-options x1  
+== B-6: liveness publicado y readiness no publicado
+   /api/v1/healthz -> 200
+   /api/v1/readyz -> 404
+   /api/health -> 404
+== B-5 / B-7: aislamiento de origen y reporte de CSP en /
+   Referrer-Policy: strict-origin-when-cross-origin
+   (sin líneas arriba = ausentes)

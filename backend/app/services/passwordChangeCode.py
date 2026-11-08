@@ -67,7 +67,7 @@ def requestCode(db: Session, user: User, password: str) -> str:
     credential = db.scalar(select(LocalCredential).where(LocalCredential.idUsuario == user.idUsuario))
     if credential is None:
         raise AuthError("CUENTA_SOLO_GOOGLE", "Tu cuenta ingresa con Google y no tiene contraseña local.")
-    if not authService.verifyCurrentPassword(db, credential, password):
+    if not authService.verifyCurrentPassword(db, credential, password, "codigo_cambio_contrasena"):
         registerEvent(db, "PERMISO", ACCION_SOLICITUD, False, user.idUsuario, observacion="Contraseña incorrecta",
                       motivo="PASSWORD_INCORRECTA")
         db.commit()
