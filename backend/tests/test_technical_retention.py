@@ -46,9 +46,9 @@ def retentionSettings(monkeypatch):
 
 def event(db, *, when, accion="LOGIN_LOCAL", tipo="LOGIN", resultado="EXITO", user=None, ip="203.0.113.7", agente="Mozilla/5.0 (test)"):
     """Un evento de auditoría con su contexto técnico (IP y agente), con la fecha indicada."""
-    # `when` llega en hora de Argentina (como nowForDb); la base guarda los eventos en UTC (sysutcdatetime()).
+    # `when` llega en hora de Argentina, igual que la aplicación guarda Auditoria.fechaHora (hook de app/db/base.py).
     row = Audit(idAuditoria=uuid.uuid4(), idUsuario=user.idUsuario if user is not None else None, tipoEvento=tipo, accion=accion,
-                resultado=resultado, fechaHora=argentinaToUtc(when), modulo="AUTENTICACION")
+                resultado=resultado, fechaHora=when, modulo="AUTENTICACION")
     db.add(row)
     db.flush()
     db.add(AuditContext(idAuditoria=row.idAuditoria, ipOrigen=ip, agenteUsuario=agente, idCorrelacion="corr-prueba"))
@@ -85,19 +85,19 @@ def test_evento_de_cuenta_activa_vence_a_los_90_dias(db, mails, age, anulada):
     assert ctx.idCorrelacion == "corr-prueba"  # la trazabilidad sigue
 
 
-def test_vencimiento_usa_utc_del_evento_no_la_hora_local(db, mails):
-    """El evento queda guardado en UTC: a las 12:00 UTC (09:00 en Argentina) vence exactamente a los 90 días de esa instante UTC."""
+def test_vencimiento_usa_la_hora_que_guarda_la_aplicacion(db, mails):
+    """La aplicación guarda el evento en hora de Argentina: a las 09:00 (12:00 UTC) vence exactamente a los 90 días de ese instante."""
     from datetime import datetime, timezone
     user = makeUser(db)
-    utcEvent = datetime(2026, 1, 1, 12, 0, 0)  # instante UTC guardado
+    appEvent = datetime(2026, 1, 1, 9, 0, 0)  # hora de Argentina guardada por la aplicación
     row = Audit(idAuditoria=uuid.uuid4(), idUsuario=user.idUsuario, tipoEvento="LOGIN", accion="LOGIN_LOCAL", resultado="FALLO",
-                fechaHora=utcEvent, modulo="AUTENTICACION")
+                fechaHora=appEvent, modulo="AUTENTICACION")
     db.add(row)
     db.flush()
     db.add(AuditContext(idAuditoria=row.idAuditoria, ipOrigen="203.0.113.7", agenteUsuario="prueba", idCorrelacion="corr-utc"))
     db.commit()
-    justBefore = datetime(2026, 4, 1, 8, 59, 59)  # hora de Argentina: 11:59:59 UTC
-    atExpiry = datetime(2026, 4, 1, 9, 0, 0)  # hora de Argentina: 12:00:00 UTC
+    justBefore = datetime(2026, 4, 1, 8, 59, 59)  # hora de Argentina
+    atExpiry = datetime(2026, 4, 1, 9, 0, 0)  # hora de Argentina (12:00 UTC)
     assert sweep(db, justBefore) == 0 and context(db, row).ipOrigen is not None
     assert sweep(db, atExpiry) == 1 and context(db, row).ipOrigen is None
     assert timezone.utc is not None  # referencia explícita a la zona UTC del cálculo

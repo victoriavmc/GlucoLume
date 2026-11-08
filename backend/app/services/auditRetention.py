@@ -29,7 +29,7 @@ from app.services import auditClassification as classification
 from app.services import retentionGuard, schemaCompat
 from app.services.consent import POLICY_VERSION
 from app.services.audit import registerEvent
-from app.utils.timeZone import argentinaToUtc, nowForDb
+from app.utils.timeZone import nowForDb
 
 logger = logging.getLogger("glucolume.audit")
 
@@ -43,9 +43,11 @@ ANONYMOUS_ACTIONS = ("LOGIN_LOCAL", "LOGIN_GOOGLE", classification.ACCION_LIMITE
 
 
 def _cutoffUtc(now: datetime, months: int) -> datetime:
-    """Corte mensual para Auditoria.fechaHora, que se guarda en UTC: `now` llega en hora de Argentina y se pasa a UTC antes de restar meses.
-    Sin esto, la purga por antigüedad llegaba 3 horas tarde (hallazgo independiente, con parche propio)."""
-    return _monthsAgo(argentinaToUtc(now), months)
+    """Corte mensual para Auditoria.fechaHora. La aplicación escribe esa columna en HORA DE ARGENTINA (before_flush en app/db/base.py
+    completa sysutcdatetime() con nowForDb). Solo las filas insertadas fuera de la aplicación quedan con la hora UTC del DEFAULT del
+    servidor: el corte se calcula en hora de Argentina, así que esas filas vencen 3 horas después (lado seguro), nunca antes.
+    Antes se restaba en UTC y la purga adelantaba 3 horas los eventos escritos por la aplicación."""
+    return _monthsAgo(now, months)
 
 
 def _monthsAgo(now: datetime, months: int) -> datetime:
@@ -93,12 +95,12 @@ def _policyAcceptedUsers():
 
 def _dueContextConditions(now: datetime, days: int, deletedDays: int) -> tuple:
     """Condición de vencimiento de la IP de un evento. `now` es la hora de Argentina (nowForDb), como en el resto del backend.
-    Los eventos se guardan en UTC (Auditoria.fechaHora, default sysutcdatetime()): su cutoff se pasa a UTC. La fecha de eliminación de la
+    Los eventos escritos por la aplicación se guardan en hora de Argentina (ver _cutoffUtc): el corte se compara con `now` tal cual. La fecha de eliminación de la
     cuenta (Usuario.fechaEliminacion) se guarda en hora de Argentina, así que se compara con `now` tal cual. Un evento vence a los `days`
     cumplidos desde su fecha. Si además es de seguridad y su cuenta fue eliminada, vence recién cuando también pasaron `deletedDays` desde la
     eliminación (el vencimiento posterior prevalece). Los eventos sin cuenta, de cuentas activas o no relacionados con la seguridad siguen
     solo la primera regla."""
-    cutoff = argentinaToUtc(now) - timedelta(days=days)  # UTC: vence a los `days` cumplidos desde el evento
+    cutoff = now - timedelta(days=days)  # hora de Argentina, igual que Auditoria.fechaHora escrita por la aplicación
     if deletedDays <= 0:
         return (Audit.fechaHora <= cutoff,)
     deletedCutoff = now - timedelta(days=deletedDays)  # hora de Argentina, igual que Usuario.fechaEliminacion
