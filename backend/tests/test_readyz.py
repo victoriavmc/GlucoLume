@@ -22,14 +22,28 @@ from tests.test_account_deletion import engine  # noqa: F401 - fixture: SQLite c
 SECRETO = "Server=sql-interno.example;Password=ClaveSecreta123;Database=GlucoLume"
 
 
+def _esperar_fin_del_sondeo(limite: float = 30.0) -> None:
+    """Un sondeo de la prueba anterior puede seguir vivo en su hilo (lo libera el bloqueo de esa prueba). Si termina después de que
+    la siguiente prueba reinició el estado, escribe un resultado viejo en el caché y la siguiente no dispara su propio sondeo.
+    Por eso el fixture espera a que el sondeo termine antes de reiniciar."""
+    fin = time.monotonic() + limite
+    while time.monotonic() < fin:
+        with readiness._lock:
+            if not readiness._probing:
+                return
+        time.sleep(0.02)
+
+
 @pytest.fixture(autouse=True)
 def estado_limpio(monkeypatch):
     """Cada prueba parte sin caché y sin comprobación en curso."""
+    _esperar_fin_del_sondeo()
     readiness.reset()
     with readiness._lock:
         readiness._probing = False
     monkeypatch.setattr(readiness, "PROBE_TIMEOUT_SECONDS", 3.0)
     yield
+    _esperar_fin_del_sondeo()
     readiness.reset()
     with readiness._lock:
         readiness._probing = False
@@ -148,35 +162,41 @@ def test_base_colgada_responde_503_tiempo_agotado_sin_apilar_comprobaciones(monk
 
     def colgada():
         llamadas.append(1)
-        bloqueo.wait(timeout=10)
+        bloqueo.wait(timeout=60)  # mucho más que la prueba: si la máquina va lenta, el sondeo no debe terminar solo
         return {"baseDeDatos": "ok", "tablaSesiones": "ok"}
 
     monkeypatch.setattr(readiness, "_probe", colgada)
-    inicio = time.monotonic()
-    r = cliente.get("/api/v1/readyz")
-    assert time.monotonic() - inicio < 2.0  # no espera más que el tope
-    assert r.status_code == 503 and r.json()["dependencias"]["baseDeDatos"] == "tiempo_agotado"
-    # Mientras la comprobación siga colgada, los siguientes pedidos no lanzan otra.
-    for _ in range(5):
-        assert cliente.get("/api/v1/readyz").status_code == 503
-    assert len(llamadas) == 1
-    bloqueo.set()
+    try:
+        inicio = time.monotonic()
+        r = cliente.get("/api/v1/readyz")
+        assert time.monotonic() - inicio < 2.0  # no espera más que el tope
+        assert r.status_code == 503 and r.json()["dependencias"]["baseDeDatos"] == "tiempo_agotado"
+        # Mientras la comprobación siga colgada, los siguientes pedidos no lanzan otra.
+        for _ in range(5):
+            assert cliente.get("/api/v1/readyz").status_code == 503
+        assert len(llamadas) == 1
+    finally:
+        bloqueo.set()
 
 
 def test_concurrencia_de_sondeos_con_base_colgada_lanza_una_sola_comprobacion(monkeypatch):
     monkeypatch.setattr(readiness, "PROBE_TIMEOUT_SECONDS", 0.5)
     bloqueo = threading.Event()
     llamadas = []
-    monkeypatch.setattr(readiness, "_probe", lambda: (llamadas.append(1), bloqueo.wait(timeout=10))[1] or {"baseDeDatos": "ok"})
+    # El sondeo queda bloqueado mientras dura la prueba. Con 60 s de margen: si el equipo va lento (suite completa en paralelo), un
+    # sondeo que terminara solo cachearía «ok» y las lecturas siguientes dirían «listo» (carrera de la prueba, no de la lógica).
+    monkeypatch.setattr(readiness, "_probe", lambda: (llamadas.append(1), bloqueo.wait(timeout=60))[1] or {"baseDeDatos": "ok"})
     resultados = []
     hilos = [threading.Thread(target=lambda: resultados.append(readiness.snapshot())) for _ in range(20)]
-    for hilo in hilos:
-        hilo.start()
-    for hilo in hilos:
-        hilo.join(timeout=10)
-    bloqueo.set()
-    assert len(llamadas) == 1
-    assert all(not r["listo"] for r in resultados)
+    try:
+        for hilo in hilos:
+            hilo.start()
+        for hilo in hilos:
+            hilo.join(timeout=30)
+        assert len(llamadas) == 1
+        assert all(not r["listo"] for r in resultados)
+    finally:
+        bloqueo.set()
 
 
 # --- Forma de la ruta y del contrato -----------------------------------------------------------------------------------------
