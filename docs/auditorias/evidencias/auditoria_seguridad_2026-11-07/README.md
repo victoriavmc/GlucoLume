@@ -26,6 +26,7 @@ Estas evidencias respaldan `docs/auditorias/CORRECCIONES_AUDITORIA_SEGURIDAD_202
 | `sondas_cabeceras_csp.sh` / `resultados_cabeceras_csp_antes.txt` / `_despues.txt` | B-7: cabecera CSP de la SPA y de la API antes y después de `report-uri`. |
 | `sondas_hsts.sh` / `resultados_hsts_antes.txt` / `_despues.txt` | B-4: HSTS, Location y código por host (dominio, localhost) y X-Forwarded-Proto. Requiere `TRUSTED_PROXY_CIDR=127.0.0.0/8` en el banco. |
 | `anexo_c/` | Anexo C: procedimiento de diagnóstico de solo lectura (host Ubuntu, Docker, contenedores, SQL Server) en `README.md`, y análisis con severidades y plan de remediación con rollback en `ANALISIS_Y_REMEDIACION.md`. |
+| `verificacion_final/` | Evidencia de la verificación final de las correcciones: contratos de API, corridas del backend y del frontend, clasificación de fallos, ensayo de rollback y matrices HTTP. Ver `docs/auditorias/VERIFICACION_CORRECCIONES_2026-11-07.md`. |
 | `sondas_aislamiento_cabeceras.sh` / `resultados_aislamiento_cabeceras_antes.txt` / `_despues.txt` | B-5: COOP, CORP y COEP por tipo de respuesta (SPA, estáticos, API, docs, 404). |
 | `verificar_aislamiento_origenes.cjs` / `resultados_aislamiento_navegador.txt` | B-5: dos orígenes reales (localhost y 127.0.0.1): transferencia de sesión, CORP bloqueando un estático cruzado, navegación y recarga. Requiere Playwright y el build. |
 | `medir_recursos_login.cjs` / `resultados_http2_y_recursos_login.txt` | B-5: versión HTTP que negocia Nginx en 8080 y recursos de una carga en frío de /login (para estimar HTTP/2). |

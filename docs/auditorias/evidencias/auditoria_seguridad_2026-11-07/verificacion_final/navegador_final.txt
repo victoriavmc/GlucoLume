@@ -1,0 +1,6 @@
+# Navegador (Chromium) sobre el nginx del banco con la plantilla de HEAD 1db54a6
+B-2 navegación y recarga: Resumen: 18/18 pasan
+B-5 aislamiento entre orígenes (localhost y 127.0.0.1): Resumen: 9/9 pasan
+B-7 navegación normal: {"parte":"navegacion_normal","paginas":11,"reportesEnviados":0,"violacionesConsola":0}
+B-7 violación provocada: {"parte":"violacion_provocada","reportesEnviados":2,"ejecutoElScript":false}
+B-7 cadenas sensibles en el log del backend: 0

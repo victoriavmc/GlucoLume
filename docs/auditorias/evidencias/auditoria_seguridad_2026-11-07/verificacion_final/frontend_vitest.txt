@@ -1,0 +1,8 @@
+# Frontend (vitest, src/ sin cambios desde a3908c0), corrida del 07/11/2026 en el banco
+ Test Files  1 failed | 64 passed (65)
+      Tests  1 failed | 856 passed (857)
+   Duration  118.96s (tests 76%, environment 12%, import 5%, setup 5%, transform 2%)
+
+## Fallo único (preexistente):
+ FAIL  src/pages/Account/institutions/patients/PatientMeasure.test.jsx > Medición institucional: datos del paciente y formulario único > si se informa la última comida se envía con su fecha y hora
+## Reejecución aislada: 1 fallido (5356 ms, timeout del test, sin cambios de código desde a3908c0)

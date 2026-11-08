@@ -9,17 +9,17 @@
 | ID | Sev. (PDF) | Estado | Resumen |
 |---|---|---|---|
 | M-1 | Media | **CORREGIDO en la rama** (pendiente de despliegue) | `/api` redirigía a `http://<host>:8080/api/`. Ahora `308` a `/api/` relativo. Ver §2. |
-| M-2 | Media | **CORREGIDO** (con riesgo residual: ataque distribuido) | El PDF no reprodujo el límite porque probó 15 intentos. Sí había fallas reales: oráculo de enumeración, bloqueo de la cuenta por terceros y 429 del borde sin forma de API. Ver §2. |
+| M-2 | Media | **PARCIAL** (verificación final) | El límite ya no bloquea la cuenta para terceros: 5 fallos por cuenta y origen en 15 min, 15 en una hora. Riesgo residual: ataque distribuido. Quedan 3 pruebas de la versión anterior (umbral de 3 intentos) que fallan por regresión de comportamiento; la decisión sobre umbral y alerta sigue pendiente. Ver `docs/auditorias/VERIFICACION_CORRECCIONES_2026-11-07.md`. |
 | M-3 | Media | **CORREGIDO** (coste acotado; el sobrecoste por longitud no se reproduce) | Argon2 con control de concurrencia (2 a la vez, 8 en espera, 503 con `Retry-After`). Sin cambios de coste ni de hashes. Ver §2. |
 | M-4 | Media | **PENDIENTE** (requiere aprobación de diseño) | El access token ya está en memoria y el refresh en cookie HttpOnly. Quedan tokens en la URL de 4 flujos. |
 | B-1 | Baja | **CORREGIDO** | Tope general de 160 KB (antes 1 MB); tramos por operación para lotes legítimos (ingesta 768 KB, muestras y offboarding 384 KB); autenticación 16 KB; 413 en JSON. Ver §2. |
 | B-2 | Baja | **PARCIAL** | Rutas desconocidas, archivos sensibles (`.git`, `.env`, `.php`, copias) y `/administracion/*` inexistentes ahora dan 404. Pendiente: subrutas inexistentes dentro de `/app` y `/plataforma` (siguen con 200, la SPA las redirige). Ver §2. |
 | B-3 | Baja | **CORREGIDO** (código + validación local) | Cada cabecera de seguridad aparece una sola vez en la API. |
 | B-4 | Baja | **PARCIAL** | HSTS: sin `includeSubDomains`, 30 días (antes 1 año), y sin emitir en `localhost` (Nginx). Pendiente: el `Caddyfile` del perfil `https` (validar en servidor). `preload`: no aplica. El 302 HTTP→HTTPS no está en el repo: verificar en el borde. Ver §2. |
-| B-5 | Baja | **CORREGIDO** (COOP y CORP en la SPA y los estáticos) / **PENDIENTE** (COEP, y HTTP/2 en el borde) | `Cross-Origin-Opener-Policy: same-origin` y `Cross-Origin-Resource-Policy: same-origin` en las respuestas de la SPA y los estáticos; la API no las recibe. COEP no se activa. HTTP/2 lo negocia el borde (fuera del repo). Ver §2. |
+| B-5 | Baja | **PARCIAL** | COOP y CORP `same-origin` en la SPA y los estáticos; la API no las recibe. Verificado en el banco con dos orígenes. Pendiente: COEP (inventario de recursos embebidos) y HTTP/2 y cabeceras del borde de Tailscale (no verificables desde el repo). |
 | B-6 | Baja | **CORREGIDO** | Liveness `/api/v1/healthz` publicada. Readiness `/api/v1/readyz` implementada para monitoreo interno: Nginx la responde 404 y el backend la expone con valores enumerados, sin versiones ni cadenas de conexión. |
 | B-7 | Baja | **CORREGIDO** (monitoreo en los logs del backend) | La CSP de la app tiene `report-uri`: cada bloqueo llega a `/api/v1/security/csp-report`, se sanitiza y se registra. Sin servicios externos ni base de datos. Ver §2. |
-| Anexo C | — | **EN DIAGNÓSTICO** (análisis estático hecho; el servidor, pendiente) | Dependencias: `pip-audit` (44 paquetes) y `npm audit` de producción, 0 vulnerabilidades conocidas el 07/11/2026. Compose endurecido. Pendiente de confirmar en el servidor: parches de Ubuntu, puertos publicados y UFW, grupo `docker`, permisos del `.env`, cifrado del disco, Tailscale, SSH, y un procedimiento de respaldo para Linux (hoy solo hay para Windows). Ver §2. |
+| Anexo C | — | **PENDIENTE** (diagnóstico preparado; el servidor no se verificó) | Dependencias Python y npm de producción sin vulnerabilidades conocidas el 07/11/2026. Pendiente de confirmar en el servidor: parches de Ubuntu, puertos publicados y UFW, grupo `docker`, permisos del `.env`, cifrado del disco, Tailscale, SSH, y un procedimiento de respaldo para Linux (hoy solo hay para Windows). Ver §2. |
 
 ## 2. Detalle por hallazgo
 

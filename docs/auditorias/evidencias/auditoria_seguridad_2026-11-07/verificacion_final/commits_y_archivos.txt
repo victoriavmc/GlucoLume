@@ -1,0 +1,52 @@
+# Commits de la serie de remediación (a3908c0..HEAD) y hallazgo
+446f967 | Corregir hallazgos de la auditoría del 07/11/2026 (M-1, M-3, B-1, B-3, B-6)
+bd525e3 | Limitar intentos de login por cuenta y origen, sin bloqueo global de la cuenta (M-2)
+1931580 | Limitar la concurrencia de Argon2 en el login y cerrar la transacción antes de hashear (M-3)
+6b8b7a5 | Redirigir /api de forma relativa con 308, sin proxy (M-1)
+68a0442 | Centralizar la CSP de la API y completar cabeceras por ubicación (B-3)
+df48716 | Limitar el tamaño del cuerpo por operación y responder 413 en JSON (B-1)
+e8e4535 | Agregar readiness /api/v1/readyz para monitoreo interno (B-6)
+fb1686f | Responder 404 a rutas inexistentes y archivos sensibles en la SPA (B-2)
+a665ac7 | Recibir y registrar sanitizados los incumplimientos de CSP (B-7)
+a1b0b6e | Acotar HSTS: 30 días, sin includeSubDomains y sin localhost (B-4)
+b7fcf0a | Agregar COOP y CORP same-origin a la SPA y los estáticos (B-5)
+069ef6e | Preparar el diagnóstico de infraestructura del Anexo C (solo lectura)
+1db54a6 | Aislar el estado del sondeo de readiness entre pruebas (verificación final)
+
+# Archivos por tipo (a3908c0..HEAD)
+codigo_backend_app: 14
+pruebas_backend: 13
+nginx_y_docker: 3
+documentacion_y_evidencia: 73
+
+# Lista completa de archivos de código y configuración (sin documentación ni evidencia)
+.env.example
+backend/app/api/errors.py
+backend/app/api/rateLimit.py
+backend/app/api/securityHeaders.py
+backend/app/api/v1/cspReport.py
+backend/app/api/v1/health.py
+backend/app/core/config.py
+backend/app/core/security.py
+backend/app/main.py
+backend/app/schemas/auth.py
+backend/app/services/auth.py
+backend/app/services/cspReports.py
+backend/app/services/loginThrottle.py
+backend/app/services/rateLimiter.py
+backend/app/services/readiness.py
+backend/tests/conftest.py
+backend/tests/test_aislamiento_origenes.py
+backend/tests/test_argon2_gate.py
+backend/tests/test_audit_security.py
+backend/tests/test_auth_access_flows.py
+backend/tests/test_csp_reports.py
+backend/tests/test_hsts.py
+backend/tests/test_login_lockout.py
+backend/tests/test_login_throttle.py
+backend/tests/test_readyz.py
+backend/tests/test_rutas_spa.py
+backend/tests/test_security_hardening.py
+backend/tests/test_tamano_solicitudes.py
+docker/nginx/default.conf.template
+frontend/Dockerfile
