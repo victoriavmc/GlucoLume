@@ -694,6 +694,26 @@ def _tareaIntentoLimitado(bind, identificador: str, origen: str, instante: datet
         session.close()
 
 
+def _tareaAuditarIntentoLimitado(bind, identificador: str, origen: str) -> None:
+    """Auditoría de CADA intento rechazado por el límite por origen: una fila LOGIN_LOCAL / CUENTA_BLOQUEADA por intento, como antes de
+    M-2. No se descarta por rechazarse antes de validar la contraseña. Se escribe fuera de la solicitud, igual que los avisos, para que
+    cuentas existentes e inexistentes tengan el mismo trabajo y la respuesta no revele si la cuenta existe. Sin cuenta identificable se
+    guarda solo el HMAC del identificador (como CUENTA_INEXISTENTE); el origen se guarda siempre como HMAC, nunca en claro."""
+    session = _sesionDeAviso(bind)
+    try:
+        user = _findUserByIdentifier(session, identificador)
+        _auditFailedLogin(
+            session, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA",
+            f"Límite temporal por origen (origen {hashIdentifier(origen)})", identificador,
+        )
+        session.commit()
+    except Exception:  # noqa: BLE001 - la auditoría fuera de la solicitud no cambia la respuesta; el fallo queda en el log
+        session.rollback()
+        logger.exception("No se pudo auditar el intento bloqueado por el límite")
+    finally:
+        session.close()
+
+
 def _tareaBloqueoRecien(bind, identificador: str, origen: str, instante: datetime, espera: int) -> None:
     """Un fallo que activó el límite: auditoría, aviso en la página y correo al titular (como antes de M-2, pero fuera de la solicitud)."""
     session = _sesionDeAviso(bind)
@@ -747,6 +767,7 @@ def _loginLocalBajoLimite(
     if espera is not None:
         # Mismo rechazo para cualquier identificador, exista o no: no se consulta la base ni se verifica la contraseña.
         _programarAviso(db, _tareaIntentoLimitado, identificador, origen, now)
+        _programarAviso(db, _tareaAuditarIntentoLimitado, identificador, origen)
         raise AuthError("CUENTA_BLOQUEADA", ACCOUNT_LOCKED_MESSAGE, retryAfterSeconds=espera)
 
     user = _findUserByIdentifier(db, identificador)

@@ -208,3 +208,46 @@ def test_el_backend_corre_con_un_solo_proceso_y_el_limite_es_exacto():
     archivos = [REPO / "compose.yaml", REPO / "compose.prod.yaml", REPO / ".env.example", REPO / "backend" / "Dockerfile"]
     for archivo in archivos:
         assert "WEB_CONCURRENCY" not in archivo.read_text(encoding="utf-8"), archivo.name
+
+
+# --- Auditoría de los intentos rechazados por el límite (conservada, una fila por intento) ----------------------------------------------
+
+def _filas(db, accion, motivo):
+    from app.models.audit import Audit
+    from app.models.auditContext import AuditContext
+
+    db.expire_all()
+    rows = db.execute(
+        select(Audit, AuditContext).join(AuditContext, AuditContext.idAuditoria == Audit.idAuditoria)
+        .where(Audit.accion == accion, AuditContext.motivo == motivo).order_by(Audit.fechaHora, Audit.idAuditoria)
+    ).all()
+    return rows
+
+
+def test_cada_intento_limitado_queda_auditado_una_vez_y_sin_IP_en_claro(db, mails, steps):
+    from app.models.audit import Audit
+
+    user = makeUser(db)
+    for _ in range(5):
+        attempt(db)
+    for _ in range(10):
+        assert attempt(db).code == "CUENTA_BLOQUEADA"
+    filas = _filas(db, "LOGIN_LOCAL", "CUENTA_BLOQUEADA")
+    assert len(filas) == 10  # una fila por intento rechazado: no se descarta por no validar la contraseña, y no se duplica
+    assert all(a.idUsuario == user.idUsuario for a, _ in filas)
+    assert all(ORIGEN_A not in (a.observacion or "") for a, _ in filas)
+    # La activación del límite sigue siendo un único evento propio.
+    db.expire_all()
+    assert len(db.scalars(select(Audit).where(Audit.accion == "BLOQUEO_TEMPORAL_CUENTA")).all()) == 1
+
+
+def test_intento_limitado_de_cuenta_inexistente_se_audita_solo_con_hmac(db, mails, steps):
+    makeUser(db)
+    for _ in range(5):
+        attempt(db, identificador="nadie.inexistente@example.com")
+    for _ in range(3):
+        attempt(db, identificador="nadie.inexistente@example.com")
+    filas = [(a, c) for a, c in _filas(db, "LOGIN_LOCAL", "CUENTA_BLOQUEADA") if a.idUsuario is None]
+    assert len(filas) == 3
+    assert all(c.identificadorHash for _, c in filas)
+    assert all("nadie.inexistente" not in (a.observacion or "") for a, _ in filas)
