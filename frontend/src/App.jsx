@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AuthProvider } from './auth/AuthContext.jsx';
+import { useIndexacion } from './utils/indexacion.js';
+import { useTituloDeRuta } from './utils/titulos.js';
 import { FullPageLoader } from './components/FullPageLoader.jsx';
 import { AuthenticatedLayout } from './layouts/AuthenticatedLayout.jsx';
 import { SectionGuard } from './pages/Account/institutions/SectionGuard.jsx';
@@ -189,6 +191,8 @@ function LegacyActivationLink() {
 }
 
 export function AppRoutes() {
+  useIndexacion();  // robots y canonical por ruta (A-6): privadas noindex y sin canonical; públicas, su propia URL
+  useTituloDeRuta();  // título descriptivo por ruta (A-9)
   return (
     <Suspense fallback={<FullPageLoader />}>
       <Routes>

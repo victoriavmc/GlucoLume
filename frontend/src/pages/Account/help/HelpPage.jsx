@@ -70,8 +70,10 @@ function Tema({ prefijo, tipo, tema }) {
             {tema.detalles.map(({ titulo, texto, captura }) => (
               <div key={titulo}>
                 <dt>{titulo}</dt>
-                <dd>{texto}</dd>
-                {captura && <PasoImagen captura={captura} alt={titulo} />}
+                <dd>
+                  {texto}
+                  {captura && <PasoImagen captura={captura} alt={titulo} />}
+                </dd>
               </div>
             ))}
           </dl>
@@ -85,8 +87,10 @@ function Tema({ prefijo, tipo, tema }) {
             {tema.casos.map(({ titulo, texto, captura }, index) => (
               <div key={`${index}-${titulo}`}>
                 <dt>{titulo}</dt>
-                <dd>{texto}</dd>
-                {captura && <PasoImagen captura={captura} alt={titulo} />}
+                <dd>
+                  {texto}
+                  {captura && <PasoImagen captura={captura} alt={titulo} />}
+                </dd>
               </div>
             ))}
           </dl>

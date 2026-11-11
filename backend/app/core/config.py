@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     # REFRESH_TOKEN_IN_BODY: mientras sea true, un cliente SIN la cabecera X-GlucoLume-CSRF (puentes, scripts, pruebas) recibe y manda el refresh token en
     # el cuerpo, como antes. En false toda sesión nueva es solo-cookie y /refresh rechaza el cuerpo. El navegador de GlucoLume ya no lo necesita.
     REFRESH_COOKIE_SECURE: bool | None = None
+    # Cookie del estado OAuth de Google (glucolume_oauth, A-4). Ver Settings.oauthCookieSecure. Solo tiene efecto fuera de producción.
+    OAUTH_COOKIE_SECURE: bool | None = None
     REFRESH_TOKEN_IN_BODY: bool = True
     AUTH_LOCKOUT_MINUTES: int = 15
     # Hash de contraseñas (Argon2id; parámetros fijos en core/security.py): verificaciones que corren a la vez y que esperan un lugar (M-3).
@@ -379,6 +381,17 @@ class Settings(BaseSettings):
         """Origen (esquema://host:puerto) del frontend: el único admitido por CORS."""
         url = urlsplit(self.FRONTEND_URL)
         return f"{url.scheme}://{url.netloc}"
+
+    @property
+    def oauthCookieSecure(self) -> bool:
+        """Atributo Secure de la cookie del estado OAuth (A-4). Antes dependía solo de API_ENV=production: con el callback por https
+        en otro perfil la cookie salía sin Secure. Ahora: en producción siempre Secure; fuera de producción, Secure si el callback de
+        Google es https (la cookie vive en ese origen); OAUTH_COOKIE_SECURE permite forzarlo para probar HTTPS en local."""
+        if self.API_ENV == "production":
+            return True
+        if self.OAUTH_COOKIE_SECURE is not None:
+            return self.OAUTH_COOKIE_SECURE
+        return (self.googleOrigin or "").startswith("https://")
 
     @property
     def googleOrigin(self) -> str | None:

@@ -19,6 +19,9 @@ import { MfaRecoveryFlow } from './MfaRecoveryFlow.jsx';
 // Registrarse con Google con un correo que ya tiene cuenta: el backend lo rechaza y aquí se redirige a iniciar sesión.
 const CUENTA_EXISTENTE_CODES = ['CUENTA_YA_EXISTE', 'CUENTA_OTRO_TIPO'];
 const CUENTA_EXISTENTE_REDIRECT_MS = 4000;
+// Destino de «volver» según el acceso con el que se inició el flujo (A-8). Son rutas fijas: nunca salen de un parámetro.
+const LOGIN_GENERAL = '/login';
+const LOGIN_PLATAFORMA = '/plataforma/login';
 
 function readFragment() {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
@@ -64,10 +67,13 @@ export default function GoogleCallback() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completeGoogle]);
 
+  // Login al que vuelve el usuario si el flujo no terminó: el mismo acceso con el que empezó (marca de PLATAFORMA del inicio).
+  const loginPath = platform.current ? LOGIN_PLATAFORMA : LOGIN_GENERAL;
+
   useEffect(() => {
     // Ese correo ya tiene cuenta: se muestra el motivo un momento y se lleva a iniciar sesión (sin pasar por MFA).
     if (state.phase !== 'error' || !CUENTA_EXISTENTE_CODES.includes(state.code)) return undefined;
-    const timer = setTimeout(() => navigate('/login', { replace: true }), CUENTA_EXISTENTE_REDIRECT_MS);
+    const timer = setTimeout(() => navigate(platform.current ? LOGIN_PLATAFORMA : LOGIN_GENERAL, { replace: true }), CUENTA_EXISTENTE_REDIRECT_MS);
     return () => clearTimeout(timer);
   }, [state, navigate]);
 
@@ -95,7 +101,7 @@ export default function GoogleCallback() {
       {state.phase === 'mfa' && (
         <MfaForm
           onSubmit={handleMfa}
-          onCancel={() => navigate('/login', { replace: true })}
+          onCancel={() => navigate(loginPath, { replace: true })}
           onLostAuthenticator={() => setState({ ...state, phase: 'recovery' })}
         />
       )}
@@ -127,7 +133,7 @@ export default function GoogleCallback() {
               Registrarme
             </Link>
           )}
-          <Link to="/login" className="btn btn-outline btn-block btn-lg">
+          <Link to={loginPath} className="btn btn-outline btn-block btn-lg">
             <ArrowLeft size={18} aria-hidden="true" /> Volver a iniciar sesión
           </Link>
         </div>
