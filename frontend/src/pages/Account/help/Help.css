@@ -104,6 +104,8 @@
 }
 
 .help-defs dd {
+  display: grid;
+  gap: 2px;
   margin: 0;
   color: var(--ink-500);
 }

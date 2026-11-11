@@ -104,7 +104,7 @@ describe('Acceso administrativo', () => {
     });
     const user = userEvent.setup();
     renderAt('/plataforma/login');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Administración de GlucoLume' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Administración de GlucoLume' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '¿Olvidaste tu contraseña?' })).toHaveAttribute('href', '/plataforma/recuperar');
     expect(screen.getByRole('button', { name: /Continuar con Google/ })).toBeInTheDocument();
     await user.type(screen.getByLabelText('Correo electrónico o usuario'), 'victoria');
@@ -121,7 +121,7 @@ describe('Acceso administrativo', () => {
     clearTokens();
     const { calls } = mockApi({ 'GET /auth/me': jsonResponse(401, { codigo: 'TOKEN_INVALIDO', detail: 'x' }) });
     renderAt('/administracion/login');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Administración de GlucoLume' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Administración de GlucoLume' })).toBeInTheDocument();
     expect(calls.some((call) => call.key.startsWith('GET /platform'))).toBe(false); // sin sesión no se pide nada del panel
   });
 
@@ -158,7 +158,7 @@ describe('Acceso administrativo', () => {
     clearTokens();
     mockApi({});
     renderAt('/plataforma/dashboard');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Administración de GlucoLume' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Administración de GlucoLume' })).toBeInTheDocument();
   });
 });
 

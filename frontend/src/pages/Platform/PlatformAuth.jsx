@@ -123,7 +123,7 @@ export function PlatformLogin() {
 
   return (
     <PlatformShell>
-      <h2 className="auth-title">Administración de GlucoLume</h2>
+      <h1 className="auth-title">Administración de GlucoLume</h1>
       {challengeToken && recovering ? (
         <MfaRecoveryFlow challengeToken={challengeToken} askPassword acceso="PLATAFORMA" onVerify={handleRecovered}
           onCancel={() => setRecovering(false)} />
@@ -188,7 +188,7 @@ function BadLink({ message }) {
     <div className="auth-form">
       <div className="register-success">
         <span className="success-icon is-error"><CircleAlert size={32} aria-hidden="true" /></span>
-        <h3>No pudimos usar este enlace</h3>
+        <h2 className="pa-error-title">No pudimos usar este enlace</h2>
       </div>
       <Alert>{message}</Alert>
       <Link to="/plataforma/login" className="btn btn-ghost btn-block">Ir al acceso administrativo</Link>
@@ -256,7 +256,7 @@ export function PlatformActivateWithCode() {
   return (
     <PlatformShell>
       <span className="pa-step"><KeyRound size={16} aria-hidden="true" /> Activación con código</span>
-      <h2 className="auth-title">Activar cuenta administrativa</h2>
+      <h1 className="auth-title">Activar cuenta administrativa</h1>
       <p className="auth-subtitle">Necesitás el código de un solo uso que te entregó quien administra GlucoLume. Sin él no se puede crear una cuenta administrativa.</p>
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {error && <Alert>{error}</Alert>}
@@ -306,7 +306,7 @@ export function PlatformForgot() {
 
   return (
     <PlatformShell>
-      <h2 className="auth-title">Recuperar contraseña</h2>
+      <h1 className="auth-title">Recuperar contraseña</h1>
       {sent ? (
         <div className="auth-form">
           <Alert kind="success">
@@ -369,7 +369,7 @@ export function PlatformReset() {
 
   return (
     <PlatformShell>
-      <h2 className="auth-title">Nueva contraseña</h2>
+      <h1 className="auth-title">Nueva contraseña</h1>
       {bad ? <BadLink message={bad} /> : done ? (
         <div className="auth-form">
           <Alert kind="success">Contraseña actualizada. Cerramos tus sesiones abiertas: iniciá sesión con la nueva.</Alert>

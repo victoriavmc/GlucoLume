@@ -19,6 +19,8 @@ export default function CaracteristicasPage() {
       <Navbar />
 
       <main id="contenido" tabIndex={-1}>
+        {/* Título de la página para lectores de pantalla (A-9): el visible es el h2 de la sección, sin cambiar el diseño. */}
+        <h1 className="sr-only">Características y privacidad</h1>
         <Features />
       </main>
 
