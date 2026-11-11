@@ -82,7 +82,7 @@ else:
         session_cookie="glucolume_oauth",
         max_age=OAUTH_STATE_MAX_AGE_SECONDS,
         same_site="lax",
-        https_only=settings.API_ENV == "production",
+        https_only=settings.oauthCookieSecure,  # A-4: Secure según el callback https o producción (Settings.oauthCookieSecure)
     )
 
 # La más interna (se agrega primero): atrapa los errores que ninguna ruta resolvió y responde un 500 genérico que todavía pasa por CORS y por
