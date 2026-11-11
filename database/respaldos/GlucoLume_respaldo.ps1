@@ -5,8 +5,9 @@
 #   2. RESTORE VERIFYONLY ... WITH CHECKSUM;
 #   3. cifra el .bak con GnuPG (AES-256, simétrico) usando la clave de GlucoLume_clave_respaldo.ps1 (DPAPI) y comprueba que se descifra
 #      igual (SHA-256) antes de borrar el .bak en claro;
-#   4. retención: conserva los diarios de los últimos -DiasDiarios días y uno por mes durante -MesesMensuales meses. Solo borra archivos
-#      con el patrón de este script (GlucoLume_AAAAMMDD_HHMMSS.bak.gpg), nunca el último, y solo si el respaldo de hoy terminó bien.
+#   4. retención: conserva los -MaxRespaldos más recientes (por fecha y hora, sin importar cuántos días atrás) y uno por mes durante
+#      -MesesMensuales meses. Solo borra archivos con el patrón de este script (GlucoLume_AAAAMMDD_HHMMSS.bak.gpg), nunca el más reciente,
+#      y solo si el respaldo de hoy terminó bien.
 #   5. copia fuera del equipo (H-01, regla 3-2-1), solo si se indica -CopiaExterna: copia el respaldo cifrado a otro disco o recurso de red
 #      (p. ej. \\nas\glucolume o E:\GlucoLume) y comprueba su SHA-256 en el destino. Es una COPIA, no un espejo: no borra nada del destino
 #      (así un equipo comprometido no puede vaciar la copia). La retención del destino la define quien lo administra (idealmente con
@@ -15,7 +16,7 @@
 # respaldo local queda hecho, se aplica la retención local y sale con 2 (el Programador de tareas lo muestra como fallido).
 #
 #   powershell -File GlucoLume_respaldo.ps1 [-Instancia localhost\GLUCOLUME] [-Base GlucoLume] [-Destino C:\GlucoLumeRespaldos]
-#                                          [-CopiaExterna \\nas\glucolume]
+#                                          [-MaxRespaldos 3] [-CopiaExterna \\nas\glucolume]
 
 param(
     [string]$Instancia = "localhost\GLUCOLUME",
@@ -23,7 +24,7 @@ param(
     [string]$Destino = "C:\GlucoLumeRespaldos",
     [string]$Clave = "C:\GlucoLumeRespaldos\clave_respaldo.dpapi",
     [string]$Gpg = "C:\Program Files\Git\usr\bin\gpg.exe",
-    [int]$DiasDiarios = 35,
+    [ValidateRange(1, 1000)] [int]$MaxRespaldos = 3,
     [int]$MesesMensuales = 12,
     [string]$CopiaExterna = ""
 )
@@ -73,16 +74,22 @@ try {
         Registrar "Sin -CopiaExterna: el respaldo y su clave siguen en un único equipo (regla 3-2-1 incompleta, H-01)."
     }
 
-    # Retención: solo archivos de este script; nunca el más reciente.
-    $todos = Get-ChildItem $Destino -Filter "GlucoLume_*.bak.gpg" | Where-Object { $_.Name -match '^GlucoLume_(\d{8})_\d{6}\.bak\.gpg$' } |
-        ForEach-Object { [pscustomobject]@{ Archivo = $_; Fecha = [datetime]::ParseExact($matches[1], "yyyyMMdd", $null) } } | Sort-Object Fecha -Descending
+    # Retención: solo archivos de este script. Se conservan los -MaxRespaldos más recientes (ordenados por fecha y hora completa) y, además,
+    # el más reciente de cada mes dentro de -MesesMensuales. El más reciente nunca se borra (MaxRespaldos >= 1).
+    $todos = Get-ChildItem $Destino -Filter "GlucoLume_*.bak.gpg" | ForEach-Object {
+        if ($_.Name -match '^GlucoLume_(\d{8}_\d{6})\.bak\.gpg$') {
+            [pscustomobject]@{ Archivo = $_; Momento = [datetime]::ParseExact($matches[1], "yyyyMMdd_HHmmss", $null) }
+        }
+    } | Sort-Object Momento -Descending
     $mensualesVistos = @{}
-    foreach ($item in $todos | Select-Object -Skip 1) {
-        $mes = $item.Fecha.ToString("yyyyMM")
-        $diario = $item.Fecha -ge (Get-Date).Date.AddDays(-$DiasDiarios)
-        $mensual = (-not $mensualesVistos.ContainsKey($mes)) -and $item.Fecha -ge (Get-Date).Date.AddMonths(-$MesesMensuales)
+    $posicion = 0
+    foreach ($item in $todos) {
+        $reciente = $posicion -lt $MaxRespaldos
+        $posicion++
+        $mes = $item.Momento.ToString("yyyyMM")
+        $mensual = (-not $mensualesVistos.ContainsKey($mes)) -and $item.Momento -ge (Get-Date).Date.AddMonths(-$MesesMensuales)
         if ($mensual) { $mensualesVistos[$mes] = $true }
-        if (-not $diario -and -not $mensual) { Remove-Item $item.Archivo.FullName; Registrar "Retención: borrado $($item.Archivo.Name)" }
+        if (-not $reciente -and -not $mensual) { Remove-Item $item.Archivo.FullName; Registrar "Retención: borrado $($item.Archivo.Name)" }
     }
     exit $salida
 } catch {
