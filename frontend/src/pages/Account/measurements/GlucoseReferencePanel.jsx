@@ -104,13 +104,16 @@ function Alternatives({ group }) {
   );
 }
 
-function Group({ group, value, demo }) {
+function Group({ group, value, demo, sexNotInformed }) {
   const rule = group.reglaSeleccionada;
   return (
     <article className="reference-group" aria-label={group.titulo}>
       <h4>{group.titulo} {group.aplicada && <Badge tone="success">Regla aplicada</Badge>}</h4>
       {rule ? (
         <>
+          {sexNotInformed && rule.sexoModelo === 'CUALQUIER_SEXO' && (
+            <p className="field-hint">El sexo no fue informado, pero esta regla vale para cualquier sexo, así que corresponde igual.</p>
+          )}
           <dl className="data-list">
             <div><dt>Regla disponible para {SEX_LABELS[rule.sexoModelo] ?? rule.sexoModelo}</dt><dd>{rule.codigo}</dd></div>
             <div><dt>Rango de edad</dt><dd>{ageText(rule)}</dd></div>
@@ -183,7 +186,8 @@ export function GlucoseReferencePanel({ reference }) {
               items={groups.map((group) => ({ key: group.sexoModelo, label: `${group.titulo}${group.aplicada ? ' · aplicada' : ''}` }))} />
           )}
           <TabPanel idBase="ref" value={groups[active].sexoModelo}>
-            <Group key={groups[active].sexoModelo} group={groups[active]} value={reference.valor} demo={reference.esDemo} />
+            <Group key={groups[active].sexoModelo} group={groups[active]} value={reference.valor} demo={reference.esDemo}
+              sexNotInformed={!reference.sexoInformado} />
           </TabPanel>
         </div>
       )}
