@@ -273,7 +273,7 @@ export function PlatformActivateWithCode() {
         <SubmitButton loading={saving} loadingLabel="Activando…" disabled={saving}>
           Activar cuenta <ArrowRight size={18} aria-hidden="true" />
         </SubmitButton>
-        <Link to="/administracion/login" className="link-button">Volver al acceso administrativo</Link>
+        <Link to="/plataforma/login" className="link-button">Volver al acceso administrativo</Link>
       </form>
     </PlatformShell>
   );
