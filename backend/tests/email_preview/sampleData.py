@@ -68,6 +68,7 @@ def sampleContexts() -> dict[E, dict]:
         E.INICIO_BLOQUEADO_SESION_ACTIVA: {
             **base, "fechaEvento": now, "navegador": "Chrome", "sistemaOperativo": "Windows",
             "dispositivo": "Computadora", "urlSeguridad": security,
+            "urlLiberar": frontendUrl("/liberar-sesion?token=TOKEN_DE_EJEMPLO"), "minutosValidez": 30,
         },
         E.NUEVO_INICIO_SESION: {
             **base, "fechaEvento": now, "metodo": "Correo o usuario y contraseña", "navegador": "Chrome",

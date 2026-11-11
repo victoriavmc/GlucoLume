@@ -66,6 +66,7 @@ FRONTEND_ROUTES = {
     # Administración de la plataforma: activar la cuenta administrativa, restablecer la contraseña y ver la transferencia.
     # Recuperación de contraseña de las cuentas comunes (POST /api/v1/auth/password/reset).
     "restablecerPassword": "/restablecer-contrasena",
+    "liberarSesion": "/liberar-sesion",  # enlace «fui yo» del aviso de inicio bloqueado: no requiere sesión
     "plataformaActivar": "/administracion/activar",  # ruta principal de la activación administrativa (la anterior /plataforma/activar la redirige)
     "plataformaLogin": "/plataforma/login",
     "plataformaRestablecer": "/plataforma/restablecer",

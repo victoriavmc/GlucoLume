@@ -76,6 +76,12 @@ export function resetPassword(token, password) {
   return request('/auth/password/reset', { method: 'POST', body: { token, password } });
 }
 
+/** POST /auth/sesion-activa/liberar: enlace «fui yo» del aviso de inicio bloqueado (sin sesión). Un solo uso; cierra las sesiones abiertas
+ *  de la cuenta. No abre sesión: después el titular ingresa con su contraseña. */
+export function liberarSesionActiva(token) {
+  return request('/auth/sesion-activa/liberar', { method: 'POST', body: { token } });
+}
+
 export function resendVerification(correoElectronico) {
   return request('/auth/verify-email/resend', { method: 'POST', body: { correoElectronico } });
 }
