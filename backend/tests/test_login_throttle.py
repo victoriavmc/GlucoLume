@@ -88,6 +88,25 @@ def test_quince_intentos_seguidos_desde_una_ip_quedan_limitados_con_retry_after(
     assert all(value == str(LIMITE_CORTO) for value in retries[5:])
 
 
+def loginPlataforma(ip: str, identificador: str, password: str):
+    return http(ip).post(LOGIN, json={"identificador": identificador, "password": password, "acceso": "PLATAFORMA"})
+
+
+def test_quince_intentos_al_acceso_administrativo_quedan_limitados(onlyDb, db, mails, steps):
+    """A-1 (auditoría 2, 07/11/2026): la misma secuencia contra una cuenta administrativa por el acceso PLATAFORMA. Antes de M-2 respondía
+    15 × 401 sin Retry-After; el límite por (cuenta, origen) se aplica antes de buscar la cuenta y del control de acceso."""
+    makeUser(db, tipoCuenta="ADMINISTRADOR_PLATAFORMA")
+    db.commit()
+    statuses, retries = [], []
+    for _ in range(15):
+        r = loginPlataforma(ORIGEN_ATACANTE, EMAIL, WRONG)
+        statuses.append(r.status_code)
+        retries.append(r.headers.get("retry-after"))
+    assert statuses == [401] * 5 + [429] * 10
+    assert all(value == str(LIMITE_CORTO) for value in retries[5:])
+    assert loginPlataforma(ORIGEN_ATACANTE, EMAIL, PASSWORD).status_code == 429  # ni la clave correcta salta el límite
+
+
 def test_el_rechazo_limitado_tiene_forma_consistente(onlyDb, db, mails, steps):
     for _ in range(5):
         login(ORIGEN_ATACANTE, EMAIL, WRONG)
