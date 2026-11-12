@@ -415,7 +415,8 @@ PUBLIC_OPERATIONS = {
     ("POST", "/api/v1/auth/mfa/recovery/start"), ("POST", "/api/v1/auth/mfa/recovery/verify"),
     ("POST", "/api/v1/auth/mfa/verify"), ("POST", "/api/v1/auth/notifications/new-login/unsubscribe"),
     ("POST", "/api/v1/auth/password/forgot"), ("POST", "/api/v1/auth/password/reset"), ("POST", "/api/v1/auth/refresh"),
-    ("POST", "/api/v1/auth/register"), ("GET", "/api/v1/auth/verify-email"), ("POST", "/api/v1/auth/verify-email/resend"),
+    ("POST", "/api/v1/auth/register"), ("POST", "/api/v1/auth/sesion-activa/liberar"), ("GET", "/api/v1/auth/verify-email"),
+    ("POST", "/api/v1/auth/verify-email/resend"),
     ("POST", "/api/v1/contact"), ("POST", "/api/v1/institutions/result-email/confirm"), ("POST", "/api/v1/platform/activation/with-code"),
     ("POST", "/api/v1/platform/password/forgot"), ("POST", "/api/v1/platform/password/reset"),
 }

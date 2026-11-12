@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     # Cierre por inactividad: una sesión sin pedidos autenticados (ni renovaciones) durante este tiempo se cierra sola, por si alguien olvidó
     # cerrar sesión en un equipo compartido. Cada pedido la renueva; no es un límite de duración total.
     SESION_INACTIVIDAD_MINUTOS: int = 15
+    # Enlace «fui yo» del aviso de inicio bloqueado: vence a estos minutos y sirve una sola vez (services/auth.py, liberarSesionesActivas).
+    SESION_LIBERACION_MINUTOS: int = 30
     # Refresh token en cookie HttpOnly (H-09, app/api/sessionCookie.py). REFRESH_COOKIE_SECURE=None -> Secure en producción o con FRONTEND_URL https.
     # REFRESH_TOKEN_IN_BODY: mientras sea true, un cliente SIN la cabecera X-GlucoLume-CSRF (puentes, scripts, pruebas) recibe y manda el refresh token en
     # el cuerpo, como antes. En false toda sesión nueva es solo-cookie y /refresh rechaza el cuerpo. El navegador de GlucoLume ya no lo necesita.

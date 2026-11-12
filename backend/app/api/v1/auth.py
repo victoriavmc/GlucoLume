@@ -52,6 +52,7 @@ from app.schemas.auth import (
     ResendVerificationRequest,
     ChangePasswordRequest,
     PasswordForgotRequest,
+    LiberarSesionRequest,
     PasswordResetRequest,
     SetPasswordRequest,
     TokenPair,
@@ -529,6 +530,20 @@ def forgotPassword(data: PasswordForgotRequest, db: DbSession):
 def resetPassword(data: PasswordResetRequest, db: DbSession):
     authService.resetPassword(db, data.token, data.password.get_secret_value())
     return MessageResponse(mensaje="Contraseña actualizada. Iniciá sesión con la nueva.")
+
+
+@router.post(
+    "/sesion-activa/liberar", dependencies=[rateLimit("passwordReset")],
+    response_model=MessageResponse,
+    summary="Inicio bloqueado por sesión activa: «fui yo» (sin sesión)",
+    description=(
+        "Con el `token` del enlace del aviso de inicio bloqueado. Un solo uso y vence; cierra las sesiones abiertas de la cuenta "
+        "para que el titular pueda ingresar con su contraseña. No abre sesión ni cambia la contraseña."
+    ),
+)
+def liberarSesionActiva(data: LiberarSesionRequest, db: DbSession):
+    authService.liberarSesionesActivas(db, data.token)
+    return MessageResponse(mensaje="Listo. Ya podés iniciar sesión.")
 
 
 @router.post(

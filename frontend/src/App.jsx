@@ -38,6 +38,7 @@ function lazyNamed(loader, name = 'default') {
 // visitar su ruta; 23/10/2026, docs/RENDIMIENTO.md). Las de acceso (login, registro, recuperación, verificación) quedan en el inicial a propósito:
 // son la primera pantalla de quien llega a la portada y una descarga extra por 4 KB no vale la espera.
 const ConfirmDeletionPage = lazyNamed(() => import('./pages/Account/ConfirmDeletionPage.jsx'));
+const LiberarSesionPage = lazyNamed(() => import('./pages/Login/LiberarSesionPage.jsx'));
 const ConfirmResultEmailPage = lazyNamed(() => import('./pages/ResultEmail/ConfirmResultEmailPage.jsx'));
 const loadGroupDashboard = () => import('./pages/Account/groups/GroupDashboard.jsx');
 const GroupMemberPage = lazyNamed(loadGroupDashboard, 'GroupMemberPage');
@@ -226,6 +227,7 @@ export function AppRoutes() {
         <Route path="/verificar-correo" element={<VerifyEmail />} />
         <Route path="/activar-cuenta" element={<ActivateAccount />} />
         <Route path="/cuenta/eliminar/confirmar" element={<ConfirmDeletionPage />} />
+        <Route path="/liberar-sesion" element={<LiberarSesionPage />} />
         {/* Enlaces de correos que no tienen pantalla propia. Se declaran (en vez de caer en la redirección «*») para que el servidor los
             reconozca como rutas de la aplicación y se comporten como antes: el de seguridad de correos enviados antes de este cambio va al
             inicio de seguridad; el de desuscripción del aviso de inicio de sesión sigue yendo a la portada (pantalla pendiente de decidir). */}
