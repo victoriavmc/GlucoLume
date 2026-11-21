@@ -271,15 +271,14 @@ def test_en_linux_el_certificado_de_sql_server_se_suma_a_las_autoridades_del_sis
     settings = Settings(**BASE, API_ENV="production", DB_SERVER_CERTIFICATE=str(certificate))
     monkeypatch.setattr(sessionModule, "getSettings", lambda: settings)
     monkeypatch.setattr(sessionModule, "TRUST_BUNDLE", tmp_path / "bundle.pem")
-    monkeypatch.setattr(sessionModule.os, "name", "posix")
+    # Igual que la prueba de Windows: solo la referencia `os` de app.db.session (cambiar os.name global rompe pathlib en Windows).
+    monkeypatch.setattr(sessionModule, "os", types.SimpleNamespace(name="posix", environ=os.environ))
     monkeypatch.delenv("SSL_CERT_FILE", raising=False)
     captured = {}
     monkeypatch.setattr(sessionModule, "create_engine", lambda url, **kw: captured.setdefault("url", url))
     sessionModule._createEngine("app", "x")
     query = dict(captured["url"].query)
     assert (query["Encrypt"], query["TrustServerCertificate"]) == ("yes", "no") and "ServerCertificate" not in query
-    import os
-
     bundle = (tmp_path / "bundle.pem").read_text(encoding="utf-8")
     assert os.environ["SSL_CERT_FILE"] == str(tmp_path / "bundle.pem") and bundle.rstrip().endswith("-----END CERTIFICATE-----")
     assert "PRUEBA" in bundle

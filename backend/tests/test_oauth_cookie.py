@@ -48,9 +48,13 @@ CALLBACK_ORIGIN_HTTP = "http://localhost:8000"
 CALLBACK_ORIGIN_HTTPS = "https://glucolume.test"
 
 
+# Variables del sistema que Python necesita para encontrar sus paquetes (en Windows, el site-packages del usuario vive en APPDATA).
+SYSTEM_VARS = ("PATH", "SYSTEMROOT", "WINDIR", "APPDATA", "LOCALAPPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "TEMP", "TMP", "PATHEXT")
+
+
 def probe(monkeypatch_env: dict[str, str], baseUrl: str) -> dict:
     env = {
-        "PATH": os.environ.get("PATH", ""),
+        **{name: os.environ[name] for name in SYSTEM_VARS if name in os.environ},
         "GLUCOLUME_ENV_FILE": str(ENV_FILE),
         "API_ENV": "development",
         "GOOGLE_CLIENT_ID": "client-id-test",

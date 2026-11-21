@@ -300,23 +300,22 @@ def test_9_sin_regla_aplicable_no_se_elige_una_arbitraria(db, mails, consumer, b
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=10, condicion="AYUNO")  # fuera del rango 18–80
     group = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos[0]
     assert group.reglas == [] and group.reglaSeleccionada is None and group.posicion is None
-    assert group.motivoSinSeleccion == "Referencia no disponible."
+    assert group.motivoSinSeleccion == "No hay una regla de referencia para la medición en ayunas con tu edad. Ninguna se elige como referencia."
     # Sin dato de alimentación tampoco se elige: hay que ver todas las condiciones.
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=40, condicion="NO_INFORMADA")
     group = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos[0]
     assert group.reglaSeleccionada is None and "alimentación" in group.motivoSinSeleccion
 
 
-def test_sin_regla_de_la_condicion_informada_lista_las_disponibles_de_su_sexo_y_edad(db, mails, consumer, bridge, clock):
-    # Sexo y edad conocidos, pero la matriz no tiene regla para «después de comer»: no se elige ninguna y se listan las reglas disponibles
-    # para su sexo y edad (no las del otro sexo ni las de otra edad) para ver con cuál se adapta mejor.
+def test_sin_regla_de_la_condicion_informada_no_muestra_reglas_de_la_otra_condicion(db, mails, consumer, bridge, clock):
+    # Sexo y edad conocidos, pero la matriz no tiene regla para «después de comer»: no se elige ninguna y, con la alimentación informada,
+    # tampoco se muestran las reglas de la OTRA condición (la medición ya dice cuál corresponde).
     user, matrix, started, saved = measureWithMatrix(db, consumer, bridge, glu="90.0", origen="EXPERIMENTAL")
     setSex(db, saved.idMedicion, sexo="FEMENINO", edad=40, condicion="POSTPRANDIAL")
     grupos = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa.grupos
     assert len(grupos) == 1 and grupos[0].reglaSeleccionada is None and grupos[0].posicion is None
-    assert [r.sexoModelo for r in grupos[0].reglas] == ["FEMENINO"]
-    assert [r.condicionComida for r in grupos[0].reglas] == ["AYUNO"]
-    assert "No hay una regla que coincida" in grupos[0].motivoSinSeleccion
+    assert grupos[0].reglas == []
+    assert grupos[0].motivoSinSeleccion == "No hay una regla de referencia para la medición después de comer con tu edad. Ninguna se elige como referencia."
 
 
 def femaleRangesMatrix(db):
