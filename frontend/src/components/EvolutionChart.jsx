@@ -14,7 +14,7 @@ const GROUP_PHRASES = { HORA: 'una hora', DIA: 'un día', SEMANA: 'una semana', 
 const PAD_WIDE = { top: 18, right: 22, bottom: 40, left: 62 };
 const PAD_NARROW = { top: 18, right: 14, bottom: 40, left: 52 };
 
-export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, color, selectedKey = null, onSelect, domain, granularity = 'MEDICION' }) {
+export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, color, dotColor, selectedKey = null, onSelect, domain, granularity = 'MEDICION' }) {
   const [hover, setHover] = useState(null);
   const [setBox, WIDTH] = useElementWidth(); // se dibuja con el ancho real del contenedor (sin escalar un dibujo fijo)
   if (series.length === 0) return null;
@@ -80,7 +80,7 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
               <circle cx={x(point.t)} cy={y(point.value)} r={14} className="evo-hit" />
               {point.demo
                 ? <rect x={x(point.t) - 5} y={y(point.value) - 5} width={10} height={10} transform={`rotate(45 ${x(point.t)} ${y(point.value)})`} className={`evo-demo${selected ? ' is-selected' : ''}`} />
-                : <circle cx={x(point.t)} cy={y(point.value)} r={selected ? 7 : 5} style={{ fill: color }} className={`evo-dot${selected ? ' is-selected' : ''}`} />}
+                : <circle cx={x(point.t)} cy={y(point.value)} r={selected ? 7 : 5} style={{ fill: dotColor?.(point) ?? color }} className={`evo-dot${selected ? ' is-selected' : ''}`} />}
               {point.count > 1 && <text x={x(point.t)} y={y(point.value) - 11} textAnchor="middle" className="evo-count">{point.count}</text>}
             </g>
           );

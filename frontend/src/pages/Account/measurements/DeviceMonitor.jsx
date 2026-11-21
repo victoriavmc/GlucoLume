@@ -12,7 +12,6 @@ import { SavingScreen } from '../../../components/SavingScreen.jsx';
 import { STATES, browserLink, useBrowserLink } from '../../../utils/browserSerialLink.js';
 import { useDeviceReadiness } from '../acquisition/useDeviceReadiness.js';
 import { DeviceReadout } from './DeviceReadout.jsx';
-import { DeviceStatusChecks } from './DeviceStatusChecks.jsx';
 import { DeviceSession } from './DeviceSession.jsx';
 import { MEALS, dateTimeForApi } from './measurementFormat.js';
 import { OptionalMeasurementContext, initialMeasurementContext, measurementContextError, measurementContextPayload } from './OptionalMeasurementContext.jsx';
@@ -28,6 +27,8 @@ const FOCUS_MODES = {
 
 // «Después de comer» supone una comida reciente: más de 6 horas desde la última comida no es válido (ver MAX_MINUTOS_DESPUES_DE_COMER en el backend).
 const MAX_MEAL_AGE_MS = 6 * 60 * 60 * 1000;
+// Cada cuánto se reintenta la reconexión automática mientras el Arduino no esté conectado.
+const AUTO_CONNECT_MS = 5000;
 
 /** Conectar el Arduino desde la propia medición (sin pantalla aparte). El clic es obligatorio: el navegador pide elegir el puerto la primera vez;
  * después «Nueva medición» lo reconecta sola. */
@@ -138,20 +139,20 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
           <h3 id="sesion-config">Configuración de la medición</h3>
         </div>
         {error && <Alert>{error}</Alert>}
-        <DeviceStatusChecks status={status} readiness={readiness} />
         {devices === null ? (
           <p className="field-hint" role="status">Buscando el dispositivo en tu inventario…</p>
         ) : !device || unavailable ? (
+          // No bloquea el formulario: tipo de medición, alimentación y datos opcionales se completan igual; solo falta el dispositivo para iniciar.
           <Alert kind="info">
             {online
               ? <>El dispositivo conectado ({code}) no está disponible para medir este perfil. Tiene que estar dado de alta como operativo
                 en Dispositivos y asignado a quien mide.</>
               : <>No hay un dispositivo operativo disponible para medir este perfil ahora.</>}
           </Alert>
-        ) : (
-          <>
+        ) : null}
+        <>
             <div className="form-grid is-config">
-              {pickable ? (
+              {device && (pickable ? (
                 <SelectField label="Dispositivo" value={device.idDispositivo} onChange={(event) => setSelected(event.target.value)}
                   hint="Hay más de un dispositivo en tu inventario: elegí cuál vas a usar."
                   options={devices.map((item) => ({ value: item.idDispositivo, label: [item.nombre, item.codigoDispositivo].filter(Boolean).join(' · ') }))} />
@@ -161,7 +162,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                   {[device.nombre, device.codigoDispositivo].filter(Boolean).join(' · ')}
                   {isConnectedOne && ' (identificado automáticamente por la conexión)'}
                 </p>
-              )}
+              ))}
               <SelectField label="Modo de medición" value={focus} onChange={(event) => onFocus(event.target.value)}
                 options={Object.entries(FOCUS_MODES).map(([key, label]) => ({ value: key, label }))}
                 hint={focus === 'GLUCOSA_EXPERIMENTAL'
@@ -217,8 +218,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                 {!online && <ConnectArduino />}
               </div>
             </div>
-          </>
-        )}
+        </>
       </section>
     </form>
   );
@@ -230,14 +230,23 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
   const [focus, setFocus] = useState('OXIMETRIA');
   // Guardado automático: lo elige la persona al iniciar (desmarcado por defecto). Solo vive en esta pantalla; no se envía al servidor.
   const [autoSave, setAutoSave] = useState(false);
-  // Cuenta propia: si no hay dispositivo conectado, se intenta reconectar sola al último Arduino usado (una sola vez por pantalla).
-  const attemptedAutoConnect = useRef(false);
-  const busName = status?.estado;
+  // Cuenta propia: mientras no haya conexión, se reconecta sola al último Arduino usado (sin pedir el puerto de nuevo). Reintenta cada pocos
+  // segundos y también al enchufar el Arduino, así que no hace falta tocar nada si el puerto ya se eligió una vez.
+  const link = useBrowserLink();
+  const linked = status?.estado === 'CONECTADO' || link.estado === STATES.CONNECTED;
+  const occupied = Boolean(status?.ocupado);
   useEffect(() => {
-    if (!autoConnect || attemptedAutoConnect.current || !status || status.ocupado || busName === 'CONECTADO') return;
-    attemptedAutoConnect.current = true;
-    browserLink.autoConnect();
-  }, [autoConnect, status, busName]);
+    if (!autoConnect || linked || occupied) return undefined;
+    const tryConnect = () => { browserLink.autoConnect(); };
+    tryConnect();
+    const timer = setInterval(tryConnect, AUTO_CONNECT_MS);
+    const serial = typeof navigator !== 'undefined' ? navigator.serial : undefined;
+    serial?.addEventListener?.('connect', tryConnect);
+    return () => {
+      clearInterval(timer);
+      serial?.removeEventListener?.('connect', tryConnect);
+    };
+  }, [autoConnect, linked, occupied]);
   const inSession = Boolean(status && !status.ocupado && status.sesion);
   // Guardar o cancelar: el servidor libera la sesión ANTES de responder (y al guardar también envía el resultado por correo), así que el estado
   // del dispositivo ya dice «sin sesión» mientras la respuesta tarda. Se conserva la última sesión y una pantalla de carga hasta que responda,

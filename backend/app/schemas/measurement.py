@@ -224,6 +224,7 @@ class EvolutionPoint(BaseModel):
     indiceOptico: float | None
     calidadSenal: float | None = None  # índice registrado por el equipo; null si no lo informó (no se asume ni se completa)
     condicionComida: str | None = None  # AYUNO | POSTPRANDIAL | NO_INFORMADA: lo que se informó al medir
+    semaforo: str | None = None  # solo glucosa completada con regla determinada: ROJO | AMARILLO | VERDE (null sin regla)
 
 
 class EvolutionLast(BaseModel):

@@ -924,7 +924,10 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
         rows = db.scalars(query.order_by(Measurement.fechaHoraInicio.desc(), Measurement.idMedicion)
                           .limit(MAX_EVOLUTION_POINTS + 1)).all()
         truncated = len(rows) > MAX_EVOLUTION_POINTS
-        for row in reversed(rows[:MAX_EVOLUTION_POINTS]):
+        kept = rows[:MAX_EVOLUTION_POINTS]
+        # Semáforo de glucosa de cada medición en pocas consultas (mismo cálculo que el historial).
+        preloaded = glucoseReference.preload(db, [r for r in kept if _needsSemaphore(r)])
+        for row in reversed(kept):
             demo = row.origenGlucosa == ORIGEN_DEMO
             points.append(EvolutionPoint(
                 idMedicion=row.idMedicion, fecha=row.fechaHoraInicio, modoMedicion=row.modoMedicion,
@@ -932,7 +935,8 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
                 frecuenciaCardiaca=row.frecuenciaCardiaca, spo2=float(row.spo2) if row.spo2 is not None else None,
                 glucosa=_evolutionGlucose(row), indiceOptico=float(row.indiceOptico) if row.indiceOptico is not None else None,
                 calidadSenal=float(row.calidadSenal) if row.calidadSenal is not None else None,
-                condicionComida=row.condicionComida or "NO_INFORMADA"))
+                condicionComida=row.condicionComida or "NO_INFORMADA",
+                semaforo=_semaphoreOf(db, row, preloaded)))
         # Se agrupa por columnas simples (SQL Server no admite agrupar ni seleccionar una comparación) y lo DEMO se resuelve acá.
         grouped = db.execute(select(Measurement.origenGlucosa, Measurement.modoMedicion, Measurement.condicionComida, func.count()).where(*base)
                              .group_by(Measurement.origenGlucosa, Measurement.modoMedicion, Measurement.condicionComida)).all()

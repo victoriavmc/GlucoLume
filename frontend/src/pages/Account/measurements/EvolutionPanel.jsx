@@ -24,6 +24,17 @@ const PERIOD_DAYS = [1, 7, 14, 30, 90];
 const OVERVIEW = 'GENERAL';
 // Orden de las pestañas: la glucosa (objetivo del proyecto) primero.
 const TABS = ['glucosa', 'frecuenciaCardiaca', 'spo2', 'calidadSenal', 'indiceOptico'];
+// Oxímetro: SpO₂, frecuencia cardíaca, calidad de señal e índice óptico. La glucosa es una sección aparte (con semáforo).
+const OXIMETRY_TABS = ['spo2', 'frecuenciaCardiaca', 'calidadSenal', 'indiceOptico'];
+const SECTION_GLUCOSA = 'glucosa';
+const SECTION_OXIMETRO = 'oximetria';
+// Mismos rótulos y colores que el semáforo del historial («Está bien», «Revisar», «Muy alto»).
+const SEMAFORO = {
+  VERDE: { label: 'Está bien', color: '#16a34a' },
+  AMARILLO: { label: 'Revisar', color: '#f59e0b' },
+  ROJO: { label: 'Muy alto', color: '#dc2626' },
+};
+const SIN_REGLA_COLOR = '#94a3b8';
 const personalPointPath = (id) => `/app/mediciones/${id}`;
 
 function StatCards({ title, stats, variable, tag }) {
@@ -84,7 +95,8 @@ function SelectedPoint({ selection, points, pointPath, actions = false }) {
     <PointDetail variable={variableName(variable, point.demo)} value={formatValue(point.value, bucket ? Math.max(spec.decimals, 1) : spec.decimals)}
       unit={spec.unit} date={formatDay(bucket ? bucket.from : point.t)}
       time={bucket ? (bucket.granularity === 'HORA' ? bucketLabel(point) : undefined) : formatClock(point.t)} demo={point.demo}
-      summary={[!bucket && (MODES[point.mode] ?? null), describePoint(point, variable)].filter(Boolean).join(' · ')}
+      summary={[!bucket && (MODES[point.mode] ?? null), point.semaforo && `Semáforo: ${SEMAFORO[point.semaforo].label}`, describePoint(point, variable)]
+        .filter(Boolean).join(' · ')}
       others={otherValues(raw, variable)}>
       {actions && <SelectedActions selection={selection} pointPath={pointPath} />}
     </PointDetail>
@@ -145,6 +157,7 @@ export function EvolutionPanel({
   const [originChoice, setOriginChoice] = useState(null);
   const [granularity, setGranularity] = useState('MEDICION');
   const [selected, setSelected] = useState(null);
+  const [glucoseView, setGlucoseView] = useState('valores');
 
   const points = data?.puntos ?? [];
   const hasExperimental = points.some((point) => !point.esDemo);
@@ -160,10 +173,22 @@ export function EvolutionPanel({
   const spec = VARIABLES[variable];
   const series = overview ? [] : seriesOf(variable);
   const noPoints = points.filter((point) => (origin === 'TODOS' || (origin === 'DEMO' ? point.esDemo : !point.esDemo))).length === 0;
+  // Glucosa y oxímetro son secciones distintas; «Vista general» reúne todo.
+  const section = overview ? OVERVIEW : variable === 'glucosa' ? SECTION_GLUCOSA : SECTION_OXIMETRO;
+  const oximetryVariable = OXIMETRY_TABS.includes(variable) ? variable : OXIMETRY_TABS.find((key) => seriesOf(key).length > 0) ?? 'spo2';
+  // El semáforo se calcula por medición: con una agrupación (promedios) no hay un semáforo por punto.
+  const semaforoOn = section === SECTION_GLUCOSA && glucoseView === 'semaforo' && granularity === 'MEDICION';
+  const semaforoCounts = Object.fromEntries(Object.keys(SEMAFORO).map((key) => [key, series.filter((point) => point.semaforo === key).length]));
+  const sinRegla = series.filter((point) => !point.demo && !point.semaforo).length;
+  const dotColor = semaforoOn ? (point) => SEMAFORO[point.semaforo]?.color ?? SIN_REGLA_COLOR : undefined;
 
   function changeVariable(key) {
     setVariableChoice(key);
     setSelected(null);
+  }
+
+  function changeSection(key) {
+    changeVariable(key === SECTION_OXIMETRO ? oximetryVariable : key);
   }
 
   // Una medición se elige con clic y queda resaltada (también en los demás gráficos de la vista general); el detalle sale en esta misma vista.
@@ -180,8 +205,25 @@ export function EvolutionPanel({
   const chartArticle = !overview && series.length > 0 && (
     <article className="evolution-card" aria-label={spec.label}>
       <h3 className="member-list-title">{heading(variable)} — {suffix} <small>({spec.unit || 'índice'})</small></h3>
+      {section === SECTION_GLUCOSA && (
+        <div className="evo-glucose-bar">
+          <Tabs label="Forma de ver la glucosa" idBase="evo-glucosa" variant="pill" value={glucoseView} onChange={(key) => { setGlucoseView(key); setSelected(null); }}
+            items={[{ key: 'valores', label: 'Valores' }, { key: 'semaforo', label: 'Semáforo' }]} />
+          {glucoseView === 'semaforo' && granularity !== 'MEDICION' && (
+            <p className="field-hint">El semáforo se ve por medición: elegí «Cada medición» en Agrupación.</p>
+          )}
+          {semaforoOn && (
+            <ul className="evo-semaforo-legend" aria-label="Resumen del semáforo">
+              {Object.entries(SEMAFORO).map(([key, info]) => (
+                <li key={key}><i style={{ background: info.color }} aria-hidden="true" /> {info.label} <b>{semaforoCounts[key]}</b></li>
+              ))}
+              {sinRegla > 0 && <li><i style={{ background: SIN_REGLA_COLOR }} aria-hidden="true" /> Sin regla <b>{sinRegla}</b></li>}
+            </ul>
+          )}
+        </div>
+      )}
       <EvolutionChart title={spec.label} demoTitle={spec.demoLabel} series={series} unit={spec.unit} decimals={spec.decimals} color={spec.color}
-        domain={domain} granularity={granularity}
+        dotColor={dotColor} domain={domain} granularity={granularity}
         selectedKey={selected?.point.key} onSelect={(point) => selectPoint(variable, point)} />
       {selected && selected.variable === variable ? (
         <div className="evolution-selected"><SelectedActions selection={selected} pointPath={pointPath} /></div>
@@ -222,8 +264,14 @@ export function EvolutionPanel({
         <Alert kind="info">Los datos DEMO son simulados por el firmware para probar el equipo: no representan resultados clínicos y se calculan aparte de los experimentales.</Alert>
       )}
 
-      {!compact && <Tabs label="Variable" idBase="evo" variant="pill" value={variable} onChange={changeVariable}
-        items={[...TABS, OVERVIEW].map((key) => ({ key, label: key === OVERVIEW ? 'Vista general' : VARIABLES[key].label }))} />}
+      {!compact && <Tabs label="Sección" idBase="evo" variant="pill" value={section} onChange={changeSection}
+        items={[{ key: SECTION_GLUCOSA, label: 'Glucosa' }, { key: SECTION_OXIMETRO, label: 'Oxímetro' }, { key: OVERVIEW, label: 'Vista general' }]} />}
+      {!compact && section === SECTION_OXIMETRO && (
+        <div className="evo-subtabs">
+          <Tabs label="Medición del oxímetro" idBase="evo" variant="pill" value={variable} onChange={changeVariable}
+            items={OXIMETRY_TABS.map((key) => ({ key, label: VARIABLES[key].label }))} />
+        </div>
+      )}
 
       <TabPanel idBase="evo" value={variable} className="ui-stack">
       {!compact && <div className="form-grid measurement-filters evo-filters">

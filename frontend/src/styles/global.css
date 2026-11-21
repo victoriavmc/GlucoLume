@@ -498,6 +498,11 @@ main[tabindex='-1']:focus {
   font-weight: 600;
 }
 
+/* La autorización ocupa todo el ancho bajo los datos (no deja un hueco en la columna izquierda). */
+.page.is-cards > .consent-panel { grid-column: 1 / -1; }
+
+.consent-panel > p { margin: 0; color: var(--ink-700); font-size: 14px; }
+
 .consent-panel .consent-actions {
   display: flex;
   flex-wrap: wrap;

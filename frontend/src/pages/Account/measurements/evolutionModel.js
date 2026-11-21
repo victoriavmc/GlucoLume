@@ -97,6 +97,8 @@ export function seriesFor(points, variable, filter) {
     .map((point) => ({
       key: point.idMedicion, ids: [point.idMedicion], t: parseStamp(point.fecha), value: Number(point[variable]), demo: point.esDemo,
       origin: point.origen, mode: point.modoMedicion, count: 1,
+      // Semáforo solo para glucosa experimental: una prueba DEMO es simulada y no se clasifica.
+      semaforo: point.esDemo ? null : point.semaforo ?? null,
     }))
     .filter((point) => Number.isFinite(point.t))
     .sort((a, b) => a.t - b.t);

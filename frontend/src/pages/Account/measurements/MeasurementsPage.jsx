@@ -27,7 +27,7 @@ export function useIndividualOnly() {
 export function MeasurementsScreen({ title, subtitle, children }) {
   return (
     <div className="page">
-      <PageHeader title={title} description={subtitle} back={{ to: '/app/mediciones', label: 'Mi dashboard' }} />
+      <PageHeader title={title} description={subtitle} back={{ to: '/app/mediciones', label: 'Mis mediciones' }} />
       {children}
     </div>
   );

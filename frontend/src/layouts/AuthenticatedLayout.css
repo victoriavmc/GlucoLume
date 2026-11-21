@@ -1417,6 +1417,14 @@ a.dash-card:hover { border-color: var(--red-600); }
 .evo-head > form { display: block; flex: none; width: 210px; max-width: 100%; }
 .evo-filters { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .evo-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+/* Período y fechas en una fila ordenada (antes quedaban apiladas y angostas, a la derecha del título). */
+.evo-head { padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
+.evo-head > form { flex: 1 1 100%; width: 100%; max-width: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 16px; }
+.evo-subtabs { margin-top: -4px; }
+.evo-glucose-bar { display: grid; gap: 10px; }
+.evo-semaforo-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.evo-semaforo-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.evo-semaforo-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
 .evo-side { display: grid; gap: 14px; }
 .evo-stat-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .evo-stat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #f8f9fc; }

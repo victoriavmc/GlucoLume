@@ -1,5 +1,5 @@
 // Dashboard personal (cuenta individual): encabezado con los accesos principales, última medición registrada, últimos valores, accesos
-// rápidos (dispositivo, perfil, historial), «Evolución de mis mediciones» (gráficos históricos interactivos), mediciones recientes y
+// «Evolución de mis mediciones» (gráficos históricos interactivos), mediciones recientes y
 // sección de pruebas DEMO de MI perfil.
 // Todo sale de la base real (GET /measurements/dashboard y GET /measurements/evolution); se vuelve a consultar al entrar, así que una
 // medición recién guardada aparece sin pasar por el historial.
@@ -14,7 +14,6 @@ import {
   HeartPulse,
   History,
   Plus,
-  Settings,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -168,22 +167,6 @@ function LatestCard({ icon: Icon, label, value, unit, when, demo }) {
   );
 }
 
-function Shortcut({ to, icon: Icon, title, hint }) {
-  return (
-    <li>
-      <Link to={to} className="dash-card dash-shortcut">
-        <span className="dash-icon">
-          <Icon size={22} aria-hidden="true" />
-        </span>
-        <span className="dash-shortcut-text">
-          <b>{title}</b>
-          <span className="field-hint">{hint}</span>
-        </span>
-        <ChevronRight size={18} aria-hidden="true" />
-      </Link>
-    </li>
-  );
-}
 
 function RecentTable({ items }) {
   return (
@@ -399,21 +382,6 @@ export function PersonalDashboard({ handleOperationError }) {
               )}
             </p>
           )}
-
-          <ul className="dash-shortcuts" aria-label="Accesos rápidos">
-            <Shortcut
-              to="/app/perfil"
-              icon={Settings}
-              title="Mi perfil"
-              hint="Datos personales y autorización"
-            />
-            <Shortcut
-              to="/app/mediciones/historial"
-              icon={History}
-              title="Historial de mediciones"
-              hint="Todas tus mediciones guardadas"
-            />
-          </ul>
 
           <EvolutionPanel
             data={evolution}

@@ -64,12 +64,21 @@ describe('Pestañas de variable (componente compartido)', () => {
     const user = userEvent.setup();
     renderAt('/app/mediciones');
     const panel = await screen.findByRole('region', { name: 'Evolución de mis mediciones' });
-    const tabs = within(within(panel).getByRole('tablist', { name: 'Variable' })).getAllByRole('tab');
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
-    tabs[0].focus();
+    const sections = within(within(panel).getByRole('tablist', { name: 'Sección' })).getAllByRole('tab');
+    expect(sections[0]).toHaveAttribute('aria-selected', 'true');
+    sections[0].focus();
     await user.keyboard('{ArrowRight}{ArrowRight}');
-    expect(tabs[2]).toHaveFocus();
-    expect(tabs[2]).toHaveAttribute('aria-selected', 'true');
-    expect(within(panel).getByRole('tabpanel', { name: 'Saturación de oxígeno (SpO₂)' })).toBeInTheDocument();
+    expect(sections[2]).toHaveFocus();
+    expect(sections[2]).toHaveAttribute('aria-selected', 'true');
+    expect(within(panel).getByRole('tabpanel', { name: 'Vista general' })).toBeInTheDocument();
+    // Oxímetro: sus variables son pestañas propias, también con el teclado.
+    await user.keyboard('{ArrowLeft}');
+    expect(sections[1]).toHaveFocus();
+    const sub = within(within(panel).getByRole('tablist', { name: 'Medición del oxímetro' })).getAllByRole('tab');
+    expect(sub[0]).toHaveAttribute('aria-selected', 'true');
+    sub[0].focus();
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    expect(sub[2]).toHaveFocus();
+    expect(within(panel).getByRole('tabpanel', { name: 'Calidad de señal' })).toBeInTheDocument();
   });
 });

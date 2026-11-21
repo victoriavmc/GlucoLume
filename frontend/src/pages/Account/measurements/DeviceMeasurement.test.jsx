@@ -120,10 +120,7 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
       PUERTO: { estado: 'PENDIENTE', detalle: 'Sin puerto abierto no hay telemetría.' } })) });
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    const checks = await within(section).findByLabelText('Estado del dispositivo');
-    expect(checks).toHaveTextContent('Puente detenido');
-    expect(await within(section).findByText(/El puente de GlucoLume no está ejecutándose/)).toBeInTheDocument();
-    // Desconectado: se informa el estado, se puede conectar el Arduino desde acá y no se puede iniciar.
+    // Desconectado: se puede conectar el Arduino desde acá y no se puede iniciar.
     expect(await within(section).findByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
     expect(within(section).getByRole('button', { name: /Conectar Arduino por USB/ })).toBeInTheDocument();
     expect(within(section).queryByRole('link', { name: /Conectar dispositivo/ })).not.toBeInTheDocument();
@@ -138,10 +135,8 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
       PUERTO: { estado: 'ERROR', detalle: 'Puerto COM4 no disponible: ¿Bluetooth apagado?', solucion: 'Encendé el Bluetooth del equipo.' } })) });
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    const checks = await within(section).findByLabelText('Estado del dispositivo');
-    await waitFor(() => expect(checks).toHaveTextContent('COM4 sin abrir'));
+    await waitFor(() => expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeDisabled());
     expect(within(section).queryByText('Dispositivo compartido disponible')).not.toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
     expect(within(section).queryByText('Frecuencia cardíaca')).not.toBeInTheDocument();
   });
 
@@ -166,13 +161,7 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
     routes(status());
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    const checks = await within(section).findByLabelText('Estado del dispositivo');
-    await waitFor(() => expect(checks).toHaveTextContent('Listo para medir'));
-    expect(checks).toHaveTextContent('Bluetooth · COM4 abierto');
-    expect(checks).toHaveTextContent('ARD-001 identificado');
-    expect(checks).toHaveTextContent('Responde');
-    expect(await within(section).findByText('Dispositivo compartido disponible')).toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeEnabled();
+    await waitFor(() => expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeEnabled());
     expect(within(section).queryByText(/temporalmente ocupado/)).not.toBeInTheDocument();
   });
 
@@ -182,14 +171,8 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
         solucion: 'Confirmá explícitamente cuál es en «Dispositivo de esta conexión».' } })) });
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    const checks = await within(section).findByLabelText('Estado del dispositivo');
-    await waitFor(() => expect(checks).toHaveTextContent('Sin confirmar'));
-    expect(checks).toHaveTextContent('Bluetooth · COM4 abierto'); // la conexión del puerto sí está bien: son comprobaciones distintas
-    expect(checks).toHaveTextContent('Todavía no');
+    await waitFor(() => expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeDisabled());
     expect(within(section).queryByText('Dispositivo compartido disponible')).not.toBeInTheDocument();
-    expect(within(section).getByText(/Pendiente: Dispositivo identificado/)).toBeInTheDocument();
-    expect(within(section).getByText(/No se pudo confirmar qué Arduino es/)).toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
   });
 
   it('si el backend rechaza el inicio por identidad sin confirmar, el motivo se muestra y el estado se vuelve a consultar', async () => {
@@ -560,7 +543,9 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     renderAt('/app/mediciones/nueva');
     const section = await card();
     expect(await within(section).findByText(/El dispositivo conectado \(OTRO-999\) no está disponible/)).toBeInTheDocument();
-    expect(within(section).queryByRole('button', { name: 'Iniciar medición' })).not.toBeInTheDocument();
+    // El formulario sigue visible (tipo de medición, alimentación, datos opcionales); solo el inicio queda deshabilitado.
+    expect(within(section).getByRole('combobox', { name: 'Modo de medición' })).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
   });
 
   it('al abrir la medición en curso desde otra pantalla, retoma la sesión del dispositivo', async () => {

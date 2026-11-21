@@ -97,8 +97,8 @@ describe('Mediciones: dashboard', () => {
     const dashboard = (await screen.findByRole('heading', { name: 'Mi dashboard' })).closest('section');
     expect(within(dashboard).getByRole('button', { name: /Nueva medición/ })).toBeInTheDocument();
     expect(within(dashboard).queryByRole('link', { name: /Conectar dispositivo/ })).not.toBeInTheDocument(); // se conecta desde Nueva medición
-    // Desde el dashboard, «Mi perfil» lleva a los datos personales y la autorización.
-    expect(await within(dashboard).findByRole('link', { name: /Mi perfil/ })).toHaveAttribute('href', '/app/perfil');
+    // Sin accesos rápidos: «Mi perfil» e «Historial de mediciones» ya no aparecen como tarjetas en el dashboard.
+    expect(within(dashboard).queryByRole('list', { name: 'Accesos rápidos' })).not.toBeInTheDocument();
     // Nada de lo demás queda permanentemente en la pantalla principal.
     expect(screen.queryByRole('heading', { name: 'Mi perfil de medición' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Autorización para almacenar tus mediciones' })).not.toBeInTheDocument();
@@ -158,6 +158,7 @@ describe('Mediciones: dashboard', () => {
     expect(await evolution.findByRole('group', { name: /Glucosa experimental: 2 puntos/ })).toBeInTheDocument();
     expect(evolution.getByRole('region', { name: 'Glucosa experimental: estadísticas experimentales' })).toHaveTextContent('101 mg/dL');
     // Frecuencia cardíaca: un punto por medición, con su valor exacto.
+    await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' })); // sus mediciones van en la sección Oxímetro
     await user.click(evolution.getByRole('tab', { name: 'Frecuencia cardíaca' }));
     expect(evolution.getByRole('region', { name: 'Frecuencia cardíaca: estadísticas experimentales' })).toHaveTextContent('90,7 lpm');
     const chart = evolution.getByRole('group', { name: /Frecuencia cardíaca: 3 puntos/ });
@@ -166,11 +167,12 @@ describe('Mediciones: dashboard', () => {
     ]);
     expect(evolution.getByRole('region', { name: 'Frecuencia cardíaca: estadísticas experimentales' })).toHaveTextContent('78 lpm');
     // Cambiar la variable cambia datos, escala y unidad.
+    await user.click(evolution.getByRole('tab', { name: 'Oxímetro' }));
     await user.click(evolution.getByRole('tab', { name: 'Saturación de oxígeno (SpO₂)' }));
     expect(evolution.getByRole('group', { name: /Saturación de oxígeno \(SpO₂\): 3 puntos/ })).toBeInTheDocument();
     expect(evolution.getAllByRole('button', { name: /^13\/10\/2026/ }).map((node) => node.getAttribute('aria-label'))[0]).toBe('13/10/2026 09:00: 97,5 %');
     // Glucosa experimental: solo los valores que existen (la medición SIN_CALIBRAR no aporta ninguno).
-    await user.click(evolution.getByRole('tab', { name: 'Glucosa experimental' }));
+    await user.click(evolution.getByRole('tab', { name: 'Glucosa' }));
     expect(evolution.getByRole('group', { name: /Glucosa experimental: 2 puntos/ })).toBeInTheDocument();
     expect(evolution.getAllByRole('button').map((node) => node.getAttribute('aria-label'))).toEqual([
       '13/10/2026 09:00: 98 mg/dL', '13/10/2026 22:00: 104 mg/dL',
@@ -182,6 +184,7 @@ describe('Mediciones: dashboard', () => {
     const user = userEvent.setup();
     renderAt('/app/mediciones');
     const evolution = within(await screen.findByRole('region', { name: 'Evolución de mis mediciones' }));
+    await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' }));
     await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
     const target = await evolution.findByRole('button', { name: '13/10/2026 22:00: 108 lpm' });
     await user.hover(target);
@@ -260,6 +263,7 @@ describe('Mediciones: dashboard', () => {
     for (const title of ['Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)', 'Glucosa experimental', 'Índice óptico']) {
       expect(evolution.getByRole('article', { name: title })).toBeInTheDocument();
     }
+    await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' })); // sus mediciones van en la sección Oxímetro
     await user.click(evolution.getByRole('tab', { name: 'Frecuencia cardíaca' }));
     await user.selectOptions(evolution.getByLabelText('Agrupación'), 'DIA');
     const day = await evolution.findByRole('button', { name: '13/10/2026 Día completo: 90,7 lpm' }); // promedio de las 3 del día
@@ -290,7 +294,8 @@ describe('Mediciones: dashboard', () => {
       const evolution = within(await screen.findByRole('region', { name: 'Evolución de mis mediciones' }));
       await user.selectOptions(evolution.getByLabelText('Período'), '1');
       await user.selectOptions(evolution.getByLabelText('Origen de los datos'), 'DEMO');
-      await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
+      await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' }));
+    await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
       return { user, evolution };
     }
 
@@ -359,6 +364,7 @@ describe('Mediciones: dashboard', () => {
     renderAt('/app/mediciones');
     const evolution = within(await screen.findByRole('region', { name: 'Evolución de mis mediciones' }));
     // Por defecto solo experimentales: la DEMO no aparece en el gráfico.
+    await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' }));
     await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
     expect(await evolution.findByRole('group', { name: /Frecuencia cardíaca: 3 puntos/ })).toBeInTheDocument();
     // «Todos los registros»: se distingue visualmente y las estadísticas van separadas.
@@ -423,7 +429,7 @@ describe('Mediciones: historial completo', () => {
     const user = userEvent.setup();
     renderAt('/app/mediciones/historial');
     await screen.findByText('Todavía no hiciste ninguna medición.');
-    expect(screen.getByRole('link', { name: /Mi dashboard/ })).toHaveAttribute('href', '/app/mediciones'); // regreso claro
+    expect(screen.getByRole('link', { name: /Mis mediciones/ })).toHaveAttribute('href', '/app/mediciones'); // regreso claro
     await user.selectOptions(screen.getByLabelText('Estado'), 'COMPLETADA');
     await user.selectOptions(screen.getByLabelText('Modo'), 'GLUCOSA_EXPERIMENTAL');
     await user.selectOptions(screen.getByLabelText('Orden'), 'asc');

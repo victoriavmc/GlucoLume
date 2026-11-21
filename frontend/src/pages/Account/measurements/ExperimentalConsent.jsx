@@ -33,12 +33,17 @@ export function ExperimentalConsent({ consent, onChange }) {
   if (consent.aceptado) {
     return (
       <section className="panel consent-panel" aria-labelledby="consent-title">
-        <div className="consent-status">
-          <p id="consent-title">
-            <ShieldCheck size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-3px' }} /> Autorizaste el
-            almacenamiento de tus mediciones experimentales. Podés revocarlo cuando quieras: no se iniciarán nuevas mediciones
-            (lo ya medido se conserva hasta que elimines tu cuenta).
-          </p>
+        <div className="panel-title">
+          <span className="panel-icon"><ShieldCheck size={22} aria-hidden="true" /></span>
+          <div>
+            <h2 id="consent-title">Autorización para almacenar tus mediciones</h2>
+            <p>Autorizada: tus nuevas mediciones se guardan en tu cuenta.</p>
+          </div>
+        </div>
+        <p>
+          Podés revocarla cuando quieras: no se iniciarán nuevas mediciones (lo ya medido se conserva hasta que elimines tu cuenta).
+        </p>
+        <div className="consent-actions">
           <button type="button" className="btn btn-outline" onClick={() => decide(false)} disabled={busy}>
             {busy ? 'Revocando…' : 'Revocar autorización'}
           </button>
