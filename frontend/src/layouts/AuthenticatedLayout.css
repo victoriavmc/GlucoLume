@@ -1297,6 +1297,11 @@ a.summary-link {
 .evo-grid { stroke: #eceef3; }
 .evo-line { fill: none; stroke-width: 1.6; stroke-opacity: 0.55; stroke-linejoin: round; }
 .evo-line.is-demo { stroke: #d98200; stroke-dasharray: 5 5; }
+.evo-line.is-dashed { stroke-dasharray: 6 4; stroke-opacity: 0.8; }
+/* Zonas del semáforo de glucosa (intervalo de la regla): verde dentro, amarillo bajo el piso, rojo sobre el tope. */
+.evo-range-ok { fill: #16a34a; fill-opacity: 0.12; }
+.evo-range-low { fill: #f59e0b; fill-opacity: 0.14; }
+.evo-range-high { fill: #dc2626; fill-opacity: 0.1; }
 .evo-point { cursor: pointer; outline: none; }
 .evo-hit { fill: transparent; }
 .evo-dot { stroke: #fff; stroke-width: 2; transition: r 0.1s; }
@@ -1306,6 +1311,8 @@ a.summary-link {
 .evo-count { font-size: 11px; fill: var(--ink-500); }
 .evo-legend { display: inline-flex; align-items: center; gap: 6px; }
 .evo-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.evo-swatch.is-dashed { border-radius: 0; height: 3px; width: 16px; }
+.evo-swatch.is-range { border-radius: 2px; background: rgba(22, 163, 74, 0.25); border: 1px solid #16a34a; width: 14px; height: 10px; }
 .evo-swatch.is-demo { border-radius: 2px; transform: rotate(45deg); background: #fff4e0; border: 2px solid #d98200; width: 11px; height: 11px; }
 .evolution-selected { padding: 12px 14px; border-radius: 12px; background: var(--red-50); display: grid; gap: 6px; }
 .evolution-selected p { margin: 0; }

@@ -157,20 +157,18 @@ describe('Mediciones: dashboard', () => {
     // Se abre en la glucosa (hay valores): solo los puntos que existen y sus estadísticas del período.
     expect(await evolution.findByRole('group', { name: /Glucosa experimental: 2 puntos/ })).toBeInTheDocument();
     expect(evolution.getByRole('region', { name: 'Glucosa experimental: estadísticas experimentales' })).toHaveTextContent('101 mg/dL');
-    // Frecuencia cardíaca: un punto por medición, con su valor exacto.
+    // Oxímetro: SpO₂ y frecuencia cardíaca en un solo gráfico, cada una con su escala, unidad y valor exacto.
     await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' })); // sus mediciones van en la sección Oxímetro
-    await user.click(evolution.getByRole('tab', { name: 'Frecuencia cardíaca' }));
     expect(evolution.getByRole('region', { name: 'Frecuencia cardíaca: estadísticas experimentales' })).toHaveTextContent('90,7 lpm');
-    const chart = evolution.getByRole('group', { name: /Frecuencia cardíaca: 3 puntos/ });
-    expect(within(chart).getAllByRole('button').map((node) => node.getAttribute('aria-label'))).toEqual([
-      '13/10/2026 09:00: 78 lpm', '13/10/2026 14:30: 86 lpm', '13/10/2026 22:00: 108 lpm',
-    ]);
+    const chart = evolution.getByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 3 puntos/ });
+    const labels = within(chart).getAllByRole('button').map((node) => node.getAttribute('aria-label'));
+    expect(labels.filter((label) => label.endsWith('lpm'))).toEqual(['13/10/2026 09:00: 78 lpm', '13/10/2026 14:30: 86 lpm', '13/10/2026 22:00: 108 lpm']);
+    expect(labels.filter((label) => label.endsWith('%'))[0]).toBe('13/10/2026 09:00: 97,5 %');
     expect(evolution.getByRole('region', { name: 'Frecuencia cardíaca: estadísticas experimentales' })).toHaveTextContent('78 lpm');
-    // Cambiar la variable cambia datos, escala y unidad.
-    await user.click(evolution.getByRole('tab', { name: 'Oxímetro' }));
-    await user.click(evolution.getByRole('tab', { name: 'Saturación de oxígeno (SpO₂)' }));
-    expect(evolution.getByRole('group', { name: /Saturación de oxígeno \(SpO₂\): 3 puntos/ })).toBeInTheDocument();
-    expect(evolution.getAllByRole('button', { name: /^13\/10\/2026/ }).map((node) => node.getAttribute('aria-label'))[0]).toBe('13/10/2026 09:00: 97,5 %');
+    expect(evolution.getByRole('region', { name: 'Saturación de oxígeno (SpO₂): estadísticas experimentales' })).toBeInTheDocument();
+    // Sin semáforo ni glucosa en la oximetría.
+    expect(evolution.queryByRole('list', { name: 'Resumen del semáforo' })).not.toBeInTheDocument();
+    expect(evolution.queryByText(/Intervalo recomendado/)).not.toBeInTheDocument();
     // Glucosa experimental: solo los valores que existen (la medición SIN_CALIBRAR no aporta ninguno).
     await user.click(evolution.getByRole('tab', { name: 'Glucosa' }));
     expect(evolution.getByRole('group', { name: /Glucosa experimental: 2 puntos/ })).toBeInTheDocument();
@@ -179,13 +177,26 @@ describe('Mediciones: dashboard', () => {
     ]);
   });
 
+  it('la glucosa se grafica con el intervalo de su regla (semáforo); la oximetría no tiene intervalo ni semáforo', async () => {
+    const banded = { ...HISTORY, puntos: HISTORY.puntos.map((item) => ({ ...item, referenciaMinima: 70, referenciaMaxima: 100 })) };
+    routes({ 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE), 'GET /measurements/evolution': jsonResponse(200, banded) });
+    const user = userEvent.setup();
+    renderAt('/app/mediciones');
+    const evolution = within(await screen.findByRole('region', { name: 'Evolución de mis mediciones' }));
+    expect(await evolution.findByText(/Curva de Glucosa Experimental/)).toBeInTheDocument();
+    expect(evolution.getByText(/Intervalo recomendado: 70–100 mg\/dL/)).toBeInTheDocument();
+    expect(evolution.getByRole('list', { name: 'Resumen del semáforo' })).toBeInTheDocument();
+    await user.click(evolution.getByRole('tab', { name: 'Oxímetro' }));
+    expect(evolution.queryByText(/Intervalo recomendado/)).not.toBeInTheDocument();
+    expect(evolution.queryByRole('list', { name: 'Resumen del semáforo' })).not.toBeInTheDocument();
+  });
+
   it('al pasar sobre un punto muestra fecha, hora, valor, unidad, modo y origen; al elegirlo abre su detalle', async () => {
     routes({ 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE), 'GET /measurements/evolution': jsonResponse(200, HISTORY) });
     const user = userEvent.setup();
     renderAt('/app/mediciones');
     const evolution = within(await screen.findByRole('region', { name: 'Evolución de mis mediciones' }));
     await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' }));
-    await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
     const target = await evolution.findByRole('button', { name: '13/10/2026 22:00: 108 lpm' });
     await user.hover(target);
     const tip = within(evolution.getByRole('tooltip'));
@@ -212,7 +223,7 @@ describe('Mediciones: dashboard', () => {
     expect(within(selected.getByRole('list', { name: 'Otros valores de esta medición' })).getByText('104 mg/dL')).toBeInTheDocument();
     expect(evolution.queryByRole('region', { name: /estadísticas experimentales/ })).not.toBeInTheDocument();
     await user.click(evolution.getByRole('button', { name: 'Volver a las estadísticas del período' }));
-    expect(evolution.getByRole('region', { name: /estadísticas experimentales/ })).toBeInTheDocument();
+    expect(evolution.getAllByRole('region', { name: /estadísticas experimentales/ }).length).toBeGreaterThan(0);
     expect(evolution.queryByRole('region', { name: 'Medición seleccionada' })).not.toBeInTheDocument();
   });
 
@@ -264,7 +275,6 @@ describe('Mediciones: dashboard', () => {
       expect(evolution.getByRole('article', { name: title })).toBeInTheDocument();
     }
     await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' })); // sus mediciones van en la sección Oxímetro
-    await user.click(evolution.getByRole('tab', { name: 'Frecuencia cardíaca' }));
     await user.selectOptions(evolution.getByLabelText('Agrupación'), 'DIA');
     const day = await evolution.findByRole('button', { name: '13/10/2026 Día completo: 90,7 lpm' }); // promedio de las 3 del día
     await user.click(day);
@@ -295,17 +305,16 @@ describe('Mediciones: dashboard', () => {
       await user.selectOptions(evolution.getByLabelText('Período'), '1');
       await user.selectOptions(evolution.getByLabelText('Origen de los datos'), 'DEMO');
       await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' }));
-    await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
       return { user, evolution };
     }
 
     it('agrupa las mediciones de la misma hora en un solo punto con su promedio (solo DEMO) y lo explica', async () => {
       const { user, evolution } = await open();
       // Cada medición: 4 puntos DEMO.
-      expect(await evolution.findByRole('group', { name: /Frecuencia cardíaca: 4 puntos/ })).toBeInTheDocument();
+      expect(await evolution.findByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 4 puntos/ })).toBeInTheDocument();
       await user.selectOptions(evolution.getByLabelText('Agrupación'), 'HORA');
       // Por hora: 2 bloques (23:00 y 00:00). Sin duplicados y sin la medición experimental en el promedio: (90 + 92 + 94) / 3 = 92.
-      expect(await evolution.findByRole('group', { name: /Frecuencia cardíaca: 2 puntos/ })).toBeInTheDocument();
+      expect(await evolution.findByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 2 puntos/ })).toBeInTheDocument();
       const block = await evolution.findByRole('button', { name: '14/10/2026 00:00–01:00: 92 lpm (DEMO)' });
       await user.hover(block);
       const tip = within(evolution.getByRole('tooltip'));
@@ -324,7 +333,7 @@ describe('Mediciones: dashboard', () => {
       expect(evolution.getByText(/Eje: 13\/10\/2026 12:50 a 14\/10\/2026 12:50/)).toBeInTheDocument();
       // Volver a «Cada medición» devuelve los puntos individuales.
       await user.selectOptions(evolution.getByLabelText('Agrupación'), 'MEDICION');
-      expect(await evolution.findByRole('group', { name: /Frecuencia cardíaca: 4 puntos/ })).toBeInTheDocument();
+      expect(await evolution.findByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 4 puntos/ })).toBeInTheDocument();
     });
 
     it('la vista general agrupa por hora las cuatro variables y el origen DEMO no mezcla experimentales', async () => {
@@ -365,18 +374,17 @@ describe('Mediciones: dashboard', () => {
     const evolution = within(await screen.findByRole('region', { name: 'Evolución de mis mediciones' }));
     // Por defecto solo experimentales: la DEMO no aparece en el gráfico.
     await user.click(await evolution.findByRole('tab', { name: 'Oxímetro' }));
-    await user.click(await evolution.findByRole('tab', { name: 'Frecuencia cardíaca' }));
-    expect(await evolution.findByRole('group', { name: /Frecuencia cardíaca: 3 puntos/ })).toBeInTheDocument();
+    expect(await evolution.findByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 3 puntos/ })).toBeInTheDocument();
     // «Todos los registros»: se distingue visualmente y las estadísticas van separadas.
     await user.selectOptions(evolution.getByLabelText('Origen de los datos'), 'TODOS');
-    expect(evolution.getByRole('group', { name: /Frecuencia cardíaca: 4 puntos/ })).toBeInTheDocument();
+    expect(evolution.getByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 4 puntos/ })).toBeInTheDocument();
     expect(evolution.getByRole('button', { name: '13/10/2026 23:00: 70 lpm (DEMO)' })).toBeInTheDocument();
     expect(evolution.getByText('Prueba DEMO (simulada)')).toBeInTheDocument();
     expect(evolution.getByRole('region', { name: 'Frecuencia cardíaca: estadísticas experimentales' })).toHaveTextContent('90,7 lpm');
     expect(evolution.getByRole('region', { name: 'Frecuencia cardíaca: estadísticas de pruebas' })).toHaveTextContent('70 lpm');
     // Solo DEMO.
     await user.selectOptions(evolution.getByLabelText('Origen de los datos'), 'DEMO');
-    expect(evolution.getByRole('group', { name: /Frecuencia cardíaca: 1 punto/ })).toBeInTheDocument();
+    expect(evolution.getByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca: 1 punto/ })).toBeInTheDocument();
     expect(evolution.queryByRole('region', { name: 'Frecuencia cardíaca: estadísticas experimentales' })).not.toBeInTheDocument();
     // Los indicadores superiores no incluyen la DEMO.
     const latestHeart = within(screen.getByRole('list', { name: 'Resumen personal' })).getByText('Última frecuencia cardíaca').closest('li');

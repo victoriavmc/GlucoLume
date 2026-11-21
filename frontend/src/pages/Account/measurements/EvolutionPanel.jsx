@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { EvolutionChart } from '../../../components/EvolutionChart.jsx';
+import { OximetryChart } from '../../../components/OximetryChart.jsx';
 import { PointDetail } from '../../../components/PointDetail.jsx';
 import { OriginBadge } from '../../../components/Badge.jsx';
 import { EmptyState } from '../../../components/EmptyState.jsx';
@@ -24,8 +25,8 @@ const PERIOD_DAYS = [1, 7, 14, 30, 90];
 const OVERVIEW = 'GENERAL';
 // Orden de las pestañas: la glucosa (objetivo del proyecto) primero.
 const TABS = ['glucosa', 'frecuenciaCardiaca', 'spo2', 'calidadSenal', 'indiceOptico'];
-// Oxímetro: SpO₂, frecuencia cardíaca, calidad de señal e índice óptico. La glucosa es una sección aparte (con semáforo).
-const OXIMETRY_TABS = ['spo2', 'frecuenciaCardiaca', 'calidadSenal', 'indiceOptico'];
+// Oxímetro: SpO₂ y frecuencia cardíaca en un mismo gráfico. La glucosa es una sección aparte (con su semáforo).
+const OXIMETRY_KEYS = ['spo2', 'frecuenciaCardiaca'];
 const SECTION_GLUCOSA = 'glucosa';
 const SECTION_OXIMETRO = 'oximetria';
 // Mismos rótulos y colores que el semáforo del historial («Está bien», «Revisar», «Muy alto»).
@@ -157,7 +158,6 @@ export function EvolutionPanel({
   const [originChoice, setOriginChoice] = useState(null);
   const [granularity, setGranularity] = useState('MEDICION');
   const [selected, setSelected] = useState(null);
-  const [glucoseView, setGlucoseView] = useState('valores');
 
   const points = data?.puntos ?? [];
   const hasExperimental = points.some((point) => !point.esDemo);
@@ -171,16 +171,23 @@ export function EvolutionPanel({
   const visible = Object.keys(VARIABLES).filter((key) => seriesOf(key).length > 0);
   const overview = variable === OVERVIEW;
   const spec = VARIABLES[variable];
-  const series = overview ? [] : seriesOf(variable);
-  const noPoints = points.filter((point) => (origin === 'TODOS' || (origin === 'DEMO' ? point.esDemo : !point.esDemo))).length === 0;
-  // Glucosa y oxímetro son secciones distintas; «Vista general» reúne todo.
+  // Glucosa y oxímetro son secciones distintas; «Vista general» reúne todo. En la ficha del paciente (`compact`) cada variable va sola.
   const section = overview ? OVERVIEW : variable === 'glucosa' ? SECTION_GLUCOSA : SECTION_OXIMETRO;
-  const oximetryVariable = OXIMETRY_TABS.includes(variable) ? variable : OXIMETRY_TABS.find((key) => seriesOf(key).length > 0) ?? 'spo2';
-  // El semáforo se calcula por medición: con una agrupación (promedios) no hay un semáforo por punto.
-  const semaforoOn = section === SECTION_GLUCOSA && glucoseView === 'semaforo' && granularity === 'MEDICION';
+  const combined = !compact && section === SECTION_OXIMETRO; // SpO₂ y frecuencia cardíaca en un solo gráfico
+  const oxSpo2 = combined ? seriesOf('spo2') : [];
+  const oxFrecuencia = combined ? seriesOf('frecuenciaCardiaca') : [];
+  const series = overview ? [] : combined ? [...oxSpo2, ...oxFrecuencia] : seriesOf(variable);
+  const noPoints = points.filter((point) => (origin === 'TODOS' || (origin === 'DEMO' ? point.esDemo : !point.esDemo))).length === 0;
+  // El semáforo (solo glucosa) se ve por medición; con una agrupación (promedios) no hay un semáforo por punto.
+  const semaforoOn = section === SECTION_GLUCOSA && granularity === 'MEDICION';
   const semaforoCounts = Object.fromEntries(Object.keys(SEMAFORO).map((key) => [key, series.filter((point) => point.semaforo === key).length]));
   const sinRegla = series.filter((point) => !point.demo && !point.semaforo).length;
   const dotColor = semaforoOn ? (point) => SEMAFORO[point.semaforo]?.color ?? SIN_REGLA_COLOR : undefined;
+  // Rango de referencia de la regla que define el semáforo: el de la medición más reciente (glucosa experimental, sin DEMO).
+  const withRange = series.filter((point) => !point.demo && point.rangeMax !== null && point.rangeMax !== undefined);
+  const latestRange = withRange.at(-1);
+  const glucoseRange = section === SECTION_GLUCOSA && latestRange ? { min: latestRange.rangeMin ?? null, max: latestRange.rangeMax } : null;
+  const rangesVary = new Set(withRange.map((point) => `${point.rangeMin}:${point.rangeMax}`)).size > 1;
 
   function changeVariable(key) {
     setVariableChoice(key);
@@ -188,7 +195,7 @@ export function EvolutionPanel({
   }
 
   function changeSection(key) {
-    changeVariable(key === SECTION_OXIMETRO ? oximetryVariable : key);
+    changeVariable(key === SECTION_OXIMETRO ? 'spo2' : key); // la oximetría se ve completa (SpO₂ y FC) en un solo gráfico
   }
 
   // Una medición se elige con clic y queda resaltada (también en los demás gráficos de la vista general); el detalle sale en esta misma vista.
@@ -202,35 +209,56 @@ export function EvolutionPanel({
   const suffix = ORIGIN_SUFFIX[drawsDemo ? (drawn.some((point) => !point.esDemo) ? 'TODOS' : 'DEMO') : 'EXPERIMENTAL'];
   // «Glucosa experimental — DEMO» sería contradictorio: con datos DEMO el valor es una estimación o una simulación.
   const heading = (key) => (key === 'glucosa' && drawsDemo ? 'Glucosa estimada' : VARIABLES[key].label);
+  // Glucosa: «Curva de Glucosa Experimental» con el semáforo (zonas del intervalo y color de cada punto).
+  const glucoseTitle = drawsDemo ? 'Curva de glucosa estimada (DEMO, datos simulados)' : 'Curva de Glucosa Experimental';
+  const oximetryTitle = `Oximetría ${suffix}: SpO₂ (%) y FC (lpm)`;
+  // Detalle en la vista: el punto elegido (de cualquiera de las dos series en oximetría) o las estadísticas del período.
+  const selectedHere = selected && (combined ? OXIMETRY_KEYS.includes(selected.variable) : selected.variable === variable);
   const chartArticle = !overview && series.length > 0 && (
-    <article className="evolution-card" aria-label={spec.label}>
-      <h3 className="member-list-title">{heading(variable)} — {suffix} <small>({spec.unit || 'índice'})</small></h3>
-      {section === SECTION_GLUCOSA && (
+    <article className="evolution-card" aria-label={combined ? 'Oximetría experimental' : spec.label}>
+      {combined ? (
+        <h3 className="member-list-title">{oximetryTitle}</h3>
+      ) : (
+        <h3 className="member-list-title">
+          {section === SECTION_GLUCOSA ? glucoseTitle : `${heading(variable)} — ${suffix}`} <small>({spec.unit || 'índice'})</small>
+        </h3>
+      )}
+      {semaforoOn && (
         <div className="evo-glucose-bar">
-          <Tabs label="Forma de ver la glucosa" idBase="evo-glucosa" variant="pill" value={glucoseView} onChange={(key) => { setGlucoseView(key); setSelected(null); }}
-            items={[{ key: 'valores', label: 'Valores' }, { key: 'semaforo', label: 'Semáforo' }]} />
-          {glucoseView === 'semaforo' && granularity !== 'MEDICION' && (
-            <p className="field-hint">El semáforo se ve por medición: elegí «Cada medición» en Agrupación.</p>
-          )}
-          {semaforoOn && (
-            <ul className="evo-semaforo-legend" aria-label="Resumen del semáforo">
-              {Object.entries(SEMAFORO).map(([key, info]) => (
-                <li key={key}><i style={{ background: info.color }} aria-hidden="true" /> {info.label} <b>{semaforoCounts[key]}</b></li>
-              ))}
-              {sinRegla > 0 && <li><i style={{ background: SIN_REGLA_COLOR }} aria-hidden="true" /> Sin regla <b>{sinRegla}</b></li>}
-            </ul>
-          )}
+          {rangesVary && <p className="field-hint">Hay mediciones con distintos intervalos de referencia: el gráfico muestra el de la más reciente.</p>}
+          <ul className="evo-semaforo-legend" aria-label="Resumen del semáforo">
+            {Object.entries(SEMAFORO).map(([key, info]) => (
+              <li key={key}><i style={{ background: info.color }} aria-hidden="true" /> {info.label} <b>{semaforoCounts[key]}</b></li>
+            ))}
+            {sinRegla > 0 && <li><i style={{ background: SIN_REGLA_COLOR }} aria-hidden="true" /> Sin regla <b>{sinRegla}</b></li>}
+          </ul>
         </div>
       )}
-      <EvolutionChart title={spec.label} demoTitle={spec.demoLabel} series={series} unit={spec.unit} decimals={spec.decimals} color={spec.color}
-        dotColor={dotColor} domain={domain} granularity={granularity}
-        selectedKey={selected?.point.key} onSelect={(point) => selectPoint(variable, point)} />
-      {selected && selected.variable === variable ? (
+      {combined ? (
+        <OximetryChart spo2Series={oxSpo2} fcSeries={oxFrecuencia} domain={domain} granularity={granularity} selected={selected} onSelect={selectPoint} />
+      ) : (
+        <EvolutionChart title={spec.label} demoTitle={spec.demoLabel} series={series} unit={spec.unit} decimals={spec.decimals} color={spec.color}
+          dotColor={dotColor} domain={domain} granularity={granularity} range={glucoseRange}
+          selectedKey={selected?.point.key} onSelect={(point) => selectPoint(variable, point)} />
+      )}
+      {selectedHere ? (
         <div className="evolution-selected"><SelectedActions selection={selected} pointPath={pointPath} /></div>
       ) : (
         <p className="field-hint">Elegí un punto del gráfico para ver el detalle de esa medición a la derecha.</p>
       )}
     </article>
+  );
+
+  // Estadísticas de una variable, separadas por origen (experimental / DEMO), como en el resto del panel.
+  const statCardsOf = (key) => (
+    <>
+      {(origin === 'EXPERIMENTAL' || origin === 'TODOS') && (
+        <StatCards title={`${VARIABLES[key].label}: estadísticas experimentales`} stats={data.estadisticas.experimental} variable={key} />
+      )}
+      {(origin === 'DEMO' || origin === 'TODOS') && (
+        <StatCards title={`${VARIABLES[key].label}: estadísticas de pruebas`} stats={data.estadisticas.demo} variable={key} tag="DEMO" />
+      )}
+    </>
   );
 
   return (
@@ -266,12 +294,6 @@ export function EvolutionPanel({
 
       {!compact && <Tabs label="Sección" idBase="evo" variant="pill" value={section} onChange={changeSection}
         items={[{ key: SECTION_GLUCOSA, label: 'Glucosa' }, { key: SECTION_OXIMETRO, label: 'Oxímetro' }, { key: OVERVIEW, label: 'Vista general' }]} />}
-      {!compact && section === SECTION_OXIMETRO && (
-        <div className="evo-subtabs">
-          <Tabs label="Medición del oxímetro" idBase="evo" variant="pill" value={variable} onChange={changeVariable}
-            items={OXIMETRY_TABS.map((key) => ({ key, label: VARIABLES[key].label }))} />
-        </div>
-      )}
 
       <TabPanel idBase="evo" value={variable} className="ui-stack">
       {!compact && <div className="form-grid measurement-filters evo-filters">
@@ -307,28 +329,24 @@ export function EvolutionPanel({
         <EmptyState variant="framed" headingLevel={0} role="status"
           title={variable === 'glucosa'
             ? 'Sin datos disponibles de glucosa experimental en este período (las mediciones sin calibrar no informan glucosa).'
-            : `Sin datos disponibles de ${spec.label.toLowerCase()} en este período.`} />
+            : combined ? 'Sin datos de oximetría en este período.' : `Sin datos disponibles de ${spec.label.toLowerCase()} en este período.`} />
       ) : null}
 
       {!overview && data && !noPoints && (
         <div className="evo-body">
           {chartArticle}
           <div className="evo-side">
-            {selected && selected.variable === variable ? (
+            {selectedHere ? (
               <>
                 <SelectedPoint selection={selected} points={points} pointPath={pointPath} />
                 <button type="button" className="btn btn-ghost" onClick={() => setSelected(null)}>Volver a las estadísticas del período</button>
               </>
-            ) : (
+            ) : combined ? (
               <>
-            {(origin === 'EXPERIMENTAL' || origin === 'TODOS') && (
-              <StatCards title={`${spec.label}: estadísticas experimentales`} stats={data.estadisticas.experimental} variable={variable} />
-            )}
-            {(origin === 'DEMO' || origin === 'TODOS') && (
-              <StatCards title={`${spec.label}: estadísticas de pruebas`} stats={data.estadisticas.demo} variable={variable} tag="DEMO" />
-            )}
+                {statCardsOf('spo2')}
+                {statCardsOf('frecuenciaCardiaca')}
               </>
-            )}
+            ) : statCardsOf(variable)}
           </div>
         </div>
       )}

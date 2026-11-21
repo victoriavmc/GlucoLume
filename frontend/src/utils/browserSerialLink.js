@@ -35,6 +35,11 @@ const PICKER_FILTERS = {
   BLUETOOTH: [{ bluetoothServiceClassId: SERIAL_PORT_PROFILE }],
   USB: [0x2341, 0x1a86, 0x10c4, 0x0403, 0x2a03].map((usbVendorId) => ({ usbVendorId })),
 };
+// Sin medio elegido de antemano: el selector muestra los dos tipos y el medio se reconoce del puerto que la persona elige.
+const PICKER_FILTERS_ANY = [...PICKER_FILTERS.USB, ...PICKER_FILTERS.BLUETOOTH];
+
+/** Reconoce el medio del puerto elegido: el USB informa su id de fabricante; el puerto SPP del Bluetooth no informa ids USB. */
+export const detectMedium = (port) => (port?.getInfo?.()?.usbVendorId ? 'USB' : 'BLUETOOTH');
 
 const hex = (value) => value.toString(16).padStart(4, '0');
 
@@ -196,27 +201,28 @@ export function createBrowserLink(deps = {}) {
     }
   }
 
+  /** Sin `medium` se muestran USB y Bluetooth en el selector y el medio se reconoce del puerto elegido. Con `medium` se limita a ese tipo. */
   async function connect(medium) {
     if (run || snapshot.estado === STATES.CONNECTING) return;
-    if (!BAUD[medium]) throw new Error('Medio inválido');
+    if (medium !== undefined && !BAUD[medium]) throw new Error('Medio inválido');
     const serial = getSerial();
     if (!serial) {
       emit({ estado: STATES.ERROR, error: 'Este navegador no puede leer puertos serie. Usá Chrome o Edge en una computadora.' });
       return;
     }
-    emit({ estado: STATES.CONNECTING, medio: medium, error: null, lineasEnviadas: 0, ultimoEnvio: null });
+    emit({ estado: STATES.CONNECTING, medio: medium ?? null, error: null, lineasEnviadas: 0, ultimoEnvio: null });
     let port;
     try {
       port = await serial.requestPort({
-        filters: PICKER_FILTERS[medium],
-        ...(medium === 'BLUETOOTH' ? { allowedBluetoothServiceClassIds: [SERIAL_PORT_PROFILE] } : {}),
+        filters: medium ? PICKER_FILTERS[medium] : PICKER_FILTERS_ANY,
+        allowedBluetoothServiceClassIds: [SERIAL_PORT_PROFILE],
       });
     } catch (error) {
       const message = describeSerialError(error, 'pick');
       emit({ estado: message ? STATES.ERROR : STATES.IDLE, error: message });
       return;
     }
-    await openAndRun(port, medium, false);
+    await openAndRun(port, medium ?? detectMedium(port), false);
   }
 
   /** Abre el puerto ya elegido y arranca la lectura. `quiet`: en la reconexión automática un fallo no muestra error, queda inactiva. */
@@ -237,7 +243,7 @@ export function createBrowserLink(deps = {}) {
     };
     run = current;
     getSerial()?.addEventListener?.('disconnect', current.onDisconnect);
-    emit({ estado: STATES.CONNECTED, puerto: current.label, error: null });
+    emit({ estado: STATES.CONNECTED, medio: medium, puerto: current.label, error: null });
     current.timer = setTimer(() => { flush(current); }, TICK_MS);
     current.loop = readLoop(current);
     flush(current);

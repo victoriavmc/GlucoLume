@@ -212,9 +212,15 @@ def build(db: Session, measurement: Measurement, preloaded: Preloaded | None = N
             reglaSeleccionada=read, posicion=position(read, value), motivoSinSeleccion=reason,
             aplicada=bool(selected is not None and estimated and appliedRule == selected.idReglaMatriz)))
     # El semáforo sale de la regla aplicada si la hay; si no, de la única regla que quedó determinada.
-    chosen = next((g for g in groups if g.aplicada and g.reglaSeleccionada), None) or next((g for g in groups if g.reglaSeleccionada), None)
+    chosen = chosenRule(groups)
     return GlucoseReference(
         estado="APLICADA" if estimated else "REFERENCIA",
         matriz=MatrixSummary(idMatriz=matrix.idMatriz, nombre=matrix.nombre, version=matrix.version, ambito=matrix.ambito),
         grupos=groups, avisoSexo=SEX_NOT_INFORMED if measurement.sexoModelo is None and not anySex else None,
-        semaforo=semaphore(chosen.reglaSeleccionada, value) if chosen else None, **common)
+        semaforo=semaphore(chosen, value) if chosen else None, **common)
+
+
+def chosenRule(groups: list[ReferenceGroup]) -> ReferenceRule | None:
+    """Regla que define el semáforo y el intervalo de referencia: la aplicada si la hay; si no, la única determinada."""
+    chosen = next((g for g in groups if g.aplicada and g.reglaSeleccionada), None) or next((g for g in groups if g.reglaSeleccionada), None)
+    return chosen.reglaSeleccionada if chosen else None

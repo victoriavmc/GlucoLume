@@ -99,6 +99,8 @@ export function seriesFor(points, variable, filter) {
       origin: point.origen, mode: point.modoMedicion, count: 1,
       // Semáforo solo para glucosa experimental: una prueba DEMO es simulada y no se clasifica.
       semaforo: point.esDemo ? null : point.semaforo ?? null,
+      // Intervalo de la regla que define el semáforo (mg/dL), para dibujar el rango. NULL = sin regla o sin límite inferior.
+      rangeMin: point.referenciaMinima ?? null, rangeMax: point.referenciaMaxima ?? null,
     }))
     .filter((point) => Number.isFinite(point.t))
     .sort((a, b) => a.t - b.t);
@@ -145,6 +147,8 @@ export function aggregateSeries(series, granularity) {
       value: bucket.items.reduce((sum, item) => sum + item.value, 0) / bucket.items.length, demo: bucket.demo,
       origin: bucket.items.length === 1 ? bucket.items[0].origin : bucket.demo ? 'DEMO' : 'EXPERIMENTAL',
       mode: bucket.items.length === 1 ? bucket.items[0].mode : null, count: bucket.items.length, items: bucket.items,
+      // Intervalo de referencia: el de la medición más reciente del bloque (los promedios no tienen semáforo por punto).
+      rangeMin: bucket.items.at(-1).rangeMin, rangeMax: bucket.items.at(-1).rangeMax,
       bucket: { from: bucket.start, to: end, granularity },
     };
   });

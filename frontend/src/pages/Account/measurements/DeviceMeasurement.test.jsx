@@ -122,7 +122,8 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
     const section = await card();
     // Desconectado: se puede conectar el Arduino desde acá y no se puede iniciar.
     expect(await within(section).findByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
-    expect(within(section).getByRole('button', { name: /Conectar Arduino por USB/ })).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Conectar con el dispositivo' })).toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: /Conectar Arduino por/ })).not.toBeInTheDocument();
     expect(within(section).queryByRole('link', { name: /Conectar dispositivo/ })).not.toBeInTheDocument();
     expect(within(section).queryByText('Dispositivo compartido disponible')).not.toBeInTheDocument();
   });
@@ -234,10 +235,8 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeDisabled(); // no hay lectura estable
 
     await pushStatus(status({ sesion: session(8, true) }));
-    expect(within(live).getByText('Lectura estable. Podés guardar la medición.')).toBeInTheDocument();
-    await user.click(within(live).getByRole('button', { name: 'Guardar medición' }));
-
-    // Confirmado el guardado se ofrece ver la medición o volver al dashboard; desde ahí se ve la medición guardada con su origen DEMO y sus unidades.
+    // Al llegar a «Señal estable» se guarda sola (sin pulsar nada). Guardado el resultado se ofrece ver la medición o volver al dashboard; desde
+    // ahí se ve la medición guardada con su origen DEMO y sus unidades.
     expect(await screen.findByRole('heading', { name: 'Medición guardada' })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Ver medición' }));
     expect(await screen.findByRole('heading', { name: /Oximetría · 08\/10\/2026 09:00/ })).toBeInTheDocument();
@@ -305,7 +304,6 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     const mode = await within(section).findByLabelText('Modo de medición');
     expect(mode).toHaveValue('OXIMETRIA');
     await user.selectOptions(mode, 'GLUCOSA_EXPERIMENTAL');
-    expect(within(section).getByText(/no se cambia a Oximetría en silencio/)).toBeInTheDocument();
     await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === 'POST /acquisition/telemetry/session')).toBe(true));
     expect(api.calls.find((call) => call.key === 'POST /acquisition/telemetry/session').body.modoMedicion).toBe('GLUCOSA_EXPERIMENTAL');
@@ -317,11 +315,10 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     renderAt('/app/mediciones/nueva');
     const section = await card();
     await user.selectOptions(await within(section).findByLabelText('Modo de medición'), 'GLUCOSA_EXPERIMENTAL');
-    expect(within(section).getByLabelText('Inicio de la última comida (opcional)')).toBeInTheDocument();
+    expect(within(section).queryByLabelText(/última comida/i)).not.toBeInTheDocument(); // ya no se pide la hora de la última comida
     await user.selectOptions(within(section).getByLabelText('Alimentación'), 'POSTPRANDIAL');
     await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === 'POST /acquisition/telemetry/session')).toBe(true));
-    expect(screen.queryByText(/Indicá cuándo fue la última comida/)).not.toBeInTheDocument();
     const body = api.calls.find((call) => call.key === 'POST /acquisition/telemetry/session').body;
     expect(body).toMatchObject({ modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'POSTPRANDIAL' });
     expect(body.fechaHoraUltimaComida).toBeUndefined();
@@ -457,7 +454,7 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     expect(within(monitor).getByRole('button', { name: 'Guardar medición' })).toBeDisabled();
   });
 
-  it('estado C: con 8 lecturas válidas muestra «Lectura estable», habilita guardar y al guardar ofrece ver la medición o volver', async () => {
+  it('estado C: con 8 lecturas válidas guarda sola una vez y ofrece ver la medición o volver', async () => {
     const stable = status({
       sesion: { idMedicion: MEASUREMENT_ID, iniciada: '2026-10-08T09:00:00Z', enlacePerdido: false,
         estabilidad: { estable: true, motivo: null, mensaje: null, lecturasValidas: 8, lecturasRequeridas: 8 } },
@@ -465,14 +462,9 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     const api = routes(stable, {
       'POST /acquisition/telemetry/session/save': jsonResponse(200, SAVED_DEMO),
     });
-    const user = userEvent.setup();
     renderAt('/app/mediciones/nueva');
-    const monitor = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    expect(within(monitor).getByText('Lectura estable. Podés guardar la medición.')).toBeInTheDocument();
-    expect(within(monitor).getByRole('button', { name: /Cancelar sesión/ })).toBeEnabled();
-    expect(api.calls.some((call) => call.key === 'POST /acquisition/telemetry/session/save')).toBe(false); // nunca se guarda solo
-    await user.click(within(monitor).getByRole('button', { name: 'Guardar medición' }));
-    expect(await screen.findByRole('heading', { name: 'Medición guardada' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Medición guardada' })).toBeInTheDocument(); // se guarda sin pulsar nada
+    expect(api.calls.filter((call) => call.key === 'POST /acquisition/telemetry/session/save')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Ver medición' })).toHaveAttribute('href', `/app/mediciones/${MEASUREMENT_ID}`);
     expect(screen.getByRole('link', { name: 'Volver a mi dashboard' })).toHaveAttribute('href', '/app/mediciones');
   });
@@ -486,12 +478,9 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     const api = routes(stable, {
       'POST /acquisition/telemetry/session/save': () => new Promise((resolve) => { finish = () => resolve(jsonResponse(200, SAVED_DEMO)); }),
     });
-    const user = userEvent.setup();
     renderAt('/app/mediciones/nueva');
-    const monitor = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    await user.click(within(monitor).getByRole('button', { name: 'Guardar medición' }));
-    // Mientras el servidor guarda (y envía el correo) se ve la carga: ni el formulario de inicio ni el resultado todavía.
-    expect(screen.getByText('Guardando la medición…')).toBeInTheDocument();
+    // Al estar estable, el guardado automático arranca solo; mientras el servidor guarda (y envía el correo) se ve la carga.
+    expect(await screen.findByText('Guardando la medición…')).toBeInTheDocument();
     expect(screen.getByText(/No cierres ni recargues esta pantalla/)).toBeInTheDocument();
     expect(screen.queryByText('Configuración de la medición')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Medición guardada' })).not.toBeInTheDocument();
@@ -510,10 +499,10 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     const user = userEvent.setup();
     renderAt('/app/mediciones/nueva');
     const live = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    await user.click(within(live).getByRole('button', { name: 'Guardar medición' }));
+    // El guardado automático (que ya se intentó al estar estable) es rechazado: se muestra el motivo, sin reintentar en bucle.
     expect(await screen.findByText('El dedo no está colocado sobre el sensor.')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
-    expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeEnabled(); // se puede reintentar
+    expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeEnabled(); // se puede reintentar a mano
     expect(api.calls.filter((call) => call.key === 'POST /acquisition/telemetry/session/save')).toHaveLength(1);
   });
 
@@ -559,8 +548,7 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
   });
 });
 
-describe('Nueva medición con el dispositivo: guardado automático (opt-in al iniciar)', () => {
-  const AUTO = 'Guardar sola cuando la señal esté estable';
+describe('Nueva medición con el dispositivo: guardado automático al estabilizarse', () => {
   const SAVE_CALL = 'POST /acquisition/telemetry/session/save';
   const START_CALL = 'POST /acquisition/telemetry/session';
   const session = (lecturasValidas, estable, motivo = 'LECTURAS_INSUFICIENTES') => ({
@@ -568,46 +556,32 @@ describe('Nueva medición con el dispositivo: guardado automático (opt-in al in
     estabilidad: { estable, motivo: estable ? null : motivo, mensaje: null, lecturasValidas, lecturasRequeridas: 8 },
   });
   const settle = () => act(() => new Promise((resolve) => { setTimeout(resolve, 20); })); // deja correr las llamadas pendientes
-  // Inicia la medición desde el formulario, con o sin «Guardar sola» marcado (y el modo indicado, si se pasa). Devuelve cuando el
-  // inicio llegó al backend; el monitor aparece después, con el estado de sesión que cada prueba informa.
-  async function startSession(user, api, { auto, mode }) {
+  // Inicia la medición desde el formulario (y el modo indicado, si se pasa). Devuelve cuando el inicio llegó al backend; el monitor aparece
+  // después, con el estado de sesión que cada prueba informa.
+  async function startSession(user, api, { mode } = {}) {
     renderAt('/app/mediciones/nueva');
     const section = await card();
     if (mode) await user.selectOptions(await within(section).findByLabelText('Modo de medición'), mode);
-    const box = await within(section).findByRole('checkbox', { name: AUTO });
-    if (box.checked !== auto) await user.click(box);
-    await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
+    await user.click(await within(section).findByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === START_CALL)).toBe(true));
   }
   const liveRegion = () => screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
 
-  it('por defecto no se guarda sola: al estabilizarse espera el botón «Guardar medición» (el checkbox viene desmarcado)', async () => {
-    const api = routes(status(), {
-      [START_CALL]: () => jsonResponse(201, detail()), [SAVE_CALL]: jsonResponse(200, SAVED_DEMO),
-    });
-    const user = userEvent.setup();
+  it('no hay casilla de guardado automático: el inicio no la ofrece', async () => {
+    routes(status(), { [START_CALL]: () => jsonResponse(201, detail()) });
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    expect(await within(section).findByRole('checkbox', { name: AUTO })).not.toBeChecked();
-    await user.click(within(section).getByRole('button', { name: 'Iniciar medición' }));
-    await waitFor(() => expect(api.calls.some((call) => call.key === START_CALL)).toBe(true));
-    api.set(status({ sesion: session(3, false) }));
-    await pushStatus(status({ sesion: session(3, false) }));
-    await pushStatus(status({ sesion: session(8, true) }));
-    await settle();
-    const live = screen.getByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeEnabled();
-    expect(api.calls.some((call) => call.key === SAVE_CALL)).toBe(false);
+    expect(within(section).queryByRole('checkbox', { name: /Guardar sola/ })).not.toBeInTheDocument();
   });
 
-  it('con «Guardar sola» marcado, al llegar a «Señal estable» guarda una sola vez, sin pulsar nada, y muestra el resultado', async () => {
+  it('al llegar a «Señal estable» guarda una sola vez, sin pulsar nada, y muestra el resultado', async () => {
     const api = routes(status(), {
       [START_CALL]: () => jsonResponse(201, detail()), [SAVE_CALL]: jsonResponse(200, SAVED_DEMO),
       [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, SAVED_DEMO),
     });
     const user = userEvent.setup();
-    await startSession(user, api, { auto: true });
-    // El inicio no envía el checkbox: es una preferencia de esta pantalla, y el backend recibe lo mismo que siempre.
+    await startSession(user, api);
+    // El inicio envía lo mismo que siempre: el guardado automático no es un dato del backend.
     expect(api.calls.find((call) => call.key === START_CALL).body).toEqual({
       idPerfilMedicion: PROFILE_ID, idDispositivo: 'd-1', condicionComida: 'NO_INFORMADA', modoMedicion: 'OXIMETRIA',
     });
@@ -627,7 +601,7 @@ describe('Nueva medición con el dispositivo: guardado automático (opt-in al in
       [SAVE_CALL]: jsonResponse(409, { codigo: 'LECTURA_NO_ESTABLE', detail: 'El dedo no está colocado sobre el sensor.' }),
     });
     const user = userEvent.setup();
-    await startSession(user, api, { auto: true });
+    await startSession(user, api);
     api.set(status({ sesion: session(3, false) }));
     await pushStatus(status({ sesion: session(3, false) }));
     await pushStatus(status({ sesion: session(8, true) }));
@@ -646,7 +620,7 @@ describe('Nueva medición con el dispositivo: guardado automático (opt-in al in
       [START_CALL]: () => jsonResponse(201, detail({ modoMedicion: 'GLUCOSA_EXPERIMENTAL' })), [SAVE_CALL]: jsonResponse(200, SAVED_DEMO),
     });
     const user = userEvent.setup();
-    await startSession(user, api, { auto: true, mode: 'GLUCOSA_EXPERIMENTAL' });
+    await startSession(user, api, { mode: 'GLUCOSA_EXPERIMENTAL' });
     const noGlucose = {
       sesion: { idMedicion: MEASUREMENT_ID, iniciada: '2026-10-08T09:00:00Z', enlacePerdido: false, modo: 'GLUCOSA_EXPERIMENTAL',
         estabilidad: { estable: false, motivo: 'GLUCOSA_NO_DISPONIBLE', mensaje: message, lecturasValidas: 8, lecturasRequeridas: 8 } },

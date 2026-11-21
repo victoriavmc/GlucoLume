@@ -225,6 +225,9 @@ class EvolutionPoint(BaseModel):
     calidadSenal: float | None = None  # índice registrado por el equipo; null si no lo informó (no se asume ni se completa)
     condicionComida: str | None = None  # AYUNO | POSTPRANDIAL | NO_INFORMADA: lo que se informó al medir
     semaforo: str | None = None  # solo glucosa completada con regla determinada: ROJO | AMARILLO | VERDE (null sin regla)
+    # Intervalo de referencia de la regla que define el semáforo (mg/dL). NULL = sin regla o sin límite inferior.
+    referenciaMinima: float | None = None
+    referenciaMaxima: float | None = None
 
 
 class EvolutionLast(BaseModel):

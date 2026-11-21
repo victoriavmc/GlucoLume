@@ -671,6 +671,17 @@ def _semaphoreOf(db: Session, measurement: Measurement, preloaded=None) -> str |
     return glucoseReference.build(db, measurement, preloaded).semaforo
 
 
+def _semaphoreAndRange(db: Session, measurement: Measurement, preloaded=None) -> tuple[str | None, float | None, float | None]:
+    """Semáforo y el intervalo de la regla que lo define (una sola lectura de la matriz). Sin regla: todo None."""
+    if not _needsSemaphore(measurement):
+        return None, None, None
+    reference = glucoseReference.build(db, measurement, preloaded)
+    rule = glucoseReference.chosenRule(reference.grupos)
+    if rule is None:
+        return None, None, None
+    return reference.semaforo, rule.glucosaMinReferencia, rule.glucosaMaxReferencia
+
+
 def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None,
              estado: str | None, orden: str, pagina: int, tamanioPagina: int, origen: str | None = None,
              hideExpired: bool = False) -> MeasurementPage:
@@ -929,6 +940,7 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
         preloaded = glucoseReference.preload(db, [r for r in kept if _needsSemaphore(r)])
         for row in reversed(kept):
             demo = row.origenGlucosa == ORIGEN_DEMO
+            semaforo, rangeMin, rangeMax = _semaphoreAndRange(db, row, preloaded)
             points.append(EvolutionPoint(
                 idMedicion=row.idMedicion, fecha=row.fechaHoraInicio, modoMedicion=row.modoMedicion,
                 origen=row.origenGlucosa or ("EXPERIMENTAL" if row.glucosaEstimada is not None else None), esDemo=demo,
@@ -936,7 +948,7 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
                 glucosa=_evolutionGlucose(row), indiceOptico=float(row.indiceOptico) if row.indiceOptico is not None else None,
                 calidadSenal=float(row.calidadSenal) if row.calidadSenal is not None else None,
                 condicionComida=row.condicionComida or "NO_INFORMADA",
-                semaforo=_semaphoreOf(db, row, preloaded)))
+                semaforo=semaforo, referenciaMinima=rangeMin, referenciaMaxima=rangeMax))
         # Se agrupa por columnas simples (SQL Server no admite agrupar ni seleccionar una comparación) y lo DEMO se resuelve acá.
         grouped = db.execute(select(Measurement.origenGlucosa, Measurement.modoMedicion, Measurement.condicionComida, func.count()).where(*base)
                              .group_by(Measurement.origenGlucosa, Measurement.modoMedicion, Measurement.condicionComida)).all()

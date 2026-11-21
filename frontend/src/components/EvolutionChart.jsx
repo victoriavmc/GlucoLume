@@ -14,7 +14,7 @@ const GROUP_PHRASES = { HORA: 'una hora', DIA: 'un día', SEMANA: 'una semana', 
 const PAD_WIDE = { top: 18, right: 22, bottom: 40, left: 62 };
 const PAD_NARROW = { top: 18, right: 14, bottom: 40, left: 52 };
 
-export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, color, dotColor, selectedKey = null, onSelect, domain, granularity = 'MEDICION' }) {
+export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, color, dotColor, selectedKey = null, onSelect, domain, granularity = 'MEDICION', range = null }) {
   const [hover, setHover] = useState(null);
   const [setBox, WIDTH] = useElementWidth(); // se dibuja con el ancho real del contenedor (sin escalar un dibujo fijo)
   if (series.length === 0) return null;
@@ -27,7 +27,8 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
   const t0 = domain?.[0] ?? Math.min(...times);
   const rawT1 = domain?.[1] ?? Math.max(...times);
   const t1 = rawT1 > t0 ? rawT1 : t0 + 3_600_000; // un solo punto: ventana mínima de una hora
-  const values = series.map((point) => point.value);
+  // El rango de referencia entra en la escala (aunque ningún valor llegue a sus bordes) para que se vea completo.
+  const values = [...series.map((point) => point.value), ...(range ? [range.max, range.min].filter((edge) => edge !== null) : [])];
   const low = Math.min(...values);
   const high = Math.max(...values);
   const margin = (high - low || Math.max(Math.abs(high) * 0.05, 1)) * 0.15;
@@ -66,6 +67,16 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
           </text>
         ))}
         <line x1={PAD.left} x2={WIDTH - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} className="trend-axis" />
+        {range && (
+          // Zonas del semáforo: verde dentro del intervalo, amarillo por debajo del piso, rojo por encima del tope.
+          <g aria-hidden="true" className="evo-range">
+            <rect x={PAD.left} y={PAD.top} width={innerW} height={Math.max(0, y(range.max) - PAD.top)} className="evo-range-high" />
+            <rect x={PAD.left} y={y(range.max)} width={innerW} height={Math.max(0, y(range.min ?? yMin) - y(range.max))} className="evo-range-ok" />
+            {range.min !== null && (
+              <rect x={PAD.left} y={y(range.min)} width={innerW} height={Math.max(0, PAD.top + innerH - y(range.min))} className="evo-range-low" />
+            )}
+          </g>
+        )}
         {experimental.length > 1 && <polyline points={line(experimental)} className="evo-line" style={{ stroke: color }} />}
         {demo.length > 1 && <polyline points={line(demo)} className="evo-line is-demo" />}
         {series.map((point) => {
@@ -97,6 +108,11 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
       <figcaption>
         {experimental.length > 0 && <span className="evo-legend"><i className="evo-swatch" style={{ background: color }} /> Medición experimental</span>}
         {demo.length > 0 && <span className="evo-legend"><i className="evo-swatch is-demo" /> Prueba DEMO (simulada)</span>}
+        {range && (
+          <span className="evo-legend">
+            <i className="evo-swatch is-range" aria-hidden="true" /> Intervalo recomendado: {range.min === null ? `hasta ${formatValue(range.max, decimals)}` : `${formatValue(range.min, decimals)}–${formatValue(range.max, decimals)}`} {unit}
+          </span>
+        )}
         <span className="field-hint">
           {granularity === 'MEDICION' ? 'Cada punto es una medición guardada; la línea solo las une en orden cronológico.'
             : `Cada punto es el promedio de las mediciones de ${GROUP_PHRASES[granularity]}; el número indica cuántas se promediaron.`}

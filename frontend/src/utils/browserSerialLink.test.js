@@ -67,6 +67,24 @@ describe('abrir el puerto', () => {
     }
   });
 
+  it('sin elegir medio, el selector muestra USB y Bluetooth y reconoce el medio del puerto elegido', async () => {
+    const usb = fakePort();
+    const usbSetup = setup({ port: usb });
+    await usbSetup.link.connect();
+    expect(usbSetup.serial.requestPort.mock.calls[0][0].filters).toEqual(expect.arrayContaining([{ usbVendorId: 0x2341 }, { bluetoothServiceClassId: '00001101-0000-1000-8000-00805f9b34fb' }]));
+    expect(usb.opened).toEqual({ baudRate: 115200 });
+    expect(usbSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, medio: 'USB' });
+    await usbSetup.link.disconnect();
+
+    const bt = fakePort();
+    bt.getInfo = () => ({}); // el puerto SPP del Bluetooth no informa ids USB
+    const btSetup = setup({ port: bt });
+    await btSetup.link.connect();
+    expect(bt.opened).toEqual({ baudRate: 9600 });
+    expect(btSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, medio: 'BLUETOOTH' });
+    await btSetup.link.disconnect();
+  });
+
   it('cancelar el selector no es un error', async () => {
     const { link } = setup({ requestPort: vi.fn(async () => { throw Object.assign(new Error('x'), { name: 'NotFoundError' }); }) });
     await link.connect('USB');

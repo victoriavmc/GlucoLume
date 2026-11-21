@@ -7,13 +7,13 @@ import { useEffect, useRef, useState } from 'react';
 
 import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
-import { Alert, CheckField, SelectField, SubmitButton, TextAreaField, TextField } from '../../../components/FormControls.jsx';
+import { Alert, SelectField, SubmitButton, TextAreaField } from '../../../components/FormControls.jsx';
 import { SavingScreen } from '../../../components/SavingScreen.jsx';
 import { STATES, browserLink, useBrowserLink } from '../../../utils/browserSerialLink.js';
 import { useDeviceReadiness } from '../acquisition/useDeviceReadiness.js';
 import { DeviceReadout } from './DeviceReadout.jsx';
 import { DeviceSession } from './DeviceSession.jsx';
-import { MEALS, dateTimeForApi } from './measurementFormat.js';
+import { MEALS } from './measurementFormat.js';
 import { OptionalMeasurementContext, initialMeasurementContext, measurementContextError, measurementContextPayload } from './OptionalMeasurementContext.jsx';
 import { useDeviceStatus } from './useDeviceStatus.js';
 
@@ -25,38 +25,36 @@ const FOCUS_MODES = {
   GLUCOSA_EXPERIMENTAL: 'Glucosa experimental',
 };
 
-// «Después de comer» supone una comida reciente: más de 6 horas desde la última comida no es válido (ver MAX_MINUTOS_DESPUES_DE_COMER en el backend).
-const MAX_MEAL_AGE_MS = 6 * 60 * 60 * 1000;
 // Cada cuánto se reintenta la reconexión automática mientras el Arduino no esté conectado.
 const AUTO_CONNECT_MS = 5000;
 
-/** Conectar el Arduino desde la propia medición (sin pantalla aparte). El clic es obligatorio: el navegador pide elegir el puerto la primera vez;
- * después «Nueva medición» lo reconecta sola. */
+const MEDIUM_LABEL = { USB: 'USB', BLUETOOTH: 'Bluetooth' };
+
+/** Conectar el Arduino desde la propia medición (sin pantalla aparte). Un solo botón: el selector del navegador muestra USB y Bluetooth, y el medio
+ * se reconoce del puerto elegido. El clic es obligatorio: el navegador pide elegir el puerto la primera vez; después «Nueva medición» lo reconecta sola. */
 function ConnectArduino() {
   const link = useBrowserLink();
   const busy = link.estado === STATES.CONNECTING;
   return (
     <div className="connect-arduino">
       <div className="form-actions">
-        <button type="button" className="btn btn-outline" disabled={busy} onClick={() => link.connect('USB')}>
-          <PlugZap size={16} aria-hidden="true" /> Conectar Arduino por USB
-        </button>
-        <button type="button" className="btn btn-outline" disabled={busy} onClick={() => link.connect('BLUETOOTH')}>
-          <PlugZap size={16} aria-hidden="true" /> Conectar Arduino por Bluetooth
+        <button type="button" className="btn btn-outline" disabled={busy} onClick={() => link.connect()}>
+          <PlugZap size={16} aria-hidden="true" /> Conectar con el dispositivo
         </button>
       </div>
+      {link.estado === STATES.CONNECTED && link.medio && (
+        <p className="field-hint" role="status">Arduino reconocido por {MEDIUM_LABEL[link.medio]}. Esperando la confirmación del dispositivo…</p>
+      )}
       {!link.supported && <p className="field-hint">Para conectar el Arduino sin instalar nada usá Chrome o Edge en una computadora.</p>}
       {link.error && <Alert>{link.error}</Alert>}
     </div>
   );
 }
 
-function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, extraOptions, focus, onFocus, autoSave, onAutoSave, handleOperationError, onStarted }) {
+function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, extraOptions, focus, onFocus, handleOperationError, onStarted }) {
   const [devices, setDevices] = useState(null);
   const [selected, setSelected] = useState('');
   const [condicionComida, setCondicionComida] = useState('NO_INFORMADA');
-  const [lastMeal, setLastMeal] = useState('');
-  const [mealError, setMealError] = useState('');
   const [matrix, setMatrix] = useState(undefined); // undefined: sin consultar · null: no hay matriz aplicable
   const [observation, setObservation] = useState('');
   const [context, setContext] = useState(() => initialMeasurementContext(profile)); // edad y sexo opcionales de esta medición
@@ -106,11 +104,6 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
       return;
     }
     setContextError('');
-    setMealError(''); // «Última comida» es opcional en todos los modos: vacío nunca bloquea (ni con «Después de comer»)
-    if (glucoseMode && condicionComida === 'POSTPRANDIAL' && lastMeal && Date.now() - new Date(lastMeal).getTime() > MAX_MEAL_AGE_MS) {
-      setMealError('Si la medición es después de comer, la última comida no puede ser de hace más de 6 horas. Corregí la hora o elegí otra alimentación.');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -118,7 +111,6 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
         idPerfilMedicion, idDispositivo: device.idDispositivo, condicionComida,
         modoMedicion: focus,
         observacion: observation.trim() || undefined,
-        fechaHoraUltimaComida: glucoseMode ? dateTimeForApi(lastMeal) : undefined,
         ...measurementContextPayload(context, profile),
       }));
     } catch (startError) {
@@ -164,39 +156,26 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                 </p>
               ))}
               <SelectField label="Modo de medición" value={focus} onChange={(event) => onFocus(event.target.value)}
-                options={Object.entries(FOCUS_MODES).map(([key, label]) => ({ value: key, label }))}
-                hint={focus === 'GLUCOSA_EXPERIMENTAL'
-                  ? 'Se guarda como Glucosa experimental. Para guardarla el dispositivo debe informar un valor de glucosa (DEMO o experimental calibrado); no se cambia a Oximetría en silencio.'
-                  : 'Se guarda como Oximetría, junto con todas las lecturas válidas de la sesión.'} />
+                options={Object.entries(FOCUS_MODES).map(([key, label]) => ({ value: key, label }))} />
               <SelectField label="Alimentación" value={condicionComida} onChange={(event) => setCondicionComida(event.target.value)}
                 options={Object.entries(MEALS).map(([key, label]) => ({ value: key, label }))} />
-              {glucoseMode && ( // solo la glucosa usa la hora de la última comida
-                <TextField label="Inicio de la última comida (opcional)" type="datetime-local" value={lastMeal} error={mealError || undefined}
-                  hint={condicionComida === 'POSTPRANDIAL' && !lastMeal
-                    ? 'Sin la hora de la última comida no se puede comparar con la matriz «después de comer»; se miden igual SpO₂, frecuencia cardíaca y glucosa.'
-                    : condicionComida === 'POSTPRANDIAL'
-                      ? 'Después de comer: la última comida debe ser de hace como máximo 6 horas.'
-                      : 'Si la dejás vacía se guarda como «Sin informar».'}
-                  onChange={(event) => { setLastMeal(event.target.value); setMealError(''); }} />
-              )}
             </div>
-            <CheckField label="Guardar sola cuando la señal esté estable" checked={autoSave} onChange={(event) => onAutoSave(event.target.checked)}
-              hint={glucoseMode
-                ? 'Sin pulsar «Guardar medición»: al llegar a «Señal estable» se guarda con lo elegido arriba. Si el dispositivo no informa glucosa, no se guarda sola.'
-                : 'Sin pulsar «Guardar medición»: al llegar a «Señal estable» se guarda con lo elegido arriba. Podés cancelar la sesión antes de que se estabilice.'} />
             {glucoseMode && (
-              <Alert kind="info">
-                {matrix ? (
-                  <>
-                    Matriz que se aplicará (la elige el sistema, no se puede cambiar): <b>{matrix.nombre}, versión {matrix.version}</b>
-                    {' '}· {matrix.ambito === 'INSTITUCION' ? 'Institucional' : 'Global de GlucoLume'}.
-                  </>
-                ) : matrix === null ? (
-                  <>Hoy no hay una matriz activa y vigente para estimar glucosa, así que esta medición no se puede iniciar.</>
-                ) : null}{' '}
-                Este modo elige su regla de referencia según la edad y el sexo: sin esos datos no se puede estimar (no se inventan). La oximetría
-                no los necesita. No es un diagnóstico.
-              </Alert>
+              <details className="optional-details">
+                <summary>Matriz de referencia <small>({matrix ? matrix.nombre : 'sin matriz activa'})</small></summary>
+                <Alert kind="info">
+                  {matrix ? (
+                    <>
+                      Matriz que se aplicará (la elige el sistema, no se puede cambiar): <b>{matrix.nombre}, versión {matrix.version}</b>
+                      {' '}· {matrix.ambito === 'INSTITUCION' ? 'Institucional' : 'Global de GlucoLume'}.
+                    </>
+                  ) : matrix === null ? (
+                    <>Hoy no hay una matriz activa y vigente para estimar glucosa, así que esta medición no se puede iniciar.</>
+                  ) : null}{' '}
+                  Este modo elige su regla de referencia según la edad y el sexo: sin esos datos no se puede estimar (no se inventan). La oximetría
+                  no los necesita. No es un diagnóstico.
+                </Alert>
+              </details>
             )}
             {/* Con edad y sexo ya registrados el bloque queda plegado: no se vuelve a pedir lo que existe; si falta algo, se abre. */}
             <details className="optional-details" open={missingContext || Boolean(contextError)}>
@@ -228,8 +207,6 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
 export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, profile = null, patient = false, extraOptions = null, savingSteps = [], handleOperationError, onSaved, onCancelled, autoConnect = false }) {
   const { status, error, refresh } = useDeviceStatus();
   const [focus, setFocus] = useState('OXIMETRIA');
-  // Guardado automático: lo elige la persona al iniciar (desmarcado por defecto). Solo vive en esta pantalla; no se envía al servidor.
-  const [autoSave, setAutoSave] = useState(false);
   // Cuenta propia: mientras no haya conexión, se reconecta sola al último Arduino usado (sin pedir el puerto de nuevo). Reintenta cada pocos
   // segundos y también al enchufar el Arduino, así que no hace falta tocar nada si el puerto ya se eligió una vez.
   const link = useBrowserLink();
@@ -262,7 +239,7 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
       <section className="measure-flow" aria-label="Medición con el dispositivo">
         {error && <Alert>{error}</Alert>}
         <DeviceSession status={sessionStatus} profileLabel={profileLabel} patient={patient} handleOperationError={handleOperationError}
-          autoSave={autoSave} onWorking={setWorking}
+          onWorking={setWorking}
           onSaved={(detail) => { setWorking(''); refresh(); onSaved?.(detail); }} onCancelled={(detail) => { setWorking(''); refresh(); onCancelled?.(detail); }} />
         {working === 'save' && <SavingScreen title="Guardando la medición…" steps={['Registrando los resultados', ...savingSteps]} />}
         {working === 'cancel' && <SavingScreen title="Cancelando la medición…" note="Un momento: liberamos el dispositivo." />}
@@ -282,7 +259,7 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
       {/* Antes de iniciar solo hay configuración y estado del dispositivo: la «Medición en tiempo real» aparece con la sesión. */}
       {status && !status.ocupado && (
         <StartForm status={status} idPerfilMedicion={idPerfilMedicion} idInstitucion={idInstitucion} profile={profile} patient={patient} extraOptions={extraOptions}
-          focus={focus} onFocus={setFocus} autoSave={autoSave} onAutoSave={setAutoSave} handleOperationError={handleOperationError} onStarted={refresh} />
+          focus={focus} onFocus={setFocus} handleOperationError={handleOperationError} onStarted={refresh} />
       )}
     </section>
   );

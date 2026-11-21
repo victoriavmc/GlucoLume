@@ -83,7 +83,7 @@ function MetricCard({ title, icon: Icon, tone, current, unit, decimals = 0, poin
 /** Valor ACTUAL: el de la última lectura de la sesión y solo si es válida (sin dedo o con señal inválida no se muestra el anterior). */
 const currentOf = (points, field) => points.at(-1)?.[field] ?? null;
 
-export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = false, autoSave = false, onSaved, onCancelled, onWorking, handleOperationError }) {
+export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = false, onSaved, onCancelled, onWorking, handleOperationError }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -127,14 +127,14 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
   const save = () => run('save', acquisitionApi.saveDeviceSession, onSaved);
   const cancel = () => run('cancel', acquisitionApi.cancelDeviceSession, onCancelled);
 
-  // Guardado automático (solo si se eligió al iniciar): al llegar a «Señal estable» se intenta UNA vez. Si el servidor lo rechaza, queda el
-  // motivo y el botón manual; no se reintenta en bucle. La referencia impide dos intentos aunque la pantalla vuelva a renderizar.
+  // Guardado automático: al llegar a «Señal estable» se intenta UNA vez. Si el servidor lo rechaza, queda el motivo y el botón manual; no se
+  // reintenta en bucle. La referencia impide dos intentos aunque la pantalla vuelva a renderizar.
   const autoSaveTried = useRef(false);
   useEffect(() => {
-    if (!autoSave || autoSaveTried.current || !ready || busy) return;
+    if (autoSaveTried.current || !ready || busy) return;
     autoSaveTried.current = true;
     save();
-  }, [autoSave, ready, busy]); // solo se reevalúa cuando cambian estos estados; `save` usa siempre las props del render actual
+  }, [ready, busy]); // solo se reevalúa cuando cambian estos estados; `save` usa siempre las props del render actual
 
   const hasReading = connected && reading;
   const stage = acquisitionStage(reading, stability, connected);

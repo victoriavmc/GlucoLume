@@ -71,14 +71,10 @@ describe('Pestañas de variable (componente compartido)', () => {
     expect(sections[2]).toHaveFocus();
     expect(sections[2]).toHaveAttribute('aria-selected', 'true');
     expect(within(panel).getByRole('tabpanel', { name: 'Vista general' })).toBeInTheDocument();
-    // Oxímetro: sus variables son pestañas propias, también con el teclado.
+    // Oxímetro: SpO₂ y frecuencia cardíaca en un solo gráfico (sin subpestañas de variable).
     await user.keyboard('{ArrowLeft}');
     expect(sections[1]).toHaveFocus();
-    const sub = within(within(panel).getByRole('tablist', { name: 'Medición del oxímetro' })).getAllByRole('tab');
-    expect(sub[0]).toHaveAttribute('aria-selected', 'true');
-    sub[0].focus();
-    await user.keyboard('{ArrowRight}{ArrowRight}');
-    expect(sub[2]).toHaveFocus();
-    expect(within(panel).getByRole('tabpanel', { name: 'Calidad de señal' })).toBeInTheDocument();
+    expect(within(panel).getByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca/ })).toBeInTheDocument();
+    expect(within(panel).queryByRole('tablist', { name: 'Medición del oxímetro' })).not.toBeInTheDocument();
   });
 });
