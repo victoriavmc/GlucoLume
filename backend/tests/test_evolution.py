@@ -142,3 +142,38 @@ def test_24_horas_con_origen_demo_trae_solo_las_pruebas_de_la_ventana_e_informa_
     assert [p.idMedicion for p in data.puntos] == [rows["demo"].idMedicion] and all(p.esDemo for p in data.puntos)
     # `desde` es el inicio real de la ventana (ahora − 24 h): el frontend lo usa para graficar el eje del período.
     assert abs((nowForDb() - timedelta(hours=24)) - data.desde) < timedelta(minutes=1) and data.hasta is None
+
+
+@pytest.mark.parametrize("dias", [180, 365, 1095])
+def test_periodos_largos_incluyen_mediciones_antiguas(db, history, dias):
+    user, _, rows = history
+    hoursAgo(db, rows["a"].idMedicion, 24 * 150)  # hace 150 días: fuera de 90, dentro de 180/365/1095
+    data = measurements.ownEvolution(db, user, dias, origen="TODOS")
+    assert rows["a"].idMedicion in [p.idMedicion for p in data.puntos] and len(data.puntos) == 4
+    assert data.desde is not None and not data.truncado
+
+
+def test_90_dias_ya_no_incluye_una_medicion_de_200_dias(db, history):
+    user, _, rows = history
+    hoursAgo(db, rows["a"].idMedicion, 24 * 200)
+    assert rows["a"].idMedicion not in [p.idMedicion for p in measurements.ownEvolution(db, user, 90).puntos]
+
+
+def test_cada_punto_informa_la_condicion_de_comida_y_el_resumen_cuenta_por_contexto(db, history):
+    user, _, rows = history
+    mark(db, rows["a"].idMedicion, condicionComida="AYUNO")
+    mark(db, rows["b"].idMedicion, condicionComida="POSTPRANDIAL")
+    data = measurements.ownEvolution(db, user, 365, origen="TODOS")
+    byId = {p.idMedicion: p.condicionComida for p in data.puntos}
+    assert byId[rows["a"].idMedicion] == "AYUNO" and byId[rows["b"].idMedicion] == "POSTPRANDIAL"
+    assert byId[rows["c"].idMedicion] == "NO_INFORMADA"
+    # El resumen cuenta las mismas mediciones que los puntos, incluida la DEMO (sin filtro de origen).
+    assert data.resumen.porCondicion == {"AYUNO": 1, "POSTPRANDIAL": 1, "NO_INFORMADA": 2}
+    assert data.resumen.porModo == {"OXIMETRIA": 4, "GLUCOSA_EXPERIMENTAL": 0}
+    assert sum(data.resumen.porCondicion.values()) == data.resumen.total == 4
+
+
+def test_periodos_no_listados_siguen_siendo_invalidos(db, history):
+    user, *_ = history
+    expectError("PERIODO_INVALIDO", measurements.ownEvolution, db, user, 45)
+    expectError("PERIODO_INVALIDO", measurements.ownEvolution, db, user, 1000)

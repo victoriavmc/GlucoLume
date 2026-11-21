@@ -277,7 +277,6 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     const user = userEvent.setup();
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    expect(document.getElementById('datos-recomendados')).toHaveTextContent(/Podés realizar mediciones sin completar tu edad o sexo/);
     const age = await within(section).findByLabelText('Edad en años (opcional)');
     expect(age).toHaveValue(null);
     expect(age).not.toBeRequired();

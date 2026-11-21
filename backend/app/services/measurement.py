@@ -853,8 +853,8 @@ def buildStatistics(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, 
     )
 
 
-EVOLUTION_DAYS = (1, 7, 14, 30, 90)  # 1 = últimas 24 horas
-MAX_EVOLUTION_POINTS = 1000
+EVOLUTION_DAYS = (1, 7, 14, 30, 90, 180, 365, 1095)  # 1 = últimas 24 horas; 1095 = 3 años
+MAX_EVOLUTION_POINTS = 5000
 
 
 def _evolutionGlucose(row: Measurement) -> float | None:
@@ -903,10 +903,11 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
     elif dias in EVOLUTION_DAYS:
         start, end = nowForDb() - timedelta(days=dias), None
     else:
-        raise _error("PERIODO_INVALIDO", "El período debe ser de 24 horas, 7, 14, 30 o 90 días, o un rango de fechas.")
+        raise _error("PERIODO_INVALIDO", "El período debe ser de 24 horas, 7, 14, 30, 90, 180 o 365 días, 1095 días (3 años), o un rango de fechas.")
     points: list[EvolutionPoint] = []
     truncated = False
-    summary = EvolutionSummary(total=0, experimentales=0, demo=0, porModo={"OXIMETRIA": 0, "GLUCOSA_EXPERIMENTAL": 0}, ultima=None)
+    summary = EvolutionSummary(total=0, experimentales=0, demo=0, porModo={"OXIMETRIA": 0, "GLUCOSA_EXPERIMENTAL": 0},
+                               porCondicion={"AYUNO": 0, "POSTPRANDIAL": 0, "NO_INFORMADA": 0}, ultima=None)
     if idPerfilMedicion is not None:
         base = [Measurement.idPerfilMedicion == idPerfilMedicion, Measurement.estadoMedicion == COMPLETADA]
         if start is not None:
@@ -930,20 +931,25 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
                 origen=row.origenGlucosa or ("EXPERIMENTAL" if row.glucosaEstimada is not None else None), esDemo=demo,
                 frecuenciaCardiaca=row.frecuenciaCardiaca, spo2=float(row.spo2) if row.spo2 is not None else None,
                 glucosa=_evolutionGlucose(row), indiceOptico=float(row.indiceOptico) if row.indiceOptico is not None else None,
-                calidadSenal=float(row.calidadSenal) if row.calidadSenal is not None else None))
+                calidadSenal=float(row.calidadSenal) if row.calidadSenal is not None else None,
+                condicionComida=row.condicionComida or "NO_INFORMADA"))
         # Se agrupa por columnas simples (SQL Server no admite agrupar ni seleccionar una comparación) y lo DEMO se resuelve acá.
-        grouped = db.execute(select(Measurement.origenGlucosa, Measurement.modoMedicion, func.count()).where(*base)
-                             .group_by(Measurement.origenGlucosa, Measurement.modoMedicion)).all()
-        counts = [(origin == ORIGEN_DEMO, mode, amount) for origin, mode, amount in grouped]
+        grouped = db.execute(select(Measurement.origenGlucosa, Measurement.modoMedicion, Measurement.condicionComida, func.count()).where(*base)
+                             .group_by(Measurement.origenGlucosa, Measurement.modoMedicion, Measurement.condicionComida)).all()
+        counts = [(origin == ORIGEN_DEMO, mode, amount) for origin, mode, _, amount in grouped]
         byMode = {"OXIMETRIA": 0, "GLUCOSA_EXPERIMENTAL": 0}
         for _, mode, amount in counts:
             byMode[mode] = byMode.get(mode, 0) + amount
+        byCondition = {"AYUNO": 0, "POSTPRANDIAL": 0, "NO_INFORMADA": 0}
+        for _, _, condition, amount in grouped:
+            key = condition or "NO_INFORMADA"
+            byCondition[key] = byCondition.get(key, 0) + amount
         latest = db.execute(select(Measurement.fechaHoraInicio, Measurement.modoMedicion, Measurement.origenGlucosa)
                             .where(Measurement.idPerfilMedicion == idPerfilMedicion, Measurement.estadoMedicion == COMPLETADA)
                             .order_by(Measurement.fechaHoraInicio.desc()).limit(1)).first()
         summary = EvolutionSummary(
             total=sum(amount for _, _, amount in counts), experimentales=sum(amount for flag, _, amount in counts if not flag),
-            demo=sum(amount for flag, _, amount in counts if flag), porModo=byMode,
+            demo=sum(amount for flag, _, amount in counts if flag), porModo=byMode, porCondicion=byCondition,
             ultima=None if latest is None else EvolutionLastMeasurement(fecha=latest[0], modoMedicion=latest[1], esDemo=latest[2] == ORIGEN_DEMO))
     experimental = [p for p in points if not p.esDemo]
     demo = [p for p in points if p.esDemo]
@@ -955,7 +961,7 @@ def _evolution(db: Session, idPerfilMedicion: uuid.UUID | None, dias: int, desde
 
 def ownEvolution(db: Session, actor: User, dias: int = 30, desde: date | None = None, hasta: date | None = None,
                  origen: str = "EXPERIMENTAL", modo: str | None = None) -> EvolutionRead:
-    """Evolución histórica de MI perfil. Período: 1 (24 h), 7, 14, 30 o 90 días, o desde/hasta."""
+    """Evolución histórica de MI perfil. Período: 1 (24 h), 7, 14, 30, 90, 180, 365 o 1095 días, o desde/hasta."""
     profile = getConsumerProfile(db, actor) if actor.tipoCuenta == TIPO_CONSUMIDOR_FINAL else None
     return _evolution(db, profile.idPerfilMedicion if profile is not None else None, dias, desde, hasta, origen, modo)
 

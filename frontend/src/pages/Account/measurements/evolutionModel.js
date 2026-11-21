@@ -23,7 +23,42 @@ export const ORIGIN_SUFFIX = {
   TODOS: 'Experimental y DEMO (series separadas)',
 };
 
-export const GRANULARITIES = { MEDICION: 'Cada medición', HORA: 'Promedio por hora', DIA: 'Promedio por día' };
+export const GRANULARITIES = { MEDICION: 'Cada medición', HORA: 'Promedio por hora', DIA: 'Promedio por día', SEMANA: 'Promedio por semana', MES: 'Promedio por mes' };
+
+/** Nombre corto de cada agrupación para los botones y los textos («por día», «por mes»…). */
+export const GROUPING_LABELS = { MEDICION: 'Cada medición', HORA: 'Por hora', DIA: 'Por día', SEMANA: 'Por semana', MES: 'Por mes' };
+
+/** Períodos de Inicio (días): 1 = últimas 24 horas. Hay datos guardados por todo el período; el gráfico agrupa para que se lea. */
+export const HOME_PERIODS = [
+  { days: 1, label: '1D', name: 'Último día' },
+  { days: 7, label: '7D', name: 'Últimos 7 días' },
+  { days: 30, label: '30D', name: 'Últimos 30 días' },
+  { days: 90, label: '90D', name: 'Últimos 90 días' },
+  { days: 180, label: '6M', name: 'Últimos 6 meses' },
+  { days: 365, label: '1A', name: 'Último año' },
+  { days: 1095, label: '3A', name: 'Últimos 3 años' },
+];
+
+/** Agrupaciones que tienen sentido para cada período (la de por defecto va primero en `fallback`). Evita miles de barras vacías. */
+const PERIOD_GROUPINGS = {
+  1: { fallback: 'MEDICION', options: ['MEDICION', 'HORA'] },
+  7: { fallback: 'MEDICION', options: ['MEDICION', 'DIA'] },
+  30: { fallback: 'DIA', options: ['MEDICION', 'DIA', 'SEMANA'] },
+  90: { fallback: 'SEMANA', options: ['DIA', 'SEMANA', 'MES'] },
+  180: { fallback: 'SEMANA', options: ['SEMANA', 'MES'] },
+  365: { fallback: 'MES', options: ['SEMANA', 'MES'] },
+  1095: { fallback: 'MES', options: ['MES'] },
+};
+
+export function groupingOptions(days) {
+  return PERIOD_GROUPINGS[days] ?? PERIOD_GROUPINGS[30];
+}
+
+/** La agrupación que se usa: la elegida si el período la permite; si no, la de por defecto del período. */
+export function effectiveGrouping(days, chosen) {
+  const { fallback, options } = groupingOptions(days);
+  return chosen && options.includes(chosen) ? chosen : fallback;
+}
 
 const STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/;
 
@@ -70,24 +105,83 @@ export function seriesFor(points, variable, filter) {
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 
-/** Agrega por hora o día (promedio dentro de cada grupo DEMO/experimental por separado). `MEDICION` deja cada observación tal cual. */
+/** Inicio del bloque que contiene `t`: hora, día, semana (desde el lunes) o mes. Los instantes son «hora local sin zona» (ver parseStamp). */
+export function bucketStart(t, granularity) {
+  if (granularity === 'HORA') return Math.floor(t / HOUR) * HOUR;
+  if (granularity === 'DIA') return Math.floor(t / DAY) * DAY;
+  const date = new Date(t);
+  if (granularity === 'SEMANA') {
+    const sinceMonday = (date.getUTCDay() + 6) % 7;
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - sinceMonday);
+  }
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1); // MES
+}
+
+/** Inicio del bloque siguiente al que empieza en `start`. */
+export function nextBucketStart(start, granularity) {
+  if (granularity === 'HORA') return start + HOUR;
+  if (granularity === 'DIA') return start + DAY;
+  if (granularity === 'SEMANA') return start + 7 * DAY;
+  const date = new Date(start);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+}
+
+/** Agrega por hora, día, semana o mes (promedio dentro de cada grupo DEMO/experimental por separado). `MEDICION` deja cada observación tal cual. */
 export function aggregateSeries(series, granularity) {
   if (granularity === 'MEDICION') return series;
-  const size = granularity === 'HORA' ? HOUR : DAY;
   const buckets = new Map();
   for (const point of series) {
-    const start = Math.floor(point.t / size) * size;
+    const start = bucketStart(point.t, granularity);
     const id = `${start}:${point.demo ? 'demo' : 'exp'}`;
     if (!buckets.has(id)) buckets.set(id, { key: id, start, demo: point.demo, items: [] });
     buckets.get(id).items.push(point);
   }
-  return [...buckets.values()].sort((a, b) => a.start - b.start).map((bucket) => ({
-    key: bucket.key, ids: bucket.items.flatMap((item) => item.ids), t: bucket.start + (granularity === 'HORA' ? HOUR / 2 : DAY / 2),
-    value: bucket.items.reduce((sum, item) => sum + item.value, 0) / bucket.items.length, demo: bucket.demo,
-    origin: bucket.items.length === 1 ? bucket.items[0].origin : bucket.demo ? 'DEMO' : 'EXPERIMENTAL',
-    mode: bucket.items.length === 1 ? bucket.items[0].mode : null, count: bucket.items.length, items: bucket.items,
-    bucket: { from: bucket.start, to: bucket.start + size, granularity },
-  }));
+  return [...buckets.values()].sort((a, b) => a.start - b.start).map((bucket) => {
+    const end = nextBucketStart(bucket.start, granularity);
+    return {
+      key: bucket.key, ids: bucket.items.flatMap((item) => item.ids), t: (bucket.start + end) / 2,
+      value: bucket.items.reduce((sum, item) => sum + item.value, 0) / bucket.items.length, demo: bucket.demo,
+      origin: bucket.items.length === 1 ? bucket.items[0].origin : bucket.demo ? 'DEMO' : 'EXPERIMENTAL',
+      mode: bucket.items.length === 1 ? bucket.items[0].mode : null, count: bucket.items.length, items: bucket.items,
+      bucket: { from: bucket.start, to: end, granularity },
+    };
+  });
+}
+
+/**
+ * Mediciones por bloque de tiempo: por modo (oximetría / glucosa) y por condición de comida. Incluye los bloques vacíos del período
+ * (`window` = [inicio, fin]) para que el eje muestre también los días o meses sin mediciones. Cuenta todas las mediciones completadas
+ * (experimentales y DEMO), tal como las devuelve el historial. Sin dato de comida cuenta como «sin informar».
+ */
+export function countByBlock(points, granularity, window) {
+  const blocks = new Map();
+  const blockAt = (start) => {
+    if (!blocks.has(start)) {
+      blocks.set(start, { start, end: nextBucketStart(start, granularity), total: 0, oximetria: 0, glucosa: 0, ayuno: 0, postprandial: 0, sinInformar: 0 });
+    }
+    return blocks.get(start);
+  };
+  if (window && Number.isFinite(window[0]) && Number.isFinite(window[1])) {
+    for (let start = bucketStart(window[0], granularity); start < window[1]; start = nextBucketStart(start, granularity)) blockAt(start);
+  }
+  for (const point of points) {
+    const t = parseStamp(point.fecha);
+    if (!Number.isFinite(t)) continue;
+    const block = blockAt(bucketStart(t, granularity));
+    block.total += 1;
+    if (point.modoMedicion === 'OXIMETRIA') block.oximetria += 1;
+    else if (point.modoMedicion === 'GLUCOSA_EXPERIMENTAL') block.glucosa += 1;
+    if (point.condicionComida === 'AYUNO') block.ayuno += 1;
+    else if (point.condicionComida === 'POSTPRANDIAL') block.postprandial += 1;
+    else block.sinInformar += 1;
+  }
+  return [...blocks.values()].sort((a, b) => a.start - b.start);
+}
+
+/** Granularidad de los gráficos de conteo: con «cada medición» se cuenta por hora (un día) o por día. */
+export function countGranularity(days, grouping) {
+  if (grouping !== 'MEDICION') return grouping;
+  return days <= 1 ? 'HORA' : 'DIA';
 }
 
 /** Ventana de tiempo del período elegido, para que el eje X represente el período y no solo el rango de los datos.
@@ -104,7 +198,7 @@ export function periodWindow(data, period, points) {
   return [start, end];
 }
 
-const TICK_STEPS = [HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR, DAY, 2 * DAY, 7 * DAY, 14 * DAY, 30 * DAY];
+const TICK_STEPS = [HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR, DAY, 2 * DAY, 7 * DAY, 14 * DAY, 30 * DAY, 60 * DAY, 91 * DAY, 182 * DAY, 365 * DAY];
 
 /** Marcas del eje X en horas o días «redondos» (00:00, 06:00, 12:00… o cada día), nunca en instantes arbitrarios. */
 export function timeTicks(t0, t1, max = 7) {
@@ -115,10 +209,41 @@ export function timeTicks(t0, t1, max = 7) {
   return { ticks, step };
 }
 
-/** Texto de la hora o del bloque que representa un punto: «23:00–00:00» para un promedio por hora, «Día completo» por día. */
+/** Cómo se nombra un bloque en un texto: «de esa hora», «de ese mes»… */
+export const BLOCK_NAMES = { HORA: 'esa hora', DIA: 'ese día', SEMANA: 'esa semana', MES: 'ese mes' };
+
+const monthLabel = (ms) => {
+  const text = new Date(ms).toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+/** Texto de la hora o del bloque que representa un punto: «23:00–00:00» por hora, «Día completo», «Semana del 02/03 al 08/03» o «Marzo de 2026». */
 export function bucketLabel(point) {
   if (!point.bucket) return null;
-  return point.bucket.granularity === 'HORA' ? `${formatClock(point.bucket.from)}–${formatClock(point.bucket.to)}` : 'Día completo';
+  const { from, to, granularity } = point.bucket;
+  if (granularity === 'HORA') return `${formatClock(from)}–${formatClock(to)}`;
+  if (granularity === 'DIA') return 'Día completo';
+  if (granularity === 'SEMANA') return `Semana del ${formatDay(from).slice(0, 5)} al ${formatDay(to - DAY).slice(0, 5)}`;
+  return monthLabel(from);
+}
+
+/** Fecha y, si corresponde, hora o rango de un punto (medición o bloque agregado), para el cursor, el teclado y el tooltip. */
+export function pointWhen(point) {
+  if (!point.bucket) return { date: formatDay(point.t), time: formatClock(point.t) };
+  const { from, to, granularity } = point.bucket;
+  if (granularity === 'HORA') return { date: formatDay(from), time: `${formatClock(from)}–${formatClock(to)}` };
+  if (granularity === 'DIA') return { date: formatDay(from), time: 'Día completo' };
+  return { date: bucketLabel(point), time: undefined }; // semana o mes: el rango ya dice la fecha
+}
+
+/** Eje corto de un bloque de conteo: «14:00», «15/03» o «mar 26». */
+export function shortBlockLabel(start, granularity) {
+  if (granularity === 'HORA') return formatClock(start);
+  if (granularity === 'MES') {
+    const text = new Date(start).toLocaleDateString('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+    return text.replace('.', '');
+  }
+  return formatDay(start).slice(0, 5);
 }
 
 
@@ -131,7 +256,7 @@ export function variableName(variable, demo) {
 /** Resumen breve de un punto, en palabras: qué es y qué NO es (las pruebas DEMO no son clínicas ni entran en promedios experimentales). */
 export function describePoint(point, variable) {
   if (point.bucket) {
-    const unit = point.bucket.granularity === 'HORA' ? 'esa hora' : 'ese día';
+    const unit = BLOCK_NAMES[point.bucket.granularity];
     return `Promedio de ${point.count} ${point.count === 1 ? 'medición' : 'mediciones'} de ${unit}${point.demo ? ', todas pruebas DEMO' : ''}.`;
   }
   if (point.demo) return 'Prueba DEMO del firmware: valor simulado, no es una medición clínica ni entra en los promedios experimentales.';

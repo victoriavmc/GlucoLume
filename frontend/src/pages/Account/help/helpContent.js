@@ -181,9 +181,8 @@ export const AYUDA_CLIENTE = [
   {
     id: 'inicio',
     titulo: 'Inicio',
-    intro: 'La pantalla de entrada: tu última medición, accesos rápidos, la evolución reciente.',
+    intro: 'La pantalla de entrada: tu última medición y la evolución reciente.',
     detalles: [
-      { titulo: 'Accesos rápidos', texto: 'Atajos a Mis mediciones, Nueva medición, Grupo, Perfil y Seguridad.' },
       { titulo: 'Evolución reciente', texto: 'Gráficos de tus últimos valores. Si no hay datos en el período, cambiá el período o hacé una medición.', captura: 'dashboard-medicion-demo.png' },
       { titulo: 'Vista general', texto: 'Muestra a la vez la frecuencia cardíaca, la saturación de oxígeno, la glucosa estimada y el índice óptico de tus mediciones guardadas. Las DEMO se identifican aparte. Debajo está Mediciones recientes, con cada medición y su detalle.', captura: 'dashboard-vista-general.png' },
     ],
@@ -243,8 +242,8 @@ export const AYUDA_CLIENTE = [
     titulo: 'Mediciones',
     intro: 'Para medir hacen falta tres cosas, en este orden: perfil completo, autorización y dispositivo conectado.',
     pasos: [
-      { texto: 'PRIMERO · Configuración de perfil: cargá fecha de nacimiento y sexo.', ir: { to: '/app/mediciones/perfil', label: 'Configuración de perfil' }, captura: 'perfil-medicion-autorizacion.png', pie: 'Configuración de perfil: tocá «Editar datos» para cargar fecha de nacimiento y sexo.' },
-      { texto: 'SEGUNDO · Autorización: en Configuración de perfil tocá «Autorizo el almacenamiento». Sin eso no se mide; Nueva medición te lo recuerda.', captura: 'medicion-sin-autorizacion-aviso.png', pie: 'Nueva medición sin autorización: el aviso indica dónde otorgarla.' },
+      { texto: 'PRIMERO · Mi perfil: cargá fecha de nacimiento y sexo.', ir: { to: '/app/perfil', label: 'Mi perfil' }, captura: 'perfil-medicion-autorizacion.png', pie: 'Mi perfil: tocá «Editar perfil» para cargar fecha de nacimiento y sexo.' },
+      { texto: 'SEGUNDO · Autorización: en Mi perfil tocá «Autorizo el almacenamiento». Sin eso no se mide; Nueva medición te lo recuerda.', captura: 'medicion-sin-autorizacion-aviso.png', pie: 'Nueva medición sin autorización: el aviso indica dónde otorgarla.' },
       { texto: 'Conectá el dispositivo y verificá que el estado sea Conectado.' },
       { texto: 'Elegí dispositivo, modo (Oximetría o Glucosa experimental) y alimentación. Si hace falta, completá edad y sexo solo para esta medición.', captura: 'medicion-configuracion.png', pie: 'Nueva medición: dispositivo, modo, alimentación y datos opcionales.' },
       { texto: 'Tocá Iniciar medición, apoyá el dedo y esperá a que la lectura se estabilice. Al terminar, tocá Guardar medición para registrarla, o Cancelar para descartarla.', boton: 'Iniciar medición', captura: 'medicion-pantalla.png', pie: 'Pantalla de Nueva medición. Con el dispositivo conectado aparece el botón «Iniciar medición».' },
@@ -261,7 +260,7 @@ export const AYUDA_CLIENTE = [
     ],
     casos: [
       { titulo: 'CASO 1 · Medición permitida', texto: 'Autorización vigente, perfil con regla, dispositivo conectado, operativo y libre. Al guardar, la medición queda completada y entra en tus estadísticas.' },
-    { titulo: 'CASO 2 · Falta la autorización', texto: 'Aparece «Para medir necesitamos tu autorización para almacenar mediciones experimentales». Otorgala en Configuración de perfil.', captura: 'mediciones-sin-autorizacion.png' },
+    { titulo: 'CASO 2 · Falta la autorización', texto: 'Aparece «Para medir necesitamos tu autorización para almacenar mediciones experimentales». Otorgala en Mi perfil.', captura: 'mediciones-sin-autorizacion.png' },
       { titulo: 'CASO 3 · Datos del perfil guardados', texto: 'Se guardan la fecha de nacimiento y el sexo. La edad se calcula a la fecha de cada medición.', captura: 'perfil-medicion-guardado.png' },
       { titulo: 'CASO 4 · Autorizar', texto: 'Al autorizar, la tarjeta muestra «Autorizaste el almacenamiento» y el botón «Revocar autorización». Revocarla frena nuevas mediciones; lo ya medido se conserva.', captura: 'autorizacion-revocar.png' },
       { titulo: 'CASO 5 · No autorizar', texto: 'Si tocás «No autorizo», no se recolecta ninguna medición. Podés cambiar de decisión cuando quieras.', captura: 'autorizacion-no-autorizaste.png' },
@@ -274,7 +273,7 @@ export const AYUDA_CLIENTE = [
     tabla: {
       encabezados: ['Qué ves', 'Qué hacer'],
       filas: [
-        ['Falta la autorización', 'Autorizala en Configuración de perfil con «Autorizo el almacenamiento».'],
+        ['Falta la autorización', 'Autorizala en Mi perfil con «Autorizo el almacenamiento».'],
         ['No hay comunicación con el Arduino', 'Conectalo desde Conectar dispositivo (o iniciá el puente) y revisá el Bluetooth o el cable USB.'],
         ['El dispositivo está siendo usado por otra cuenta', 'Esperá a que termine. Si queda sin uso, se libera solo a los 5 minutos.'],
         ['El dispositivo no está operativo', 'No se puede medir hasta que vuelva a estar operativo.'],

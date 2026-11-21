@@ -71,7 +71,6 @@ const loadPatientsPage = () => import('./pages/Account/institutions/patients/Pat
 const PatientsPage = lazyNamed(loadPatientsPage, 'PatientsPage');
 const loadOwnMeasurementScreens = () => import('./pages/Account/measurements/OwnMeasurementScreens.jsx');
 const MeasurementHistoryPage = lazyNamed(loadOwnMeasurementScreens, 'MeasurementHistoryPage');
-const MeasurementProfilePage = lazyNamed(loadOwnMeasurementScreens, 'MeasurementProfilePage');
 const NewMeasurementPage = lazyNamed(loadOwnMeasurementScreens, 'NewMeasurementPage');
 const loadMeasurementsPage = () => import('./pages/Account/measurements/MeasurementsPage.jsx');
 const InstitutionMeasurementDetail = lazyNamed(loadMeasurementsPage, 'InstitutionMeasurementDetail');
@@ -280,7 +279,7 @@ export function AppRoutes() {
           <Route path="matrices/:idMatriz" element={<GlobalMatrixDetailPage />} />
           <Route path="mediciones" element={<MeasurementsPage />} />
           <Route path="mediciones/nueva" element={<NewMeasurementPage />} />
-          <Route path="mediciones/perfil" element={<MeasurementProfilePage />} />
+          <Route path="mediciones/perfil" element={<Navigate to="/app/perfil" replace />} />
           <Route path="mediciones/historial" element={<MeasurementHistoryPage />} />
           <Route path="mediciones/:idMedicion" element={<MeasurementDetailPage />} />
           <Route path="grupo" element={<GroupsHome />} />

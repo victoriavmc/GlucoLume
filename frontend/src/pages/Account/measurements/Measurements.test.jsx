@@ -71,9 +71,6 @@ function routes(extra = {}, account = ACCOUNT) {
   });
 }
 
-const NOTICE = 'Podés realizar mediciones sin completar tu edad o sexo. Sin embargo, se recomienda informar estos datos para '
-  + 'mejorar la contextualización de los resultados.';
-
 describe('Mediciones: dashboard', () => {
   it('"Mediciones" aparece solo para cuentas individuales', async () => {
     const institutional = { ...ACCOUNT, usuario: { ...ACCOUNT.usuario, tipoCuenta: 'USUARIO_INSTITUCIONAL' } };
@@ -89,8 +86,8 @@ describe('Mediciones: dashboard', () => {
     const dashboard = (await screen.findByRole('heading', { name: 'Mi dashboard' })).closest('section');
     expect(within(dashboard).getByRole('link', { name: /Nueva medición/ })).toHaveAttribute('href', '/app/mediciones/nueva');
     expect(within(dashboard).getByRole('link', { name: /Conectar dispositivo/ })).toHaveAttribute('href', '/app/conectar-dispositivo');
-    // «Configuración de perfil» abre el apartado dentro de Mediciones, no la pantalla general «Mi perfil».
-    expect(await within(dashboard).findByRole('link', { name: /Configuración de perfil/ })).toHaveAttribute('href', '/app/mediciones/perfil');
+    // Desde el dashboard, «Mi perfil» lleva a los datos personales y la autorización.
+    expect(await within(dashboard).findByRole('link', { name: /Mi perfil/ })).toHaveAttribute('href', '/app/perfil');
     // Nada de lo demás queda permanentemente en la pantalla principal.
     expect(screen.queryByRole('heading', { name: 'Mi perfil de medición' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Autorización para almacenar tus mediciones' })).not.toBeInTheDocument();
@@ -485,56 +482,6 @@ describe('Mediciones: historial completo', () => {
   });
 });
 
-describe('Mediciones: configuración de perfil', () => {
-  it('sin fecha de nacimiento ni sexo muestra «Sin informar» y el aviso informativo, y permite volver al dashboard', async () => {
-    routes({
-      'GET /measurements/profile': jsonResponse(200, { ...OWN_PROFILE, fechaNacimiento: null, edad: null, sexoModelo: null,
-        datosRecomendados: ['fechaNacimiento', 'sexo'] }),
-    });
-    renderAt('/app/mediciones/perfil');
-    const profile = (await screen.findByRole('heading', { name: 'Mi perfil de medición' })).closest('section');
-    expect(within(profile).getAllByText('Sin informar')).toHaveLength(4); // edad, fecha de nacimiento, sexo y última medición
-    expect(within(profile).getByText('Sexo biológico')).toBeInTheDocument();
-    const notice = document.getElementById('datos-recomendados');
-    expect(notice).toHaveTextContent(NOTICE);
-    expect(notice).toHaveAttribute('role', 'status'); // informativo, nunca un error
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Mi dashboard/ })).toHaveAttribute('href', '/app/mediciones');
-  });
-
-  it('con los datos completos muestra edad, fecha, sexo y última medición, sin recomendación', async () => {
-    routes({ 'GET /measurements/profile': jsonResponse(200, { ...OWN_PROFILE, fechaUltimaMedicion: '2026-10-07T08:30:00', datosRecomendados: [] }) });
-    renderAt('/app/mediciones/perfil');
-    const profile = (await screen.findByRole('heading', { name: 'Mi perfil de medición' })).closest('section');
-    expect(within(profile).getByText('36 años')).toBeInTheDocument();
-    expect(within(profile).getByText('17/05/1990')).toBeInTheDocument();
-    expect(within(profile).getByText('Femenino')).toBeInTheDocument();
-    expect(within(profile).getByText('07/10/2026 08:30')).toBeInTheDocument();
-    expect(document.getElementById('datos-recomendados')).toBeNull();
-  });
-
-  it('«Editar datos» reutiliza el perfil de usuario y recarga el perfil de medición', async () => {
-    let current = { ...OWN_PROFILE, fechaNacimiento: null, edad: null, sexoModelo: null, datosRecomendados: ['fechaNacimiento', 'sexo'] };
-    const { calls } = routes({
-      'GET /measurements/profile': () => jsonResponse(200, current),
-      'PATCH /auth/me/profile': () => {
-        current = { ...OWN_PROFILE, datosRecomendados: [] };
-        return jsonResponse(200, { ...ACCOUNT, actualizado: true });
-      },
-    });
-    const user = userEvent.setup();
-    renderAt('/app/mediciones/perfil');
-    await user.click(await screen.findByRole('button', { name: 'Editar datos' }));
-    await user.type(await screen.findByLabelText('Fecha de nacimiento'), '1990-05-17');
-    await user.selectOptions(screen.getByLabelText('Sexo'), 'FEMENINO');
-    await user.click(screen.getByRole('button', { name: /Guardar cambios/ }));
-    await waitFor(() => expect(calls.some((call) => call.key === 'PATCH /auth/me/profile')).toBe(true));
-    expect(calls.find((call) => call.key === 'PATCH /auth/me/profile').body).toEqual({ fechaNacimiento: '1990-05-17', sexo: 'FEMENINO' });
-    const profile = (await screen.findByRole('heading', { name: 'Mi perfil de medición' })).closest('section');
-    expect(await within(profile).findByText('36 años')).toBeInTheDocument(); // la edad se recalcula desde la fecha
-  });
-});
-
 describe('Detalle y estados de una medición', () => {
   function open(measurement, extra = {}) {
     return routes({ [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, measurement), ...extra });
@@ -775,10 +722,10 @@ describe('Autorización para almacenar mediciones experimentales', () => {
     });
   }
 
-  it('vive en Configuración de perfil: explica la finalidad y permite rechazar', async () => {
+  it('vive en Mi perfil: explica la finalidad y permite rechazar', async () => {
     const { calls } = pending();
     const user = userEvent.setup();
-    renderAt('/app/mediciones/perfil');
+    renderAt('/app/perfil');
     expect(await screen.findByRole('heading', { name: 'Autorización para almacenar tus mediciones' })).toBeInTheDocument();
     expect(screen.getByText(/exclusivamente académica y experimental/)).toBeInTheDocument();
     expect(screen.getByText(/No forman parte de\s+una historia clínica/)).toBeInTheDocument();
@@ -787,11 +734,11 @@ describe('Autorización para almacenar mediciones experimentales', () => {
     expect(calls.some((call) => call.key === 'PUT /auth/consents/datos-experimentales')).toBe(false);
   });
 
-  it('sin autorización «Nueva medición» no ofrece medir y remite a la configuración', async () => {
+  it('sin autorización «Nueva medición» no ofrece medir y remite a Mi perfil', async () => {
     pending();
     renderAt('/app/mediciones/nueva');
     expect(await screen.findByText(/necesitamos tu autorización para almacenar mediciones experimentales/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configuración de perfil' })).toHaveAttribute('href', '/app/mediciones/perfil');
+    expect(screen.getByRole('link', { name: 'Mi perfil' })).toHaveAttribute('href', '/app/perfil');
     expect(screen.queryByRole('button', { name: 'Iniciar medición' })).not.toBeInTheDocument();
     expect(screen.getByRole('note', { name: 'Aviso de uso experimental' })).toBeInTheDocument();
   });
@@ -802,7 +749,7 @@ describe('Autorización para almacenar mediciones experimentales', () => {
       'PUT /auth/consents/datos-experimentales': [jsonResponse(200, accepted), jsonResponse(200, CONSENTS_PENDING)],
     });
     const user = userEvent.setup();
-    renderAt('/app/mediciones/perfil');
+    renderAt('/app/perfil');
     await user.click(await screen.findByRole('button', { name: 'Autorizo el almacenamiento' }));
     expect(calls.find((call) => call.key === 'PUT /auth/consents/datos-experimentales').body).toEqual({ acepta: true });
     expect(await screen.findByText(/no se iniciarán nuevas mediciones/)).toBeInTheDocument();

@@ -3,7 +3,7 @@ import { AtSign, Pencil, UserRound } from 'lucide-react';
 import { ACCOUNT_TYPES, ageFrom, formatDate, sexoLabel } from './accountFormat.js';
 
 function Value({ children }) {
-  return children ? <dd>{children}</dd> : <dd className="is-empty">Sin completar</dd>;
+  return children ? <dd>{children}</dd> : <dd className="is-empty">Sin informar</dd>;
 }
 
 export function ProfileSummary({ account, onEdit }) {

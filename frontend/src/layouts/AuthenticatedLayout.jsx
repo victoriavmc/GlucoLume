@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageSkeleton } from '../components/Skeleton.jsx';
 import { GracePeriodNotice } from '../components/GracePeriodNotice.jsx';
 import { PolicyUpdateNotice } from '../components/PolicyUpdateNotice.jsx';
+import { RecommendedDataModal } from '../components/RecommendedDataModal.jsx';
 import { Logo } from '../components/Logo.jsx';
 import { SkipLink } from '../components/SkipLink.jsx';
 import { NotificationToasts } from '../notifications/NotificationToasts.jsx';
@@ -74,6 +75,7 @@ export function AuthenticatedLayout({ onPrefetch }) {
         <PolicyUpdateNotice />
         <Suspense fallback={<PageSkeleton />}><Outlet /></Suspense>
       </main>
+      <RecommendedDataModal />
       <NotificationToasts />
     </div>
     </UnreadNotificationsContext.Provider>

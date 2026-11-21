@@ -1,6 +1,6 @@
 // /app/inicio: pantalla inicial del espacio privado.
-//   Cuenta individual: últimos valores medidos, accesos rápidos y glucosa reciente.
-//   Cuenta institucional: accesos a sus instituciones, perfil y seguridad.
+//   Cuenta individual: últimos valores medidos y glucosa reciente.
+//   Cuenta institucional: saludo y fecha (los accesos están en el menú lateral).
 // Los valores salen de las mediciones guardadas (nada inventado ni clasificado): se muestran con su origen, experimental o DEMO.
 
 import { useState } from 'react';
@@ -8,8 +8,9 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { Alert } from '../../components/FormControls.jsx';
-import { DateBlock, LatestKpis, QuickAccess, RecentEvolution, WellbeingNotice } from './home/HomeParts.jsx';
+import { DateBlock, LatestKpis, MeasurementMix, RecentEvolution, WellbeingNotice } from './home/HomeParts.jsx';
 import { useHomeData } from './home/useHomeData.js';
+import { effectiveGrouping } from './measurements/evolutionModel.js';
 import './home/home.css';
 
 export default function HomePage() {
@@ -20,6 +21,8 @@ export default function HomePage() {
   const individual = user.tipoCuenta === 'CONSUMIDOR_FINAL';
   const firstName = user.nombre || user.usuario || '';
   const [chartDays, setChartDays] = useState(7);
+  const [chosenGrouping, setChosenGrouping] = useState(null); // null: la agrupación por defecto de cada período
+  const grouping = effectiveGrouping(chartDays, chosenGrouping);
   const { latest, chart, error } = useHomeData({ enabled: individual, chartDays });
 
   return (
@@ -45,9 +48,9 @@ export default function HomePage() {
 
       {individual && <LatestKpis latest={latest} />}
 
-      <QuickAccess individual={individual} />
+      {individual && <RecentEvolution chart={chart} days={chartDays} onDaysChange={setChartDays} grouping={grouping} onGroupingChange={setChosenGrouping} />}
 
-      {individual && <RecentEvolution chart={chart} days={chartDays} onDaysChange={setChartDays} />}
+      {individual && <MeasurementMix chart={chart} days={chartDays} grouping={grouping} />}
     </div>
   );
 }

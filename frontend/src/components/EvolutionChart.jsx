@@ -8,8 +8,9 @@ import { useState } from 'react';
 import { MODES } from '../pages/Account/groups/groupFormat.js';
 import { ChartTooltip } from './ChartTooltip.jsx';
 import { useElementWidth } from './useElementWidth.js';
-import { bucketLabel, formatClock, formatDay, formatValue, timeTicks } from '../pages/Account/measurements/evolutionModel.js';
+import { BLOCK_NAMES, formatClock, formatDay, formatValue, pointWhen, timeTicks } from '../pages/Account/measurements/evolutionModel.js';
 
+const GROUP_PHRASES = { HORA: 'una hora', DIA: 'un día', SEMANA: 'una semana', MES: 'un mes' };
 const PAD_WIDE = { top: 18, right: 22, bottom: 40, left: 62 };
 const PAD_NARROW = { top: 18, right: 14, bottom: 40, left: 52 };
 
@@ -69,7 +70,8 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
         {demo.length > 1 && <polyline points={line(demo)} className="evo-line is-demo" />}
         {series.map((point) => {
           const selected = point.key === selectedKey;
-          const label = `${formatDay(point.bucket ? point.bucket.from : point.t)} ${point.bucket ? bucketLabel(point) : formatClock(point.t)}: ${formatValue(point.value, shownDecimals(point))} ${unit}${point.demo ? ' (DEMO)' : ''}`;
+          const when = pointWhen(point);
+          const label = `${when.date}${when.time ? ` ${when.time}` : ''}: ${formatValue(point.value, shownDecimals(point))} ${unit}${point.demo ? ' (DEMO)' : ''}`;
           return (
             <g key={point.key} tabIndex={0} role="button" aria-label={label} aria-pressed={selected} className="evo-point"
               onMouseEnter={() => setHover(point.key)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(point.key)}
@@ -88,16 +90,16 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
         <ChartTooltip left={(x(shown.t) / WIDTH) * 100} top={(y(shown.value) / HEIGHT) * 100}
           variable={shown.demo && demoTitle ? demoTitle : title}
           value={formatValue(shown.value, shownDecimals(shown))} unit={unit}
-          date={formatDay(shown.bucket ? shown.bucket.from : shown.t)} time={shown.bucket ? (shown.bucket.granularity === 'HORA' ? bucketLabel(shown) : undefined) : formatClock(shown.t)} demo={shown.demo}
+          date={pointWhen(shown).date} time={pointWhen(shown).time} demo={shown.demo}
           origin={shown.demo ? 'DEMO (prueba)' : 'Experimental'}
-          note={shown.bucket ? `Promedio de ${shown.count} ${shown.count === 1 ? 'medición' : 'mediciones'}${shown.bucket.granularity === 'DIA' ? ' del día' : ' de esa hora'}` : (MODES[shown.mode] ?? undefined)} />
+          note={shown.bucket ? `Promedio de ${shown.count} ${shown.count === 1 ? 'medición' : 'mediciones'} de ${BLOCK_NAMES[shown.bucket.granularity]}` : (MODES[shown.mode] ?? undefined)} />
       )}
       <figcaption>
         {experimental.length > 0 && <span className="evo-legend"><i className="evo-swatch" style={{ background: color }} /> Medición experimental</span>}
         {demo.length > 0 && <span className="evo-legend"><i className="evo-swatch is-demo" /> Prueba DEMO (simulada)</span>}
         <span className="field-hint">
           {granularity === 'MEDICION' ? 'Cada punto es una medición guardada; la línea solo las une en orden cronológico.'
-            : `Cada punto es el promedio de las mediciones de un${granularity === 'HORA' ? 'a hora' : ' día'}; el número indica cuántas se promediaron.`}
+            : `Cada punto es el promedio de las mediciones de ${GROUP_PHRASES[granularity]}; el número indica cuántas se promediaron.`}
           {' '}Eje: {formatDay(t0)} {formatClock(t0)} a {formatDay(t1)} {formatClock(t1)}.
         </span>
       </figcaption>

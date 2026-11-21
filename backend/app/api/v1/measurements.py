@@ -91,7 +91,7 @@ def ownStatistics(auth: CurrentAuth, db: DbSession, dias: int = 30, desde: date 
 
 
 @router.get("/evolution", response_model=EvolutionRead, summary="Evolución histórica de mis mediciones",
-            description="Cada medición completada es un punto (fecha, modo, origen y valores). Período: dias (1, 7, 14, 30 o 90) o "
+            description="Cada medición completada es un punto (fecha, modo, origen y valores). Período: dias (1, 7, 14, 30, 90, 180, 365 o 1095) o "
             "desde/hasta. origen: EXPERIMENTAL (por defecto), DEMO o TODOS; las estadísticas de DEMO y experimentales van separadas.")
 def ownEvolution(auth: CurrentAuth, db: DbSession, dias: int = 30, desde: date | None = None, hasta: date | None = None,
                  origen: str = "EXPERIMENTAL", modo: Literal["OXIMETRIA", "GLUCOSA_EXPERIMENTAL"] | None = None):

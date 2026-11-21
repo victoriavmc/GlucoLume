@@ -223,6 +223,7 @@ class EvolutionPoint(BaseModel):
     glucosa: float | None  # solo valores con origen EXPERIMENTAL o DEMO; SIN_CALIBRAR nunca es una glucosa
     indiceOptico: float | None
     calidadSenal: float | None = None  # índice registrado por el equipo; null si no lo informó (no se asume ni se completa)
+    condicionComida: str | None = None  # AYUNO | POSTPRANDIAL | NO_INFORMADA: lo que se informó al medir
 
 
 class EvolutionLast(BaseModel):
@@ -265,6 +266,7 @@ class EvolutionSummary(BaseModel):
     experimentales: int
     demo: int
     porModo: dict[str, int]
+    porCondicion: dict[str, int] = {}  # AYUNO | POSTPRANDIAL | NO_INFORMADA (mismas mediciones que los totales)
     ultima: EvolutionLastMeasurement | None
 
 

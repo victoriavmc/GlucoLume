@@ -64,11 +64,7 @@ describe('Inicio de una cuenta individual', () => {
     expect(kpis.getByText('Última frecuencia cardíaca').closest('li')).toHaveTextContent('72 lpm');
     expect(kpis.getByText('Última SpO₂').closest('li')).toHaveTextContent('98,2 %');
     expect(kpis.getByText('Último índice óptico').closest('li')).toHaveTextContent('0,4231');
-    const shortcuts = within(screen.getByRole('list', { name: 'Accesos rápidos' }));
-    expect(shortcuts.getByRole('link', { name: /Ver mis mediciones/ })).toHaveAttribute('href', '/app/mediciones');
-    expect(shortcuts.getByRole('link', { name: /Nueva medición/ })).toHaveAttribute('href', '/app/mediciones/nueva');
-    expect(shortcuts.getByRole('link', { name: /Ir a mi grupo/ })).toHaveAttribute('href', '/app/grupo');
-    expect(shortcuts.getByRole('link', { name: /Configurar perfil/ })).toHaveAttribute('href', '/app/perfil');
+    expect(screen.queryByRole('list', { name: 'Accesos rápidos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Consejos para diabéticos' })).not.toBeInTheDocument();
   });
 
@@ -78,7 +74,8 @@ describe('Inicio de una cuenta individual', () => {
     const kpis = within(await screen.findByRole('list', { name: 'Últimos valores medidos' }));
     await waitFor(() => expect(kpis.getAllByText('Sin datos')).toHaveLength(4));
     expect(kpis.queryByText(/^0\b/)).not.toBeInTheDocument();
-    expect(await screen.findByText('No hay mediciones en este período.')).toBeInTheDocument();
+    // Dos secciones vacías: la evolución y «Cómo fueron tus mediciones».
+    expect(await screen.findAllByText('No hay mediciones en este período.')).toHaveLength(2);
   });
 
   it('el gráfico de glucosa cambia de período (1D, 7D, 30D) consultando ese período', async () => {
@@ -114,6 +111,40 @@ describe('Inicio de una cuenta individual', () => {
     }
   });
 
+  it('ofrece períodos de hasta 3 años y agrupa por mes en 1A (el período elegido siempre permite su agrupación)', async () => {
+    const { calls } = open([point('a', '2026-10-14T09:00:00', { glucosa: 102 })]);
+    const user = userEvent.setup();
+    renderAt('/app/inicio');
+    const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
+    expect(section.getByRole('button', { name: 'Últimos 3 años' })).toBeInTheDocument();
+    expect(section.getByRole('button', { name: 'Últimos 90 días' })).toBeInTheDocument();
+    await user.click(section.getByRole('button', { name: 'Último año' }));
+    expect(section.getByRole('button', { name: 'Por mes' })).toHaveAttribute('aria-pressed', 'true');
+    expect(section.queryByRole('button', { name: 'Por hora' })).not.toBeInTheDocument();
+    await waitFor(() => expect(calls.some((call) => new URL(call.url).searchParams.get('dias') === '365')).toBe(true));
+  });
+
+  it('cuenta las mediciones por oximetría o glucosa y por condición de comida, por bloque de tiempo', async () => {
+    open([
+      point('a', '2026-10-14T09:00:00', { modoMedicion: 'OXIMETRIA', condicionComida: 'AYUNO', spo2: 98 }),
+      point('b', '2026-10-14T13:00:00', { modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'POSTPRANDIAL', glucosa: 130 }),
+      point('c', '2026-10-15T08:00:00', { modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'NO_INFORMADA', glucosa: 95 }),
+      point('d', '2026-10-15T20:00:00', { modoMedicion: 'OXIMETRIA', esDemo: true, origen: 'DEMO', spo2: 99 }),
+    ]);
+    renderAt('/app/inicio');
+    const mix = within(await screen.findByRole('region', { name: 'Cómo fueron tus mediciones' }));
+    // Tendencia por día (7D): cada medición cuenta una vez; la DEMO también.
+    const device = await mix.findByRole('img', { name: 'Oximetría y glucosa: 4 mediciones' });
+    expect(device).toBeInTheDocument();
+    const legend = device.closest('figure');
+    expect(legend).toHaveTextContent('Oximetría: 2');
+    expect(legend).toHaveTextContent('Glucosa (experimental): 2');
+    const meals = mix.getByRole('img', { name: 'Condición de comida: 4 mediciones' }).closest('figure');
+    expect(meals).toHaveTextContent('En ayunas: 1');
+    expect(meals).toHaveTextContent('Después de comer: 1');
+    expect(meals).toHaveTextContent('Sin informar: 2');
+  });
+
   it('el aviso de bienestar se puede cerrar', async () => {
     open([]);
     const user = userEvent.setup();
@@ -124,14 +155,12 @@ describe('Inicio de una cuenta individual', () => {
 });
 
 describe('Inicio de una cuenta institucional', () => {
-  it('muestra accesos a instituciones, perfil y seguridad, sin consultar mediciones propias', async () => {
+  it('no muestra accesos rápidos (están en el menú lateral) ni consulta mediciones propias', async () => {
     const institutional = { ...ACCOUNT, usuario: { ...ACCOUNT.usuario, tipoCuenta: 'USUARIO_INSTITUCIONAL' } };
     const { calls } = mockApi({ 'GET /auth/me': jsonResponse(200, institutional) });
     renderAt('/app/inicio');
     expect(await screen.findByRole('heading', { name: 'Hola, Victoria' })).toBeInTheDocument();
-    const shortcuts = within(screen.getByRole('list', { name: 'Accesos rápidos' }));
-    expect(shortcuts.getByRole('link', { name: /Mis instituciones/ })).toHaveAttribute('href', '/app/instituciones');
-    expect(shortcuts.getByRole('link', { name: /Seguridad/ })).toHaveAttribute('href', '/app/seguridad');
+    expect(screen.queryByRole('list', { name: 'Accesos rápidos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Últimos valores medidos' })).not.toBeInTheDocument();
     expect(calls.some((call) => call.key === 'GET /measurements/evolution')).toBe(false);
   });

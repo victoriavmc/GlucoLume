@@ -235,7 +235,7 @@ describe('Perfil', () => {
     renderAt('/app/inicio');
     expect(await screen.findByRole('heading', { name: 'Hola, Victoria' })).toBeInTheDocument();
     expect(screen.queryByText(/Completá tu perfil/)).not.toBeInTheDocument(); // completar el perfil no es obligatorio
-    await user.click(await screen.findByRole('link', { name: /Configurar perfil/ }));
+    await user.click((await screen.findAllByRole('link', { name: 'Perfil' }))[0]); // menú lateral
     await user.click(await screen.findByRole('button', { name: 'Editar perfil' }));
     await user.click(await screen.findByRole('button', { name: /Guardar cambios/ }));
     expect(screen.getByText('Elegí un nombre de usuario.')).toBeInTheDocument();

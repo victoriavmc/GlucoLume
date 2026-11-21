@@ -451,10 +451,10 @@ export function PersonalDashboard({ handleOperationError }) {
           <ul className="dash-shortcuts" aria-label="Accesos rápidos">
             <DeviceShortcut />
             <Shortcut
-              to="/app/mediciones/perfil"
+              to="/app/perfil"
               icon={Settings}
-              title="Configuración de perfil"
-              hint="Edad, sexo, comidas y más"
+              title="Mi perfil"
+              hint="Datos personales y autorización"
             />
             <Shortcut
               to="/app/mediciones/historial"

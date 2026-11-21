@@ -1,8 +1,8 @@
-// Piezas de Inicio: fecha y hora, aviso de bienestar, últimos valores, accesos rápidos y glucosa reciente.
+// Piezas de Inicio: fecha y hora, aviso de bienestar, últimos valores y evolución reciente.
 // Nada se calcula ni se clasifica acá: los valores llegan de las mediciones guardadas y se muestran con su origen (experimental o DEMO).
 
 import {
-  ArrowRight, CalendarDays, ChartColumn, ChevronRight, Clock, Droplet, HeartPulse, Plus, Settings, ShieldCheck, Target, UserRound, Users, Wind, X, Zap,
+  ArrowRight, CalendarDays, ChartColumn, Clock, Droplet, HeartPulse, Target, Wind, X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -12,7 +12,11 @@ import { EmptyState } from '../../../components/EmptyState.jsx';
 import { TabPanel, Tabs } from '../../../components/Tabs.jsx';
 
 import { EvolutionChart } from '../../../components/EvolutionChart.jsx';
-import { VARIABLES, aggregateSeries, periodWindow, seriesFor } from '../measurements/evolutionModel.js';
+import { StackedBarChart } from '../../../components/StackedBarChart.jsx';
+import {
+  GROUPING_LABELS, HOME_PERIODS, VARIABLES, aggregateSeries, countByBlock, countGranularity, groupingOptions, periodWindow, seriesFor,
+  shortBlockLabel,
+} from '../measurements/evolutionModel.js';
 import { formatDateTime } from '../groups/groupFormat.js';
 
 const DISMISS_KEY = 'glucolume.home.bienestar.oculto';
@@ -106,71 +110,25 @@ export function LatestKpis({ latest }) {
   );
 }
 
-/** Tarjeta de acceso con estructura fija (ícono y flecha arriba; título y descripción abajo): todas miden lo mismo aunque el texto sea más corto. */
-function Shortcut({ to, icon: Icon, title, text }) {
-  return (
-    <li>
-      <Link to={to} className="home-shortcut">
-        <span className="home-shortcut-top">
-          <span className="home-shortcut-icon"><Icon size={28} aria-hidden="true" /></span>
-          <span className="home-shortcut-go"><ChevronRight size={20} aria-hidden="true" /></span>
-        </span>
-        <span className="home-shortcut-body"><b>{title}</b><small>{text}</small></span>
-      </Link>
-    </li>
-  );
-}
-
-export function QuickAccess({ individual }) {
-  return (
-    <section className="home-card" aria-labelledby="home-accesos">
-      <header className="home-card-head">
-        <span className="home-card-icon is-bare"><Zap size={30} aria-hidden="true" /></span>
-        <div>
-          <h2 id="home-accesos">Accesos rápidos</h2>
-          <p>Acciones frecuentes para que gestiones tu salud más fácilmente.</p>
-        </div>
-      </header>
-      <ul className="home-shortcuts" aria-label="Accesos rápidos">
-        {individual ? (
-          <>
-            <Shortcut to="/app/mediciones" icon={ChartColumn} title="Ver mis mediciones" text="Consultá tu historial y analizá tus tendencias." />
-            <Shortcut to="/app/mediciones/nueva" icon={Plus} title="Nueva medición" text="Conectá tu dispositivo y registrá una medición." />
-            <Shortcut to="/app/grupo" icon={Users} title="Ir a mi grupo" text="Compartí y revisá información con tu grupo." />
-            <Shortcut to="/app/perfil" icon={Settings} title="Configurar perfil" text="Mantené tus datos actualizados." />
-          </>
-        ) : (
-          <>
-            <Shortcut to="/app/instituciones" icon={Users} title="Mis instituciones" text="Tus instituciones y los roles que tenés en cada una." />
-            <Shortcut to="/app/perfil" icon={UserRound} title="Perfil" text="Tus datos personales." />
-            <Shortcut to="/app/seguridad" icon={ShieldCheck} title="Seguridad" text="Verificación en dos pasos y sesiones." />
-          </>
-        )}
-      </ul>
-    </section>
-  );
-}
-
-const PERIODS = [{ days: 1, label: '1D', name: 'Último día' }, { days: 7, label: '7D', name: 'Últimos 7 días' }, { days: 30, label: '30D', name: 'Últimos 30 días' }];
 const TABS = ['glucosa', 'frecuenciaCardiaca', 'spo2', 'indiceOptico'];
 const OVERVIEW = 'GENERAL';
 
-/** Un gráfico de una variable con las mediciones del período; cada punto es una medición guardada (las pruebas DEMO con otro marcador). */
-function VariableChart({ variable, points, chart, days }) {
+/** Un gráfico de una variable con las mediciones del período; cada punto es una medición guardada (o un promedio por hora/día/semana/mes). */
+function VariableChart({ variable, points, chart, days, grouping }) {
   const spec = VARIABLES[variable];
-  const series = aggregateSeries(seriesFor(points, variable, 'TODOS'), 'MEDICION');
+  const series = aggregateSeries(seriesFor(points, variable, 'TODOS'), grouping);
   const domain = chart ? periodWindow(chart, { dias: days }, series) : undefined;
   if (series.length === 0) {
     return <EmptyState variant="framed" headingLevel={0} title={`Sin datos de ${spec.label.toLowerCase()} en este período.`} />;
   }
   return (
     <EvolutionChart title={spec.label} demoTitle={spec.demoLabel} series={series} unit={spec.unit} decimals={spec.decimals} color={spec.color}
-      domain={domain} granularity="MEDICION" />
+      domain={domain} granularity={grouping} />
   );
 }
 
-/** Evolución reciente: pestañas por variable (o «Vista general» con las cuatro) y período 1D / 7D / 30D. Pasá el cursor por un punto para ver el valor y la hora. */
-export function RecentEvolution({ chart, days, onDaysChange }) {
+/** Evolución reciente: pestañas por variable (o «Vista general» con las cuatro), período (1D a 3A) y agrupación. Pasá el cursor por un punto para ver el valor y la hora. */
+export function RecentEvolution({ chart, days, onDaysChange, grouping, onGroupingChange }) {
   const [variable, setVariable] = useState('glucosa');
   const points = chart?.puntos ?? [];
   const overview = variable === OVERVIEW;
@@ -181,15 +139,22 @@ export function RecentEvolution({ chart, days, onDaysChange }) {
         <span className="home-card-icon"><ChartColumn size={28} aria-hidden="true" /></span>
         <div>
           <h2 id="home-evolucion">Evolución reciente</h2>
-          <p>Tus últimas mediciones guardadas (la glucosa es una estimación experimental).</p>
+          <p>Tus mediciones guardadas (la glucosa es una estimación experimental).</p>
         </div>
         <div className="home-toggle" role="group" aria-label="Período del gráfico">
-          {PERIODS.map((period) => (
+          {HOME_PERIODS.map((period) => (
             <button key={period.days} type="button" className={`home-toggle-btn${days === period.days ? ' is-active' : ''}`} aria-pressed={days === period.days}
               aria-label={period.name} onClick={() => onDaysChange(period.days)}>{period.label}</button>
           ))}
         </div>
       </header>
+      <div className="home-grouping" role="group" aria-label="Agrupar las mediciones">
+        <span>Agrupar:</span>
+        {groupingOptions(days).options.map((key) => (
+          <button key={key} type="button" className={`home-chip${grouping === key ? ' is-active' : ''}`} aria-pressed={grouping === key}
+            onClick={() => onGroupingChange(key)}>{GROUPING_LABELS[key]}</button>
+        ))}
+      </div>
       <Tabs label="Variable a graficar" idBase="home-evo" variant="pill" value={variable} onChange={setVariable}
         items={[...TABS, OVERVIEW].map((key) => ({ key, label: key === OVERVIEW ? 'Vista general' : VARIABLES[key].label }))} />
       <TabPanel idBase="home-evo" value={variable} className="ui-stack ui-stack--card">
@@ -203,15 +168,61 @@ export function RecentEvolution({ chart, days, onDaysChange }) {
             {TABS.map((key) => (
               <article key={key} className="home-mini" aria-label={VARIABLES[key].label}>
                 <h3>{VARIABLES[key].label} <small>({VARIABLES[key].unit || 'índice'})</small></h3>
-                <VariableChart variable={key} points={points} chart={chart} days={days} />
+                <VariableChart variable={key} points={points} chart={chart} days={days} grouping={grouping} />
               </article>
             ))}
           </div>
         ) : (
-          <VariableChart variable={variable} points={points} chart={chart} days={days} />
+          <VariableChart variable={variable} points={points} chart={chart} days={days} grouping={grouping} />
         )}
       </TabPanel>
       {hasAny && chart !== undefined && <Link to="/app/mediciones#evolucion" className="home-more">Ver la evolución completa <ArrowRight size={18} aria-hidden="true" /></Link>}
+    </section>
+  );
+}
+
+const EACH_BLOCK = { HORA: 'una hora', DIA: 'un día', SEMANA: 'una semana', MES: 'un mes' };
+const DEVICE_CATEGORIES = [
+  { key: 'oximetria', label: 'Oximetría', color: '#0f8b8d' },
+  { key: 'glucosa', label: 'Glucosa (experimental)', color: '#d98200' },
+];
+const MEAL_CATEGORIES = [
+  { key: 'ayuno', label: 'En ayunas', color: '#2f6fb5' },
+  { key: 'postprandial', label: 'Después de comer', color: '#7a5cc2' },
+  { key: 'sinInformar', label: 'Sin informar', color: '#9aa3b5' },
+];
+
+/** Cuántas mediciones fueron con oxímetro o con glucosa, y en qué condición de comida, por bloque de tiempo del mismo período. */
+export function MeasurementMix({ chart, days, grouping }) {
+  const granularity = countGranularity(days, grouping);
+  const window = periodWindow(chart, { dias: days }, []);
+  const blocks = chart ? countByBlock(chart.puntos ?? [], granularity, window) : [];
+  const total = blocks.reduce((sum, block) => sum + block.total, 0);
+  const labelFor = (block) => shortBlockLabel(block.start, granularity);
+  const describeBlock = (block, categories) => `${labelFor(block)}: ${block.total} ${block.total === 1 ? 'medición' : 'mediciones'}, ${categories
+    .filter((category) => block[category.key] > 0).map((category) => `${block[category.key]} ${category.label.toLowerCase()}`).join(', ') || 'ninguna'}`;
+  return (
+    <section className="home-card" aria-labelledby="home-mezclas">
+      <header className="home-card-head">
+        <span className="home-card-icon"><ChartColumn size={28} aria-hidden="true" /></span>
+        <div>
+          <h2 id="home-mezclas">Cómo fueron tus mediciones</h2>
+          <p>Cantidad por tipo de medición y por condición de comida. Agrupado {GROUPING_LABELS[granularity].toLowerCase()}.</p>
+        </div>
+      </header>
+      {chart === undefined ? (
+        <EmptyState variant="framed" headingLevel={0} role="status" title="Cargando tus mediciones…" />
+      ) : total === 0 ? (
+        <EmptyState variant="framed" headingLevel={0} title="No hay mediciones en este período." description="Probá con otro período o hacé una nueva medición." />
+      ) : (
+        <div className="home-mix">
+          <StackedBarChart title="Oximetría y glucosa" categories={DEVICE_CATEGORIES} blocks={blocks} labelFor={labelFor}
+            describe={(block) => describeBlock(block, DEVICE_CATEGORIES)} />
+          <StackedBarChart title="Condición de comida" categories={MEAL_CATEGORIES} blocks={blocks} labelFor={labelFor}
+            describe={(block) => describeBlock(block, MEAL_CATEGORIES)} />
+        </div>
+      )}
+      <p className="home-mix-note">Cuenta todas las mediciones completadas del período, incluidas las pruebas DEMO. Cada barra es {EACH_BLOCK[granularity]}.</p>
     </section>
   );
 }
