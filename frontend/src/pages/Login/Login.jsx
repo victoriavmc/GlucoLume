@@ -48,7 +48,8 @@ export default function Login() {
   const [form, setForm] = useState({ identificador: '', password: '' });
   const [remember, setRemember] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-  const [error, setError] = useState('');
+  // Llega desde el callback de Google (p. ej. cuenta sin registrar): el motivo se muestra aquí, en el inicio de sesión.
+  const [error, setError] = useState(() => location.state?.error ?? '');
   const [errorCode, setErrorCode] = useState(null);
   const [loading, setLoading] = useState(false);
   const [redirectingToGoogle, setRedirectingToGoogle] = useState(false);
@@ -198,6 +199,7 @@ export default function Login() {
               </div>
               <ResendVerification
                 initialEmail={form.identificador.includes('@') ? form.identificador : ''}
+                dropdown
                 label="Reenviar correo de verificación"
               />
             </div>

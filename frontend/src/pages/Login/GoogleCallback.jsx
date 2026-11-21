@@ -62,13 +62,19 @@ export default function GoogleCallback() {
         if (result.mfaRequired) setState({ phase: 'mfa', challengeToken: result.challengeToken });
         else finish();
       })
-      .catch((exchangeError) => setState({ phase: 'error', message: friendlyError(exchangeError) }));
+      .catch((exchangeError) => setState({ phase: 'error', message: friendlyError(exchangeError), code: exchangeError.codigo }));
     // finish usa refs y navigate: solo debe ejecutarse al montar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completeGoogle]);
 
   // Login al que vuelve el usuario si el flujo no terminó: el mismo acceso con el que empezó (marca de PLATAFORMA del inicio).
   const loginPath = platform.current ? LOGIN_PLATAFORMA : LOGIN_GENERAL;
+
+  useEffect(() => {
+    // Cuenta de Google sin registrar: el motivo se muestra en la pantalla de inicio de sesión, sin pasar por esta pantalla.
+    if (state.phase !== 'error' || state.code !== 'CUENTA_NO_REGISTRADA') return;
+    navigate(loginPath, { replace: true, state: { error: state.message } });
+  }, [state, loginPath, navigate]);
 
   useEffect(() => {
     // Ese correo ya tiene cuenta: se muestra el motivo un momento y se lleva a iniciar sesión (sin pasar por MFA).
@@ -127,11 +133,6 @@ export default function GoogleCallback() {
           <Alert>{state.message}</Alert>
           {CUENTA_EXISTENTE_CODES.includes(state.code) && (
             <p className="auth-status" role="status">Te llevamos a iniciar sesión…</p>
-          )}
-          {state.code === 'CUENTA_NO_REGISTRADA' && (
-            <Link to="/registro" className="btn btn-primary btn-block btn-lg">
-              Registrarme
-            </Link>
           )}
           <Link to={loginPath} className="btn btn-outline btn-block btn-lg">
             <ArrowLeft size={18} aria-hidden="true" /> Volver a iniciar sesión

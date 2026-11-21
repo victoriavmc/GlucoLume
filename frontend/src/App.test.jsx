@@ -214,15 +214,31 @@ describe('Login local', () => {
     await fillLogin(user, 'victoria');
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
 
+    // Con usuario (no email) el desplegable queda sin opciones de correo.
     const resendEmail = await screen.findByLabelText('Correo electrónico de tu cuenta');
+    expect(resendEmail.tagName).toBe('SELECT');
     expect(resendEmail).toHaveValue('');
+    expect(resendEmail.querySelectorAll('option:not([disabled])')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: /Reenviar correo de verificación/ }));
     expect(screen.getByText('Ingresá el correo con el que te registraste.')).toBeInTheDocument();
     expect(calls.filter((c) => c.key === 'POST /auth/verify-email/resend')).toHaveLength(0);
+  });
 
-    await user.type(resendEmail, 'victoria@example.com');
+  it('cuenta sin verificar con email: el desplegable ofrece ese correo para reenviar', async () => {
+    const { calls } = mockApi({
+      'POST /auth/login': jsonResponse(403, { codigo: 'CORREO_NO_VERIFICADO', detail: 'x' }),
+      'POST /auth/verify-email/resend': jsonResponse(202, { mensaje: 'ok' }),
+    });
+    const user = userEvent.setup();
+    renderAt('/login');
+    await fillLogin(user, 'victoria@example.com');
+    await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
+
+    const resendEmail = await screen.findByLabelText('Correo electrónico de tu cuenta');
+    expect(resendEmail).toHaveValue('victoria@example.com');
     await user.click(screen.getByRole('button', { name: /Reenviar correo de verificación/ }));
     expect(await screen.findByText(/Te enviamos un nuevo correo de verificación/)).toBeInTheDocument();
+    expect(calls.filter((c) => c.key === 'POST /auth/verify-email/resend')).toHaveLength(1);
   });
 
   it('otros errores de login no muestran el reenvío', async () => {
@@ -291,11 +307,12 @@ describe('Google', () => {
     expect(window.sessionStorage.getItem('glucolume.googleRemember')).toBe('1');
   });
 
-  it('iniciar sesión con una cuenta de Google no registrada ofrece registrarse', async () => {
+  it('iniciar sesión con una cuenta de Google no registrada vuelve al inicio de sesión con el motivo', async () => {
     mockApi({});
     renderAt('/auth/google/callback#error=CUENTA_NO_REGISTRADA');
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
     expect(await screen.findByText(/Registrate primero/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Registrarme' })).toHaveAttribute('href', '/registro');
+    expect(screen.queryByRole('heading', { name: 'Acceso con Google' })).not.toBeInTheDocument();
   });
 
   it('el callback canjea el código una sola vez, lo quita de la URL y entra a /app', async () => {
