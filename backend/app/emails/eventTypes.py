@@ -212,7 +212,7 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     ),
     _E.INICIO_BLOQUEADO_SESION_ACTIVA: EmailEventSpec(
         "seguridad/inicioBloqueadoSesionActiva.html", "Bloqueamos un inicio de sesión en tu cuenta", CATEGORIA_SEGURIDAD,
-        ("fechaEvento", "urlSeguridad"), ("urlSeguridad",), securityNotice=True, highPriority=True,
+        ("fechaEvento", "urlSeguridad"), ("urlSeguridad", "urlLiberar"), securityNotice=True, highPriority=True,
     ),
     # --- MFA ------------------------------------------------------------------------------
     _E.MFA_ACTIVADO: EmailEventSpec(

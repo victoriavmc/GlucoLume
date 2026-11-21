@@ -9,7 +9,12 @@
   ("Sistema operativo", sistemaOperativo if sistemaOperativo is defined else none),
   ("Dispositivo", dispositivo if dispositivo is defined else none),
 ]) }}
+{% if urlLiberar is defined and urlLiberar %}
+<p style="{{ m.P }}">Si fuiste vos, tocá el botón para cerrar la sesión que quedó abierta en el otro dispositivo. Después podés ingresar con tu contraseña normal. El enlace vence en {{ minutosValidez }} minutos y solo sirve una vez.</p>
+{{ m.boton(urlLiberar, "Fui yo, cerrar la sesión anterior") }}
+{% else %}
 <p style="{{ m.P }}">Si fuiste vos, cerrá la sesión que sigue abierta en el otro dispositivo y volvé a intentar.</p>
-{% call m.aviso(alerta=true) %}Si no fuiste vos, restablecé tu contraseña: al hacerlo se cierran todas las sesiones de tu cuenta.{% endcall %}
+{% endif %}
+{% call m.aviso(alerta=true) %}Si no fuiste vos, no toques ese botón: restablecé tu contraseña, que cierra todas las sesiones de tu cuenta.{% endcall %}
 {{ m.boton(urlSeguridad, "Revisar seguridad", secundario=true) }}
 {% endblock %}

@@ -62,6 +62,9 @@ def _windowText(rule: MatrixRule) -> str:
     return f"entre {low or 0} y {high} min"
 
 
+MEAL_TEXT = {"AYUNO": "en ayunas", "POSTPRANDIAL": "después de comer"}
+
+
 def _foodMatches(rule: MatrixRule, condition: str, minutes: int | None) -> bool:
     if condition == "NO_INFORMADA":
         return True  # sin dato de alimentación no se descarta ninguna regla (luego se prefieren las previstas para ese caso)
@@ -175,14 +178,19 @@ def build(db: Session, measurement: Measurement, preloaded: Preloaded | None = N
             # con su semáforo y se avisa la diferencia; no se elige como referencia personalizada.
             outside = [r for r in rules if r.sexoModelo == sex and r.condicionComida == condition and (age is None or _inAge(r, age))] \
                 if condition == "POSTPRANDIAL" and minutes is not None else []
-            # Sin regla que coincida con la condición informada: se muestran TODAS las reglas disponibles para su sexo y edad (de cualquier
-            # condición) para ver con cuál se adapta mejor. Ninguna se elige, y cada una lleva su semáforo orientativo.
-            available = [r for r in rules if r.sexoModelo == sex and (age is None or _inAge(r, age))]
-            listed = available
+            # Con la alimentación informada (ayuno o después de comer) solo se muestra la regla de ESA condición, nunca la de la otra:
+            # la medición ya dice cuál corresponde. Sin alimentación informada se muestran todas las disponibles para comparar.
+            if condition in ("AYUNO", "POSTPRANDIAL"):
+                listed = [r for r in rules if r.sexoModelo == sex and r.condicionComida == condition and (age is None or _inAge(r, age))]
+            else:
+                listed = [r for r in rules if r.sexoModelo == sex and (age is None or _inAge(r, age))]
             if outside:
                 reason = (f"Fuera de la ventana: la medición se inició a {minutes} min del inicio de la comida y la regla posprandial "
                           f"vale {_windowText(outside[0])}. El semáforo es solo orientativo.")
-            elif available:
+            elif condition in ("AYUNO", "POSTPRANDIAL"):
+                reason = (f"No hay una regla de referencia para la medición {MEAL_TEXT[condition]} con tu edad. "
+                          "Ninguna se elige como referencia.")
+            elif listed:
                 reason = ("No hay una regla que coincida con la condición de alimentación informada. Se muestran las reglas disponibles "
                           "para tu sexo y edad, para comparar: ninguna se elige.")
         elif age is None:

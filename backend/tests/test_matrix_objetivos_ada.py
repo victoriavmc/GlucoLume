@@ -183,6 +183,16 @@ def test_cada_regla_candidata_lleva_su_propio_semaforo(db, mails, platform):
     assert {r.condicionComida: r.semaforo for r in ref.grupos[0].reglas} == {"AYUNO": "ROJO", "POSTPRANDIAL": "VERDE"}
 
 
+def test_alimentacion_informada_muestra_solo_la_regla_de_esa_condicion(db, mails, platform):
+    matriz = activeMatrix(db, platform, rules=objetivosAda())
+    # Después de comer a los 20 min: la posprandial (60–120) queda fuera de ventana. No debe aparecer la regla de ayunas.
+    grupo = reference.build(db, medicion(matriz, glucosa="150", condicion="POSTPRANDIAL", minutosDesdeComida=20)).grupos[0]
+    assert [r.condicionComida for r in grupo.reglas] == ["POSTPRANDIAL"] and grupo.reglaSeleccionada is None
+    # En ayunas, solo la regla de ayunas se elige.
+    grupo = reference.build(db, medicion(matriz, glucosa="150", condicion="AYUNO")).grupos[0]
+    assert grupo.reglaSeleccionada.condicionComida == "AYUNO"
+
+
 # --- Coherencia con el instalador SQL ------------------------------------------------------------------------------------------
 
 

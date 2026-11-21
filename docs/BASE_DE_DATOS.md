@@ -173,8 +173,8 @@ Ensayo en una copia: restaurar el respaldo con otro nombre (`RESTORE DATABASE Gl
 respaldo antiguo, correr el job de retención antes de volver a dar acceso ([PRIVACIDAD_Y_RETENCION.md](PRIVACIDAD_Y_RETENCION.md)).
 
 **Implementado para Express (19/10/2026):** `database/respaldos/GlucoLume_respaldo.ps1` (BACKUP con CHECKSUM, `RESTORE VERIFYONLY`,
-cifrado AES-256 con GnuPG y verificación SHA-256 del descifrado antes de borrar el `.bak` en claro, retención de 35 días + 12 mensuales que
-nunca borra el último ni archivos ajenos), `GlucoLume_clave_respaldo.ps1` (frase de paso aleatoria protegida con DPAPI) y
+cifrado AES-256 con GnuPG y verificación SHA-256 del descifrado antes de borrar el `.bak` en claro, retención de los 3 más recientes
+(`-MaxRespaldos`, por fecha y hora, sin importar la frecuencia de la tarea) + 1 por mes durante 12 meses, que nunca borra el más reciente ni archivos ajenos), `GlucoLume_clave_respaldo.ps1` (frase de paso aleatoria protegida con DPAPI) y
 `GlucoLume_prueba_restauracion.ps1` (descifra, restaura en un SQL Server 2025 descartable, corre `schemaCheck` y borra todo). Carpeta
 `C:\GlucoLumeRespaldos` con acceso solo para la cuenta, el servicio `MSSQL$GLUCOLUME`, SYSTEM y Administradores. Ejecutados: respaldo cifrado
 verificado y restauración de prueba sin diferencias. Tareas programadas «GlucoLume - Respaldo diario cifrado» (02:30) y «GlucoLume -

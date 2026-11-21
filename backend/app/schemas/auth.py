@@ -249,6 +249,14 @@ class PasswordResetRequest(BaseModel):
     password: NewPassword
 
 
+class LiberarSesionRequest(BaseModel):
+    """Enlace «fui yo» del aviso de inicio bloqueado (sin sesión): solo el token del correo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=1, max_length=512)]
+
+
 class ChangePasswordRequest(BaseModel):
     """Cambio de contraseña con sesión: contraseña actual y, si la cuenta tiene MFA, un código."""
 

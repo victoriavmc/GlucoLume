@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AuthProvider } from './auth/AuthContext.jsx';
+import { useIndexacion } from './utils/indexacion.js';
+import { useTituloDeRuta } from './utils/titulos.js';
 import { FullPageLoader } from './components/FullPageLoader.jsx';
 import { AuthenticatedLayout } from './layouts/AuthenticatedLayout.jsx';
 import { SectionGuard } from './pages/Account/institutions/SectionGuard.jsx';
@@ -36,6 +38,7 @@ function lazyNamed(loader, name = 'default') {
 // visitar su ruta; 23/10/2026, docs/RENDIMIENTO.md). Las de acceso (login, registro, recuperación, verificación) quedan en el inicial a propósito:
 // son la primera pantalla de quien llega a la portada y una descarga extra por 4 KB no vale la espera.
 const ConfirmDeletionPage = lazyNamed(() => import('./pages/Account/ConfirmDeletionPage.jsx'));
+const LiberarSesionPage = lazyNamed(() => import('./pages/Login/LiberarSesionPage.jsx'));
 const ConfirmResultEmailPage = lazyNamed(() => import('./pages/ResultEmail/ConfirmResultEmailPage.jsx'));
 const loadGroupDashboard = () => import('./pages/Account/groups/GroupDashboard.jsx');
 const GroupMemberPage = lazyNamed(loadGroupDashboard, 'GroupMemberPage');
@@ -189,6 +192,8 @@ function LegacyActivationLink() {
 }
 
 export function AppRoutes() {
+  useIndexacion();  // robots y canonical por ruta (A-6): privadas noindex y sin canonical; públicas, su propia URL
+  useTituloDeRuta();  // título descriptivo por ruta (A-9)
   return (
     <Suspense fallback={<FullPageLoader />}>
       <Routes>
@@ -222,6 +227,7 @@ export function AppRoutes() {
         <Route path="/verificar-correo" element={<VerifyEmail />} />
         <Route path="/activar-cuenta" element={<ActivateAccount />} />
         <Route path="/cuenta/eliminar/confirmar" element={<ConfirmDeletionPage />} />
+        <Route path="/liberar-sesion" element={<LiberarSesionPage />} />
         {/* Enlaces de correos que no tienen pantalla propia. Se declaran (en vez de caer en la redirección «*») para que el servidor los
             reconozca como rutas de la aplicación y se comporten como antes: el de seguridad de correos enviados antes de este cambio va al
             inicio de seguridad; el de desuscripción del aviso de inicio de sesión sigue yendo a la portada (pantalla pendiente de decidir). */}

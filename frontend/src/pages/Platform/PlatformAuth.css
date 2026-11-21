@@ -7,6 +7,8 @@
 .pa-badge { display: inline-flex; align-items: center; gap: 8px; justify-self: start; padding: 6px 12px; border-radius: 999px; background: var(--red-50, #fdeced);
   color: var(--red-700, #b00d18); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
 .pa-card .auth-title { font-size: clamp(24px, 4vw, 28px); }
+/* Encabezado de «enlace no válido»: mismos valores que `.register-success h3` (Register.css), para que no cambie el aspecto al pasar de h3 a h2 (A-9). */
+.pa-error-title { margin: 0; font-size: 24px; }
 .pa-foot { margin: 0; max-width: 40ch; text-align: center; font-size: 13px; line-height: 1.5; color: var(--ink-500, #6b7080); }
 
 .pa-activate { margin: 0; text-align: center; font-size: 14px; color: var(--ink-700); }

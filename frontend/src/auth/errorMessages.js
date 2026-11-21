@@ -8,7 +8,7 @@ const MESSAGES = {
   CREDENCIALES_INVALIDAS: 'El correo, el usuario o la contraseña no son correctos.',
   CUENTA_BLOQUEADA: 'Por seguridad bloqueamos el acceso tras varios intentos fallidos. Probá de nuevo en unos minutos.',
   SESION_ACTIVA:
-    'Tu cuenta ya tiene una sesión iniciada en otro dispositivo. Cerrala para ingresar desde acá. Te enviamos un aviso por correo y en tu cuenta.',
+    'Tu cuenta ya tiene una sesión iniciada en otro dispositivo. Si fuiste vos, usá el botón «Fui yo» del aviso que te enviamos por correo para cerrarla e ingresar. Si no fuiste vos, restablecé tu contraseña.',
   CORREO_NO_VERIFICADO:
     'Tenés que verificar tu correo electrónico antes de iniciar sesión. Revisá tu bandeja de entrada o spam.',
   CUENTA_NO_ACTIVA: 'Esta cuenta no está activa.',

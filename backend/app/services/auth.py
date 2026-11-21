@@ -1158,8 +1158,8 @@ def _linkOrCreateGoogleUser(
 
 SESION_ACTIVA = "SESION_ACTIVA"
 MENSAJE_SESION_ACTIVA = (
-    "Tu cuenta ya tiene una sesión iniciada en otro dispositivo. Cerrala para ingresar desde acá. "
-    "Te enviamos un aviso por correo y en tu cuenta."
+    "Tu cuenta ya tiene una sesión iniciada en otro dispositivo. Si fuiste vos, usá el botón «Fui yo» del aviso que te enviamos por correo "
+    "para cerrarla e ingresar. Si no fuiste vos, restablecé tu contraseña."
 )
 
 
@@ -1203,9 +1203,11 @@ def _requireNoOtherActiveSession(db: Session, user: User, clientInfo: ClientInfo
     )
     db.commit()
     client = clientInfo or ClientInfo()
+    enlace = _emitirEnlaceLiberacion(db, user, now)
     _notify(
         EmailEventType.INICIO_BLOQUEADO_SESION_ACTIVA, user, fechaEvento=now, navegador=client.navegador,
         sistemaOperativo=client.sistemaOperativo, dispositivo=client.dispositivo, urlSeguridad=_securityUrl(user),
+        **({"urlLiberar": enlace, "minutosValidez": getSettings().SESION_LIBERACION_MINUTOS} if enlace else {}),
     )
     userNotifications.notify(
         db, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Inicio de sesión bloqueado",
@@ -1216,6 +1218,70 @@ def _requireNoOtherActiveSession(db: Session, user: User, clientInfo: ClientInfo
         siempreEnPagina=True,
     )
     raise AuthError(SESION_ACTIVA, MENSAJE_SESION_ACTIVA, motivo=SESION_ACTIVA)
+
+
+_LIBERACION_INVALIDA = ("TOKEN_INVALIDO", "El enlace es inválido o ya fue usado. Volvé a intentar ingresar para recibir uno nuevo.")
+
+
+def _emitirEnlaceLiberacion(db: Session, user: User, now: datetime) -> str | None:
+    """Enlace «fui yo» del aviso de inicio bloqueado: un solo uso y con vencimiento. Reemplaza al anterior de la cuenta. Si no se puede
+    guardar (base sin el tipo LIBERAR_SESION del CHECK), el aviso sale sin enlace: el rechazo del inicio no cambia."""
+    token = security.generateOpaqueToken()
+    db.execute(
+        delete(AccountToken).where(
+            AccountToken.idUsuario == user.idUsuario,
+            AccountToken.tipo == TipoTokenCuenta.LIBERAR_SESION,
+            AccountToken.fechaUso.is_(None),
+        )
+    )
+    db.add(
+        AccountToken(
+            idUsuario=user.idUsuario,
+            tipo=TipoTokenCuenta.LIBERAR_SESION,
+            tokenHash=security.hashOpaqueToken(token),
+            fechaCreacion=now,
+            fechaExpiracion=now + timedelta(minutes=getSettings().SESION_LIBERACION_MINUTOS),
+        )
+    )
+    try:
+        commitAccountToken(db, TipoTokenCuenta.LIBERAR_SESION)
+    except SQLAlchemyError:
+        return None
+    return f"{emailService.frontendUrl('liberarSesion')}?token={token}"
+
+
+def liberarSesionesActivas(db: Session, token: str) -> None:
+    """Enlace «fui yo» del aviso (sin sesión): cierra las sesiones abiertas de la cuenta para que el titular pueda ingresar. Un solo uso,
+    vence. No cambia la contraseña ni abre sesión: después ingresa con su contraseña de forma normal. La prueba es el correo: quien solo
+    conoce la contraseña no puede cerrar la sesión de otro equipo."""
+    accountToken = db.scalar(
+        select(AccountToken).where(
+            AccountToken.tokenHash == security.hashOpaqueToken(token),
+            AccountToken.tipo == TipoTokenCuenta.LIBERAR_SESION,
+            AccountToken.fechaUso.is_(None),
+        )
+    )
+    user = db.get(User, accountToken.idUsuario) if accountToken else None
+    if user is None or user.estado != ESTADO_ACTIVO:
+        raise AuthError(*_LIBERACION_INVALIDA)
+    now = nowForDb()
+    if accountToken.fechaExpiracion <= now:
+        raise AuthError("TOKEN_VENCIDO", "El enlace venció. Volvé a intentar ingresar para recibir uno nuevo.")
+    # Marca de uso atómica: si dos pedidos llegan a la vez con el mismo enlace, solo el que la gana cierra las sesiones.
+    marcado = db.execute(
+        update(AccountToken)
+        .where(AccountToken.idTokenCuenta == accountToken.idTokenCuenta, AccountToken.fechaUso.is_(None))
+        .values(fechaUso=now)
+    )
+    if marcado.rowcount != 1:
+        db.rollback()
+        raise AuthError(*_LIBERACION_INVALIDA)
+    _revokeAllSessions(db, user.idUsuario, now)
+    registerEvent(
+        db, "LOGIN", "LIBERAR_SESIONES_ACTIVAS", True, user.idUsuario, "Usuario", user.idUsuario,
+        observacion="Cierre de las sesiones abiertas desde el enlace del aviso de inicio bloqueado",
+    )
+    db.commit()
 
 
 def _completePrimaryAuthentication(

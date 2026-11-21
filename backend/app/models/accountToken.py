@@ -27,6 +27,7 @@ class TipoTokenCuenta(StrEnum):
     RECUPERACION_MFA = "RECUPERACION_MFA"  # 007_recuperacion_mfa.sql
     ACTIVACION_CUENTA = "ACTIVACION_CUENTA"  # 011_activacion_cuenta_invitada.sql
     CODIGO_CAMBIO_PASSWORD = "CODIGO_CAMBIO_PASSWORD"  # services/passwordChangeCode.py; migración GlucoLume_migracion_codigo_cambio_password.sql
+    LIBERAR_SESION = "LIBERAR_SESION"  # enlace «fui yo» del aviso de inicio bloqueado (services/auth.py); migración GlucoLume_migracion_liberar_sesion.sql
 
 
 TOKEN_TYPE_CHECK_NAME = "CK_TokenCuenta_tipo"

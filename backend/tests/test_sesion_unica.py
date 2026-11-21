@@ -4,6 +4,7 @@
 # Ejecutar desde backend/:
 #     python -m pytest tests/test_sesion_unica.py -v
 
+import re
 from datetime import timedelta
 
 import pytest
@@ -124,3 +125,84 @@ def test_renovar_el_token_del_mismo_dispositivo_no_se_bloquea(db, mails):
 
     assert rotada.refreshToken != primera.tokens.refreshToken
     assert avisosDeBloqueo(mails) == []
+
+
+# --- Enlace «fui yo» del aviso: el titular cierra la sesión que quedó abierta y puede ingresar -------------------------------------------
+
+
+def _enlacesDeLiberacion(mails) -> list[str]:
+    """Tokens de los enlaces «fui yo» de los avisos de bloqueo, en orden de envío."""
+    return [re.search(r"liberar-sesion\?token=([A-Za-z0-9_-]+)", mail["html"]).group(1) for mail in avisosDeBloqueo(mails)]
+
+
+def _bloquearInicio(db) -> None:
+    authService.loginLocal(db, EMAIL, PASSWORD)
+    with pytest.raises(AuthError):
+        authService.loginLocal(db, EMAIL, PASSWORD)
+
+
+def test_el_enlace_fui_yo_cierra_la_sesion_anterior_y_permite_ingresar(db, mails):
+    makeUser(db)
+    _bloquearInicio(db)
+    [token] = _enlacesDeLiberacion(mails)
+
+    authService.liberarSesionesActivas(db, token)
+
+    assert sesionesVigentes(db) == 0
+    assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "AUTENTICADO"
+    assert sesionesVigentes(db) == 1
+
+
+def test_el_enlace_fui_yo_sirve_una_sola_vez(db, mails):
+    makeUser(db)
+    _bloquearInicio(db)
+    [token] = _enlacesDeLiberacion(mails)
+    authService.liberarSesionesActivas(db, token)
+    authService.loginLocal(db, EMAIL, PASSWORD)  # el titular ingresa; esta sesión nueva no debe caer con el mismo enlace
+
+    with pytest.raises(AuthError) as error:
+        authService.liberarSesionesActivas(db, token)
+
+    assert error.value.code == "TOKEN_INVALIDO"
+    assert sesionesVigentes(db) == 1
+
+
+def test_el_enlace_fui_yo_vence(db, mails, monkeypatch):
+    makeUser(db)
+    _bloquearInicio(db)
+    [token] = _enlacesDeLiberacion(mails)
+    despues = nowForDb() + timedelta(minutes=getSettings().SESION_LIBERACION_MINUTOS + 1)
+    monkeypatch.setattr(authService, "nowForDb", lambda: despues)
+
+    with pytest.raises(AuthError) as error:
+        authService.liberarSesionesActivas(db, token)
+
+    assert error.value.code == "TOKEN_VENCIDO"
+    assert sesionesVigentes(db) == 1  # un enlace vencido no cierra nada
+
+
+def test_un_token_inventado_no_cierra_ninguna_sesion(db, mails):
+    makeUser(db)
+    _bloquearInicio(db)
+
+    with pytest.raises(AuthError) as error:
+        authService.liberarSesionesActivas(db, "token-inventado")
+
+    assert error.value.code == "TOKEN_INVALIDO"
+    assert sesionesVigentes(db) == 1
+
+
+def test_un_aviso_nuevo_reemplaza_al_enlace_anterior(db, mails):
+    makeUser(db)
+    _bloquearInicio(db)
+    with pytest.raises(AuthError):
+        authService.loginLocal(db, EMAIL, PASSWORD)  # segundo intento bloqueado: emite un enlace nuevo
+    primero, segundo = _enlacesDeLiberacion(mails)
+
+    with pytest.raises(AuthError) as error:
+        authService.liberarSesionesActivas(db, primero)
+    assert error.value.code == "TOKEN_INVALIDO"
+    assert sesionesVigentes(db) == 1
+
+    authService.liberarSesionesActivas(db, segundo)
+    assert sesionesVigentes(db) == 0
