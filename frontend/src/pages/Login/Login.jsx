@@ -192,16 +192,20 @@ export default function Login() {
           </form>
 
           {errorCode === 'CORREO_NO_VERIFICADO' && (
-            <div className="auth-info is-institutional resend-box">
-              <div>
-                <b>¿No te llegó el correo de verificación?</b>
-                <p>Te enviamos un enlace nuevo. El plazo para verificar la cuenta no se extiende.</p>
+            <details className="resend-details">
+              <summary>
+                <span>
+                  <b>¿No te llegó el correo de verificación?</b>
+                  <span className="resend-details-hint">Te enviamos un enlace nuevo. El plazo para verificar la cuenta no se extiende.</span>
+                </span>
+              </summary>
+              <div className="resend-details-body">
+                <ResendVerification
+                  initialEmail={form.identificador}
+                  label="Reenviar correo de verificación"
+                />
               </div>
-              <ResendVerification
-                initialEmail={form.identificador}
-                label="Reenviar correo de verificación"
-              />
-            </div>
+            </details>
           )}
 
           <div className="divider">
