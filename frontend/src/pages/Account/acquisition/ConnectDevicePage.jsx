@@ -10,11 +10,9 @@
 // institución, a cargo del propietario) o lo reconoce si ya está; no hace falta que el propietario lo cargue a mano.
 
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useOutletContext } from 'react-router-dom';
+import { Navigate, useOutletContext } from 'react-router-dom';
 
-import * as institutionsApi from '../../../api/institutionsApi.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
-import { useAuth } from '../../../auth/AuthContext.jsx';
 import { friendlyError } from '../../../auth/errorMessages.js';
 import { Alert } from '../../../components/FormControls.jsx';
 import { PageHeader } from '../../../components/PageHeader.jsx';
@@ -89,13 +87,6 @@ export function ConnectDeviceView({ institution }) {
   );
 }
 
-/** Cuenta individual: su propia página de conexión. */
-export function ConnectDevicePage() {
-  const { account } = useAuth();
-  if (account.usuario.tipoCuenta === 'USUARIO_INSTITUCIONAL') return <ConnectDeviceEntry />;
-  return <ConnectDeviceView />;
-}
-
 /** Operador: la conexión se hace dentro de la institución (el dispositivo se reconoce y se registra en SU inventario). */
 export function InstitutionConnectDevicePage() {
   const { institution } = useOutletContext();
@@ -103,38 +94,3 @@ export function InstitutionConnectDevicePage() {
   return <ConnectDeviceView institution={institution} />;
 }
 
-/**
- * Entrada desde los enlaces «Conectar dispositivo» de todo el sistema: una cuenta institucional elige en qué institución conecta
- * (si opera en una sola, entra directo).
- */
-function ConnectDeviceEntry() {
-  const [institutions, setInstitutions] = useState(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    institutionsApi.getMyInstitutions().then(
-      (list) => setInstitutions(list.filter((item) => item.rolInstitucion === 'OPERADOR' && item.estadoRelacion === 'ACTIVO' && item.estado === 'ACTIVA')),
-      (loadError) => setError(friendlyError(loadError)),
-    );
-  }, []);
-
-  if (error) return <div className="page"><Alert>{error}</Alert></div>;
-  if (institutions === null) return <div className="auth-status" role="status"><span className="spinner" aria-hidden="true" /> Cargando tus instituciones…</div>;
-  if (institutions.length === 1) return <Navigate to={`/app/instituciones/${institutions[0].idInstitucion}/conectar-dispositivo`} replace />;
-  return (
-    <div className="page connect-page">
-      <PageHeader title="Conectar dispositivo" description="El dispositivo se conecta y se reconoce dentro de una institución: elegí en cuál vas a medir." />
-      {institutions.length === 0 ? (
-        <Alert kind="info">Solo los operadores de una institución conectan dispositivos y miden. No tenés una institución activa donde seas operador/a.</Alert>
-      ) : (
-        <ul className="connect-institutions">
-          {institutions.map((item) => (
-            <li key={item.idInstitucion}>
-              <Link className="btn btn-outline" to={`/app/instituciones/${item.idInstitucion}/conectar-dispositivo`}>{item.nombre}</Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}

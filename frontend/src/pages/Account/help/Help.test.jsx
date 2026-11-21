@@ -32,7 +32,7 @@ describe('Ayuda: guía separada por tipo de cuenta', () => {
     expect(await screen.findByRole('heading', { name: 'Ayuda' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Cliente' })).toHaveAttribute('aria-selected', 'true');
     const temas = within(screen.getByRole('navigation', { name: /Temas de la guía cliente/ }));
-    for (const tema of ['Primeros pasos', 'Perfil', 'Seguridad', 'Notificaciones', 'Conectar dispositivo', 'Mediciones', 'Grupo familiar']) {
+    for (const tema of ['Primeros pasos', 'Perfil', 'Seguridad', 'Notificaciones', 'Mediciones', 'Grupo familiar']) {
       expect(temas.getByRole('link', { name: tema })).toBeInTheDocument();
     }
     expect(screen.queryByRole('region', { name: 'Tabla: Roles y secciones' })).toBeNull();

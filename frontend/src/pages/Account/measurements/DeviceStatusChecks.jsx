@@ -5,8 +5,7 @@
 //   · Disponible   — todo lo anterior + nadie más está midiendo.
 // Todo sale del diagnóstico del backend («readiness»): esta pantalla no lo infiere ni lo da por bueno si todavía no llegó.
 
-import { Check, Circle, PlugZap, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Check, Circle, X } from 'lucide-react';
 
 import { MEDIA, nextAction, readinessStep } from '../acquisition/connectModel.js';
 import { AVAILABLE_TEXT } from './SharedDeviceBanner.jsx';
@@ -92,7 +91,6 @@ export function DeviceStatusChecks({ status, readiness }) {
           <b>{action.kind === 'info' ? `Pendiente: ${action.title}` : action.title}</b>
           {action.detail && <p>{action.detail}</p>}
           {action.solution && <p><span className="connect-fix">Cómo resolverlo:</span> {action.solution}</p>}
-          <p><Link to="/app/conectar-dispositivo"><PlugZap size={14} aria-hidden="true" /> Ver el estado de la conexión</Link></p>
         </div>
       )}
     </div>

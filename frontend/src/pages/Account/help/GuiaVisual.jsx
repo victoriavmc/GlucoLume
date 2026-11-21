@@ -13,7 +13,6 @@ const MENU = {
   CLIENTE: [
     { to: '/app/inicio', label: 'Inicio' },
     { to: '/app/mediciones', label: 'Mediciones' },
-    { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' },
     { to: '/app/grupo', label: 'Grupo' },
     { to: '/app/notificaciones', label: 'Notificaciones' },
     { to: '/app/perfil', label: 'Perfil' },

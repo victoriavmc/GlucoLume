@@ -146,8 +146,8 @@ export const AYUDA_CLIENTE = [
       { texto: 'Creá tu cuenta con correo y contraseña, o con Google, y verificá el correo dentro de las 24 horas.' },
       { texto: 'Completá tu perfil: fecha de nacimiento y sexo.', ir: { to: '/app/perfil', label: 'Abrir Perfil' } },
       { texto: 'Activá la verificación en dos pasos y guardá los códigos de recuperación.', ir: { to: '/app/seguridad', label: 'Abrir Seguridad' } },
-      { texto: 'Autorizá el almacenamiento de tus mediciones y conectá el dispositivo.', ir: { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' } },
-      { texto: 'Hacé tu primera medición.', ir: { to: '/app/mediciones/nueva', label: 'Nueva medición' } },
+      { texto: 'Autorizá el almacenamiento de tus mediciones desde Mi perfil.', ir: { to: '/app/perfil', label: 'Abrir Perfil' } },
+      { texto: 'Hacé tu primera medición: el Arduino se conecta solo desde «Nueva medición» (la primera vez, tocá el botón para elegir el puerto).', ir: { to: '/app/mediciones/nueva', label: 'Nueva medición' } },
       { texto: 'Elegí qué avisos querés recibir y en qué horario te recordamos medirte.', ir: { to: '/app/notificaciones/preferencias', label: 'Preferencias de avisos' } },
     ],
   },
@@ -220,24 +220,6 @@ export const AYUDA_CLIENTE = [
     ],
   },
   {
-    id: 'conectar-dispositivo',
-    titulo: 'Conectar dispositivo',
-    intro: 'Acá conectás el Arduino con GlucoLume. El equipo es compartido: una cuenta lo controla a la vez.',
-    pasos: [
-      { texto: 'Con Chrome o Edge en una computadora no hace falta instalar nada: tocá «Conectar Arduino» y elegí el puerto. En otro navegador o en un celular, instalá el puente en la computadora donde conectás el Arduino: backend\\acquisition\\bridge\\Instalar-Puente.bat.' },
-      { texto: 'En Conectar dispositivo elegí el medio: Bluetooth HC-05/HC-06 (9600 baudios) o USB (115200).', ir: { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' } },
-      { texto: 'Mirá el estado de la conexión y resolvé lo que indique antes de medir.', captura: 'conectar-sin-bluetooth.png', pie: 'Con el Bluetooth sin emparejar, la pantalla indica cómo resolverlo.' },
-      { texto: 'Tocá Usar dispositivo para tomar el control del puente.', boton: 'Usar dispositivo', captura: 'conectar-usar-pantalla.png', pie: 'Pantalla de Conectar dispositivo: tocá «Usar dispositivo» en el bloque «Configuración del puente».' },
-      { texto: 'Al terminar, tocá Dejar de usar para liberarlo.', boton: 'Dejar de usar', captura: 'conectar-pantalla.png', pie: 'Pantalla de Conectar dispositivo. Mientras lo usás, el botón «Dejar de usar» aparece aquí.' },
-    ],
-    detalles: [
-      { titulo: 'Puente serie detenido', texto: 'Nadie está leyendo el Arduino: tocá «Conectar Arduino» en Conectar dispositivo (Chrome o Edge) o iniciá Puente-GlucoLume.bat en la computadora.' },
-      { titulo: 'Bluetooth desconectado', texto: 'Encendé el Arduino y revisá el emparejamiento.' },
-      { titulo: 'Conectado, sin datos', texto: 'El Arduino todavía no envía datos: esperá o revisá el equipo.' },
-      { titulo: 'Conectado', texto: 'Ya podés medir.', captura: 'conectar-compartido-disponible.png' },
-    ],
-  },
-  {
     id: 'mediciones',
     titulo: 'Mediciones',
     intro: 'Para medir hacen falta tres cosas, en este orden: perfil completo, autorización y dispositivo conectado.',
@@ -255,7 +237,7 @@ export const AYUDA_CLIENTE = [
       { titulo: 'Matriz de referencia', texto: 'Se ve en el detalle de cada medición de glucosa: la oximetría no se compara con ninguna matriz. Permite registrar una referencia capilar de tu glucómetro.', captura: 'medicion-detalle-matriz.png' },
       { titulo: 'Autorización', texto: 'Podés revocarla cuando quieras: frena nuevas mediciones, pero no borra lo medido.' },
       { titulo: 'DEMO', texto: 'Valor sintético para probar el equipo. No es una glucemia y no entra en tus estadísticas. Solo se puede eliminar lo DEMO.', captura: 'medicion-detalle-demo.png' },
-      { titulo: 'Cómo realizar una medición', texto: 'Los diez pasos de la pantalla de Conectar dispositivo: perfil, dispositivo, conexión, dedo sobre el sensor, lectura estable y guardado.', captura: 'medicion-como-realizar.png' },
+      { titulo: 'Cómo realizar una medición', texto: 'Los pasos de la pantalla de Nueva medición: perfil, dispositivo, conexión, dedo sobre el sensor, lectura estable y guardado.', captura: 'medicion-como-realizar.png' },
       { titulo: 'Referencia capilar', texto: 'Si medís con un glucómetro capilar real, podés registrar su valor como referencia en el detalle de la medición. Queda separada de la estimación y no la reemplaza.', captura: 'medicion-referencia-capilar.png' },
     ],
     casos: [
@@ -274,7 +256,7 @@ export const AYUDA_CLIENTE = [
       encabezados: ['Qué ves', 'Qué hacer'],
       filas: [
         ['Falta la autorización', 'Autorizala en Mi perfil con «Autorizo el almacenamiento».'],
-        ['No hay comunicación con el Arduino', 'Conectalo desde Conectar dispositivo (o iniciá el puente) y revisá el Bluetooth o el cable USB.'],
+        ['No hay comunicación con el Arduino', 'Conectalo desde Nueva medición (o iniciá el puente) y revisá el Bluetooth o el cable USB.'],
         ['El dispositivo está siendo usado por otra cuenta', 'Esperá a que termine. Si queda sin uso, se libera solo a los 5 minutos.'],
         ['El dispositivo no está operativo', 'No se puede medir hasta que vuelva a estar operativo.'],
         ['No hay regla de referencia para tu perfil', 'Completá fecha de nacimiento y sexo en Perfil, o edad y sexo en la medición.'],

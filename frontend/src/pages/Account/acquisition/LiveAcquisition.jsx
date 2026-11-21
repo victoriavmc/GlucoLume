@@ -2,9 +2,8 @@
 // las muestras del Arduino, las guarda en SQL Server y las retransmite por SSE. Aquí NO se genera ninguna muestra ni
 // resultado: los indicadores provisorios los calcula el servidor sobre la señal real y los definitivos salen al finalizar.
 
-import { Ban, CircleCheck, PlugZap, Radio } from 'lucide-react';
+import { Ban, CircleCheck, Radio } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { enSegundoPlano } from '../../../api/client.js';
 import * as acquisitionApi from '../../../api/acquisitionApi.js';
@@ -110,8 +109,7 @@ export function LiveAcquisition({ measurement, onUpdated, onLiveChange }) {
       {status.ocupado && <Alert kind="info">Dispositivo temporalmente ocupado: otra cuenta está midiendo ahora. Reintentá en unos instantes.</Alert>}
       {!status.ocupado && !connected && (
         <Alert kind="info">
-          No hay un Arduino conectado. <Link to="/app/conectar-dispositivo"><PlugZap size={14} aria-hidden="true" /> Conectar dispositivo</Link>{' '}
-          (USB o Bluetooth HC-06) y volvé a esta pantalla.
+          No hay un Arduino conectado. Conectalo (USB o Bluetooth HC-06) desde la pantalla de medición y volvé a esta pantalla.
         </Alert>
       )}
 

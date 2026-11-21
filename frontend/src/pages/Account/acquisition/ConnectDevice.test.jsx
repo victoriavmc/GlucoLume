@@ -5,13 +5,15 @@
 // distingue emparejado / puerto abierto / telemetría / disponible, no ofrece acciones que el navegador no puede ejecutar y solo
 // manda al backend órdenes acotadas. Las pruebas con hardware real se describen en docs/PUENTE.md.
 
-import { configure, screen, within } from '@testing-library/react';
+import { configure, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthProvider } from '../../../auth/AuthContext.jsx';
 import { clearTokens, saveTokens } from '../../../auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../../test/helpers.js';
-import { renderAt } from '../../../test/renderApp.jsx';
+import { ConnectDeviceView } from './ConnectDevicePage.jsx';
 import { indicators, nextAction, pipeline } from './connectModel.js';
 
 vi.mock('../../../api/acquisitionApi.js', async (importOriginal) => ({
@@ -65,7 +67,15 @@ function open(statusBody, readinessBody, extra = {}) {
     'GET /auth/me': jsonResponse(200, ACCOUNT), 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE),
     'GET /acquisition/telemetry/status': jsonResponse(200, statusBody), 'GET /acquisition/telemetry/readiness': jsonResponse(200, readinessBody), ...extra,
   });
-  renderAt('/app/conectar-dispositivo');
+  // La pantalla de conexión ya no existe para cuentas individuales (se conecta desde «Nueva medición»); la vista compartida con
+  // operadores se monta directamente, con la misma sesión y las mismas respuestas simuladas.
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <ConnectDeviceView />
+      </AuthProvider>
+    </MemoryRouter>,
+  );
   return api;
 }
 

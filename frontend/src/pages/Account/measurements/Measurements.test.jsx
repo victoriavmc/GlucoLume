@@ -1,4 +1,4 @@
-import { configure, render, screen, waitFor, within } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -80,12 +80,23 @@ describe('Mediciones: dashboard', () => {
     expect(calls.some((call) => call.key.startsWith('GET /measurements'))).toBe(false);
   });
 
+  it('«Nueva medición» sin autorización de almacenamiento abre un aviso que lleva a Mi perfil', async () => {
+    const { calls } = routes({ 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE), 'GET /auth/consents': jsonResponse(200, CONSENTS_PENDING) });
+    renderAt('/app/mediciones');
+    const dashboard = (await screen.findByRole('heading', { name: 'Mi dashboard' })).closest('section');
+    await waitFor(() => expect(calls.some((call) => call.key === 'GET /auth/consents')).toBe(true));
+    await act(async () => {}); // deja que llegue la respuesta de la autorización antes de pulsar
+    fireEvent.click(within(dashboard).getByRole('button', { name: /Nueva medición/ }));
+    const dialog = await screen.findByRole('dialog', { name: /Necesitamos tu autorización/ });
+    expect(within(dialog).getByRole('link', { name: 'Ir a Mi perfil' })).toHaveAttribute('href', '/app/perfil');
+  });
+
   it('abre directamente el dashboard, con los tres botones principales y sin las demás secciones', async () => {
     routes({ 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE) });
     renderAt('/app/mediciones');
     const dashboard = (await screen.findByRole('heading', { name: 'Mi dashboard' })).closest('section');
-    expect(within(dashboard).getByRole('link', { name: /Nueva medición/ })).toHaveAttribute('href', '/app/mediciones/nueva');
-    expect(within(dashboard).getByRole('link', { name: /Conectar dispositivo/ })).toHaveAttribute('href', '/app/conectar-dispositivo');
+    expect(within(dashboard).getByRole('button', { name: /Nueva medición/ })).toBeInTheDocument();
+    expect(within(dashboard).queryByRole('link', { name: /Conectar dispositivo/ })).not.toBeInTheDocument(); // se conecta desde Nueva medición
     // Desde el dashboard, «Mi perfil» lleva a los datos personales y la autorización.
     expect(await within(dashboard).findByRole('link', { name: /Mi perfil/ })).toHaveAttribute('href', '/app/perfil');
     // Nada de lo demás queda permanentemente en la pantalla principal.

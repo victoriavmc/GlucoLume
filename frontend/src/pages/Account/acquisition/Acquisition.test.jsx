@@ -86,14 +86,14 @@ describe('Adquisición en tiempo real', () => {
     expect(screen.queryByRole('button', { name: /Finalizar y procesar/ })).not.toBeInTheDocument();
   });
 
-  it('sin Arduino conectado lleva a conectar el dispositivo y no ofrece iniciar', async () => {
+  it('sin Arduino conectado lo explica y no ofrece iniciar', async () => {
     mockApi({
       'GET /auth/me': jsonResponse(200, ACCOUNT), 'GET /measurements/m-1': jsonResponse(200, MEASUREMENT),
       'GET /acquisition/status': jsonResponse(200, DOWN),
     });
     renderAt('/app/mediciones/m-1');
     expect(await screen.findByText(/No hay un Arduino conectado/)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /Conectar dispositivo/ }).some((l) => l.getAttribute('href') === '/app/conectar-dispositivo')).toBe(true);
+    expect(screen.queryByRole('link', { name: /Conectar dispositivo/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Iniciar adquisición/ })).not.toBeInTheDocument();
   });
 

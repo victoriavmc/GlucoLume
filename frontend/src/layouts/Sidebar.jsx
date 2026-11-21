@@ -1,4 +1,4 @@
-import { Activity, Bell, Building2, CircleHelp, ClipboardList, Cpu, House, Layers, LogOut, PlugZap, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { Activity, Bell, Building2, CircleHelp, ClipboardList, Cpu, House, Layers, LogOut, ShieldCheck, UserRound, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
@@ -17,7 +17,6 @@ const NAV_ITEMS = [
   { to: '/app/auditoria', label: 'Auditoría', icon: ClipboardList, accountType: 'ADMINISTRADOR_PLATAFORMA' },
   { to: '/app/matrices', label: 'Matrices globales', icon: Layers, accountType: PLATFORM_ACCOUNTS },
   { to: '/app/mediciones', label: 'Mediciones', icon: Activity, accountType: 'CONSUMIDOR_FINAL' },
-  { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo', icon: PlugZap, accountType: 'CONSUMIDOR_FINAL' },
   { to: '/app/grupo', label: 'Grupo', icon: Users, accountType: 'CONSUMIDOR_FINAL' },
   { to: '/app/notificaciones', label: 'Notificaciones', icon: Bell },
   { to: '/app/perfil', label: 'Perfil', icon: UserRound },

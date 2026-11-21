@@ -79,7 +79,6 @@ const MeasurementsPage = lazyNamed(loadMeasurementsPage, 'MeasurementsPage');
 const loadPatientMeasurePage = () => import('./pages/Account/institutions/patients/PatientMeasurePage.jsx');
 const PatientMeasurePage = lazyNamed(loadPatientMeasurePage, 'PatientMeasurePage');
 const loadConnectDevicePage = () => import('./pages/Account/acquisition/ConnectDevicePage.jsx');
-const ConnectDevicePage = lazyNamed(loadConnectDevicePage, 'ConnectDevicePage');
 const InstitutionConnectDevicePage = lazyNamed(loadConnectDevicePage, 'InstitutionConnectDevicePage');
 const ProfilePage = lazyNamed(() => import('./pages/Account/ProfilePage.jsx'));
 const loadPlatformAuth = () => import('./pages/Platform/PlatformAuth.jsx');
@@ -155,7 +154,6 @@ const PRELOADS = [
   [/^\/app\/instituciones\/[^/]+\/?$/, [InstitutionLayout, InstitutionOverview]],
   [/^\/app\/instituciones\/[^/]+\/pacientes\/?$/, [InstitutionLayout, PatientsTabs, PatientsPage]],
   [/^\/app\/instituciones\/[^/]+\/personal\/operadores\/[^/]+\/?$/, [InstitutionLayout, PersonnelLayout, OperatorDashboardPage]],
-  [/^\/app\/conectar-dispositivo\/?$/, [ConnectDevicePage]],
   [/^\/app\/grupo\/?$/, [GroupsHome]],
   [/^\/app\/notificaciones\/?$/, [NotificationsPage]],
   [/^\/app\/perfil\/?$/, [ProfilePage]],
@@ -266,7 +264,8 @@ export function AppRoutes() {
           <Route index element={<Navigate to="inicio" replace />} />
           <Route path="inicio" element={<HomePage />} />
           <Route path="perfil" element={<ProfilePage />} />
-          <Route path="conectar-dispositivo" element={<ConnectDevicePage />} />
+          {/* Cuentas individuales: no hay pantalla aparte; la medición se conecta sola desde «Nueva medición». Enlaces viejos llegan ahí. */}
+          <Route path="conectar-dispositivo" element={<Navigate to="/app/mediciones/nueva" replace />} />
           <Route path="seguridad" element={<SecurityPage />} />
           <Route path="ayuda" element={<HelpPage />} />
           <Route path="notificaciones" element={<NotificationsPage />} />

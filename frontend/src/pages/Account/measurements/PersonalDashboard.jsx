@@ -13,19 +13,16 @@ import {
   Droplets,
   HeartPulse,
   History,
-  Link2,
-  Monitor,
   Plus,
   Settings,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
-import { enSegundoPlano } from "../../../api/client.js";
-import * as acquisitionApi from "../../../api/acquisitionApi.js";
 import * as dashboardApi from "../../../api/dashboardApi.js";
 import * as measurementsApi from "../../../api/measurementsApi.js";
 import { Alert } from "../../../components/FormControls.jsx";
+import { Modal } from "../../../components/Modal.jsx";
 import { NO_DATA } from "../../../components/dashboard.jsx";
 import { OriginBadge } from "../../../components/Badge.jsx";
 import { EmptyState } from "../../../components/EmptyState.jsx";
@@ -33,8 +30,8 @@ import { PageHeader } from "../../../components/PageHeader.jsx";
 import { DemoBadge } from "./DeviceReadout.jsx";
 import { EvolutionPanel } from "./EvolutionPanel.jsx";
 import { MeasurementsInfo } from "./MeasurementsInfo.jsx";
+import { useOwnMeasurementProfile } from "./useOwnMeasurementProfile.js";
 import {
-  DEVICE_STATES,
   MEALS,
   ORIGINS,
   formatDateTime,
@@ -42,8 +39,7 @@ import {
 } from "./measurementFormat.js";
 
 const MODE_SHORT = { OXIMETRIA: "Oximetría", GLUCOSA_EXPERIMENTAL: "Glucosa" };
-const MEDIUMS = { BLUETOOTH: "Bluetooth", USB: "USB" };
-const DEVICE_POLL_MS = 10000;
+const RECENT_PREVIEW = 5; // el dashboard muestra las primeras; el resto está en el historial completo
 
 /** Glucosa de una medición guardada y de qué tipo es. La DEMO se rotula como simulada y nunca como indicador experimental. */
 function glucoseOf(item) {
@@ -172,56 +168,6 @@ function LatestCard({ icon: Icon, label, value, unit, when, demo }) {
   );
 }
 
-/** Acceso rápido al dispositivo con su estado real (GET /acquisition/telemetry/status, sin abrir el flujo en vivo). */
-function DeviceShortcut() {
-  const [status, setStatus] = useState(undefined);
-  useEffect(() => {
-    let active = true;
-    const load = () =>
-      acquisitionApi.getTelemetryStatus().then(
-        (result) => {
-          if (active) setStatus(result);
-        },
-        () => {
-          if (active) setStatus(null);
-        },
-      );
-    load();
-    const timer = setInterval(() => enSegundoPlano(load), DEVICE_POLL_MS);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, []);
-  const state = status
-    ? (DEVICE_STATES[status.estado] ?? DEVICE_STATES.SIN_PUENTE)
-    : null;
-  const bridge = status?.puente;
-  return (
-    <li>
-      <Link to="/app/conectar-dispositivo" className="dash-card dash-shortcut">
-        <span className="dash-icon is-neutral">
-          <Monitor size={22} aria-hidden="true" />
-        </span>
-        <span className="dash-shortcut-text">
-          <small>Dispositivo</small>
-          {state ? (
-            <b className={`dash-state ${state.tone}`}>{state.label}</b>
-          ) : (
-            <b>{status === null ? "Sin información" : "Consultando…"}</b>
-          )}
-          <span className="field-hint">
-            {bridge
-              ? `${bridge.puerto ?? "Sin puerto"} · ${MEDIUMS[bridge.medio] ?? bridge.medio}`
-              : "Revisá la conexión de tu Arduino"}
-          </span>
-        </span>
-        <ChevronRight size={18} aria-hidden="true" />
-      </Link>
-    </li>
-  );
-}
-
 function Shortcut({ to, icon: Icon, title, hint }) {
   return (
     <li>
@@ -318,6 +264,15 @@ export function PersonalDashboard({ handleOperationError }) {
   const [summary, setSummary] = useState(null);
   const [evolution, setEvolution] = useState(null);
   const [error, setError] = useState("");
+  const [consentNotice, setConsentNotice] = useState(false);
+  const navigate = useNavigate();
+  const { consent } = useOwnMeasurementProfile();
+
+  // «Nueva medición» solo con la autorización de almacenamiento: si falta, un aviso lleva a Mi perfil para otorgarla.
+  function startMeasurement() {
+    if (consent && !consent.aceptado) setConsentNotice(true);
+    else navigate("/app/mediciones/nueva");
+  }
 
   // Resumen general (última medición, recientes, cantidad de pruebas): no depende del período.
   useEffect(() => {
@@ -399,15 +354,12 @@ export function PersonalDashboard({ handleOperationError }) {
         actionsClassName="dash-actions"
         actions={(
           <>
-            <Link to="/app/mediciones/nueva" className="btn btn-primary">
+            <button type="button" className="btn btn-primary" onClick={startMeasurement}>
               <span className="dash-plus">
                 <Plus size={14} aria-hidden="true" />
               </span>{" "}
               Nueva medición
-            </Link>
-            <Link to="/app/conectar-dispositivo" className="btn btn-ghost">
-              <Link2 size={16} aria-hidden="true" /> Conectar dispositivo
-            </Link>
+            </button>
           </>
         )}
       />
@@ -449,7 +401,6 @@ export function PersonalDashboard({ handleOperationError }) {
           )}
 
           <ul className="dash-shortcuts" aria-label="Accesos rápidos">
-            <DeviceShortcut />
             <Shortcut
               to="/app/perfil"
               icon={Settings}
@@ -489,12 +440,40 @@ export function PersonalDashboard({ handleOperationError }) {
             {summary.recientes.length === 0 ? (
               <EmptyState variant="inline" headingLevel={0} title="Todavía no hay mediciones recientes." />
             ) : (
-              <RecentTable items={summary.recientes} />
+              <>
+                <RecentTable items={summary.recientes.slice(0, RECENT_PREVIEW)} />
+                {summary.recientes.length > RECENT_PREVIEW && (
+                  <p className="field-hint">
+                    Mostrando las {RECENT_PREVIEW} más recientes.{" "}
+                    <Link to="/app/mediciones/historial" className="dash-link">
+                      Ver todas <ChevronRight size={16} aria-hidden="true" />
+                    </Link>
+                  </p>
+                )}
+              </>
             )}
           </section>
 
           <MeasurementsInfo />
         </>
+      )}
+      {consentNotice && (
+        <Modal
+          title="Necesitamos tu autorización"
+          role="dialog"
+          onClose={() => setConsentNotice(false)}
+          actions={(
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => setConsentNotice(false)}>Más tarde</button>
+              <Link to="/app/perfil" className="btn btn-primary">Ir a Mi perfil</Link>
+            </>
+          )}
+        >
+          <p>
+            Para medir necesitamos tu autorización para almacenar mediciones experimentales. Otorgála en Mi perfil y después volvé a
+            «Nueva medición».
+          </p>
+        </Modal>
       )}
     </section>
   );

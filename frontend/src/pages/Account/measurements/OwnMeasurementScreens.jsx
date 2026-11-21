@@ -58,7 +58,7 @@ export function NewMeasurementPage() {
         </section>
       ) : (
         <>
-          <DeviceMonitor idPerfilMedicion={profile.idPerfilMedicion} profileLabel="Mi perfil" profile={profile}
+          <DeviceMonitor idPerfilMedicion={profile.idPerfilMedicion} profileLabel="Mi perfil" profile={profile} autoConnect
             handleOperationError={friendlyError}
             onSaved={setSavedMeasurement}
             onCancelled={() => navigate('/app/mediciones')} />

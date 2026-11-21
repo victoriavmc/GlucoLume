@@ -123,9 +123,10 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
     const checks = await within(section).findByLabelText('Estado del dispositivo');
     expect(checks).toHaveTextContent('Puente detenido');
     expect(await within(section).findByText(/El puente de GlucoLume no está ejecutándose/)).toBeInTheDocument();
-    // Desconectado: se informa el estado, se puede ir a conectarlo desde acá y no se puede iniciar.
+    // Desconectado: se informa el estado, se puede conectar el Arduino desde acá y no se puede iniciar.
     expect(await within(section).findByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
-    expect(within(section).getByRole('link', { name: /Conectar dispositivo/ })).toHaveAttribute('href', '/app/conectar-dispositivo');
+    expect(within(section).getByRole('button', { name: /Conectar Arduino por USB/ })).toBeInTheDocument();
+    expect(within(section).queryByRole('link', { name: /Conectar dispositivo/ })).not.toBeInTheDocument();
     expect(within(section).queryByText('Dispositivo compartido disponible')).not.toBeInTheDocument();
   });
 

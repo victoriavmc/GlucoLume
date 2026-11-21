@@ -38,6 +38,32 @@ const PICKER_FILTERS = {
 
 const hex = (value) => value.toString(16).padStart(4, '0');
 
+// Reconexión automática: se recuerda solo el medio y los ids USB del último puerto elegido (nada del sensor ni de la persona).
+// Con eso el navegador devuelve ese mismo puerto sin mostrar el selector, porque ya tiene permiso para él.
+const REMEMBERED_KEY = 'glucolume.puertoSerie';
+
+function rememberPort(port, medium) {
+  try {
+    const info = port?.getInfo?.() ?? {};
+    localStorage.setItem(REMEMBERED_KEY, JSON.stringify({ medium, usbVendorId: info.usbVendorId, usbProductId: info.usbProductId }));
+  } catch { /* sin almacenamiento: la próxima vez se pide el puerto */ }
+}
+
+function readRemembered() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(REMEMBERED_KEY) ?? 'null');
+    return saved && BAUD[saved.medium] ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchesRemembered(port, saved) {
+  const info = port?.getInfo?.() ?? {};
+  if (saved.medium === 'BLUETOOTH') return !info.usbVendorId; // el puerto SPP del Bluetooth no informa ids USB
+  return info.usbVendorId === saved.usbVendorId && info.usbProductId === saved.usbProductId;
+}
+
 function portLabel(port, medium) {
   const info = port?.getInfo?.() ?? {};
   if (medium === 'BLUETOOTH') return 'Bluetooth (puerto emparejado)';
@@ -190,12 +216,18 @@ export function createBrowserLink(deps = {}) {
       emit({ estado: message ? STATES.ERROR : STATES.IDLE, error: message });
       return;
     }
+    await openAndRun(port, medium, false);
+  }
+
+  /** Abre el puerto ya elegido y arranca la lectura. `quiet`: en la reconexión automática un fallo no muestra error, queda inactiva. */
+  async function openAndRun(port, medium, quiet) {
     try {
       await port.open({ baudRate: BAUD[medium] });
     } catch (error) {
-      emit({ estado: STATES.ERROR, error: describeSerialError(error, 'open') });
-      return;
+      emit(quiet ? { estado: STATES.IDLE, error: null } : { estado: STATES.ERROR, error: describeSerialError(error, 'open') });
+      return false;
     }
+    rememberPort(port, medium);
     const current = { id: newId(), port, medium, label: portLabel(port, medium), seq: 0, queue: [], timer: null, reader: null, closing: false,
       lastSent: Number.NEGATIVE_INFINITY, inFlight: false, onDisconnect: null, loop: null, exiting: false };
     current.onDisconnect = (event) => {
@@ -204,11 +236,30 @@ export function createBrowserLink(deps = {}) {
       }
     };
     run = current;
-    serial.addEventListener?.('disconnect', current.onDisconnect);
+    getSerial()?.addEventListener?.('disconnect', current.onDisconnect);
     emit({ estado: STATES.CONNECTED, puerto: current.label, error: null });
     current.timer = setTimer(() => { flush(current); }, TICK_MS);
     current.loop = readLoop(current);
     flush(current);
+    return true;
+  }
+
+  /** Reconecta sola al último puerto usado, sin selector. Solo funciona si el navegador ya tiene permiso para ese puerto. */
+  async function autoConnect() {
+    if (run || snapshot.estado === STATES.CONNECTING) return false;
+    const serial = getSerial();
+    const saved = readRemembered();
+    if (!serial?.getPorts || !saved) return false;
+    let ports;
+    try {
+      ports = await serial.getPorts();
+    } catch {
+      return false;
+    }
+    const port = ports.find((candidate) => matchesRemembered(candidate, saved));
+    if (!port) return false;
+    emit({ estado: STATES.CONNECTING, medio: saved.medium, error: null, lineasEnviadas: 0, ultimoEnvio: null });
+    return openAndRun(port, saved.medium, true);
   }
 
   async function disconnect() {
@@ -222,6 +273,7 @@ export function createBrowserLink(deps = {}) {
 
   return {
     connect,
+    autoConnect,
     disconnect,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     getSnapshot: () => snapshot,
