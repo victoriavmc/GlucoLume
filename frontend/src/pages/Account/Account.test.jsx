@@ -36,7 +36,7 @@ describe('Layout autenticado', () => {
     expect(screen.getByText('Nos alegra verte de nuevo en GlucoLume.')).toBeInTheDocument();
     const nav = within(sidebar()).getByRole('navigation');
     // Cuenta individual: tiene Grupo y no Instituciones.
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inicio', 'Mediciones', 'Conectar dispositivo', 'Grupo', 'Consejos', 'Notificaciones', 'Perfil', 'Seguridad', 'Ayuda']);
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inicio', 'Mediciones', 'Conectar dispositivo', 'Grupo', 'Notificaciones', 'Perfil', 'Seguridad', 'Ayuda']);
     expect(within(nav).getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page');
     expect(within(sidebar()).getByText('Victoria Cortés')).toBeInTheDocument();
     expect(within(sidebar()).getByText('@victoria')).toBeInTheDocument();
@@ -64,8 +64,11 @@ describe('Layout autenticado', () => {
     const user = userEvent.setup();
     renderAt('/app/inicio');
     const toggle = await screen.findByRole('button', { name: 'Abrir menú' });
+    // Inicio consulta datos sin mockear: sus errores abren ventanas modales que se cierran antes de probar el menú.
+    for (const boton of screen.queryAllByRole('button', { name: 'Entendido' })) await user.click(boton);
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    for (const boton of screen.queryAllByRole('button', { name: 'Entendido' })) await user.click(boton);
     await user.keyboard('{Escape}');
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
   });
@@ -271,7 +274,7 @@ describe('Seguridad: MFA', () => {
     expect(within(mfa).getByText('Ingresá el código de 6 dígitos que muestra la aplicación.')).toBeInTheDocument();
     await user.type(within(mfa).getByLabelText('Código de verificación'), '000000');
     await user.click(within(mfa).getByRole('button', { name: /Verificar y activar/ }));
-    expect(await within(mfa).findByRole('alert')).toHaveTextContent('El código no es correcto');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código no es correcto');
     expect(within(mfa).getByText('Estado: Desactivada')).toBeInTheDocument();
 
     await user.type(within(mfa).getByLabelText('Código de verificación'), '123456');
@@ -295,7 +298,7 @@ describe('Seguridad: MFA', () => {
     const mfa = await screen.findByRole('region', { name: 'Verificación en dos pasos' });
     await user.click(within(mfa).getByRole('button', { name: 'Activar verificación en dos pasos' }));
     await user.click(within(mfa).getByRole('button', { name: 'Continuar' }));
-    expect(await within(mfa).findByRole('alert')).toHaveTextContent('no está disponible en este momento');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('no está disponible en este momento');
   });
 
   it('desactivar exige un código (o uno de recuperación)', async () => {
@@ -317,7 +320,7 @@ describe('Seguridad: MFA', () => {
 
     await user.type(within(mfa).getByLabelText('Código de verificación'), '111111');
     await user.click(within(mfa).getByRole('button', { name: /^Desactivar verificación$/ }));
-    expect(await within(mfa).findByRole('alert')).toHaveTextContent('El código no es correcto');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código no es correcto');
 
     await user.click(within(mfa).getByRole('button', { name: 'Usar un código de recuperación' }));
     await user.type(within(mfa).getByLabelText('Código de recuperación'), 'AAAA-BBBB');
@@ -412,7 +415,7 @@ describe('Seguridad: contraseña, avisos y baja', () => {
     const danger = await screen.findByRole('region', { name: 'Zona de riesgo' });
     await user.click(within(danger).getByRole('button', { name: 'Eliminar cuenta' }));
     await user.click(within(danger).getByRole('button', { name: /Enviar enlace de confirmación/ }));
-    expect(await within(danger).findByRole('alert')).toHaveTextContent('responsable de un grupo activo');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('responsable de un grupo activo');
   });
 });
 
@@ -483,7 +486,7 @@ describe('Seguridad: perdió la aplicación y los códigos de recuperación', ()
     expect(within(mfa).queryByLabelText('Código de verificación')).not.toBeInTheDocument();
     await user.type(within(mfa).getByLabelText('Contraseña actual'), 'Mala#2026');
     await user.click(within(mfa).getByRole('button', { name: 'Continuar' }));
-    expect(await within(mfa).findByRole('alert')).toHaveTextContent('La contraseña ingresada no es correcta.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('La contraseña ingresada no es correcta.');
 
     await user.clear(within(mfa).getByLabelText('Contraseña actual'));
     await user.type(within(mfa).getByLabelText('Contraseña actual'), 'Clave#2026');
@@ -492,7 +495,7 @@ describe('Seguridad: perdió la aplicación y los códigos de recuperación', ()
 
     await user.type(within(mfa).getByLabelText('Código enviado a tu correo'), '000000');
     await user.click(within(mfa).getByRole('button', { name: /Verificar y desvincular MFA/ }));
-    expect(await within(mfa).findByRole('alert')).toHaveTextContent('El código ingresado no es válido.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código ingresado no es válido.');
     expect(within(mfa).getByText('Estado: Activada')).toBeInTheDocument();
 
     await user.type(within(mfa).getByLabelText('Código enviado a tu correo'), '482913');
@@ -525,9 +528,10 @@ describe('Seguridad: perdió la aplicación y los códigos de recuperación', ()
     await user.click(within(mfa).getByRole('button', { name: 'Continuar' }));
     await user.type(await within(mfa).findByLabelText('Código enviado a tu correo'), '111111');
     await user.click(within(mfa).getByRole('button', { name: /Verificar y desvincular MFA/ }));
-    expect(await within(mfa).findByRole('alert')).toHaveTextContent('El código venció. Solicitá uno nuevo.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código venció. Solicitá uno nuevo.');
     await user.click(within(mfa).getByRole('button', { name: /Reenviar código/ }));
-    expect(await within(mfa).findByText('Esperá un minuto antes de pedir un código nuevo.')).toBeInTheDocument();
+    expect(await screen.findByText('Esperá un minuto antes de pedir un código nuevo.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     expect(calls.filter((c) => c.key === 'POST /auth/me/mfa/recovery/start')).toHaveLength(2);
   });
 

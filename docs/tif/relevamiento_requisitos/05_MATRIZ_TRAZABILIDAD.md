@@ -122,7 +122,7 @@ Esta matriz relaciona las reglas de negocio (RN, `02_REGLAS_NEGOCIO.md`), los re
 | RF-094 | Desidentificar y anonimizar datos de pacientes vencidos | M-14 | RN-095 | RNF-018, RNF-046, RNF-054 | 0 (sin endpoint HTTP) | `PerfilMedicion`, `Medicion` | test_retention_anonymization.py | PARCIAL |
 | RF-095 | Minimizar los datos históricos del personal | M-14 | RN-094 | RNF-054 | 0 (sin endpoint HTTP) | `InstitucionUsuario.fechaMinimizacionDatos` | test_account_lifecycle.py, test_audit_minimized_names.py | PARCIAL |
 | RF-096 | Suscripciones, planes y pagos | M-14 | — | — | 0 (sin endpoint HTTP) | `PlanSuscripcion`, `Suscripcion`, `SuscripcionUsuario`,… | Platform.test.jsx | PREVISTO |
-| RF-097 | Consultar consejos para personas con diabetes | M-14 | — | RNF-019, RNF-038 | 0 (sin endpoint HTTP) | no interviene | DiabetesTips.test.jsx | IMPLEMENTADO |
+| RF-097 | Consultar consejos para personas con diabetes (retirado) | — | — | RNF-019, RNF-038 | 0 (sin endpoint HTTP) | no interviene | no aplica | RETIRADO |
 | RF-098 | Consultar la página de presentación y la política de privacidad | M-14 | RN-002 | RNF-019, RNF-023, RNF-038, RNF-054 | 0 (sin endpoint HTTP) | no interviene | Landing.test.jsx, Privacy.test.jsx | IMPLEMENTADO |
 | RF-099 | Exportar datos | M-14 | RN-090 | — | 0 (sin endpoint HTTP) | eventos de auditoría de exportación definidos, sin emisión | test_audit_security.py, auditedExport | PREVISTO |
 | RF-100 | Control de acceso por ruta y permiso en la interfaz | M-14 | RN-012 | RNF-002, RNF-023, RNF-038 | 0 (sin endpoint HTTP) | no interviene | App.test.jsx, Layout.test.jsx, SkipLink.test.jsx, InstitutionNavigation.test.jsx | IMPLEMENTADO |

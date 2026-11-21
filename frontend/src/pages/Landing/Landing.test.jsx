@@ -60,7 +60,6 @@ describe("Landing: estructura", () => {
       ["Soluciones", "#soluciones"],
       ["Características", "/caracteristicas"],
       ["Contacto", "#contacto"],
-      ["Consejos", "/consejos"],
       ["Ayuda", "/ayuda"],
     ]);
   });
@@ -281,7 +280,7 @@ describe("Landing: contacto", () => {
     const success = await within(form).findByRole("status");
     expect(success).toHaveTextContent("Recibimos tu consulta correctamente.");
     expect(success).not.toHaveTextContent("confirmación");
-    expect(within(form).queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("SMTP no disponible: mensaje amigable, sin detalles técnicos", async () => {
@@ -297,7 +296,7 @@ describe("Landing: contacto", () => {
     await user.click(
       within(form).getByRole("button", { name: /Enviar consulta/ }),
     );
-    expect(await within(form).findByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
       "El formulario de contacto no está disponible en este momento.",
     );
   });
@@ -343,7 +342,7 @@ describe("Landing: contacto", () => {
     await user.click(
       within(form).getByRole("button", { name: /Enviar consulta/ }),
     );
-    expect(await within(form).findByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
       "Enviaste varias consultas seguidas",
     );
   });

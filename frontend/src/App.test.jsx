@@ -89,7 +89,7 @@ describe('Login local', () => {
     await fillLogin(user);
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El correo, el usuario o la contraseña no son correctos.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El correo, el usuario o la contraseña no son correctos.');
     expect(screen.getByLabelText('Contraseña')).toHaveValue('');
     expect(getAccessToken()).toBeNull();
   });
@@ -105,7 +105,7 @@ describe('Login local', () => {
     const button = screen.getByRole('button', { name: /Iniciando sesión/ });
     expect(button).toBeDisabled();
     release(jsonResponse(401, { codigo: 'CUENTA_BLOQUEADA', detail: 'x' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/bloqueamos el acceso/);
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/bloqueamos el acceso/);
   });
 
   it('credenciales inválidas: mensaje genérico y la regla de bloqueo, sin intentos restantes por cuenta', async () => {
@@ -114,7 +114,7 @@ describe('Login local', () => {
     renderAt('/login');
     await fillLogin(user);
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('El correo, el usuario o la contraseña no son correctos.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El correo, el usuario o la contraseña no son correctos.');
     expect(screen.getByText(/después de 3 intentos fallidos seguidos/)).toBeInTheDocument();
     expect(screen.queryByText(/te quedan/i)).not.toBeInTheDocument();
   });
@@ -127,7 +127,7 @@ describe('Login local', () => {
     renderAt('/login');
     await fillLogin(user);
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Podés volver a intentar en 9 minutos.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Podés volver a intentar en 9 minutos.');
     expect(screen.queryByText(/después de 3 intentos fallidos seguidos/)).not.toBeInTheDocument();
   });
 
@@ -151,7 +151,7 @@ describe('Login local', () => {
 
     await user.type(code, '000000');
     await user.click(screen.getByRole('button', { name: 'Verificar' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('El código no es correcto');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código no es correcto');
 
     await user.click(screen.getByRole('button', { name: 'Usar un código de recuperación' }));
     await user.type(screen.getByLabelText('Código de recuperación'), 'ABCD-EFGH');
@@ -173,11 +173,12 @@ describe('Login local', () => {
     renderAt('/login');
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    expect(screen.getByText('Una sola cuenta para todo')).toBeInTheDocument();
+    expect(screen.queryByText('Una sola cuenta para todo')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bienvenido a GlucoLume/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Iniciar sesión/ })).toHaveLength(1);
     await fillLogin(user);
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
-    await screen.findByRole('alert');
+    await screen.findByRole('alertdialog');
     expect(Object.keys(calls[0].body)).toEqual(['identificador', 'password', 'acceso']);
   });
 
@@ -191,7 +192,7 @@ describe('Login local', () => {
     await fillLogin(user, 'victoria@example.com');
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Revisá tu bandeja de entrada o spam.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Revisá tu bandeja de entrada o spam.');
     const resendEmail = screen.getByLabelText('Correo electrónico de tu cuenta');
     expect(resendEmail).toHaveValue('victoria@example.com');
     await user.click(screen.getByRole('button', { name: /Reenviar correo de verificación/ }));
@@ -230,7 +231,7 @@ describe('Login local', () => {
     renderAt('/login');
     await fillLogin(user);
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
-    await screen.findByRole('alert');
+    await screen.findByRole('alertdialog');
     expect(screen.queryByRole('button', { name: /Reenviar correo de verificación/ })).not.toBeInTheDocument();
   });
 
@@ -318,7 +319,7 @@ describe('Google', () => {
   it('el callback con error muestra un mensaje amigable', async () => {
     const { fetchMock } = mockApi({});
     renderAt('/auth/google/callback#error=VINCULACION_RECHAZADA');
-    expect(await screen.findByRole('alert')).toHaveTextContent(/No pudimos usar esa cuenta de Google/);
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/No pudimos usar esa cuenta de Google/);
     expect(screen.getByRole('link', { name: /Volver a iniciar sesión/ })).toHaveAttribute('href', '/login');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -341,7 +342,7 @@ describe('Google: tipo de cuenta', () => {
   it('error de servidor en el callback se muestra amigable', async () => {
     mockApi({});
     renderAt('/auth/google/callback#error=ERROR_SERVIDOR');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Tuvimos un problema al completar el acceso');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Tuvimos un problema al completar el acceso');
   });
 
   it('iniciar sesión con Google no envía intención de registro (el tipo de una cuenta existente no cambia)', async () => {

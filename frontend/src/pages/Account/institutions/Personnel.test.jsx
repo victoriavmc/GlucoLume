@@ -312,7 +312,7 @@ describe("Personal: perfil individual", () => {
     routes("PROPIETARIO", { [`GET ${BASE}/personnel/r-9`]: jsonResponse(404, { codigo: "MIEMBRO_NO_ENCONTRADO", detail: "x" }) });
     renderAt(`/app/instituciones/${ID}/personal/perfil/r-9`);
     expect(await screen.findByRole("link", { name: /Volver a Personal/ })).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   });
 });
 
@@ -488,7 +488,7 @@ describe("Desvincular a un operador con pacientes", () => {
     renderAt(`/app/instituciones/${ID}/personal/perfil/r-2`);
     await user.click(await screen.findByRole("button", { name: "Desvincular a Pablo Ríos" }));
     const dialog = within(await screen.findByRole("dialog"));
-    expect(dialog.getByText(/Primero incorporá o habilitá un responsable/)).toBeInTheDocument();
+    expect(screen.getByText(/Primero incorporá o habilitá un responsable/)).toBeInTheDocument();
     expect(dialog.queryByRole("button", { name: /Confirmar reasignación/ })).not.toBeInTheDocument();
     expect(dialog.queryByRole("button", { name: "Revisar resumen" })).not.toBeInTheDocument();
   });
@@ -501,7 +501,7 @@ describe("Desvincular a un operador con pacientes", () => {
     renderAt(`/app/instituciones/${ID}/personal/perfil/r-2`);
     await user.click(await screen.findByRole("button", { name: "Desvincular a Pablo Ríos" }));
     const dialog = within(await screen.findByRole("dialog"));
-    expect(dialog.getByText(/transferencia pendiente de aceptación y siguen a cargo/)).toBeInTheDocument();
+    expect(screen.getByText(/transferencia pendiente de aceptación y siguen a cargo/)).toBeInTheDocument();
     expect(dialog.getByText("Transferencia pendiente")).toBeInTheDocument();
     expect(dialog.queryByRole("button", { name: "Revisar resumen" })).not.toBeInTheDocument();
   });

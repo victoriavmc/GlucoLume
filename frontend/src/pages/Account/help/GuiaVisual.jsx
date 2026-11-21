@@ -15,7 +15,6 @@ const MENU = {
     { to: '/app/mediciones', label: 'Mediciones' },
     { to: '/app/conectar-dispositivo', label: 'Conectar dispositivo' },
     { to: '/app/grupo', label: 'Grupo' },
-    { to: '/app/consejos', label: 'Consejos' },
     { to: '/app/notificaciones', label: 'Notificaciones' },
     { to: '/app/perfil', label: 'Perfil' },
     { to: '/app/seguridad', label: 'Seguridad' },
@@ -24,7 +23,6 @@ const MENU = {
   INSTITUCIONAL: [
     { to: '/app/inicio', label: 'Inicio' },
     { to: '/app/instituciones', label: 'Instituciones' },
-    { to: '/app/consejos', label: 'Consejos' },
     { to: '/app/notificaciones', label: 'Notificaciones' },
     { to: '/app/perfil', label: 'Perfil' },
     { to: '/app/seguridad', label: 'Seguridad' },

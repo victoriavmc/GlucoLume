@@ -11,11 +11,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://glucolume-server.tailb27487.ts.net/consejos</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://glucolume-server.tailb27487.ts.net/privacidad</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

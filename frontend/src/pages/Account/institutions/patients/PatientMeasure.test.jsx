@@ -259,7 +259,8 @@ describe('Medición institucional: correo del paciente para sus resultados', () 
     expect(within(box).getByText(/también las pruebas DEMO/)).toBeInTheDocument();
     await user.type(within(box).getByLabelText('Correo del paciente'), 'paciente@example.com');
     await user.keyboard('{Enter}'); // Enter guarda el correo: no inicia la medición
-    expect(await within(box).findByText(/Ingresá el correo del paciente y confirmá que autorizó/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ingresá el correo del paciente y confirmá que autorizó/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Entendido' })); // el error se muestra en una ventana: se cierra antes de seguir
     expect(api.calls.some((call) => call.key === `PUT ${EMAIL_URL}`)).toBe(false);
     await user.click(within(box).getByRole('checkbox', { name: /El paciente autorizó recibir sus resultados/ }));
     await user.click(within(box).getByRole('button', { name: 'Enviar confirmación al paciente' }));

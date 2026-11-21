@@ -20,7 +20,6 @@ const TITULOS = [
   ['/registro', 'Crear cuenta · GlucoLume'],
   ['/recuperar-contrasena', 'Recuperar contraseña · GlucoLume'],
   ['/ayuda', 'Ayuda · GlucoLume'],
-  ['/consejos', 'Consejos para diabéticos · GlucoLume'],
   ['/privacidad', 'Política de privacidad · GlucoLume'],
   ['/caracteristicas', 'Características y privacidad · GlucoLume'],
   ['/plataforma/login', 'Acceso administrativo · GlucoLume'],
@@ -33,7 +32,7 @@ const TITULOS = [
 // Páginas que deben tener su propio encabezado de primer nivel (h1), tanto en el formulario como en el estado de error.
 const RUTAS_CON_ENCABEZADOS = [
   '/plataforma/login', '/plataforma/recuperar', '/plataforma/restablecer', '/administracion/activar',
-  '/restablecer-contrasena', '/recuperar-contrasena', '/login', '/registro', '/ayuda', '/consejos', '/privacidad', '/caracteristicas',
+  '/restablecer-contrasena', '/recuperar-contrasena', '/login', '/registro', '/ayuda', '/privacidad', '/caracteristicas',
 ];
 
 beforeEach(() => {
@@ -74,7 +73,8 @@ describe('jerarquía semántica de encabezados', () => {
   it('el estado de enlace inválido (restablecer sin token) es un h2 bajo el único h1 de la página', async () => {
     renderAt('/plataforma/restablecer');
     await waitFor(() => expect(encabezados()).toContainEqual({ nivel: 2, texto: 'No pudimos usar este enlace' }));
-    expect(encabezados()).toEqual([{ nivel: 1, texto: 'Nueva contraseña' }, { nivel: 2, texto: 'No pudimos usar este enlace' }]);
+    // El error también se muestra en una ventana modal, cuyo título es un h2 al final de la página.
+    expect(encabezados()).toEqual([{ nivel: 1, texto: 'Nueva contraseña' }, { nivel: 2, texto: 'No pudimos usar este enlace' }, { nivel: 2, texto: 'Algo salió mal' }]);
     expect(document.querySelectorAll('h1')).toHaveLength(1);
   });
 

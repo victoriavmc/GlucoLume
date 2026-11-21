@@ -199,7 +199,8 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
     renderAt('/app/mediciones/nueva');
     const section = await card();
     await user.click(await within(section).findByRole('button', { name: 'Iniciar medición' }));
-    expect(await within(section).findByText(/No se pudo confirmar qué Arduino está conectado/)).toBeInTheDocument();
+    expect(await screen.findByText(/No se pudo confirmar qué Arduino está conectado/)).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     expect(screen.queryByRole('region', { name: 'Sesión de medición con el dispositivo' })).not.toBeInTheDocument();
     expect(api.calls.filter((call) => call.key === 'GET /acquisition/telemetry/readiness').length).toBeGreaterThanOrEqual(2);
   });
@@ -527,7 +528,8 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     renderAt('/app/mediciones/nueva');
     const live = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
     await user.click(within(live).getByRole('button', { name: 'Guardar medición' }));
-    expect(await within(live).findByText('El dedo no está colocado sobre el sensor.')).toBeInTheDocument();
+    expect(await screen.findByText('El dedo no está colocado sobre el sensor.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeEnabled(); // se puede reintentar
     expect(api.calls.filter((call) => call.key === 'POST /acquisition/telemetry/session/save')).toHaveLength(1);
   });
@@ -645,7 +647,8 @@ describe('Nueva medición con el dispositivo: guardado automático (opt-in al in
     await pushStatus(status({ sesion: session(3, false) }));
     await pushStatus(status({ sesion: session(8, true) }));
     const live = await liveRegion();
-    expect(await within(live).findByText('El dedo no está colocado sobre el sensor.')).toBeInTheDocument();
+    expect(await screen.findByText('El dedo no está colocado sobre el sensor.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     await pushStatus(status({ sesion: session(8, true) }));
     await settle();
     expect(api.calls.filter((call) => call.key === SAVE_CALL)).toHaveLength(1);

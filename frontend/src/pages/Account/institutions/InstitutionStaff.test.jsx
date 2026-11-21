@@ -288,7 +288,7 @@ describe("Moderadores (propietario)", () => {
     await user.click(
       within(form).getByRole("button", { name: "Enviar invitación" }),
     );
-    expect(await within(form).findByText(message)).toBeInTheDocument();
+    expect(await screen.findByText(message)).toBeInTheDocument();
     expect(calls.some((call) => call.key === `POST ${BASE}/moderators`)).toBe(
       false,
     );

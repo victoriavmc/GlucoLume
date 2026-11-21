@@ -55,6 +55,6 @@ describe('Avisos nuevos: cartel y sonido', () => {
     await tick(8000);
     expect(screen.queryByText('Aviso c')).not.toBeInTheDocument();
     await tick(POLL_INTERVAL_MS);
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

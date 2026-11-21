@@ -102,17 +102,8 @@ export default function Register() {
   const SelectedIcon = type ? ACCOUNT_TYPES[type].icon : null;
 
   return (
-    <AuthShell
-      title={
-        <>
-          Empezá a usar
-          <br />
-          <span className="accent">GlucoLume</span>
-        </>
-      }
-      lead="Creá tu cuenta en pocos pasos. Te vamos a enviar un correo para verificarla antes del primer ingreso."
-    >
-      <h2 className="auth-title">Crear una cuenta</h2>
+    <AuthShell>
+      <h1 className="auth-title">Crear una cuenta</h1>
       <Stepper current={step} />
 
       {registeredEmail && <RegisterSuccess email={registeredEmail} />}

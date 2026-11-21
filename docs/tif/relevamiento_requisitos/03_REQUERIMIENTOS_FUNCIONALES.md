@@ -926,13 +926,13 @@ Este documento enumera los requerimientos funcionales (RF) verificables del sist
 - **Estado:** PREVISTO.
 
 ### RF-097 — Consultar consejos para personas con diabetes
-- **Descripción:** El sistema debe permitir leer artículos educativos en cinco categorías, con buscador, filtro por etiqueta y fuentes con enlace, y aviso de que no reemplazan la consulta médica.
-- **Actor / precondiciones:** cuenta autenticada.
-- **Comportamiento y resultado:** contenido estático del frontend; dos destacados en el inicio.
+- **Descripción:** (retirado) El sistema permitía leer artículos educativos sobre diabetes.
+- **Actor / precondiciones:** —.
+- **Comportamiento y resultado:** funcionalidad retirada del producto: se quitaron el menú, la sección de Inicio, las rutas `/consejos` y `/app/consejos`, la guía de ayuda y los archivos del módulo.
 - **RN:** —.
-- **Evidencia:** Back: no interviene. Front: `Account/DiabetesTipsPage.jsx`, `components/DiabetesTips.jsx`, `DiabetesArticle.jsx`, `data/diabetesTips.js`. BD: no interviene.
-- **Pruebas:** `DiabetesTips.test.jsx`.
-- **Estado:** IMPLEMENTADO.
+- **Evidencia:** no aplica (sin código ni pruebas vigentes).
+- **Pruebas:** no aplica.
+- **Estado:** RETIRADO. Se conserva el identificador para trazabilidad.
 
 ### RF-098 — Consultar la página de presentación y la política de privacidad
 - **Descripción:** El sistema debe permitir a cualquier visitante ver la página de presentación (funcionalidades y soluciones) y la política de privacidad.

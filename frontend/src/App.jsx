@@ -44,9 +44,6 @@ const loadGroupDashboard = () => import('./pages/Account/groups/GroupDashboard.j
 const GroupMemberPage = lazyNamed(loadGroupDashboard, 'GroupMemberPage');
 const loadSharedData = () => import('./pages/Account/groups/SharedData.jsx');
 const SharedData = lazyNamed(loadSharedData, 'SharedData');
-const loadDiabetesTips = () => import('./pages/Account/DiabetesTipsPage.jsx');
-const DiabetesTipsPage = lazyNamed(loadDiabetesTips);
-const PublicTipsPage = lazyNamed(loadDiabetesTips, 'PublicTipsPage');
 const loadHomePage = () => import('./pages/Account/HomePage.jsx');
 const HomePage = lazyNamed(loadHomePage);
 const loadInstitutionDataPage = () => import('./pages/Account/institutions/InstitutionDataPage.jsx');
@@ -161,7 +158,6 @@ const PRELOADS = [
   [/^\/app\/instituciones\/[^/]+\/personal\/operadores\/[^/]+\/?$/, [InstitutionLayout, PersonnelLayout, OperatorDashboardPage]],
   [/^\/app\/conectar-dispositivo\/?$/, [ConnectDevicePage]],
   [/^\/app\/grupo\/?$/, [GroupsHome]],
-  [/^\/app\/consejos\/?$/, [DiabetesTipsPage]],
   [/^\/app\/notificaciones\/?$/, [NotificationsPage]],
   [/^\/app\/perfil\/?$/, [ProfilePage]],
   [/^\/app\/seguridad\/?$/, [SecurityPage]],
@@ -208,9 +204,6 @@ export function AppRoutes() {
         />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/privacidad" element={<PrivacyPolicy />} />
-        {/* Consejos para diabéticos sin iniciar sesión (mismo contenido que /app/consejos). */}
-        <Route path="/consejos" element={<PublicTipsPage />} />
-        <Route path="/consejos/:idConsejo" element={<PublicTipsPage />} />
         <Route path="/caracteristicas" element={<CaracteristicasPage />} />
         {/* Guía de uso sin iniciar sesión (mismo contenido que /app/ayuda). */}
         <Route path="/ayuda" element={<PublicHelpPage />} />
@@ -273,8 +266,6 @@ export function AppRoutes() {
         >
           <Route index element={<Navigate to="inicio" replace />} />
           <Route path="inicio" element={<HomePage />} />
-          <Route path="consejos" element={<DiabetesTipsPage />} />
-          <Route path="consejos/:idConsejo" element={<DiabetesTipsPage />} />
           <Route path="perfil" element={<ProfilePage />} />
           <Route path="conectar-dispositivo" element={<ConnectDevicePage />} />
           <Route path="seguridad" element={<SecurityPage />} />

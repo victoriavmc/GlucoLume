@@ -73,16 +73,6 @@ export function Navbar({ activeSection }) {
               })}
               <li>
                 <Link
-                  to="/consejos"
-                  className={pathname.startsWith("/consejos") ? "is-active" : undefined}
-                  aria-current={pathname.startsWith("/consejos") ? "page" : undefined}
-                  onClick={() => setOpen(false)}
-                >
-                  Consejos
-                </Link>
-              </li>
-              <li>
-                <Link
                   to="/ayuda"
                   className={pathname.startsWith("/ayuda") ? "is-active" : undefined}
                   aria-current={pathname.startsWith("/ayuda") ? "page" : undefined}

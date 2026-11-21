@@ -20,34 +20,34 @@ describe('callback de Google: error con el contexto de acceso', () => {
   it('contexto GENERAL: un error vuelve al login general', async () => {
     setPendingGooglePlatform(false);
     renderAt('/auth/google/callback#error=TOKEN_INVALIDO');
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(linkBack()).toHaveAttribute('href', '/login');
   });
 
   it('contexto PLATAFORMA: un error vuelve al acceso administrativo, no al general', async () => {
     setPendingGooglePlatform(true);
     renderAt('/auth/google/callback#error=TOKEN_INVALIDO');
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(linkBack()).toHaveAttribute('href', '/plataforma/login');
   });
 
   it('cancelación en Google (sin código) desde PLATAFORMA conserva el acceso administrativo', async () => {
     setPendingGooglePlatform(true);
     renderAt('/auth/google/callback#error=access_denied');
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(linkBack()).toHaveAttribute('href', '/plataforma/login');
   });
 
   it('sin marca (sesión sin contexto) el destino por omisión es el login general', async () => {
     renderAt('/auth/google/callback#error=TOKEN_INVALIDO');
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(linkBack()).toHaveAttribute('href', '/login');
   });
 
   it('el mensaje de error sigue siendo genérico y no muestra tokens ni detalles internos', async () => {
     setPendingGooglePlatform(true);
     renderAt('/auth/google/callback#error=TOKEN_INVALIDO');
-    const alert = await screen.findByRole('alert');
+    const alert = await screen.findByRole('alertdialog');
     expect(alert.textContent).not.toMatch(/token|Bearer|stack|sql|traceback/i);
   });
 
@@ -71,7 +71,7 @@ describe('callback de Google: éxito con el contexto de acceso (sin cambios)', (
     renderAt('/auth/google/callback#code=codigo-de-prueba');
     await waitFor(() => expect(calls.some((c) => c.url?.includes('/auth/google/exchange'))).toBe(true));
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Acceso con Google' })).not.toBeInTheDocument());
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('GENERAL: canjea el código y no muestra error', async () => {
@@ -83,6 +83,6 @@ describe('callback de Google: éxito con el contexto de acceso (sin cambios)', (
     renderAt('/auth/google/callback#code=codigo-de-prueba');
     await waitFor(() => expect(calls.some((c) => c.url?.includes('/auth/google/exchange'))).toBe(true));
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Acceso con Google' })).not.toBeInTheDocument());
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

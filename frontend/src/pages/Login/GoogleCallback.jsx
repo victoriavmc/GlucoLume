@@ -92,7 +92,7 @@ export default function GoogleCallback() {
 
   return (
     <AuthShell>
-      <h2 className="auth-title">Acceso con Google</h2>
+      <h1 className="auth-title">Acceso con Google</h1>
       {state.phase === 'loading' && (
         <div className="auth-status" role="status">
           <span className="spinner" aria-hidden="true" /> Completando el acceso con Google…

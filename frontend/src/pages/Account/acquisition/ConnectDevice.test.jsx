@@ -284,7 +284,7 @@ describe('Conectar dispositivo: configuración del puente (solo lo que el puente
     const user = userEvent.setup();
     open(status(), READY, { 'POST /acquisition/bridge/command': jsonResponse(409, { codigo: 'COMANDO_PENDIENTE', detail: 'Hay otra orden esperando al puente.' }) });
     await user.click(await screen.findByRole('button', { name: /Pausar lectura/ }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
   });
 });
 

@@ -10,7 +10,7 @@ import { jsonResponse, mockApi } from '../test/helpers.js';
 import { renderAt } from '../test/renderApp.jsx';
 import { PREFIJOS_PRIVADOS, SITE_ORIGIN, esRutaPrivada, politicaIndexacion } from './indexacion.js';
 
-const PUBLICAS = ['/', '/privacidad', '/consejos', '/caracteristicas', '/ayuda'];
+const PUBLICAS = ['/', '/privacidad', '/caracteristicas', '/ayuda'];
 const PRIVADAS = ['/login', '/registro', '/recuperar-contrasena', '/plataforma/login', '/plataforma/dashboard', '/administracion/activar'];
 
 // El navegador parte del HTML de index.html; jsdom no lo carga. Se copia su <head> para medir lo que de verdad ve el rastreador.

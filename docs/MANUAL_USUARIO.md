@@ -25,7 +25,7 @@ experimental**: sus resultados no reemplazan una medición clínica ni un consej
 
 ### Inicio, perfil y seguridad
 
-- **Inicio:** últimos valores, accesos rápidos, evolución reciente y consejos.
+- **Inicio:** últimos valores, accesos rápidos y evolución reciente.
 - **Perfil → Editar perfil:** nombre, apellido, usuario, fecha de nacimiento y sexo (se usan para la regla de referencia de glucosa). El
   correo no se edita.
 - **Seguridad:**

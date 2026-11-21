@@ -181,7 +181,7 @@ export const AYUDA_CLIENTE = [
   {
     id: 'inicio',
     titulo: 'Inicio',
-    intro: 'La pantalla de entrada: tu última medición, accesos rápidos, la evolución reciente y consejos.',
+    intro: 'La pantalla de entrada: tu última medición, accesos rápidos, la evolución reciente.',
     detalles: [
       { titulo: 'Accesos rápidos', texto: 'Atajos a Mis mediciones, Nueva medición, Grupo, Perfil y Seguridad.' },
       { titulo: 'Evolución reciente', texto: 'Gráficos de tus últimos valores. Si no hay datos en el período, cambiá el período o hacé una medición.', captura: 'dashboard-medicion-demo.png' },
@@ -344,12 +344,6 @@ export const AYUDA_CLIENTE = [
         ['Demasiadas búsquedas seguidas', 'Esperá un rato y volvé a intentar.'],
       ],
     },
-  },
-  {
-    id: 'consejos',
-    titulo: 'Consejos',
-    intro: 'Artículos sobre diabetes, con etiquetas y buscador. Son informativos: consultá a tu equipo de salud antes de cambiar algo.',
-    pasos: [{ texto: 'Buscá o filtrá por etiqueta y abrí el artículo que te interese.', ir: { to: '/app/consejos', label: 'Abrir Consejos' } }],
   },
   TEMA_PROBLEMAS_COMUNES,
 ];

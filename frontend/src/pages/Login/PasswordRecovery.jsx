@@ -14,16 +14,6 @@ import { EMAIL_PATTERN, passwordMeetsPolicy } from '../../utils/validation.js';
 import { PasswordRules } from '../Register/RegisterForm.jsx';
 import { AuthShell } from './Login.jsx';
 
-const SHELL = {
-  title: (
-    <>
-      Recuperá el acceso
-      <br />a tu <span className="accent">cuenta</span>
-    </>
-  ),
-  lead: 'Te enviamos por correo un enlace de un solo uso para elegir una contraseña nueva.',
-};
-
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
@@ -50,8 +40,8 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <AuthShell {...SHELL}>
-      <h2 className="auth-title">Recuperar contraseña</h2>
+    <AuthShell>
+      <h1 className="auth-title">Recuperar contraseña</h1>
       {sent ? (
         <div className="auth-form">
           <Alert kind="success">
@@ -103,7 +93,7 @@ function BadLink({ message }) {
         <span className="success-icon is-error">
           <CircleAlert size={32} aria-hidden="true" />
         </span>
-        <h3>No pudimos usar este enlace</h3>
+        <h2>No pudimos usar este enlace</h2>
       </div>
       <Alert>{message}</Alert>
       <Link to="/recuperar-contrasena" className="btn btn-primary btn-block">
@@ -152,8 +142,8 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthShell {...SHELL}>
-      <h2 className="auth-title">Nueva contraseña</h2>
+    <AuthShell>
+      <h1 className="auth-title">Nueva contraseña</h1>
       {bad ? (
         <BadLink message={bad} />
       ) : done ? (

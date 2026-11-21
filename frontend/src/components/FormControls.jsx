@@ -1,5 +1,7 @@
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Info } from 'lucide-react';
-import { forwardRef, useId, useState } from 'react';
+import { forwardRef, useEffect, useId, useState } from 'react';
+
+import { Modal } from './Modal.jsx';
 
 /** Ids y `aria-describedby` de un campo: ayuda y error quedan asociados al control para los lectores de pantalla. */
 function useFieldAria({ hint, error, extra }) {
@@ -137,10 +139,43 @@ export const RadioField = forwardRef(function RadioField(
 
 const ALERT_ICONS = { error: AlertCircle, info: Info, success: CheckCircle2 };
 
+/** Texto plano de un nodo de React (para saber si el mensaje cambió). */
+function textOf(node) {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join('');
+  return textOf(node.props?.children);
+}
+
+// Los errores se muestran en una ventana modal (se abre de nuevo si cambia el mensaje). Las demás alertas quedan en la página.
+function ErrorModal({ children }) {
+  const text = textOf(children);
+  const [open, setOpen] = useState(true);
+  useEffect(() => setOpen(true), [text]);
+  if (!open) return null;
+  return (
+    <Modal
+      title="Algo salió mal"
+      onClose={() => setOpen(false)}
+      actions={
+        <button type="button" className="btn btn-primary" onClick={() => setOpen(false)}>
+          Entendido
+        </button>
+      }
+    >
+      <div className="alert-modal-message">
+        <AlertCircle size={22} aria-hidden="true" />
+        <div>{children}</div>
+      </div>
+    </Modal>
+  );
+}
+
 export function Alert({ kind = 'error', children }) {
+  if (kind === 'error') return <ErrorModal>{children}</ErrorModal>;
   const Icon = ALERT_ICONS[kind];
   return (
-    <div className={`alert alert-${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
+    <div className={`alert alert-${kind}`} role="status">
       <Icon size={18} aria-hidden="true" />
       <div>{children}</div>
     </div>

@@ -41,7 +41,7 @@ describe('Perdí acceso a mi aplicación autenticadora', () => {
 
     await user.type(screen.getByLabelText('Contraseña actual'), 'Mala#2026');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('La contraseña ingresada no es correcta.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('La contraseña ingresada no es correcta.');
 
     await user.clear(screen.getByLabelText('Contraseña actual'));
     await user.type(screen.getByLabelText('Contraseña actual'), 'Clave#2026');
@@ -50,7 +50,7 @@ describe('Perdí acceso a mi aplicación autenticadora', () => {
 
     await user.type(screen.getByLabelText('Código enviado a tu correo'), '000000');
     await user.click(screen.getByRole('button', { name: 'Verificar' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('El código ingresado no es válido.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código ingresado no es válido.');
     expect(getAccessToken()).toBeNull();
 
     await user.type(screen.getByLabelText('Código enviado a tu correo'), '482913');
@@ -90,7 +90,7 @@ describe('Perdí acceso a mi aplicación autenticadora', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await user.type(await screen.findByLabelText('Código enviado a tu correo'), '111111');
     await user.click(screen.getByRole('button', { name: 'Verificar' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('El código venció. Solicitá uno nuevo.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El código venció. Solicitá uno nuevo.');
 
     await user.click(screen.getByRole('button', { name: /Enviar un código nuevo/ }));
     expect(await screen.findByText(/Te enviamos un código nuevo/)).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe('Perdí acceso a mi aplicación autenticadora', () => {
     await user.click(screen.getByRole('button', { name: '¿Perdiste acceso a tu aplicación autenticadora?' }));
     await user.type(screen.getByLabelText('Contraseña actual'), 'Clave#2026');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Volvé a iniciar sesión');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Volvé a iniciar sesión');
   });
 
   it('ingreso con Google: cuenta solo Google no pide contraseña', async () => {

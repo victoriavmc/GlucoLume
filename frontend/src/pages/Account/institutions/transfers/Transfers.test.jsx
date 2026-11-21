@@ -130,7 +130,7 @@ describe('Solicitar la transferencia', () => {
     await user.selectOptions(await within(section).findByLabelText('Operador destinatario'), 'op-2');
     await user.click(within(section).getByRole('button', { name: 'Transferir paciente' }));
     await user.click(within(section).getByRole('button', { name: 'Confirmar transferencia' }));
-    expect(await within(section).findByText(/ya tiene una transferencia pendiente/)).toBeInTheDocument();
+    expect(await screen.findByText(/ya tiene una transferencia pendiente/)).toBeInTheDocument();
   });
 });
 

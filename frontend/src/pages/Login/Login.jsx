@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, BarChart3, Building2, KeyRound, Lock, Mail, ShieldCheck, Users } from 'lucide-react';
+import { ArrowRight, Lock, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -17,12 +17,6 @@ export const MFA_RECOVERED_NOTICE =
   'Acceso recuperado correctamente. La verificación en dos pasos fue desactivada. Podés volver a configurarla desde Seguridad.';
 import './Login.css';
 
-const BENEFITS = [
-  { icon: BarChart3, title: 'Datos siempre contigo', text: 'Accedé a tus mediciones, historial y estadísticas en un solo lugar.' },
-  { icon: Users, title: 'Acompañamiento continuo', text: 'Compartí tu información con familiares o profesionales de la salud.' },
-  { icon: ShieldCheck, title: 'Gestión segura y confiable', text: 'Tus datos se protegen con buenas prácticas de seguridad.' },
-];
-
 function validate({ identificador, password }) {
   const errors = {};
   if (!identificador.trim()) errors.identificador = 'Ingresá tu correo electrónico o nombre de usuario.';
@@ -30,44 +24,14 @@ function validate({ identificador, password }) {
   return errors;
 }
 
-export function AuthShell({ children, title, lead }) {
+// Cáscara común de las pantallas de acceso: solo el formulario (sin bloques de bienvenida ni textos de marketing).
+export function AuthShell({ children }) {
   return (
     <div className="auth-page">
       <SkipLink />
       <Navbar />
       <main className="auth-main" id="contenido" tabIndex={-1}>
-        <div className="container auth-grid">
-          <section className="auth-hero" aria-labelledby="auth-hero-title">
-            <span className="pill">
-              <Activity size={16} aria-hidden="true" /> Bienvenido a GlucoLume
-            </span>
-            <h1 id="auth-hero-title">
-              {title ?? (
-                <>
-                  Tu salud,
-                  <br />
-                  en mejores <span className="accent">manos</span>
-                </>
-              )}
-            </h1>
-            <p className="auth-lead">
-              {lead ??
-                'Iniciá sesión para acceder a tu espacio personal o al panel institucional y seguí aprovechando todas las funcionalidades de GlucoLume.'}
-            </p>
-            <ul className="benefits">
-              {BENEFITS.map(({ icon: Icon, title, text }) => (
-                <li key={title}>
-                  <span className="benefit-icon">
-                    <Icon size={26} aria-hidden="true" />
-                  </span>
-                  <span>
-                    <b>{title}</b>
-                    <small>{text}</small>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+        <div className="container auth-solo">
           <section className="auth-card">{children}</section>
         </div>
       </main>
@@ -146,7 +110,7 @@ export default function Login() {
 
   return (
     <AuthShell>
-      <h2 className="auth-title">Iniciar sesión</h2>
+      <h1 className="auth-title">Iniciar sesión</h1>
 
       {challengeToken && recovering && (
         <MfaRecoveryFlow
@@ -180,20 +144,6 @@ export default function Login() {
       {!challengeToken && (
         <>
           <p className="auth-subtitle">Ingresá con tu cuenta de GlucoLume.</p>
-
-          {/* Un único inicio de sesión: el backend determina el tipo de cuenta, los roles y las instituciones. */}
-          <div className="auth-info">
-            <span className="auth-info-icon">
-              <KeyRound size={24} aria-hidden="true" />
-            </span>
-            <div>
-              <b>Una sola cuenta para todo</b>
-              <p>
-                Después de ingresar, GlucoLume carga tu espacio según tu cuenta: personal, grupo o las
-                instituciones y roles que tengas asignados.
-              </p>
-            </div>
-          </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             {error && <Alert>{error}</Alert>}
@@ -266,16 +216,6 @@ export default function Login() {
             {redirectingToGoogle ? <span className="spinner" aria-hidden="true" /> : <GoogleIcon />}
             {redirectingToGoogle ? 'Redirigiendo a Google…' : 'Continuar con Google'}
           </button>
-
-          <div className="auth-info is-institutional auth-institution-note">
-            <span className="auth-info-icon">
-              <Building2 size={24} aria-hidden="true" />
-            </span>
-            <div>
-              <b>¿Trabajás en una institución?</b>
-              <p>Usás este mismo inicio de sesión. Accedés a las funcionalidades según el rol asignado en tu organización.</p>
-            </div>
-          </div>
 
           <p className="auth-footer">
             ¿Todavía no tenés una cuenta?{' '}

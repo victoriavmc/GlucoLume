@@ -388,7 +388,8 @@ describe('Matrices institucionales', () => {
     // Sin nombre ni reglas no se guarda.
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
     expect(within(form).getByText('Ingresá el nombre de la matriz.')).toBeInTheDocument();
-    expect(within(form).getByText('Agregá al menos una regla.')).toBeInTheDocument();
+    expect(screen.getByText('Agregá al menos una regla.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     expect(calls.some((call) => call.key === 'POST /matrices')).toBe(false);
 
     await user.type(within(form).getByLabelText('Nombre'), 'Matriz San José');
@@ -460,7 +461,8 @@ describe('Matrices institucionales', () => {
     await user.type(editor.getByLabelText('Glucosa de referencia máxima (mg/dL)'), '110');
     await user.click(editor.getByRole('button', { name: /Agregar regla/ }));
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
-    expect(await within(form).findByText(/se solapa con Regla 1/)).toBeInTheDocument();
+    expect(await screen.findByText(/se solapa con Regla 1/)).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
   });
 
   it('una fecha inválida del servidor se marca bajo el campo de fecha, no como un problema del nombre', async () => {
@@ -485,7 +487,8 @@ describe('Matrices institucionales', () => {
     await user.click(editor.getByRole('button', { name: /Agregar regla/ }));
     await user.click(within(form).getByRole('button', { name: /Guardar matriz/ }));
     expect(await within(form).findByText('Ingresá una fecha válida (AAAA-MM-DD).')).toBeInTheDocument();
-    expect(within(form).getByText('Revisá los campos marcados en el formulario.')).toBeInTheDocument();
+    expect(screen.getByText('Revisá los campos marcados en el formulario.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     expect(within(form).queryByText(/Input should be/)).not.toBeInTheDocument();
     expect(within(form).getByLabelText('Nombre')).not.toHaveAttribute('aria-invalid', 'true');
   });
@@ -596,7 +599,8 @@ describe('Detalle de una matriz y editor de reglas', () => {
     await user.clear(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'));
     await user.type(within(form).getByLabelText('Glucosa de referencia mínima (mg/dL, opcional)'), '70');
     await user.click(within(form).getByRole('button', { name: /Agregar regla/ }));
-    expect(await within(form).findByText(/La regla se solapa con R-001/)).toBeInTheDocument();
+    expect(await screen.findByText(/La regla se solapa con R-001/)).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
   });
 
   it('edita y elimina reglas de un borrador', async () => {

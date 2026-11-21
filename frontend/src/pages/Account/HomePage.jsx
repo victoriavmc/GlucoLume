@@ -1,13 +1,12 @@
 // /app/inicio: pantalla inicial del espacio privado.
-//   Cuenta individual: últimos valores medidos, accesos rápidos, glucosa reciente y «Consejos para diabéticos».
-//   Cuenta institucional: accesos a sus instituciones, perfil y seguridad, y los consejos.
+//   Cuenta individual: últimos valores medidos, accesos rápidos y glucosa reciente.
+//   Cuenta institucional: accesos a sus instituciones, perfil y seguridad.
 // Los valores salen de las mediciones guardadas (nada inventado ni clasificado): se muestran con su origen, experimental o DEMO.
 
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
-import { DiabetesTips } from '../../components/DiabetesTips.jsx';
 import { Alert } from '../../components/FormControls.jsx';
 import { DateBlock, LatestKpis, QuickAccess, RecentEvolution, WellbeingNotice } from './home/HomeParts.jsx';
 import { useHomeData } from './home/useHomeData.js';
@@ -47,7 +46,6 @@ export default function HomePage() {
       {individual && <LatestKpis latest={latest} />}
 
       <QuickAccess individual={individual} />
-      <DiabetesTips />
 
       {individual && <RecentEvolution chart={chart} days={chartDays} onDaysChange={setChartDays} />}
     </div>

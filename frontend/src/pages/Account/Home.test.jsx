@@ -50,7 +50,7 @@ describe('Inicio de una cuenta individual', () => {
     });
   }
 
-  it('muestra saludo, fecha, aviso, los cuatro últimos valores con su origen, accesos rápidos y los consejos', async () => {
+  it('muestra saludo, fecha, aviso, los cuatro últimos valores con su origen, accesos rápidos', async () => {
     open([point('a', '2026-10-13T09:00:00', { glucosa: 102, spo2: 98.2, frecuenciaCardiaca: 72, indiceOptico: 0.4231 }),
       point('b', '2026-10-14T10:00:00', { glucosa: 113, esDemo: true, origen: 'DEMO' })]);
     renderAt('/app/inicio');
@@ -69,7 +69,7 @@ describe('Inicio de una cuenta individual', () => {
     expect(shortcuts.getByRole('link', { name: /Nueva medición/ })).toHaveAttribute('href', '/app/mediciones/nueva');
     expect(shortcuts.getByRole('link', { name: /Ir a mi grupo/ })).toHaveAttribute('href', '/app/grupo');
     expect(shortcuts.getByRole('link', { name: /Configurar perfil/ })).toHaveAttribute('href', '/app/perfil');
-    expect(screen.getByRole('region', { name: 'Consejos para diabéticos' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Consejos para diabéticos' })).not.toBeInTheDocument();
   });
 
   it('sin mediciones no muestra ceros: dice «Sin datos» y ofrece hacer una medición', async () => {

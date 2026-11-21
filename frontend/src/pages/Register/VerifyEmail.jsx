@@ -46,17 +46,8 @@ export default function VerifyEmail() {
   }, []);
 
   return (
-    <AuthShell
-      title={
-        <>
-          Verificá tu
-          <br />
-          <span className="accent">correo</span>
-        </>
-      }
-      lead="Confirmamos que el correo es tuyo antes del primer ingreso, para proteger tu cuenta y tus datos."
-    >
-      <h2 className="auth-title">Verificación de correo</h2>
+    <AuthShell>
+      <h1 className="auth-title">Verificación de correo</h1>
 
       {state.phase === 'verifying' && (
         <div className="auth-status" role="status">
@@ -69,7 +60,7 @@ export default function VerifyEmail() {
           <span className="success-icon">
             <MailCheck size={32} aria-hidden="true" />
           </span>
-          <h3>¡Correo verificado!</h3>
+          <h2>¡Correo verificado!</h2>
           <p>Tu cuenta ya está activa. Te enviamos un correo de bienvenida.</p>
           <Link to="/login" className="btn btn-primary btn-block btn-lg">
             Iniciar sesión <ArrowRight size={18} aria-hidden="true" />
@@ -83,7 +74,7 @@ export default function VerifyEmail() {
             <span className="success-icon is-error">
               <CircleAlert size={32} aria-hidden="true" />
             </span>
-            <h3>No pudimos verificar el correo</h3>
+            <h2>No pudimos verificar el correo</h2>
           </div>
           <Alert>{ERROR_MESSAGES[state.codigo] ?? state.message}</Alert>
           {state.codigo === 'VERIFICACION_EXPIRADA' ? (

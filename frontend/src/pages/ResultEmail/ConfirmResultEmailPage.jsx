@@ -49,9 +49,8 @@ export default function ConfirmResultEmailPage() {
   }
 
   return (
-    <AuthShell title={<>Confirmar <span className="accent">correo</span></>}
-      lead="Una institución que usa GlucoLume quiere enviarte tus resultados por correo.">
-      <h2 className="auth-title">¿Este correo es tuyo?</h2>
+    <AuthShell>
+      <h1 className="auth-title">¿Este correo es tuyo?</h1>
       {result ? (
         <div className="auth-form">
           <Alert kind="success">{successMessage(result)}</Alert>

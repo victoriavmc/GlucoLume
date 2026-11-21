@@ -24,7 +24,7 @@ export function RegisterSuccess({ email }) {
       <span className="success-icon">
         <MailCheck size={32} aria-hidden="true" />
       </span>
-      <h3>Revisá tu correo</h3>
+      <h2>Revisá tu correo</h2>
       <p>
         Te enviamos un enlace de verificación a <b>{email}</b>. Abrilo para activar tu cuenta y después iniciá
         sesión.

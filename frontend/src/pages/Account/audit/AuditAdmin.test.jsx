@@ -199,7 +199,7 @@ describe('Seguridad y accesos fallidos', () => {
       'GET /audit/security/signals': jsonResponse(500, { codigo: 'ERROR_SERVIDOR', detail: 'No pudimos analizar.' }) });
     renderAt('/app/auditoria');
     expect(await screen.findByRole('table', { name: 'Eventos de auditoría' })).toBeInTheDocument();
-    expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('alertdialog')).length).toBeGreaterThan(0);
     expect(screen.queryByRole('list', { name: 'Señales de seguridad' })).not.toBeInTheDocument();
   });
 });

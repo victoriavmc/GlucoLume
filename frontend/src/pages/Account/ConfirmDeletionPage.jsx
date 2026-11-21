@@ -77,9 +77,8 @@ export default function ConfirmDeletionPage() {
   }
 
   return (
-    <AuthShell title={<>Eliminar <span className="accent">cuenta</span></>}
-      lead="Confirmá la eliminación de tu cuenta de GlucoLume. Esta acción no se puede deshacer.">
-      <h2 className="auth-title">Confirmar eliminación</h2>
+    <AuthShell>
+      <h1 className="auth-title">Confirmar eliminación</h1>
 
       {deleted ? (
         <div className="auth-form">

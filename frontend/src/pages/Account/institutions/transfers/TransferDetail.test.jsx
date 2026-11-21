@@ -99,7 +99,7 @@ describe('Detalle de una transferencia', () => {
     routes({ [`GET ${BASE}/transfers/t-9`]: jsonResponse(404, { codigo: 'TRANSFERENCIA_NO_ENCONTRADA', detail: 'x' }) });
     renderAt(`/app/instituciones/${ID}/pacientes/transferencias/t-9`);
     expect(await screen.findByRole('link', { name: /Volver a transferencias/ })).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
   it('una reasignación directa se presenta como tal y no como transferencia entre operadores', async () => {

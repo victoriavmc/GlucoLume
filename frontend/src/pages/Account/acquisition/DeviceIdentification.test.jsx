@@ -64,7 +64,7 @@ describe('Dispositivo de esta conexión', () => {
     render(<DeviceIdentification identification={identification()} />);
     await user.type(screen.getByLabelText('Nombre del dispositivo'), 'Otro');
     await user.click(screen.getByRole('button', { name: 'Registrar nuevo dispositivo' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/no pertenece al inventario de esta institución/);
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/no pertenece al inventario de esta institución/);
     expect(screen.getByRole('button', { name: 'Registrar nuevo dispositivo' })).toBeEnabled();
   });
 
@@ -82,14 +82,14 @@ describe('Dispositivo de esta conexión', () => {
     render(<DeviceIdentification identification={identification({ situacion: 'DE_LA_INSTITUCION', dispositivo: { ...DEVICE, estado: 'EN_MANTENIMIENTO' }, usable: false,
       motivoNoDisponible: 'El dispositivo no está operativo (mantenimiento o fuera de servicio).', puedeRegistrar: false })} />);
     expect(screen.getByText('No se puede usar')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('no está operativo');
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('no está operativo');
     expect(screen.getByText('En mantenimiento')).toBeInTheDocument();
   });
 
   it('uno de otra institución no se ofrece ni se registra: se pide el procedimiento administrativo', () => {
     render(<DeviceIdentification identification={identification({ situacion: 'DE_OTRA_INSTITUCION', puedeRegistrar: false, motivoNoDisponible: 'pertenece a otra institución' })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent(/No se transfiere automáticamente/);
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(/No se transfiere automáticamente/);
+    expect(screen.getAllByRole('button')).toHaveLength(1); // solo «Entendido» de la ventana
   });
 
   it('un dispositivo sin institución se vincula SOLO con una confirmación explícita y avisa qué implica', async () => {

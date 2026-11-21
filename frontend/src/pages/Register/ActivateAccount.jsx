@@ -105,17 +105,8 @@ export default function ActivateAccount() {
   }
 
   return (
-    <AuthShell
-      title={
-        <>
-          Activá tu
-          <br />
-          <span className="accent">cuenta</span>
-        </>
-      }
-      lead="Una institución te invitó a GlucoLume. Elegí tus credenciales: nadie más las conoce."
-    >
-      <h2 className="auth-title">Activación de cuenta</h2>
+    <AuthShell>
+      <h1 className="auth-title">Activación de cuenta</h1>
 
       {state.phase === 'checking' && (
         <div className="auth-status" role="status">
@@ -129,7 +120,7 @@ export default function ActivateAccount() {
             <span className="success-icon is-error">
               <CircleAlert size={32} aria-hidden="true" />
             </span>
-            <h3>No pudimos usar este enlace</h3>
+            <h2>No pudimos usar este enlace</h2>
           </div>
           <Alert>{state.message}</Alert>
           <Link to="/login" className="btn btn-ghost btn-block">Ya activé mi cuenta: iniciar sesión</Link>
@@ -142,7 +133,7 @@ export default function ActivateAccount() {
             <span className="success-icon">
               <UserCheck size={32} aria-hidden="true" />
             </span>
-            <h3>{state.info.nombre ? `Hola, ${state.info.nombre}` : 'Hola'}</h3>
+            <h2>{state.info.nombre ? `Hola, ${state.info.nombre}` : 'Hola'}</h2>
             <p>Correo: {state.info.correoEnmascarado}</p>
           </div>
           {state.info.invitaciones.length > 0 && (

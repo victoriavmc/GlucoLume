@@ -275,6 +275,21 @@ main[tabindex='-1']:focus {
   color: var(--danger-700);
 }
 
+/* Error dentro de la ventana modal: icono y mensaje lado a lado, en el color de peligro. */
+.alert-modal-message {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--danger-700);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.alert-modal-message svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 .alert-info {
   background: var(--info-50);
   border: 1px solid var(--info-200);

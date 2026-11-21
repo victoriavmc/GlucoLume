@@ -37,7 +37,7 @@ describe('enlace «fui yo» del aviso de inicio bloqueado', () => {
 
     await user.click(await screen.findByRole('button', { name: /Sí, fui yo/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('ya fue usado');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('ya fue usado');
     expect(screen.getByRole('link', { name: /Ir a iniciar sesión/ })).toHaveAttribute('href', '/login');
     expect(screen.queryByRole('button', { name: /Sí, fui yo/ })).not.toBeInTheDocument();
     await waitFor(() => expect(calls.filter((call) => call.key === LIBERAR)).toHaveLength(1));
@@ -47,7 +47,7 @@ describe('enlace «fui yo» del aviso de inicio bloqueado', () => {
     const { calls } = mockApi({});
     renderAt('/liberar-sesion');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('El enlace es inválido');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('El enlace es inválido');
     expect(calls).toHaveLength(0);
   });
 });

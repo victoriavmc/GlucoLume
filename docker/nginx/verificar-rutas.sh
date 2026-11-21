@@ -20,7 +20,7 @@ consulta() {
 cabecera() { grep -i "^$1:" /tmp/verificar-rutas.cabeceras | tr -d '\r' | sed -E "s/^[^:]+: *//" | head -1; }
 
 # 1) Rutas de la SPA: deben responder el index.html (200, text/html, con el contenedor de React).
-for ruta in /ayuda /ayuda/ "/ayuda?seccion=cliente" /app/ayuda /consejos; do
+for ruta in /ayuda /ayuda/ "/ayuda?seccion=cliente" /app/ayuda; do
   codigo=$(consulta "$ruta")
   if [ "$codigo" = "200" ] && grep -q 'id="root"' /tmp/verificar-rutas.cuerpo && [[ "$(cabecera content-type)" == text/html* ]]; then
     ok "SPA $ruta -> 200 index.html"

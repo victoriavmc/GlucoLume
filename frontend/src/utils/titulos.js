@@ -26,7 +26,6 @@ const TITULOS = [
   [/^\/app(\/|$)/, 'Mi cuenta · GlucoLume'],
   [/^\/privacidad(\/|$)/, 'Política de privacidad · GlucoLume'],
   [/^\/caracteristicas(\/|$)/, 'Características y privacidad · GlucoLume'],
-  [/^\/consejos(\/|$)/, 'Consejos para diabéticos · GlucoLume'],
   [/^\/ayuda(\/|$)/, 'Ayuda · GlucoLume'],
 ];
 

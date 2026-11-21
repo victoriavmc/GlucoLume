@@ -55,9 +55,8 @@ export default function LiberarSesionPage() {
   }
 
   return (
-    <AuthShell title={<>Fui <span className="accent">yo</span></>}
-      lead="Si intentaste ingresar mientras tenías una sesión abierta en otro dispositivo, podés cerrar esa sesión desde acá.">
-      <h2 className="auth-title">Cerrar la sesión anterior</h2>
+    <AuthShell>
+      <h1 className="auth-title">Cerrar la sesión anterior</h1>
 
       {done ? (
         <div className="auth-form">

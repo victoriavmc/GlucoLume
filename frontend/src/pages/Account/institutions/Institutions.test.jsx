@@ -233,7 +233,7 @@ describe('Inicio institucional', () => {
     await user.type(await screen.findByLabelText('Contraseña actual'), 'Clave#2026');
     await user.click(screen.getByRole('button', { name: 'Reabrir institución' }));
     // Error explícito, una sola vez, y el formulario sale del modo reapertura: nada se da por reabierto.
-    expect(await screen.findByRole('alert')).toHaveTextContent('Solo quien fue su último propietario puede reabrirla.');
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Solo quien fue su último propietario puede reabrirla.');
     expect(screen.queryByRole('button', { name: 'Reabrir institución' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Reabriste/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crear institución' })).toBeDisabled();
@@ -314,7 +314,7 @@ describe('Institución pausada: consulta al soporte', () => {
     const dialog = within(screen.getByRole('dialog'));
     await user.type(dialog.getByLabelText('Mensaje'), 'Necesitamos ayuda con la reactivación.');
     await user.click(dialog.getByRole('button', { name: 'Enviar consulta' }));
-    expect(await dialog.findByText(/Enviaste varias consultas seguidas/)).toBeInTheDocument();
+    expect(await screen.findByText(/Enviaste varias consultas seguidas/)).toBeInTheDocument();
   });
 });
 

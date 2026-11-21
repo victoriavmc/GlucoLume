@@ -57,7 +57,7 @@ La columna «Estado» califica el módulo en conjunto; el detalle por funcionali
 | M-14 | Correo electrónico y contacto | Catálogo de 68 tipos de correo, plantillas, envío SMTP con STARTTLS, avisos de seguridad, formulario de contacto público | Backend, frontend | IMPLEMENTADO (11 tipos de correo sin uso) |
 | M-15 | Privacidad, retención y anonimización | Retención de 12 meses de pacientes, anonimización en cohorte, minimización de datos del personal, conservación de auditoría, depuración de cuentas | Backend, trabajos programados | PARCIAL (plazos no aprobados en tres políticas; un trabajo sin programar) |
 | M-16 | Suscripciones, pagos y planes | Tablas, modelos y esquemas; pantalla «Próximamente» | BD, modelos, frontend | PREVISTO |
-| M-17 | Sitio público y contenido educativo | Página de presentación, política de privacidad, formulario de contacto, consejos para personas con diabetes | Frontend | IMPLEMENTADO |
+| M-17 | Sitio público y contenido educativo | Página de presentación, política de privacidad, formulario de contacto | Frontend | IMPLEMENTADO |
 | M-18 | Base de datos SQL Server | Esquema de referencia v5, permisos de mínimo privilegio, cifrado y respaldo, compatibilidad con bases no migradas, herramienta de comparación de esquemas | SQL, backend | PARCIAL (ver hallazgo sobre índices en `06`) |
 | M-19 | Frontend transversal | Aplicación de una página con rutas protegidas, guardias de permisos, almacenamiento de sesión, enlace de omisión para accesibilidad, galería de componentes | Frontend | IMPLEMENTADO |
 | M-20 | Firmware y hardware | Arduino UNO, sensor MAX30100, LCD, Bluetooth HC-05/HC-06; cálculo de métricas, señal PPG, calibración, modo DEMO, identificación persistente | Firmware | IMPLEMENTADO en código; no cargado ni probado en placa según la documentación |
@@ -66,7 +66,7 @@ La columna «Estado» califica el módulo en conjunto; el detalle por funcionali
 | M-23 | Pruebas y evidencias de calidad | Pruebas automatizadas de backend y frontend, pruebas contra SQL Server opcionales, evidencia de escaneo de vulnerabilidades y de concurrencia | Pruebas | IMPLEMENTADO (resultados de ejecución en `07`) |
 | M-24 | Documentación del proyecto | `README.md` y `docs/` (funcional, seguridad, privacidad, base de datos, despliegue, historial, pendientes) | Documentos | Se contrasta en `05` y `06` |
 
-Módulos no previstos en la lista de partida que se incorporaron: M-14 (correo y contacto), M-17 (contenido educativo), M-18 (compatibilidad de esquema), M-19 (frontend transversal), M-21 (puente serie), M-22 (infraestructura) y M-23 (pruebas).
+Módulos no previstos en la lista de partida que se incorporaron: M-14 (correo y contacto), M-17 (sitio público), M-18 (compatibilidad de esquema), M-19 (frontend transversal), M-21 (puente serie), M-22 (infraestructura) y M-23 (pruebas).
 
 ## 3. Detalle por módulo
 
@@ -179,7 +179,7 @@ Las rutas son relativas a la raíz del repositorio. «API» indica el archivo de
 
 ### M-17 Sitio público y contenido educativo
 
-- **Frontend:** `pages/Landing/*`, `pages/Privacy/*`, `pages/Account/DiabetesTipsPage.jsx`, `components/DiabetesTips.jsx`, `data/diabetesTips.js`.
+- **Frontend:** `pages/Landing/*`, `pages/Privacy/*`.
 
 ### M-18 Base de datos
 
@@ -213,7 +213,7 @@ Las rutas son relativas a la raíz del repositorio. «API» indica el archivo de
 
 ### 4.3 Frontend
 
-Rutas públicas: inicio, ingreso, registro, verificación de correo, activación de cuenta, recuperación y restablecimiento de contraseña, confirmación de eliminación, confirmación del correo de resultados, política de privacidad, retorno de Google. Rutas de plataforma bajo `/plataforma/*` (panel, instituciones, moderadores, transferencia, dispositivos, matrices, auditoría, suscripciones, perfil, seguridad, contraseña). Rutas de cuenta bajo `/app/*`: inicio, consejos, perfil, seguridad, mediciones (nueva, perfil, historial, detalle), conectar dispositivo, grupo (panel, integrantes, privacidad, compartidos, configuración), instituciones (panel, personal, administración, auditoría, actividad, pacientes, reasignaciones, transferencias, dispositivos, matrices).
+Rutas públicas: inicio, ingreso, registro, verificación de correo, activación de cuenta, recuperación y restablecimiento de contraseña, confirmación de eliminación, confirmación del correo de resultados, política de privacidad, retorno de Google. Rutas de plataforma bajo `/plataforma/*` (panel, instituciones, moderadores, transferencia, dispositivos, matrices, auditoría, suscripciones, perfil, seguridad, contraseña). Rutas de cuenta bajo `/app/*`: inicio, perfil, seguridad, mediciones (nueva, perfil, historial, detalle), conectar dispositivo, grupo (panel, integrantes, privacidad, compartidos, configuración), instituciones (panel, personal, administración, auditoría, actividad, pacientes, reasignaciones, transferencias, dispositivos, matrices).
 
 ### 4.4 Correos electrónicos
 

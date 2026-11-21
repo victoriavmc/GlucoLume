@@ -498,7 +498,7 @@ describe('Mediciones: configuración de perfil', () => {
     const notice = document.getElementById('datos-recomendados');
     expect(notice).toHaveTextContent(NOTICE);
     expect(notice).toHaveAttribute('role', 'status'); // informativo, nunca un error
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Mi dashboard/ })).toHaveAttribute('href', '/app/mediciones');
   });
 
@@ -695,7 +695,8 @@ describe('Detalle y estados de una medición', () => {
     const form = await screen.findByRole('form', { name: 'Registrar referencia capilar' });
     expect(screen.getByText('92,4 mg/dL')).toBeInTheDocument(); // estimada, aparte de la referencia
     await user.click(within(form).getByRole('button', { name: 'Registrar referencia' }));
-    expect(within(form).getByText(/Ingresá el valor medido con el glucómetro/)).toBeInTheDocument();
+    expect(screen.getByText(/Ingresá el valor medido con el glucómetro/)).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     await user.type(within(form).getByLabelText('Glucosa capilar (mg/dL)'), '101');
     await user.type(within(form).getByLabelText('Fecha y hora de la referencia'), '2026-10-08T09:05');
     await user.type(within(form).getByLabelText('Marca del glucómetro (opcional)'), 'OneTouch');
@@ -862,7 +863,7 @@ describe('Información sobre tus mediciones y conservación', () => {
   it('una medición oculta responde como inexistente (no se recupera por URL)', async () => {
     routes({ [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(404, { codigo: 'MEDICION_NO_ENCONTRADA', detail: 'No se encontró la medición.' }) });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(screen.queryByLabelText('Resultados')).not.toBeInTheDocument();
   });
 });

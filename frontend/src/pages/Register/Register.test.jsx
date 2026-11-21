@@ -135,7 +135,7 @@ describe('Registro con Google', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar con Google' }));
     // No exige ni guarda datos de institución en el navegador.
     expect(assign).toHaveBeenCalledWith(url);
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(Object.keys(window.sessionStorage).filter((key) => /institu/i.test(key))).toEqual([]);
   });

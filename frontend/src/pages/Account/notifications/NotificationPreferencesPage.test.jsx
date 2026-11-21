@@ -102,7 +102,7 @@ describe('Preferencias de notificaciones', () => {
     const toggle = await screen.findByRole('switch', { name: 'En la aplicación: Nuevos dispositivos o accesos desconocidos' });
     await user.click(toggle);
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-checked', 'true');
   });
 
@@ -162,7 +162,7 @@ describe('Preferencias de notificaciones', () => {
     withPreferences({ 'GET /notificaciones/preferencias': jsonResponse(500, { detail: 'boom' }) });
     renderAt('/app/notificaciones/preferencias');
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
@@ -199,7 +199,8 @@ describe('Preferencias de notificaciones', () => {
     await user.click(within(schedule).getByRole('button', { name: 'Agregar horario' }));
     await user.click(within(schedule).getByRole('button', { name: 'Guardar horario' }));
 
-    expect(await within(schedule).findByText('Hay horarios repetidos. Dejá uno solo por horario.')).toBeInTheDocument();
+    expect(await screen.findByText('Hay horarios repetidos. Dejá uno solo por horario.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
     expect(calls.find((c) => c.key === 'PUT /notificaciones/recordatorio')).toBeUndefined();
   });
 

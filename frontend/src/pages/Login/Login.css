@@ -17,6 +17,12 @@
   align-items: start;
 }
 
+/* Pantallas de acceso: solo el formulario, centrado. */
+.auth-solo {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
 .auth-hero {
   display: grid;
   gap: 26px;

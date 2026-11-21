@@ -93,7 +93,7 @@ describe('Bandeja de notificaciones', () => {
     renderAt('/app/notificaciones');
 
     expect(await screen.findByText('Cargando tus notificaciones…')).toBeInTheDocument();
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Reintentar' }));
 
@@ -213,7 +213,7 @@ describe('Bandeja de notificaciones', () => {
 
     await user.click(await screen.findByRole('button', { name: /^Aviso a/ }));
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(await screen.findByText('Tenés 1 sin leer.')).toBeInTheDocument();
     expect(within(screen.getByRole('button', { name: /^Aviso a/ })).getByText('Sin leer')).toBeInTheDocument();
   });
@@ -228,7 +228,7 @@ describe('Bandeja de notificaciones', () => {
     await screen.findByText('Tenés 2 sin leer.');
 
     await user.click(screen.getByRole('button', { name: 'Marcar todas como leídas' }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(await screen.findByText('Tenés 2 sin leer.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Marcar todas como leídas' }));
@@ -356,7 +356,7 @@ describe('Bandeja de notificaciones', () => {
       await user.click(menuOf('Aviso a'));
       await user.click(screen.getByRole('menuitem', { name: 'Eliminar de la bandeja' }));
 
-      expect(await screen.findByRole('alert')).toBeInTheDocument();
+      expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
       expect(screen.getByText('Tenés 2 sin leer.')).toBeInTheDocument();
       const titles = screen.getAllByRole('button', { name: /^Aviso/ }).map((button) => button.textContent);
       expect(titles).toHaveLength(2);
@@ -435,7 +435,7 @@ describe('Bandeja de notificaciones', () => {
       await user.click(screen.getByRole('menuitem', { name: 'Vaciar la bandeja…' }));
       await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Vaciar bandeja' }));
 
-      expect(await screen.findByRole('alert')).toBeInTheDocument();
+      expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: /^Aviso/ })).toHaveLength(2);
       expect(screen.getByText('Tenés 2 sin leer.')).toBeInTheDocument();
     });

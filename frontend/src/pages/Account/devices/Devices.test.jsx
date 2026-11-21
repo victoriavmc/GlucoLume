@@ -440,7 +440,7 @@ describe('Inventario institucional', () => {
     const dialog = within(screen.getByRole('alertdialog'));
     await user.selectOptions(dialog.getByLabelText('Nuevo estado'), 'FUERA_DE_SERVICIO');
     await user.click(dialog.getByRole('button', { name: /Confirmar cambio/ }));
-    expect(await dialog.findByText(/No tenés permiso/)).toBeInTheDocument();
+    expect(await screen.findByText(/No tenés permiso/)).toBeInTheDocument();
   });
 
   it('el propietario ve el detalle sin cambiar responsable ni desvincular: solo estado y retiro', async () => {

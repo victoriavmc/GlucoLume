@@ -45,7 +45,7 @@ describe('mapa de rutas de Nginx generado desde el router', () => {
   });
 
   it('traduce los parámetros a un segmento y escapa los puntos', () => {
-    expect(aExpresionNginx('/consejos/:idConsejo')).toBe('^/consejos/[^/]+/?$');
+    expect(aExpresionNginx('/ayuda/:seccion')).toBe('^/ayuda/[^/]+/?$');
     expect(aExpresionNginx('/a.b')).toBe('^/a\\.b/?$');
     expect(aExpresionNginx('/')).toBe('^/$');
   });

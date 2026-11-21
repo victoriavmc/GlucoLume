@@ -16,9 +16,9 @@ Una cuenta tiene **un único tipo** y no se convierte en institucional ni de pla
 | Mantener su perfil y su seguridad | Ver datos de otra persona, salvo lo que un integrante de su [grupo familiar](GRUPO_FAMILIAR.md) le habilite |
 | Medir con el dispositivo y consultar su historial, gráficos y estadísticas | Acceder a instituciones, pacientes, inventario global ni auditoría |
 | Crear un grupo familiar o integrarse a uno | Medir sin el consentimiento de datos experimentales |
-| Leer los consejos para personas con diabetes | Eliminar una medición real completada (solo las DEMO) |
+| Eliminar sus mediciones DEMO | Eliminar una medición real completada |
 
-Menú de `/app`: Inicio, Mediciones, Conectar dispositivo, Grupo, Perfil y Seguridad. Los consejos se abren desde Inicio.
+Menú de `/app`: Inicio, Mediciones, Conectar dispositivo, Grupo, Perfil y Seguridad.
 
 ## 2. Alta y acceso
 
@@ -89,19 +89,13 @@ reemplaza al informado. La **matriz de referencia** compara el valor con un rang
 **Consultas:** dashboard personal (última medición, recientes, accesos rápidos), historial (filtros por fecha, modo, estado, origen y orden;
 paginado; detalle), gráficos y evolución (promedios diarios por período, variable, origen y agrupación) y eliminación solo de DEMO.
 
-## 8. Consejos para personas con diabetes
-
-Artículos educativos en 5 categorías (Alimentación, Hidratación, Actividad física, Control y seguimiento, Cuidado de los pies), buscador sin
-tildes ni mayúsculas que exige todas las palabras, filtro por etiqueta y fuentes con enlace; 2 destacados en Inicio y la colección en
-`/app/consejos`. Con aviso de que no reemplaza la consulta médica.
-
-## 9. Privacidad
+## 8. Privacidad
 
 Sin analítica ni scripts de terceros; servicios externos: Google y SMTP. La administración ve agregados. Al eliminar la cuenta, las mediciones
 quedan desidentificadas sin plazo automático de borrado. La auditoría guarda IP y cliente de cada evento durante 90 días (la política todavía
 dice lo contrario: GL-23).
 
-## 10. Reglas de negocio
+## 9. Reglas de negocio
 
 1. Una cuenta = un tipo; no cambia.
 2. Sin consentimiento de datos experimentales vigente no se mide.
@@ -114,7 +108,7 @@ dice lo contrario: GL-23).
 Mensajes frecuentes: credenciales incorrectas (con bloqueo), cuenta pendiente de verificación, consentimiento requerido, dispositivo no
 operativo o en uso, control del dispositivo de otra cuenta, sin regla aplicable, estado del puente, enlace vencido o usado.
 
-## 11. Limitaciones
+## 10. Limitaciones
 
 - No existe un algoritmo de estimación de glucosa en el servidor (`glucoseEstimator` es solo un punto de integración): una medición que
   dependa de él termina `INVALIDA`; nunca se inventa un valor.

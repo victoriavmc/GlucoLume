@@ -71,14 +71,14 @@ def _rutas_de_correo() -> set[str]:
 
 def test_toda_ruta_publica_de_la_spa_sirve_la_shell():
     rutas = _rutas_de_app_jsx()
-    assert "/login" in rutas and "/consejos/:idConsejo" in rutas  # la lectura de App.jsx encontró lo esperado
+    assert "/login" in rutas and "/ayuda" in rutas  # la lectura de App.jsx encontró lo esperado
     for ruta in rutas:
         ejemplo = re.sub(r":\w+", "ejemplo", ruta)
         assert _ruta_spa_valida(ejemplo), f"{ruta} está en App.jsx pero Nginx la respondería 404"
 
 
 @pytest.mark.parametrize("ruta", [
-    "/", "/LOGIN", "/login/", "/registro", "/caracteristicas", "/ayuda", "/consejos", "/consejos/abc-123",
+    "/", "/LOGIN", "/login/", "/registro", "/caracteristicas", "/ayuda",
     "/auth/google/callback", "/cuenta/eliminar/confirmar", "/administracion/activar", "/administracion/login",
     "/plataforma/login", "/plataforma/dashboard", "/app", "/app/", "/app/inicio", "/app/mediciones/abc", "/APP/inicio",
 ])
@@ -87,7 +87,7 @@ def test_rutas_validas_pasan_al_index_de_la_spa(ruta):
 
 
 @pytest.mark.parametrize("ruta", [
-    "/nonexistent-xyz", "/administracion/xyz", "/cuenta", "/cuenta/otra", "/login/extra", "/consejos/a/b",
+    "/nonexistent-xyz", "/administracion/xyz", "/cuenta", "/cuenta/otra", "/login/extra", "/consejos", "/consejos/abc-123",
     "/plataformax", "/appx", "/wp-admin/", "/gallery.html", "/index.php",
 ])
 def test_rutas_desconocidas_no_pasan_al_index(ruta):
