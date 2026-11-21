@@ -142,30 +142,26 @@ describe('Medición institucional: datos del paciente y formulario único', () =
     expect(calls.some((call) => call.key.startsWith('PATCH') || call.key.startsWith('PUT'))).toBe(false);
   });
 
-  it('cambia entre oximetría y glucosa experimental: solo la glucosa muestra «Inicio de la última comida (opcional)» y la matriz, y nunca es obligatoria', async () => {
+  it('cambia entre oximetría y glucosa experimental: solo la glucosa muestra la matriz; la alimentación se elige y nunca bloquea', async () => {
     const { calls } = routes(patient(), status(), {
       'GET /measurements/matrix': jsonResponse(200, { idMatriz: 'g', nombre: 'Matriz San José', version: '2', ambito: 'INSTITUCION', estado: 'ACTIVA' }),
     });
     const user = userEvent.setup();
     open();
     const start = await form();
-    expect(within(start).queryByLabelText('Inicio de la última comida (opcional)')).not.toBeInTheDocument();
     expect(calls.some((call) => call.key === 'GET /measurements/matrix')).toBe(false);
     await user.selectOptions(within(start).getByLabelText('Modo de medición'), 'GLUCOSA_EXPERIMENTAL');
     expect(await within(start).findByText(/Matriz San José, versión 2/)).toBeInTheDocument();
-    expect(within(start).getByLabelText('Inicio de la última comida (opcional)')).toBeInTheDocument(); // sigue visible como opcional
     await user.selectOptions(within(start).getByLabelText('Alimentación'), 'POSTPRANDIAL');
-    expect(within(start).getByText(/no se puede comparar con la matriz «después de comer»/)).toBeInTheDocument(); // se avisa, no se bloquea
-    // Vacía: «Después de comer» + Glucosa experimental INICIA igual, sin enviar fecha (queda NULL).
+    // «Después de comer» + Glucosa experimental INICIA igual: no hay hora de comida que cargar.
     await user.click(within(start).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(calls.some((call) => call.key === START)).toBe(true));
-    expect(within(start).queryByText(/Indicá cuándo fue la última comida/)).not.toBeInTheDocument();
     const sent = calls.find((call) => call.key === START).body;
     expect(sent).toMatchObject({ modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'POSTPRANDIAL' });
     expect(sent.fechaHoraUltimaComida).toBeUndefined();
   });
 
-  it('si se informa la última comida se envía con su fecha y hora', async () => {
+  it('no pide la hora de la última comida: nunca se envía una fecha de comida', async () => {
     const { calls } = routes(patient(), status(), {
       'GET /measurements/matrix': jsonResponse(200, { idMatriz: 'g', nombre: 'Matriz San José', version: '2', ambito: 'INSTITUCION', estado: 'ACTIVA' }),
     });
@@ -174,12 +170,13 @@ describe('Medición institucional: datos del paciente y formulario único', () =
     const start = await form();
     await user.selectOptions(within(start).getByLabelText('Modo de medición'), 'GLUCOSA_EXPERIMENTAL');
     await user.selectOptions(within(start).getByLabelText('Alimentación'), 'POSTPRANDIAL');
-    await user.type(within(start).getByLabelText('Inicio de la última comida (opcional)'), '2026-10-08T07:30');
+    expect(within(start).queryByLabelText('Inicio de la última comida (opcional)')).not.toBeInTheDocument();
     await user.click(within(start).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(calls.some((call) => call.key === START)).toBe(true));
     expect(calls.find((call) => call.key === START).body).toMatchObject({
-      modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'POSTPRANDIAL', fechaHoraUltimaComida: '2026-10-08T07:30:00',
+      modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'POSTPRANDIAL',
     });
+    expect(calls.find((call) => call.key === START).body.fechaHoraUltimaComida).toBeUndefined();
   });
 
   it('sin dispositivo conectado no deja iniciar y lo explica', async () => {
@@ -233,11 +230,8 @@ describe('Medición institucional: señal en vivo y guardado', () => {
     expect(within(live).getByText('Señal insuficiente')).toBeInTheDocument();
     expect(within(live).getByLabelText('Indicador de latidos detectados')).toHaveTextContent('0 latidos detectados'); // sin muestras reales no hay latidos
 
-    // Lectura estable con valores reales: se habilita guardar; dos clics rápidos guardan una sola vez.
+    // Lectura estable con valores reales: se guarda sola, una sola vez (sin pulsar nada).
     await pushStatus(status({ sesion: session(8, true) }));
-    expect(within(live).getByText('Lectura estable. Podés guardar la medición.')).toBeInTheDocument();
-    const save = within(live).getByRole('button', { name: 'Guardar medición' });
-    await user.dblClick(save);
     expect(await screen.findByRole('heading', { name: 'Medición guardada' })).toBeInTheDocument();
     expect(screen.getByText(/asociada al paciente PAC-ABC123/)).toBeInTheDocument();
     expect(screen.getByText(/no suma a los indicadores de salud/)).toBeInTheDocument(); // DEMO
@@ -304,8 +298,7 @@ describe('Medición institucional: correo del paciente para sus resultados', () 
     await user.click(within(await form()).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === START)).toBe(true));
     api.set(status({ sesion: session(8, true) }));
-    await pushStatus(status({ sesion: session(8, true) }));
-    await user.click(await screen.findByRole('button', { name: 'Guardar medición' }));
+    await pushStatus(status({ sesion: session(8, true) })); // al estabilizarse se guarda sola
     expect(await screen.findByText(/Salió el resultado por correo hacia el paciente \(pa\*\*\*@example.com\)/)).toBeInTheDocument();
   });
 
@@ -319,8 +312,7 @@ describe('Medición institucional: correo del paciente para sus resultados', () 
     await user.click(within(await form()).getByRole('button', { name: 'Iniciar medición' }));
     await waitFor(() => expect(api.calls.some((call) => call.key === START)).toBe(true));
     api.set(status({ sesion: session(8, true) }));
-    await pushStatus(status({ sesion: session(8, true) }));
-    await user.click(await screen.findByRole('button', { name: 'Guardar medición' }));
+    await pushStatus(status({ sesion: session(8, true) })); // al estabilizarse se guarda sola
     expect(await screen.findByText(/Estamos enviando el resultado por correo al paciente \(pa\*\*\*@example.com\)/)).toBeInTheDocument();
   });
 });
