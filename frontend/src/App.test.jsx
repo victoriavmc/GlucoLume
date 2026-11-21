@@ -214,11 +214,9 @@ describe('Login local', () => {
     await fillLogin(user, 'victoria');
     await user.click(screen.getByRole('button', { name: /^Iniciar sesión/ }));
 
-    // Con usuario (no email) el desplegable queda sin opciones de correo.
+    // Con usuario (no email) el campo se prellena con lo escrito, sin revelar qué correo tiene la cuenta.
     const resendEmail = await screen.findByLabelText('Correo electrónico de tu cuenta');
-    expect(resendEmail.tagName).toBe('SELECT');
-    expect(resendEmail).toHaveValue('');
-    expect(resendEmail.querySelectorAll('option:not([disabled])')).toHaveLength(0);
+    expect(resendEmail).toHaveValue('victoria');
     await user.click(screen.getByRole('button', { name: /Reenviar correo de verificación/ }));
     expect(screen.getByText('Ingresá el correo con el que te registraste.')).toBeInTheDocument();
     expect(calls.filter((c) => c.key === 'POST /auth/verify-email/resend')).toHaveLength(0);

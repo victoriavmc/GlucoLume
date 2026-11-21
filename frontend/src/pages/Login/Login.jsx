@@ -198,8 +198,7 @@ export default function Login() {
                 <p>Te enviamos un enlace nuevo. El plazo para verificar la cuenta no se extiende.</p>
               </div>
               <ResendVerification
-                initialEmail={form.identificador.includes('@') ? form.identificador : ''}
-                dropdown
+                initialEmail={form.identificador}
                 label="Reenviar correo de verificación"
               />
             </div>

@@ -7,11 +7,11 @@ import { useState } from 'react';
 import { resendVerification } from '../api/authApi.js';
 import { friendlyError } from '../auth/errorMessages.js';
 import { EMAIL_PATTERN } from '../utils/validation.js';
-import { Alert, SelectField, SubmitButton, TextField } from './FormControls.jsx';
+import { Alert, SubmitButton, TextField } from './FormControls.jsx';
 
-// `dropdown`: muestra el correo como lista desplegable (solo el correo ya escrito en el login, sin listar otros).
-export function ResendVerification({ initialEmail = '', label = 'Enviar un enlace nuevo', dropdown = false }) {
-  const [email, setEmail] = useState(EMAIL_PATTERN.test(initialEmail.trim()) ? initialEmail.trim() : '');
+// `initialEmail`: lo que la persona escribió en el login (correo o usuario). Se prellena tal cual, sin consultar la cuenta.
+export function ResendVerification({ initialEmail = '', label = 'Enviar un enlace nuevo' }) {
+  const [email, setEmail] = useState(initialEmail.trim());
   const [fieldError, setFieldError] = useState('');
   const [status, setStatus] = useState({ phase: 'idle' });
 
@@ -39,28 +39,15 @@ export function ResendVerification({ initialEmail = '', label = 'Enviar un enlac
         <Alert kind="success">Te enviamos un nuevo correo de verificación, si ese correo corresponde a una cuenta pendiente. Revisá tu bandeja de entrada o spam. Podés pedir otro pasado un minuto.</Alert>
       )}
       {status.phase === 'error' && <Alert>{status.message}</Alert>}
-      {dropdown ? (
-        <SelectField
-          label="Correo electrónico de tu cuenta"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          error={fieldError}
-          options={[
-            { value: '', label: 'Seleccioná tu correo', disabled: true },
-            ...(EMAIL_PATTERN.test(initialEmail.trim()) ? [{ value: initialEmail.trim(), label: initialEmail.trim() }] : []),
-          ]}
-        />
-      ) : (
-        <TextField
-          label="Correo electrónico de tu cuenta"
-          icon={Mail}
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          error={fieldError}
-        />
-      )}
+      <TextField
+        label="Correo electrónico de tu cuenta"
+        icon={Mail}
+        type="email"
+        autoComplete="email"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        error={fieldError}
+      />
       <SubmitButton loading={status.phase === 'sending'} loadingLabel="Enviando…" className="btn btn-outline btn-block">
         <RotateCw size={18} aria-hidden="true" /> {label}
       </SubmitButton>
