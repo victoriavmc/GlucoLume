@@ -5,7 +5,7 @@
 // pantalla no genera ni simula datos del sensor: muestra lo que el backend recibió y calculó.
 
 import {
-  Ban, CalendarDays, ChartColumn, Download, Droplet, FlaskConical, HeartPulse, BookOpen, Info, Mail, Settings, Signal, Smartphone, Sparkles,
+  Ban, CalendarDays, ChartColumn, Download, Droplet, FlaskConical, HeartPulse, BookOpen, Info, Mail, Settings, Smartphone, Sparkles,
   Trash2, User, Utensils, Wind,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -42,15 +42,28 @@ function Row({ label, children }) {
 }
 
 /** Resultado grande del detalle, con su ícono. Un dato ausente se muestra «Sin dato», nunca como cero. */
-function ResultCard({ label, value, unit, format, empty = 'Sin dato', badge = null, note = null, icon: Icon, tone = 'rose' }) {
+/** Calidad de señal de la medición (0 a 1, dos decimales). */
+function formatQuality(value) {
+  return Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** `quality` muestra la calidad de señal dentro de la tarjeta solo si la medición la informa (sin dato, no se muestra). */
+function ResultCard({ label, value, unit, format, empty = 'Sin dato', badge = null, note = null, quality, icon: Icon, tone = 'rose' }) {
   const missing = value === null || value === undefined;
   const text = missing ? null : format ? format(value) : typeof value === 'number' || /^[\d.]+$/.test(String(value)) ? formatNumber(value, unit) : String(value);
+  const showQuality = quality !== undefined && quality !== null;
   return (
     <li className="result-card">
       {Icon && <span className={`result-icon is-${tone}`}><Icon size={26} aria-hidden="true" /></span>}
       <small>{label}</small>
       <b className={missing ? 'is-empty' : undefined}>{missing ? empty : text} {badge}</b>
-      {note && <span className="field-hint">{note}</span>}
+      {(note || showQuality) && (
+        <span className="field-hint">
+          {note}
+          {note && showQuality && <br />}
+          {showQuality && <>Calidad de señal: {formatQuality(quality)}</>}
+        </span>
+      )}
     </li>
   );
 }
@@ -378,18 +391,18 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
           <ul className="result-grid" aria-label="Resultados">
             {(measurement.glucosaEstimada !== null || (glucose && !measurement.origenGlucosa)) && (
               <ResultCard label="Glucosa estimada (experimental)" value={measurement.glucosaEstimada} unit="mg/dL" icon={Droplet} tone="rose"
-                badge={<Semaforo color={measurement.referenciaGlucosa?.semaforo} />} />
+                badge={<Semaforo color={measurement.referenciaGlucosa?.semaforo} />} quality={measurement.calidadSenal} />
             )}
             {measurement.origenGlucosa && (
               <ResultCard label={measurement.esDemo ? 'Glucosa (valor DEMO, sintético)' : 'Glucosa experimental del dispositivo'}
                 value={measurement.glucosaDispositivo} unit={measurement.unidadGlucosa ?? 'mg/dL'}
                 empty="Sin dato (dispositivo sin calibrar)" icon={Droplet} tone="rose"
                 badge={<>{measurement.glucosaEstimada === null && <Semaforo color={measurement.referenciaGlucosa?.semaforo} />}{measurement.esDemo && <DemoBadge />}</>}
-                note={measurement.esDemo ? 'Simulación para verificar la comunicación: no es una glucemia real.' : null} />
+                note={measurement.esDemo ? 'Simulación para verificar la comunicación: no es una glucemia real.' : null}
+                quality={measurement.calidadSenal} />
             )}
             <ResultCard label="Frecuencia cardíaca" value={measurement.frecuenciaCardiaca} unit="lpm" icon={HeartPulse} tone="rose" />
-            <ResultCard label="SpO₂" value={measurement.spo2} unit="%" icon={Wind} tone="blue" />
-            {measurement.calidadSenal !== null && <ResultCard label="Calidad de señal" value={measurement.calidadSenal} icon={Signal} tone="violet" />}
+            <ResultCard label="SpO₂" value={measurement.spo2} unit="%" icon={Wind} tone="blue" quality={measurement.calidadSenal} />
           </ul>
         </section>
       )}

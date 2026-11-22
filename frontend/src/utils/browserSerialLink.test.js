@@ -219,12 +219,24 @@ describe('reconocer el Arduino', () => {
     const { link, port, send, clock, tick } = setup();
     await link.connect('BLUETOOTH');
     expect(link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTING, medio: 'BLUETOOTH', verificado: false });
-    clock.now += 9000; // el equipo está apagado: el puerto abrió pero nunca llega una línea
+    clock.now += 16000; // el equipo está apagado: el puerto abrió pero nunca llega una línea
     tick();
     await vi.waitFor(() => expect(link.getSnapshot().estado).toBe(STATES.ERROR));
     expect(link.getSnapshot().error).toMatch(/no envió datos/);
     await vi.waitFor(() => expect(port.closed).toBe(true));
     await vi.waitFor(() => expect(send.mock.calls.some(([body]) => body.estadoEnlace === 'DESCONECTADO')).toBe(true));
+  });
+
+  it('la identificación que llega cerca de los 10 s del firmware todavía se reconoce (no se corta antes)', async () => {
+    const { link, port, clock, tick } = setup();
+    await link.connect('BLUETOOTH');
+    clock.now += 9500; // el firmware informa su ID cada 10 s: justo antes de vencer la espera
+    port.push('GLUCOLUME,ID=ARD-001,SENSOR=MAX30100,FW=1.3.0,SR=50\r\n');
+    await vi.waitFor(() => expect(link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, verificado: true }));
+    clock.now += 10000; // ya reconocido: pasar el tiempo de espera no corta el enlace
+    tick();
+    expect(link.getSnapshot().estado).toBe(STATES.CONNECTED);
+    await link.disconnect();
   });
 
   it('una línea de telemetría del firmware también cuenta como reconocido', async () => {

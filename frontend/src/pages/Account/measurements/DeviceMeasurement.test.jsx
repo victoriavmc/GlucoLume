@@ -530,9 +530,10 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     routes(status({ puente: { ...BRIDGE, codigoDispositivo: 'OTRO-999' } }));
     renderAt('/app/mediciones/nueva');
     const section = await card();
-    expect(await within(section).findByText(/El dispositivo conectado \(OTRO-999\) no está disponible/)).toBeInTheDocument();
+    // En «Nueva medición» el aviso de dispositivo conectado no se muestra nunca.
+    expect(await within(section).findByRole('combobox', { name: 'Modo de medición' })).toBeInTheDocument();
+    expect(within(section).queryByText(/El dispositivo conectado \(OTRO-999\) no está disponible/)).not.toBeInTheDocument();
     // El formulario sigue visible (tipo de medición, alimentación, datos opcionales); solo el inicio queda deshabilitado.
-    expect(within(section).getByRole('combobox', { name: 'Modo de medición' })).toBeInTheDocument();
     expect(within(section).getByRole('button', { name: 'Iniciar medición' })).toBeDisabled();
   });
 

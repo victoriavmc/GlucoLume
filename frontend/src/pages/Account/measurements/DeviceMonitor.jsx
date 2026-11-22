@@ -138,12 +138,15 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
           <p className="field-hint" role="status">Buscando el dispositivo en tu inventario…</p>
         ) : !device || unavailable ? (
           // No bloquea el formulario: tipo de medición, alimentación y datos opcionales se completan igual; solo falta el dispositivo para iniciar.
-          <Alert kind="info">
-            {online
-              ? <>El dispositivo conectado ({code}) no está disponible para medir este perfil. Tiene que estar dado de alta como operativo
-                en Dispositivos y asignado a quien mide.</>
-              : <>No hay un dispositivo operativo disponible para medir este perfil ahora.</>}
-          </Alert>
+          // En «Nueva medición» (cuenta propia) el aviso de dispositivo conectado no aparece nunca; solo en la medición de un paciente.
+          online
+            ? (patient && (
+              <Alert kind="info">
+                El dispositivo conectado ({code}) no está disponible para medir este perfil. Tiene que estar dado de alta como operativo
+                en Dispositivos y asignado a quien mide.
+              </Alert>
+            ))
+            : <Alert kind="info">No hay un dispositivo operativo disponible para medir este perfil ahora.</Alert>
         ) : null}
         <>
             <div className="form-grid is-config">

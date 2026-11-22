@@ -24,7 +24,9 @@ const MAX_LINE = 512;
 const MAX_PARTIAL = 2048; // texto sin salto de línea: es ruido, no una línea del firmware
 const MAX_AGE_MS = 86_400_000;
 // Abrir el puerto NO prueba que haya un Arduino: el Bluetooth puede abrir aunque el equipo esté apagado. Solo cuenta una línea del firmware.
-const IDENTIFY_TIMEOUT_MS = 8000;
+// El firmware informa GLUCOLUME,ID=… al arrancar y cada 10 s (ID_PERIOD_MS): la espera tiene que cubrir ese período, si no el puerto
+// se cierra justo antes de la siguiente identificación (igual que PROBE_SECONDS = 12 s en el puente de Python).
+const IDENTIFY_TIMEOUT_MS = 15000;
 const DEVICE_PREFIXES = ['GLUCOLUME,', 'ST,', 'S,', 'ERR,', 'PONG']; // única evidencia de que el firmware de GlucoLume está hablando
 
 function isDeviceLine(text) {
