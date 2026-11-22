@@ -397,11 +397,11 @@ describe('Detalle de paciente', () => {
       [`GET ${PATIENTS_URL}/p-1/measurements/evolution`]: jsonResponse(200, { puntos: [], truncado: false, desde: null, hasta: null, estadisticas: { experimental: null, demo: null }, resumen: null }),
     });
     renderAt(`/app/instituciones/${ID}/pacientes/p-1`);
-    const list = await screen.findByRole('list', { name: 'Mediciones' });
-    const items = within(list).getAllByRole('listitem');
+    const table = await screen.findByRole('table', { name: 'Mediciones' });
+    const items = within(table).getAllByRole('row').slice(1); // sin el encabezado
     expect(items[0]).toHaveTextContent('07/10/2026 08:30');
     expect(items[0]).toHaveTextContent('En ayunas');
-    expect(items[0]).toHaveTextContent('SpO₂ 98 %');
+    expect(items[0]).toHaveTextContent('98 %');
     expect(items[1]).toHaveTextContent('Después de comer');
   });
 

@@ -644,7 +644,7 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     glucosaDispositivo: '114.00', indiceOptico: '2.41492', esDemo: true,
   };
 
-  it('el historial conserva el origen DEMO, permite filtrarlo y eliminarlo sin tocar lo real', async () => {
+  it('el historial marca las DEMO y permite eliminarlas sin tocar lo real', async () => {
     const real = { ...ITEM, idMedicion: 'm-2', origenGlucosa: 'SIN_CALIBRAR', glucosaDispositivo: null, esDemo: false };
     let items = [ITEM, real];
     const api = routes(SIN_PUENTE, {
@@ -653,25 +653,18 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     });
     const user = userEvent.setup();
     renderAt('/app/mediciones/historial');
-    const list = await screen.findByRole('list', { name: 'Mediciones' });
-    const [demoRow, realRow] = within(list).getAllByRole('listitem');
+    const table = await screen.findByRole('table', { name: 'Mediciones' });
+    const [demoRow, realRow] = within(table).getAllByRole('row').slice(1); // sin el encabezado
     expect(within(demoRow).getByText('DEMO')).toBeInTheDocument();
-    expect(demoRow).toHaveTextContent('Glucosa del dispositivo 114 mg/dL (DEMO (prueba))');
-    expect(realRow).toHaveTextContent('Sin calibrar');
+    expect(demoRow).toHaveTextContent('114 mg/dL');
     expect(within(realRow).queryByText('DEMO')).not.toBeInTheDocument();
-
-    await user.selectOptions(screen.getByLabelText('Origen de los datos'), 'DEMO');
-    await waitFor(() => {
-      const last = new URL(api.calls.filter((call) => call.key === 'GET /measurements').at(-1).url);
-      expect(last.searchParams.get('origen')).toBe('DEMO');
-    });
-    await user.selectOptions(screen.getByLabelText('Origen de los datos'), '');
+    expect(screen.queryByLabelText('Origen de los datos')).not.toBeInTheDocument(); // el filtro de origen ya no está
 
     await user.click(await screen.findByRole('button', { name: /Eliminar mis datos de prueba/ }));
     expect(api.calls.some((call) => call.key === 'DELETE /measurements/demo')).toBe(false); // pide confirmación
     await user.click(screen.getByRole('button', { name: 'Confirmar eliminación' }));
     expect(await screen.findByText(/Se eliminaron 1 mediciones de prueba/)).toBeInTheDocument();
-    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Mediciones' })).getAllByRole('listitem')).toHaveLength(1));
+    await waitFor(() => expect(within(screen.getByRole('table', { name: 'Mediciones' })).getAllByRole('row')).toHaveLength(2)); // encabezado + 1
     expect(screen.queryByRole('button', { name: /Eliminar mis datos de prueba/ })).not.toBeInTheDocument();
   });
 

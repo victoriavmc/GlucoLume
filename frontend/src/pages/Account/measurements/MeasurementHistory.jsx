@@ -1,4 +1,4 @@
-// Historial de mediciones con filtros (fecha, modo, estado, orden), detalle, estadísticas y gráficos. Lo usan el
+// Historial de mediciones con filtros (fecha, modo, orden), detalle, estadísticas y gráficos. Lo usan el
 // perfil propio y cada paciente institucional: cambia solo de dónde salen los datos (`loadPage`/`loadEvolution`),
 // que el backend autoriza en cada consulta. Los gráficos usan solo mediciones completadas.
 
@@ -6,7 +6,7 @@ import { Activity, ChevronLeft, ChevronRight, Download, Filter, Trash2 } from 'l
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Badge, OriginBadge } from '../../../components/Badge.jsx';
+import { Badge } from '../../../components/Badge.jsx';
 import { EmptyState } from '../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../components/FormControls.jsx';
 import { SkeletonList } from '../../../components/Skeleton.jsx';
@@ -14,16 +14,26 @@ import { saveBlob } from '../../../utils/downloadFile.js';
 import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
 import { useLatestRequest } from '../../../utils/useLatestRequest.js';
 import '../institutions/exportControls.css';
+import './MeasurementHistory.css';
 import { DemoBadge } from './DeviceReadout.jsx';
 import { EvolutionPanel } from './EvolutionPanel.jsx';
-import { MEALS, MODES, ORIGINS, STATES, formatDateTime } from './measurementFormat.js';
+import { MEALS, MODES, STATES, formatDateTime } from './measurementFormat.js';
 import { Semaforo } from './Semaforo.jsx';
 
-const PAGE_SIZE = 10;
-const EMPTY_FILTERS = { desde: '', hasta: '', modo: '', estado: '', origen: '', orden: 'desc' };
+const PAGE_SIZE = 25;
+const EMPTY_FILTERS = { desde: '', hasta: '', modo: '', condicion: '', orden: 'desc' };
 
 function value(number, unit) {
   return number === null || number === undefined ? '—' : `${Number(number).toLocaleString('es-AR')} ${unit}`;
+}
+
+/** Glucosa a mostrar en la tabla: la estimada, o la del dispositivo si el firmware informó su origen. */
+function glucoseOf(item) {
+  if (item.glucosaEstimada !== null && item.glucosaEstimada !== undefined) return { value: item.glucosaEstimada };
+  if (item.origenGlucosa && item.glucosaDispositivo !== null && item.glucosaDispositivo !== undefined) {
+    return { value: item.glucosaDispositivo };
+  }
+  return null;
 }
 
 const NO_EVOLUTION = { puntos: [], truncado: false, desde: null, hasta: null, estadisticas: { experimental: null, demo: null }, resumen: null };
@@ -61,7 +71,8 @@ function filledFilters(filters) {
   return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''));
 }
 
-export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onExport }) {
+/** `filtroCondicion`: muestra el filtro por condición de comida (solo lo soporta el historial propio). */
+export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onExport, filtroCondicion = false }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [confirmingDemo, setConfirmingDemo] = useState(false);
   const [notice, setNotice] = useState('');
@@ -166,28 +177,25 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
             <p>Prototipo experimental: los resultados no son un diagnóstico ni reemplazan una medición clínica certificada. Las pruebas DEMO se muestran identificadas.</p>
           </div>
         </div>
-        <form className="form-grid measurement-filters" aria-label="Filtros del historial" onSubmit={(event) => event.preventDefault()}>
+        <form className="history-filters" aria-label="Filtros del historial" onSubmit={(event) => event.preventDefault()}>
           <TextField label="Desde" type="date" value={filters.desde} onChange={update('desde')} />
           <TextField label="Hasta" type="date" value={filters.hasta} onChange={update('hasta')} />
           <SelectField label="Modo" value={filters.modo} onChange={update('modo')}>
             <option value="">Todos</option>
             {Object.entries(MODES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
           </SelectField>
-          <SelectField label="Estado" value={filters.estado} onChange={update('estado')}>
-            <option value="">Todos</option>
-            {Object.entries(STATES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </SelectField>
-          <SelectField label="Origen de los datos" value={filters.origen} onChange={update('origen')}>
-            <option value="">Todos</option>
-            <option value="REAL">Mediciones reales</option>
-            <option value="DEMO">Datos de prueba (DEMO)</option>
-          </SelectField>
+          {filtroCondicion && (
+            <SelectField label="Condición de comida" value={filters.condicion} onChange={update('condicion')}>
+              <option value="">Todas</option>
+              {Object.entries(MEALS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </SelectField>
+          )}
           <SelectField label="Orden" value={filters.orden} onChange={update('orden')}>
             <option value="desc">Más recientes primero</option>
             <option value="asc">Más antiguas primero</option>
           </SelectField>
           {filtered && (
-            <button type="button" className="btn btn-ghost" onClick={() => { setFilters(EMPTY_FILTERS); setPagina(1); }}>
+            <button type="button" className="btn btn-ghost history-filters-clear" onClick={() => { setFilters(EMPTY_FILTERS); setPagina(1); }}>
               <Filter size={16} aria-hidden="true" /> Limpiar filtros
             </button>
           )}
@@ -200,66 +208,91 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
           <EmptyState variant="framed" headingLevel={0} title={filtered ? 'No hay mediciones que coincidan con los filtros.' : emptyText} />
         ) : (
           <>
-            <ul className="member-list-items" aria-label="Mediciones">
-              {page.items.map((measurement) => (
-                <li key={measurement.idMedicion} className="member-row measurement-card">
-                  <span>
-                    {onExport && (
-                      <input type="checkbox" className="export-check" checked={selected.has(measurement.idMedicion)}
-                        onChange={() => toggleOne(measurement.idMedicion)} aria-label={`Seleccionar la medición del ${formatDateTime(measurement.fechaHoraInicio)}`} />
-                    )}{onExport && ' '}
-                    <b>{formatDateTime(measurement.fechaHoraInicio)}</b>
-                    <small> · {MODES[measurement.modoMedicion] ?? measurement.modoMedicion} · {MEALS[measurement.condicionComida] ?? measurement.condicionComida}{measurement.modoMedicion === 'GLUCOSA_EXPERIMENTAL' && ` · Última comida: ${measurement.fechaHoraUltimaComida ? formatDateTime(measurement.fechaHoraUltimaComida) : 'Sin informar'}`}</small>
-                    {measurement.origenGlucosa && !measurement.esDemo && (
-                      <> <OriginBadge origin={measurement.origenGlucosa}>{measurement.origenGlucosa}</OriginBadge></>
-                    )}
-                    <br />
-                    {measurement.estadoMedicion === 'COMPLETADA' ? (
-                      <small>
-                        SpO₂ {value(measurement.spo2, '%')} · Frecuencia cardíaca {value(measurement.frecuenciaCardiaca, 'lpm')}
-                        {measurement.glucosaEstimada !== null && ` · Glucosa estimada ${value(measurement.glucosaEstimada, 'mg/dL')}`}
-                      </small>
-                    ) : (
-                      <small>Sin resultado válido.</small>
-                    )}
-                    {measurement.origenGlucosa && measurement.estadoMedicion === 'COMPLETADA' && (
-                      <small> · Glucosa del dispositivo {value(measurement.glucosaDispositivo, 'mg/dL')} ({ORIGINS[measurement.origenGlucosa] ?? measurement.origenGlucosa})</small>
-                    )}
-                    {measurement.dispositivo && <small> · Dispositivo {measurement.dispositivo}</small>}
-                    {measurement.visibleHasta && (
-                      <small className="field-hint"> · Temporal: se oculta del historial a las {measurement.visibleHasta.slice(11, 16)}</small>
-                    )}
-                  </span>
-                  <span className="measurement-card-actions">
-                    <Semaforo color={measurement.semaforo} />
-                    {measurement.esDemo && <DemoBadge />}{' '}
-                    <Badge tone={measurement.estadoMedicion === 'COMPLETADA' ? 'success' : 'neutral'}>
-                      {STATES[measurement.estadoMedicion] ?? measurement.estadoMedicion}
-                    </Badge>
-                    <Link to={detailPath(measurement.idMedicion)} className="btn btn-outline">Ver detalle</Link>
-                  </span>
-                </li>
-              ))}
-            </ul>
             {onExport && (
-              <div className="export-toolbar export-toolbar--end">
-                <label className="field-hint">
+              <div className="export-toolbar history-export">
+                <label className="history-select-page">
                   <input type="checkbox" className="export-check" checked={allOnPageSelected}
-                    onChange={() => setSelected(allOnPageSelected ? new Set() : new Set(pageIds))} />{' '}
+                    onChange={() => setSelected(allOnPageSelected ? new Set() : new Set(pageIds))} />
                   Seleccionar esta página
                 </label>
-                <SelectField label="Formato" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)} options={EXPORT_FORMATS} />
-                <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting}
-                  onClick={() => handleExport({ alcance: 'SELECCION', idsMedicion: [...selected] })}>
-                  <Download size={18} aria-hidden="true" /> Exportar seleccionadas{selected.size > 0 ? ` (${selected.size})` : ''}
-                </button>
-                <button type="button" className="btn btn-outline" disabled={exporting}
-                  onClick={() => handleExport({ alcance: 'TODOS', ...filledFilters(filters) })}>
-                  <Download size={18} aria-hidden="true" /> Exportar todas{filtered ? ' las filtradas' : ''} ({page.total})
-                </button>
+                <div className="history-export-actions">
+                  <SelectField label="Formato" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)} options={EXPORT_FORMATS} />
+                  <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting}
+                    onClick={() => handleExport({ alcance: 'SELECCION', idsMedicion: [...selected] })}>
+                    <Download size={18} aria-hidden="true" /> Exportar seleccionadas{selected.size > 0 ? ` (${selected.size})` : ''}
+                  </button>
+                  <button type="button" className="btn btn-outline" disabled={exporting}
+                    onClick={() => handleExport({ alcance: 'TODOS', ...filledFilters(filters) })}>
+                    <Download size={18} aria-hidden="true" /> Exportar todas{filtered ? ' las filtradas' : ''} ({page.total})
+                  </button>
+                </div>
               </div>
             )}
-            {onDeleteDemo && (hasDemo || filters.origen === 'DEMO') && (
+            <div className="history-table-wrap">
+              <table className="dash-table history-table" aria-label="Mediciones">
+                <thead>
+                  <tr>
+                    {onExport && <th scope="col" className="export-check-cell"><span className="sr-only">Seleccionar</span></th>}
+                    <th scope="col">Fecha y hora</th>
+                    <th scope="col">Modo</th>
+                    <th scope="col">Condición de comida</th>
+                    <th scope="col">Valor glucosa</th>
+                    <th scope="col">Frecuencia cardíaca</th>
+                    <th scope="col">SpO₂</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col"><span className="sr-only">Acciones</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.items.map((measurement) => {
+                    const when = formatDateTime(measurement.fechaHoraInicio);
+                    const completed = measurement.estadoMedicion === 'COMPLETADA';
+                    const glucose = completed ? glucoseOf(measurement) : null;
+                    return (
+                      <tr key={measurement.idMedicion}>
+                        {onExport && (
+                          <td data-label="Exportar" className="export-check-cell">
+                            <input type="checkbox" className="export-check" checked={selected.has(measurement.idMedicion)}
+                              onChange={() => toggleOne(measurement.idMedicion)} aria-label={`Seleccionar la medición del ${when}`} />
+                          </td>
+                        )}
+                        <td data-label="Fecha y hora">
+                          {when}
+                          {measurement.visibleHasta && (
+                            <small className="history-sub field-hint">Temporal: se oculta a las {measurement.visibleHasta.slice(11, 16)}</small>
+                          )}
+                        </td>
+                        <td data-label="Modo">{MODES[measurement.modoMedicion] ?? measurement.modoMedicion}</td>
+                        <td data-label="Condición de comida">
+                          {MEALS[measurement.condicionComida] ?? measurement.condicionComida}
+                        </td>
+                        <td data-label="Valor glucosa">
+                          <span className="history-value">
+                            {glucose ? <span className="dash-chip">{value(glucose.value, 'mg/dL')}</span> : <span className="dash-muted">—</span>}
+                            {measurement.esDemo && <DemoBadge />}
+                            <Semaforo color={measurement.semaforo} />
+                          </span>
+                          {!completed && <small className="history-sub">Sin resultado válido.</small>}
+                        </td>
+                        <td data-label="Frecuencia cardíaca">{completed ? value(measurement.frecuenciaCardiaca, 'lpm') : '—'}</td>
+                        <td data-label="SpO₂">{completed ? value(measurement.spo2, '%') : '—'}</td>
+                        <td data-label="Estado">
+                          <Badge tone={completed ? 'success' : 'neutral'}>
+                            {STATES[measurement.estadoMedicion] ?? measurement.estadoMedicion}
+                          </Badge>
+                        </td>
+                        <td className="dash-actions-cell">
+                          <Link to={detailPath(measurement.idMedicion)} className="btn btn-outline" aria-label={`Ver detalle de la medición del ${when}`}>
+                            Ver detalle <ChevronRight size={16} aria-hidden="true" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {onDeleteDemo && hasDemo && (
               <div className="form-actions">
                 {confirmingDemo ? (
                   <>

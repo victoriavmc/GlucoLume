@@ -128,7 +128,7 @@ describe('Mediciones: dashboard', () => {
     expect(last.getByText('DEMO')).toBeInTheDocument(); // la identificación DEMO queda en el distintivo de la tarjeta
     expect(last.getByText('Glucosa DEMO (simulada)')).toBeInTheDocument(); // la línea de valores ya no se repite en la tarjeta
     expect(last.getByText(/no se cuentan como indicadores experimentales/)).toBeInTheDocument();
-    expect(last.getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-demo');
+    expect(last.getByRole('link', { name: /Ver detalle/ })).toHaveAttribute('href', '/app/mediciones/m-demo');
     expect(screen.getByText(/Todavía no hay mediciones experimentales/)).toBeInTheDocument();
     expect(screen.getByText(/Tenés mediciones de prueba disponibles/)).toBeInTheDocument();
     const recent = within(screen.getByRole('table', { name: 'Mediciones recientes' }));
@@ -169,7 +169,7 @@ describe('Mediciones: historial completo', () => {
     });
     const user = userEvent.setup();
     renderAt('/app/mediciones/historial');
-    await screen.findByRole('list', { name: 'Mediciones' });
+    await screen.findByRole('table', { name: 'Mediciones' });
     expect(screen.getByRole('button', { name: /Exportar seleccionadas/ })).toBeDisabled();
     await user.click(screen.getByRole('checkbox', { name: /Seleccionar la medición del/ }));
     await user.click(screen.getByRole('button', { name: /Exportar seleccionadas \(1\)/ }));
@@ -196,19 +196,22 @@ describe('Mediciones: historial completo', () => {
     renderAt('/app/mediciones/historial');
     await screen.findByText('Todavía no hiciste ninguna medición.');
     expect(screen.getByRole('link', { name: /Mis mediciones/ })).toHaveAttribute('href', '/app/mediciones'); // regreso claro
-    await user.selectOptions(screen.getByLabelText('Estado'), 'COMPLETADA');
+    expect(screen.queryByLabelText('Estado')).not.toBeInTheDocument(); // sólo Desde, Hasta, Modo y Orden
+    expect(screen.queryByLabelText('Origen de los datos')).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Modo'), 'GLUCOSA_EXPERIMENTAL');
+    await user.selectOptions(screen.getByLabelText('Condición de comida'), 'AYUNO');
     await user.selectOptions(screen.getByLabelText('Orden'), 'asc');
     await user.type(screen.getByLabelText('Desde'), '2026-10-01');
     await waitFor(() => {
       const last = new URL(calls.filter((call) => call.key === 'GET /measurements').at(-1).url);
       expect(Object.fromEntries(last.searchParams)).toMatchObject({
-        estado: 'COMPLETADA', modo: 'GLUCOSA_EXPERIMENTAL', orden: 'asc', desde: '2026-10-01', pagina: '1',
+        modo: 'GLUCOSA_EXPERIMENTAL', condicion: 'AYUNO', orden: 'asc', desde: '2026-10-01', pagina: '1',
       });
     }, { timeout: 5000 });
     expect(await screen.findByText('No hay mediciones que coincidan con los filtros.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Limpiar filtros/ }));
-    expect(screen.getByLabelText('Estado')).toHaveValue('');
+    expect(screen.getByLabelText('Modo')).toHaveValue('');
+    expect(screen.getByLabelText('Condición de comida')).toHaveValue('');
   });
 
   it('una respuesta lenta de un filtro anterior no pisa la del filtro actual (condición de carrera)', async () => {
@@ -224,25 +227,25 @@ describe('Mediciones: historial completo', () => {
       'GET /measurements/profile': jsonResponse(200, OWN_PROFILE),
       'GET /measurements': (options, url) => {
         history += 1;
-        const estado = new URL(url).searchParams.get('estado');
-        if (estado === 'COMPLETADA') return slow.then(() => jsonResponse(200, all)); // la consulta ANTERIOR llega tarde
-        return jsonResponse(200, estado === 'CANCELADA' ? cancelled : all);
+        const modo = new URL(url).searchParams.get('modo');
+        if (modo === 'OXIMETRIA') return slow.then(() => jsonResponse(200, all)); // la consulta ANTERIOR llega tarde
+        return jsonResponse(200, modo === 'GLUCOSA_EXPERIMENTAL' ? cancelled : all);
       },
       'GET /measurements/statistics': () => jsonResponse(200, NO_STATS),
     });
     const user = userEvent.setup();
     renderAt('/app/mediciones/historial');
-    await screen.findByRole('list', { name: 'Mediciones' });
-    await user.selectOptions(screen.getByLabelText('Estado'), 'COMPLETADA');   // consulta lenta
-    await user.selectOptions(screen.getByLabelText('Estado'), 'CANCELADA');    // consulta nueva, rápida
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-cancelada'));
+    await screen.findByRole('table', { name: 'Mediciones' });
+    await user.selectOptions(screen.getByLabelText('Modo'), 'OXIMETRIA');             // consulta lenta
+    await user.selectOptions(screen.getByLabelText('Modo'), 'GLUCOSA_EXPERIMENTAL');  // consulta nueva, rápida
+    await waitFor(() => expect(screen.getByRole('link', { name: /Ver detalle/ })).toHaveAttribute('href', '/app/mediciones/m-cancelada'));
     release();                                                                  // llega tarde la respuesta de COMPLETADA
     await new Promise((resolve) => { setTimeout(resolve, 100); });
-    expect(screen.getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-cancelada'); // no la pisa
+    expect(screen.getByRole('link', { name: /Ver detalle/ })).toHaveAttribute('href', '/app/mediciones/m-cancelada'); // no la pisa
     expect(history).toBeGreaterThanOrEqual(3);
   });
 
-  it('cada medición es una tarjeta con su estado, valores y un «Ver detalle» separado de la eliminación de pruebas', async () => {
+  it('cada medición es una fila de la tabla con su estado, valores y un «Ver detalle» separado de la eliminación de pruebas', async () => {
     const item = { idMedicion: 'm-5', fechaHoraInicio: '2026-10-08T09:00:00', fechaHoraFin: '2026-10-08T09:00:12', modoMedicion: 'OXIMETRIA',
       estadoMedicion: 'COMPLETADA', condicionComida: 'AYUNO', edadAlMomento: 36, glucosaEstimada: null, spo2: '98.00', frecuenciaCardiaca: 70,
       calidadSenal: null, observacion: null, dispositivo: 'ARD-001', origenGlucosa: 'EXPERIMENTAL', glucosaDispositivo: '101.00', indiceOptico: '2.1', esDemo: false };
@@ -253,11 +256,11 @@ describe('Mediciones: historial completo', () => {
       'GET /measurements/statistics': jsonResponse(200, NO_STATS),
     });
     renderAt('/app/mediciones/historial');
-    const rows = within(await screen.findByRole('list', { name: 'Mediciones' })).getAllByRole('listitem');
-    expect(within(rows[0]).getByText('EXPERIMENTAL')).toBeInTheDocument();
+    const rows = within(await screen.findByRole('table', { name: 'Mediciones' })).getAllByRole('row').slice(1); // sin el encabezado
+    expect(within(rows[0]).getByText('101 mg/dL')).toBeInTheDocument();
     expect(rows[0]).toHaveTextContent('Completada');
-    expect(within(rows[0]).getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-5');
-    expect(within(rows[1]).getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/app/mediciones/m-6');
+    expect(within(rows[0]).getByRole('link', { name: /Ver detalle/ })).toHaveAttribute('href', '/app/mediciones/m-5');
+    expect(within(rows[1]).getByRole('link', { name: /Ver detalle/ })).toHaveAttribute('href', '/app/mediciones/m-6');
     expect(within(rows[1]).getByText('DEMO')).toBeInTheDocument();
     // La eliminación de pruebas es otra acción, fuera de las tarjetas.
     expect(within(rows[1]).queryByRole('button')).not.toBeInTheDocument();
@@ -506,7 +509,7 @@ describe('Pacientes institucionales', () => {
     });
     renderAt(`/app/instituciones/${ID}/pacientes/p-1`);
     expect(await screen.findByRole('link', { name: /Nueva medición/ })).toHaveAttribute('href', `/app/instituciones/${ID}/pacientes/p-1/medir`);
-    const row = within(await screen.findByRole('list', { name: 'Mediciones' })).getByRole('listitem');
+    const row = within(await screen.findByRole('table', { name: 'Mediciones' })).getAllByRole('row')[1];
     expect(row).toHaveTextContent('Sin resultado válido.'); // una cancelada no se muestra como resultado
     expect(within(row).getByRole('link')).toHaveAttribute('href', `/app/instituciones/${ID}/pacientes/p-1/mediciones/m-7`);
   });
@@ -595,10 +598,10 @@ describe('Información sobre tus mediciones y conservación', () => {
       'GET /measurements/statistics': jsonResponse(200, NO_STATS),
     });
     renderAt('/app/mediciones/historial');
-    const row = within(await screen.findByRole('list', { name: 'Mediciones' })).getByRole('listitem');
+    const row = within(await screen.findByRole('table', { name: 'Mediciones' })).getAllByRole('row')[1];
     expect(row).toHaveTextContent('Cancelada');
-    expect(row).toHaveTextContent('Temporal: se oculta del historial a las 09:31');
-    expect(within(row).getByRole('link', { name: 'Ver detalle' })).toBeInTheDocument();
+    expect(row).toHaveTextContent('Temporal: se oculta a las 09:31');
+    expect(within(row).getByRole('link', { name: /Ver detalle/ })).toBeInTheDocument();
   });
 
   it('el detalle de una medición cancelada explica que es temporal', async () => {

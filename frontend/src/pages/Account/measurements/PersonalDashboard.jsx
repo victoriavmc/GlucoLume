@@ -140,7 +140,7 @@ function RecentTable({ items }) {
         <tr>
           <th scope="col">Fecha y hora</th>
           <th scope="col">Tipo</th>
-          <th scope="col">Valor</th>
+          <th scope="col">Valor glucosa</th>
           <th scope="col">Condición de comida</th>
           <th scope="col">Frecuencia cardíaca</th>
           <th scope="col">SpO₂</th>
@@ -159,7 +159,7 @@ function RecentTable({ items }) {
               <td data-label="Tipo">
                 {MODE_SHORT[item.modoMedicion] ?? item.modoMedicion}
               </td>
-              <td data-label="Valor">
+              <td data-label="Valor glucosa">
                 {glucose ? (
                   <>
                     <span className="dash-chip">
