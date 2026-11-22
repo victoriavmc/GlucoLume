@@ -208,6 +208,8 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
   const link = useBrowserLink();
   const linked = status?.estado === 'CONECTADO' || link.estado === STATES.CONNECTED;
   const occupied = Boolean(status?.ocupado);
+  // Al cambiar el enlace del navegador (conectó, confirmó el Arduino o se cortó), se pide el estado sin esperar al próximo sondeo.
+  useEffect(() => { refresh(); }, [link.estado, link.verificado, link.puerto, refresh]);
   useEffect(() => {
     if (!autoConnect || linked || occupied) return undefined;
     const tryConnect = () => { browserLink.autoConnect(); };

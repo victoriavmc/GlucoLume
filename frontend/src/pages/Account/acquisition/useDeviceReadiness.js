@@ -6,11 +6,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { enSegundoPlano } from '../../../api/client.js';
 import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
+import { useBrowserLink } from '../../../utils/browserSerialLink.js';
 
 const POLL_MS = 5000;
 
 export function useDeviceReadiness(idPerfilMedicion, status, idInstitucion) {
   const [readiness, setReadiness] = useState(null);
+  // El enlace del navegador cambia antes que el backend: al conectar o confirmar el Arduino, la disponibilidad se vuelve a pedir ya.
+  const link = useBrowserLink();
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
@@ -24,7 +27,8 @@ export function useDeviceReadiness(idPerfilMedicion, status, idInstitucion) {
 
   // Cambios relevantes del estado en vivo (no cada lectura: solo cuando aparece/desaparece algo).
   const signature = [status?.estado, status?.puente?.estadoEnlace, status?.puente?.puerto, status?.puente?.codigoError,
-    Boolean(status?.lectura) || status?.edadUltimaLectura != null, status?.ocupado, Boolean(status?.sesion)].join('|');
+    Boolean(status?.lectura) || status?.edadUltimaLectura != null, status?.ocupado, Boolean(status?.sesion),
+    link.estado, link.verificado, link.puerto].join('|');
 
   useEffect(() => {
     refresh();
