@@ -41,13 +41,13 @@ function Row({ label, children }) {
   );
 }
 
-/** Resultado grande del detalle, con su ícono. Un dato ausente se muestra «Sin dato», nunca como cero. */
 /** Calidad de señal de la medición (0 a 1, dos decimales). */
 function formatQuality(value) {
   return Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** `quality` muestra la calidad de señal dentro de la tarjeta solo si la medición la informa (sin dato, no se muestra). */
+/** Resultado grande del detalle, con su ícono. Un dato ausente se muestra «Sin dato», nunca como cero. `quality` muestra la calidad
+ *  de señal dentro de la tarjeta solo si la medición la informa (sin dato, no se muestra). */
 function ResultCard({ label, value, unit, format, empty = 'Sin dato', badge = null, note = null, quality, icon: Icon, tone = 'rose' }) {
   const missing = value === null || value === undefined;
   const text = missing ? null : format ? format(value) : typeof value === 'number' || /^[\d.]+$/.test(String(value)) ? formatNumber(value, unit) : String(value);
