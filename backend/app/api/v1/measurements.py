@@ -73,10 +73,11 @@ def ownHistory(
     auth: CurrentAuth, db: DbSession, desde: date | None = None, hasta: date | None = None, modo: Mode | None = None,
     estado: State | None = None, orden: Literal["asc", "desc"] = "desc",
     pagina: Annotated[int, Query(ge=1)] = 1, tamanioPagina: Annotated[int, Query(ge=1, le=50)] = 20,
-    origen: Origin | None = None,
+    origen: Origin | None = None, condicion: Literal["AYUNO", "POSTPRANDIAL", "NO_INFORMADA"] | None = None,
 ):
     return measurementService.listOwnHistory(db, auth.user, desde=desde, hasta=hasta, modo=modo, estado=estado,
-                                             orden=orden, pagina=pagina, tamanioPagina=tamanioPagina, origen=origen)
+                                             orden=orden, pagina=pagina, tamanioPagina=tamanioPagina, origen=origen,
+                                             condicion=condicion)
 
 
 @router.delete("/demo", summary="Eliminar mis datos de prueba (DEMO)",
@@ -115,7 +116,7 @@ def personalDashboard(auth: CurrentAuth, db: DbSession, dias: int = 30, desde: d
 def exportOwnMeasurements(body: OwnMeasurementExportRequest, auth: CurrentAuth, db: DbSession, formato: FormatoExportacion = "csv"):
     content, filename = measurementExport.exportOwnMeasurements(
         db, auth.user, alcance=body.alcance, ids=body.idsMedicion, desde=body.desde, hasta=body.hasta, modo=body.modo,
-        estado=body.estado, origen=body.origen, orden=body.orden, formato=formato,
+        estado=body.estado, origen=body.origen, orden=body.orden, formato=formato, condicion=body.condicion,
     )
     return Response(content=content, media_type=mediaTypeOf(formato),
                     headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})

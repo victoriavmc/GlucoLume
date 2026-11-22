@@ -416,6 +416,11 @@ def test_http_el_detalle_expone_la_matriz_solo_en_modo_glucosa(api, db, mails, c
     listing = client.get("/api/v1/measurements").json()["items"]
     assert sorted(item["modoMedicion"] for item in listing) == [GLUCOSE, "OXIMETRIA"]
     assert client.get(f"/api/v1/measurements?modo={GLUCOSE}").json()["total"] == 1
+    # El filtro por condición de comida reparte el historial: cada medición cae en una sola condición.
+    assert client.get("/api/v1/measurements?condicion=PESO").status_code == 422
+    total = client.get("/api/v1/measurements").json()["total"]
+    byMeal = sum(client.get(f"/api/v1/measurements?condicion={c}").json()["total"] for c in ("AYUNO", "POSTPRANDIAL", "NO_INFORMADA"))
+    assert byMeal == total
 
 
 # --- Regresión: la matriz REAL trae reglas sin rango de edad (NULL) y reglas para «sexo no informado» ---------------------------------

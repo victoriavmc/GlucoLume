@@ -682,14 +682,19 @@ def _semaphoreAndRange(db: Session, measurement: Measurement, preloaded=None) ->
     return reference.semaforo, rule.glucosaMinReferencia, rule.glucosaMaxReferencia
 
 
+CONDICIONES_HISTORIAL = ("AYUNO", "POSTPRANDIAL", "NO_INFORMADA")
+
+
 def historyQuery(idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None, estado: str | None,
-                 origen: str | None = None, hideExpired: bool = False):
+                 origen: str | None = None, hideExpired: bool = False, condicion: str | None = None):
     """Consulta de mediciones de un perfil con los filtros del historial (validados). La usan la lista paginada y la exportación:
     así lo que sale en un archivo es exactamente lo que filtra la pantalla."""
     if modo is not None and modo not in (OXIMETRIA, GLUCOSA):
         raise _error("DATOS_INVALIDOS", "El modo de medición no es válido.")
     if estado is not None and estado not in (PENDIENTE, ADQUIRIENDO, PROCESANDO, COMPLETADA, INVALIDA, CANCELADA):
         raise _error("DATOS_INVALIDOS", "El estado de la medición no es válido.")
+    if condicion is not None and condicion not in CONDICIONES_HISTORIAL:
+        raise _error("DATOS_INVALIDOS", "La condición de comida no es válida.")
     if origen is not None and origen not in (ORIGEN_DEMO, "REAL"):
         raise _error("DATOS_INVALIDOS", "El origen de los datos no es válido.")
     if desde and hasta and hasta < desde:
@@ -705,6 +710,8 @@ def historyQuery(idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date
         query = query.where(Measurement.modoMedicion == modo)
     if estado:
         query = query.where(Measurement.estadoMedicion == estado)
+    if condicion:
+        query = query.where(Measurement.condicionComida == condicion)
     if origen == ORIGEN_DEMO:  # datos de prueba
         query = query.where(Measurement.origenGlucosa == ORIGEN_DEMO)
     elif origen == "REAL":  # todo lo que no es DEMO
@@ -714,8 +721,9 @@ def historyQuery(idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date
 
 def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None,
              estado: str | None, orden: str, pagina: int, tamanioPagina: int, origen: str | None = None,
-             hideExpired: bool = False) -> MeasurementPage:
-    query = historyQuery(idPerfilMedicion, desde=desde, hasta=hasta, modo=modo, estado=estado, origen=origen, hideExpired=hideExpired)
+             hideExpired: bool = False, condicion: str | None = None) -> MeasurementPage:
+    query = historyQuery(idPerfilMedicion, desde=desde, hasta=hasta, modo=modo, estado=estado, origen=origen, hideExpired=hideExpired,
+                         condicion=condicion)
     tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
     pagina = max(1, pagina)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
@@ -743,12 +751,12 @@ def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, ha
 
 
 def listOwnHistory(db: Session, actor: User, *, desde=None, hasta=None, modo=None, estado=None, orden="desc",
-                   pagina=1, tamanioPagina=20, origen=None) -> MeasurementPage:
+                   pagina=1, tamanioPagina=20, origen=None, condicion=None) -> MeasurementPage:
     profile = getConsumerProfile(db, actor) if actor.tipoCuenta == TIPO_CONSUMIDOR_FINAL else None
     if profile is None:
         return MeasurementPage(items=[], total=0, pagina=1, tamanioPagina=tamanioPagina)
     return _history(db, profile.idPerfilMedicion, desde=desde, hasta=hasta, modo=modo, estado=estado, orden=orden,
-                    pagina=pagina, tamanioPagina=tamanioPagina, origen=origen, hideExpired=True)
+                    pagina=pagina, tamanioPagina=tamanioPagina, origen=origen, hideExpired=True, condicion=condicion)
 
 
 def requireClinicalAccess(db: Session, actor: User, idInstitucion: uuid.UUID, idPerfilMedicion: uuid.UUID, operation: str = "HISTORIAL"):

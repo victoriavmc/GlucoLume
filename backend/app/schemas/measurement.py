@@ -443,4 +443,5 @@ class OwnMeasurementExportRequest(BaseModel):
     modo: Literal["OXIMETRIA", "GLUCOSA_EXPERIMENTAL"] | None = None
     estado: Literal["PENDIENTE", "ADQUIRIENDO", "PROCESANDO", "COMPLETADA", "INVALIDA", "CANCELADA"] | None = None
     origen: Literal["DEMO", "REAL"] | None = None
+    condicion: Literal["AYUNO", "POSTPRANDIAL", "NO_INFORMADA"] | None = None
     orden: Literal["asc", "desc"] = "desc"

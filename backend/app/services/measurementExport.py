@@ -78,7 +78,7 @@ def _rows(db: Session, found: list[Measurement]) -> list[list[str]]:
 
 def exportOwnMeasurements(db: Session, actor: User, *, alcance: str, ids: list[uuid.UUID] | None = None, desde=None, hasta=None,
                           modo: str | None = None, estado: str | None = None, origen: str | None = None, orden: str = "desc",
-                          formato: str = "csv") -> tuple[bytes, str]:
+                          formato: str = "csv", condicion: str | None = None) -> tuple[bytes, str]:
     """Mis mediciones (`SELECCION` o `TODOS`) en CSV, Excel o PDF. Devuelve (contenido, nombre del archivo)."""
     with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="CUENTA", formato=formato.upper()) as export:
         if actor.tipoCuenta != TIPO_CONSUMIDOR_FINAL:
@@ -95,7 +95,7 @@ def exportOwnMeasurements(db: Session, actor: User, *, alcance: str, ids: list[u
                                                   hideExpired=True).where(Measurement.idMedicion.in_(wanted))
             else:
                 query = measurements.historyQuery(profile.idPerfilMedicion, desde=desde, hasta=hasta, modo=modo, estado=estado,
-                                                  origen=origen, hideExpired=True)
+                                                  origen=origen, hideExpired=True, condicion=condicion)
             query = query.order_by(Measurement.fechaHoraInicio.asc() if orden == "asc" else Measurement.fechaHoraInicio.desc(),
                                    Measurement.idMedicion)
             found = list(db.scalars(query).all())
