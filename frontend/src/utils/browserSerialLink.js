@@ -23,6 +23,13 @@ const MAX_QUEUE = 1000; // sin servidor se conservan las últimas líneas; las m
 const MAX_LINE = 512;
 const MAX_PARTIAL = 2048; // texto sin salto de línea: es ruido, no una línea del firmware
 const MAX_AGE_MS = 86_400_000;
+// Abrir el puerto NO prueba que haya un Arduino: el Bluetooth puede abrir aunque el equipo esté apagado. Solo cuenta una línea del firmware.
+const IDENTIFY_TIMEOUT_MS = 8000;
+const DEVICE_PREFIXES = ['GLUCOLUME,', 'ST,', 'S,', 'ERR,', 'PONG']; // única evidencia de que el firmware de GlucoLume está hablando
+
+function isDeviceLine(text) {
+  return DEVICE_PREFIXES.some((prefix) => text.startsWith(prefix));
+}
 
 export const webSerialSupported = () => typeof navigator !== 'undefined' && 'serial' in navigator
   && (typeof window === 'undefined' || window.isSecureContext !== false);
@@ -106,7 +113,7 @@ export function createBrowserLink(deps = {}) {
   const clearTimer = deps.clearTimer ?? ((handle) => clearInterval(handle));
 
   const listeners = new Set();
-  let snapshot = { estado: STATES.IDLE, medio: null, puerto: null, error: null, lineasEnviadas: 0, ultimoEnvio: null };
+  let snapshot = { estado: STATES.IDLE, medio: null, puerto: null, error: null, verificado: false, lineasEnviadas: 0, ultimoEnvio: null };
   let run = null; // conexión en curso: { id, port, medium, label, seq, queue, timer, reader, loop, exiting, closing, lastSent, inFlight, onDisconnect }
 
   const emit = (changes) => {
@@ -123,6 +130,18 @@ export function createBrowserLink(deps = {}) {
     current.queue.push({ seq: current.seq, text: text.slice(0, MAX_LINE), at: now() });
     current.seq += 1;
     if (current.queue.length > MAX_QUEUE) current.queue.splice(0, current.queue.length - MAX_QUEUE);
+  }
+
+  /** El firmware sí habló: recién ahora el enlace es «Arduino reconocido». */
+  function markVerified(current) {
+    current.verified = true;
+    if (run === current) emit({ estado: STATES.CONNECTED, verificado: true, error: null });
+  }
+
+  /** Puerto abierto sin ninguna línea del firmware: no se da por reconocido y se cierra con una explicación. */
+  function checkIdentity(current) {
+    if (current.verified || current.closing || now() - current.openedAt < IDENTIFY_TIMEOUT_MS) return;
+    shutdown(current, { estado: STATES.ERROR, error: 'El puerto se abrió, pero el Arduino no envió datos. Encendelo o pulsá su botón de reinicio (RESET) y verificá que tenga el firmware de GlucoLume y la velocidad correcta (9600 Bluetooth, 115200 USB).' }, true);
   }
 
   async function flush(current) {
@@ -165,7 +184,10 @@ export function createBrowserLink(deps = {}) {
           while (index >= 0) {
             const text = partial.slice(0, index).replace(/\r$/, '');
             partial = partial.slice(index + 1);
-            if (text.trim()) enqueue(current, text);
+            if (text.trim()) {
+              if (!current.verified && isDeviceLine(text)) markVerified(current);
+              enqueue(current, text);
+            }
             index = partial.indexOf('\n');
           }
           if (partial.length > MAX_PARTIAL) partial = '';
@@ -191,7 +213,7 @@ export function createBrowserLink(deps = {}) {
     clearTimer(current.timer);
     getSerial()?.removeEventListener?.('disconnect', current.onDisconnect);
     if (run === current) run = null;
-    emit({ ...next, puerto: null });
+    emit({ ...next, puerto: null, verificado: false });
     try { await current.reader?.cancel(); } catch { /* ya estaba cerrado */ }
     // port.close() falla con el lector bloqueado: se espera a que el ciclo de lectura lo suelte (salvo que sea él quien está cerrando).
     if (!current.exiting) { try { await current.loop; } catch { /* sin lector que esperar */ } }
@@ -243,8 +265,10 @@ export function createBrowserLink(deps = {}) {
     };
     run = current;
     getSerial()?.addEventListener?.('disconnect', current.onDisconnect);
-    emit({ estado: STATES.CONNECTED, medio: medium, puerto: current.label, error: null });
-    current.timer = setTimer(() => { flush(current); }, TICK_MS);
+    current.verified = false;
+    current.openedAt = now();
+    emit({ estado: STATES.CONNECTING, medio: medium, puerto: current.label, error: null, verificado: false });
+    current.timer = setTimer(() => { checkIdentity(current); flush(current); }, TICK_MS);
     current.loop = readLoop(current);
     flush(current);
     return true;

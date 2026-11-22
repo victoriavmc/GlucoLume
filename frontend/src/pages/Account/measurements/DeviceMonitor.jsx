@@ -42,8 +42,11 @@ function ConnectArduino() {
           <PlugZap size={16} aria-hidden="true" /> Conectar con el dispositivo
         </button>
       </div>
-      {link.estado === STATES.CONNECTED && link.medio && (
-        <p className="field-hint" role="status">Arduino reconocido por {MEDIUM_LABEL[link.medio]}. Esperando la confirmación del dispositivo…</p>
+      {link.estado === STATES.CONNECTED && link.verificado && link.medio && (
+        <p className="field-hint" role="status">Arduino reconocido por {MEDIUM_LABEL[link.medio]}.</p>
+      )}
+      {link.estado === STATES.CONNECTING && link.medio && (
+        <p className="field-hint" role="status">Puerto {MEDIUM_LABEL[link.medio]} abierto. Esperando datos del Arduino…</p>
       )}
       {!link.supported && <p className="field-hint">Para conectar el Arduino sin instalar nada usá Chrome o Edge en una computadora.</p>}
       {link.error && <Alert>{link.error}</Alert>}

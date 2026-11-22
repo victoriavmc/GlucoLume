@@ -61,7 +61,9 @@ describe('abrir el puerto', () => {
       const { link, port } = setup();
       await link.connect(medium);
       expect(port.opened).toEqual({ baudRate: baud });
-      expect(link.getSnapshot().estado).toBe(STATES.CONNECTED);
+      expect(link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTING, verificado: false }); // abrir no prueba que haya un Arduino
+      port.push('GLUCOLUME,ID=ARD-001,SENSOR=MAX30100,FW=1.0,SR=20\r\n');
+      await vi.waitFor(() => expect(link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, verificado: true }));
       expect('write' in port || 'writable' in port).toBe(false); // nunca se le escribe al Arduino
       await link.disconnect();
     }
@@ -73,7 +75,9 @@ describe('abrir el puerto', () => {
     await usbSetup.link.connect();
     expect(usbSetup.serial.requestPort.mock.calls[0][0].filters).toEqual(expect.arrayContaining([{ usbVendorId: 0x2341 }, { bluetoothServiceClassId: '00001101-0000-1000-8000-00805f9b34fb' }]));
     expect(usb.opened).toEqual({ baudRate: 115200 });
-    expect(usbSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, medio: 'USB' });
+    expect(usbSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTING, medio: 'USB', verificado: false });
+    usb.push('GLUCOLUME,ID=ARD-001\r\n');
+    await vi.waitFor(() => expect(usbSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, medio: 'USB', verificado: true }));
     await usbSetup.link.disconnect();
 
     const bt = fakePort();
@@ -81,7 +85,9 @@ describe('abrir el puerto', () => {
     const btSetup = setup({ port: bt });
     await btSetup.link.connect();
     expect(bt.opened).toEqual({ baudRate: 9600 });
-    expect(btSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, medio: 'BLUETOOTH' });
+    expect(btSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTING, medio: 'BLUETOOTH', verificado: false });
+    bt.push('GLUCOLUME,ID=ARD-001\r\n');
+    await vi.waitFor(() => expect(btSetup.link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, medio: 'BLUETOOTH', verificado: true }));
     await btSetup.link.disconnect();
   });
 
@@ -197,12 +203,35 @@ describe('cerrar y perder la conexión', () => {
   it('un error de ruido recuperable no corta la lectura', async () => {
     const { link, port } = setup();
     await link.connect('USB');
+    port.push('GLUCOLUME,ID=ARD-001\r\n');
     await vi.waitFor(() => expect(link.getSnapshot().estado).toBe(STATES.CONNECTED));
     port.noise(Object.assign(new Error('framing'), { name: 'FramingError' }));
     await settle();
     port.push('BPM:72.00\n'); // después del ruido la lectura continúa
     await vi.waitFor(() => expect(link.getSnapshot().estado).toBe(STATES.CONNECTED));
     expect(port.closed).toBe(false);
+    await link.disconnect();
+  });
+});
+
+describe('reconocer el Arduino', () => {
+  it('abrir el puerto sin datos no es un Arduino reconocido, y tras el tiempo de espera se cierra con una explicación', async () => {
+    const { link, port, send, clock, tick } = setup();
+    await link.connect('BLUETOOTH');
+    expect(link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTING, medio: 'BLUETOOTH', verificado: false });
+    clock.now += 9000; // el equipo está apagado: el puerto abrió pero nunca llega una línea
+    tick();
+    await vi.waitFor(() => expect(link.getSnapshot().estado).toBe(STATES.ERROR));
+    expect(link.getSnapshot().error).toMatch(/no envió datos/);
+    await vi.waitFor(() => expect(port.closed).toBe(true));
+    await vi.waitFor(() => expect(send.mock.calls.some(([body]) => body.estadoEnlace === 'DESCONECTADO')).toBe(true));
+  });
+
+  it('una línea de telemetría del firmware también cuenta como reconocido', async () => {
+    const { link, port } = setup();
+    await link.connect('USB');
+    port.push('ST,LISTO\r\n');
+    await vi.waitFor(() => expect(link.getSnapshot()).toMatchObject({ estado: STATES.CONNECTED, verificado: true }));
     await link.disconnect();
   });
 });
