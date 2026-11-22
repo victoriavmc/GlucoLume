@@ -800,10 +800,13 @@ def _tareaBloqueoRecien(bind, identificador: str, origen: str, instante: datetim
         )
         session.commit()
         if userNotifications.correoActivo(session, user, userNotifications.ACTIVIDAD_SOSPECHOSA):
+            # «Fui yo» del correo: un solo uso y con vencimiento; desbloquea la cuenta (ver liberarSesionesActivas).
+            enlace = _emitirEnlaceLiberacion(session, user, instante)
             _notify(
                 EmailEventType.INTENTO_ACCESO_INUSUAL, user, fechaEvento=instante,
                 cantidadIntentos=loginThrottle.LIMITES[0][1], bloqueadoHasta=instante + timedelta(seconds=espera),
                 urlSeguridad=_securityUrl(user),
+                **({"urlLiberar": enlace, "minutosValidez": getSettings().SESION_LIBERACION_MINUTOS} if enlace else {}),
             )
         userNotifications.notifySecurity(
             session, user, userNotifications.ACTIVIDAD_SOSPECHOSA, "Intentos de acceso fallidos",
@@ -1277,9 +1280,11 @@ def liberarSesionesActivas(db: Session, token: str) -> None:
         db.rollback()
         raise AuthError(*_LIBERACION_INVALIDA)
     _revokeAllSessions(db, user.idUsuario, now)
+    # El titular confirmó por correo: se levanta también el bloqueo por intentos erróneos (3), en todas las IPs desde las que fallaron.
+    loginThrottle.limpiarCuenta([user.correoElectronico, user.usuario])
     registerEvent(
         db, "LOGIN", "LIBERAR_SESIONES_ACTIVAS", True, user.idUsuario, "Usuario", user.idUsuario,
-        observacion="Cierre de las sesiones abiertas desde el enlace del aviso de inicio bloqueado",
+        observacion="Cierre de las sesiones abiertas y levantado el bloqueo por intentos, desde el enlace del aviso de inicio bloqueado",
     )
     db.commit()
 

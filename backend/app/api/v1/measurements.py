@@ -8,7 +8,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import CurrentAuth, DbSession
 from app.schemas.dashboard import PersonalDashboard
@@ -23,11 +23,14 @@ from app.schemas.measurement import (
     MeasurementFinish,
     MeasurementPage,
     MeasurementStart,
+    OwnMeasurementExportRequest,
     OwnProfileRead,
     SamplesRequest,
 )
 from app.services import dashboard as dashboardService
 from app.services import measurement as measurementService
+from app.services import measurementExport
+from app.services.tableExport import FormatoExportacion, mediaTypeOf
 
 router = APIRouter(prefix="/measurements", tags=["measurements"])
 
@@ -103,6 +106,19 @@ def ownEvolution(auth: CurrentAuth, db: DbSession, dias: int = 30, desde: date |
             "Período: dias (7, 30 o 90) o desde/hasta.")
 def personalDashboard(auth: CurrentAuth, db: DbSession, dias: int = 30, desde: date | None = None, hasta: date | None = None):
     return dashboardService.personalDashboard(db, auth.user, dias, desde, hasta)
+
+
+@router.post("/export", response_class=Response, summary="Exportar mi historial de mediciones (CSV, Excel o PDF)",
+             description="Solo cuenta individual, sobre SU perfil. `alcance` = SELECCION (las mediciones de `idsMedicion`) o TODOS (las que "
+             "coinciden con los filtros del historial). `formato` = csv (por defecto), xlsx o pdf. Cada exportación queda en la auditoría "
+             "(EXPORTACION_SOLICITADA y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA), sin los valores exportados.")
+def exportOwnMeasurements(body: OwnMeasurementExportRequest, auth: CurrentAuth, db: DbSession, formato: FormatoExportacion = "csv"):
+    content, filename = measurementExport.exportOwnMeasurements(
+        db, auth.user, alcance=body.alcance, ids=body.idsMedicion, desde=body.desde, hasta=body.hasta, modo=body.modo,
+        estado=body.estado, origen=body.origen, orden=body.orden, formato=formato,
+    )
+    return Response(content=content, media_type=mediaTypeOf(formato),
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 @router.get("/{idMedicion}", response_model=MeasurementDetail, summary="Detalle y estado de una medición",

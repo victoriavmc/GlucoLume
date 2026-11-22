@@ -510,14 +510,14 @@ def test_demo_no_entra_en_indicadores_ni_en_el_perfil(db, mails, consumer, bridg
     assert invalid.value.code == "DATOS_INVALIDOS"
 
 
-def test_no_se_envia_por_correo_un_resultado_demo(db, mails, consumer, bridge):
+def test_un_resultado_demo_tambien_puede_enviarse_por_correo(db, mails, consumer, bridge):
     user, *_ = measuring(db, consumer, bridge)
     bridge.seconds(9)
     saved = telemetryService.saveSession(db, user)
-    assert saved.envioResultado is None and saved.puedeEliminar
-    with pytest.raises(AuthError) as raised:
-        measurements.sendResultByEmail(db, user, saved.idMedicion, ResultSendRequest())
-    assert raised.value.code == "RESULTADO_DEMO_NO_ENVIABLE"
+    assert saved.envioResultado == "CUENTA_PROPIA" and saved.puedeEliminar
+    mails.clear()
+    assert measurements.sendResultByEmail(db, user, saved.idMedicion, ResultSendRequest()).estadoEnvio == "PENDIENTE"
+    assert "PRUEBA (DEMO)" in mails[0]["html"]
 
 
 def test_sin_calibrar_y_experimental_se_guardan_con_su_origen(db, mails, consumer, bridge):

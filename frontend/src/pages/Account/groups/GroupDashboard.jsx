@@ -3,7 +3,7 @@
 // ocultarse después. Roles del grupo: ADMINISTRADOR y MIEMBRO.
 
 import {
-  ArrowLeft, ArrowRight, BarChart3, Bell, Clock, Crown, Droplet, FileText, Info, Lock, UserRound, Users,
+  ArrowLeft, BarChart3, Bell, Clock, Crown, Droplet, FileText, Info, Lock, UserRound, Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
@@ -12,9 +12,8 @@ import * as dashboardApi from '../../../api/dashboardApi.js';
 import * as groupsApi from '../../../api/groupsApi.js';
 import { Badge, OriginBadge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
-import { MetricBlocks, PeriodFilter, periodLabel } from '../../../components/dashboard.jsx';
 import { GroupEvolution } from './GroupEvolution.jsx';
-import { MODES, ROLE_LABELS, SHARING_OPTIONS, formatNumber, formatWeekdayDateTime, glucoseText, personName, sharesAnything } from './groupFormat.js';
+import { MODES, SHARING_OPTIONS, formatNumber, formatWeekdayDateTime, glucoseText, personName, sharesAnything } from './groupFormat.js';
 import { MemberHero } from './MemberHero.jsx';
 import { EvolutionNotShared, MemberSections } from './SharedData.jsx';
 
@@ -76,37 +75,6 @@ function SummaryKpis({ data }) {
   );
 }
 
-function MemberCards({ members }) {
-  return (
-    <ul className="gd-members" aria-label="Integrantes del grupo">
-      {members.map((member) => {
-        const shares = sharesAnything(member);
-        return (
-          <li key={member.idGrupoUsuario} className="gd-member">
-            <div className="gd-member-head">
-              <Avatar person={member} tone={member.rol === 'ADMINISTRADOR' ? 'rose' : 'violet'} />
-              <b>{personName(member)}{member.esVos && ' (vos)'}</b>
-              <Badge tone={member.rol === 'ADMINISTRADOR' ? 'brand' : 'info'} icon={member.rol === 'ADMINISTRADOR' ? Crown : undefined}>
-                {ROLE_LABELS[member.rol]}
-              </Badge>
-            </div>
-            <SharingBadges member={member} />
-            {member.esVos ? (
-              <Link to="privacidad" relative="path" className="gd-member-action">
-                Cambiar mi privacidad <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            ) : (
-              <Link to={`integrantes/${member.idGrupoUsuario}`} className="gd-member-action">
-                {shares && member.tienePerfil ? 'Ver sus datos compartidos' : 'Ver integrante'} <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 // Lista cronológica de lo que cada persona autorizó mostrar, siempre con día, fecha y hora. Con «Última medición» o «Historial» trae los
 // valores autorizados (las pruebas DEMO rotuladas, sin confundirse con las experimentales). Con solo «Aviso de medición» llega únicamente
 // el hecho («Realizó una medición»): el backend no envía valores, y acá tampoco se muestra ninguno.
@@ -155,7 +123,7 @@ function ActivityTimeline({ items }) {
 /** Panel del grupo: una sola consulta al dashboard (resumen, integrantes, actividad y estadísticas del período). */
 export function GroupDashboardSection() {
   const { group, handleOperationError } = useOutletContext();
-  const [period, setPeriod] = useState({ dias: 30 });
+  const period = { dias: 30 };
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -194,33 +162,7 @@ export function GroupDashboardSection() {
         )}
       </section>
 
-      <section className="gd-panel" aria-labelledby="grupo-estadisticas">
-        <SectionHead icon={BarChart3} id="grupo-estadisticas" title="Estadísticas del grupo"
-          hint="Visualizá tendencias del grupo según el período seleccionado." />
-        <PeriodFilter value={period} onChange={setPeriod} idPrefix="dash-grupo" />
-        {data.agregado ? (
-          <>
-            <p className="field-hint">
-              Período: {periodLabel(data.periodo)}. Incluye a: {data.agregado.participantes.join(', ')}. Solo mediciones completadas
-              de quienes compartieron su historial.
-            </p>
-            <MetricBlocks statistics={data.agregado.estadisticas} />
-          </>
-        ) : (
-          <div className="gd-note" role="status">
-            <span className="gd-note-icon"><BarChart3 size={22} aria-hidden="true" /></span>
-            <p>{data.motivoSinAgregado}</p>
-          </div>
-        )}
-      </section>
-
       <GroupEvolution idGrupo={group.idGrupo} members={data.integrantes} />
-
-      <section className="gd-panel" aria-labelledby="grupo-integrantes-panel">
-        <SectionHead icon={Users} id="grupo-integrantes-panel" title="Integrantes"
-          hint="Cada integrante decide qué comparte en su configuración de privacidad." />
-        <MemberCards members={data.integrantes} />
-      </section>
 
       <p className="gd-footnote">
         <Lock size={15} aria-hidden="true" />

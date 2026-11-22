@@ -28,6 +28,30 @@ export const GRANULARITIES = { MEDICION: 'Cada medición', HORA: 'Promedio por h
 /** Nombre corto de cada agrupación para los botones y los textos («por día», «por mes»…). */
 export const GROUPING_LABELS = { MEDICION: 'Cada medición', HORA: 'Por hora', DIA: 'Por día', SEMANA: 'Por semana', MES: 'Por mes' };
 
+// Mismos rótulos y colores que el semáforo del historial («Está bien», «Revisar», «Muy alto»). Compartido por Inicio y «Mis mediciones».
+export const SEMAFORO = {
+  VERDE: { label: 'Está bien', color: '#16a34a' },
+  AMARILLO: { label: 'Revisar', color: '#f59e0b' },
+  ROJO: { label: 'Muy alto', color: '#dc2626' },
+};
+export const SIN_REGLA_COLOR = '#94a3b8';
+
+/**
+ * Semáforo de una serie de glucosa por medición (experimental y DEMO): color de cada punto, cuántos hay de cada color, cuántos sin regla y
+ * el intervalo de la medición más reciente (el que dibuja las zonas).
+ */
+export function glucoseSemaforo(series) {
+  const withRange = series.filter((point) => point.rangeMax !== null && point.rangeMax !== undefined);
+  const latestRange = withRange.at(-1);
+  return {
+    dotColor: (point) => SEMAFORO[point.semaforo]?.color ?? SIN_REGLA_COLOR,
+    counts: Object.fromEntries(Object.keys(SEMAFORO).map((key) => [key, series.filter((point) => point.semaforo === key).length])),
+    sinRegla: series.filter((point) => !point.semaforo).length,
+    range: latestRange ? { min: latestRange.rangeMin ?? null, max: latestRange.rangeMax } : null,
+    rangesVary: new Set(withRange.map((point) => `${point.rangeMin}:${point.rangeMax}`)).size > 1,
+  };
+}
+
 /** Períodos de Inicio (días): 1 = últimas 24 horas. Hay datos guardados por todo el período; el gráfico agrupa para que se lea. */
 export const HOME_PERIODS = [
   { days: 1, label: '1D', name: 'Último día' },
@@ -97,8 +121,8 @@ export function seriesFor(points, variable, filter) {
     .map((point) => ({
       key: point.idMedicion, ids: [point.idMedicion], t: parseStamp(point.fecha), value: Number(point[variable]), demo: point.esDemo,
       origin: point.origen, mode: point.modoMedicion, count: 1,
-      // Semáforo solo para glucosa experimental: una prueba DEMO es simulada y no se clasifica.
-      semaforo: point.esDemo ? null : point.semaforo ?? null,
+      // Semáforo de la glucosa según la matriz vigente, también para las pruebas DEMO (el servidor lo calcula igual que para una medición real).
+      semaforo: point.semaforo ?? null,
       // Intervalo de la regla que define el semáforo (mg/dL), para dibujar el rango. NULL = sin regla o sin límite inferior.
       rangeMin: point.referenciaMinima ?? null, rangeMax: point.referenciaMaxima ?? null,
     }))

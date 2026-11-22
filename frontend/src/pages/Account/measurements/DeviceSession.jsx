@@ -9,7 +9,7 @@
 // Si se pierde el dedo o la señal, el estado cambia de inmediato y el conteo de estabilidad lo reinicia el backend.
 
 import {
-  Activity, Ban, ChartColumn, CheckCircle2, Droplet, Hand, Heart, HeartPulse, Save, Settings, Signal, Smartphone, Sun, User, Wifi, Wind,
+  Activity, Ban, CheckCircle2, Droplet, Hand, Heart, HeartPulse, Save, Settings, Sun, User, Wind,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -19,11 +19,9 @@ import { LiveChart } from '../../../components/LiveChart.jsx';
 import { PpgChart, hasPpgSignal } from '../../../components/PpgChart.jsx';
 import { Badge, OriginBadge } from '../../../components/Badge.jsx';
 import { DemoBadge } from './DeviceReadout.jsx';
-import { ORIGINS } from './measurementFormat.js';
 import { SERIES_CAPACITY, useSessionSeries } from './useSessionSeries.js';
 
 const ORIGIN_CODES = { DEMO: 'DEMO', EXPERIMENTAL: 'EXPERIMENTAL', SIN_CALIBRAR: 'SIN_CALIBRAR' };
-const MEDIA = { BLUETOOTH: 'Bluetooth', USB: 'USB' };
 
 const STAGE_ICONS = { INICIANDO: Activity, ESPERANDO_DEDO: Hand, DETECTANDO: Activity, ANALIZANDO: Activity, ESTABLE: CheckCircle2 };
 
@@ -95,7 +93,6 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
   const ready = connected && Boolean(stability?.estable);
   // Solo cuentan las lecturas recibidas DESDE que empezó la sesión: una anterior (del dispositivo libre) nunca se atribuye a esta medición.
   const reading = status.lectura && Date.parse(status.lectura.instante) >= Date.parse(session.iniciada) ? status.lectura : null;
-  const bridge = status.puente;
   const points = useSessionSeries(status);
   const ppg = session.ppg ?? null;
   // Muestras ópticas reales recibidas en la sesión (los huecos de señal no cuentan); sin señal de pulso del firmware no hay conteo.
@@ -145,8 +142,6 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
     : STAGES[stage];
   const origin = reading?.origen ?? null;
   const demo = Boolean(reading?.esDemo);
-  const required = stability?.lecturasRequeridas ?? 8;
-  const valid = Math.min(stability?.lecturasValidas ?? 0, required);
   const bpm = currentOf(points, 'bpm');
   const glucose = currentOf(points, 'glucosa');
   const available = (value) => (value !== null ? 'Disponible' : stage === 'ESPERANDO_DEDO' ? 'Sin señal' : 'Sin dato válido todavía');
@@ -164,19 +159,8 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
         <dl className="monitor-meta" aria-label="Datos de la medición en curso">
           <div><span className="meta-icon"><User size={20} aria-hidden="true" /></span><dt>{patient ? 'Paciente' : 'Perfil'}</dt><dd>{profileLabel}</dd></div>
           <div><span className="meta-icon"><Settings size={20} aria-hidden="true" /></span><dt>Modo</dt><dd>{session.modo === 'GLUCOSA_EXPERIMENTAL' ? 'Glucosa experimental' : 'Oximetría'}</dd></div>
-          <div>
-            <span className="meta-icon"><Smartphone size={20} aria-hidden="true" /></span>
-            <dt>Dispositivo</dt>
-            <dd>{bridge ? `${bridge.codigoDispositivo} · ${MEDIA[bridge.medio] ?? bridge.medio}${bridge.puerto ? ` · ${bridge.puerto}` : ''}` : 'Sin conexión'}</dd>
-          </div>
         </dl>
       </header>
-      <ul className="monitor-flags" aria-label="Indicadores de la adquisición">
-        <li data-state={!hasReading ? 'off' : reading.dedo ? 'ok' : 'warn'}><Hand size={18} aria-hidden="true" /> Dedo: {hasReading ? (reading.dedo ? 'colocado' : 'no colocado') : 'sin dato'}</li>
-        <li data-state={connected ? 'ok' : 'bad'}><Wifi size={18} aria-hidden="true" /> Conexión: {connected ? 'conectado' : 'sin conexión'}</li>
-        <li data-state={!hasReading ? 'off' : reading.senalValida ? 'ok' : 'warn'}><Signal size={18} aria-hidden="true" /> Calidad de señal: {hasReading ? (reading.senalValida ? 'válida' : 'no válida') : 'sin dato'}</li>
-        <li data-state={demo ? 'demo' : origin ? 'ok' : 'off'}>Origen de los datos: {origin ? (ORIGINS[origin] ?? origin) : 'sin dato'}</li>
-      </ul>
 
       {error && <Alert>{error}</Alert>}
       {session.enlacePerdido && (
@@ -227,29 +211,7 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
         </p>
       </section>
 
-      {stability && (
-        <div className="monitor-progress">
-          <div className="monitor-progress-head">
-            <b id="estabilidad-progreso"><ChartColumn size={22} aria-hidden="true" className="metric-icon is-heart" /> Estabilidad de señal</b>
-            <span><b>{valid}</b> de {required} lecturas</span>
-          </div>
-          <div className="stability-segments" aria-hidden="true">
-            {Array.from({ length: required }, (_, index) => <span key={index} className={index < valid ? 'is-on' : undefined} />)}
-          </div>
-          <progress className="sr-only" value={valid} max={required} aria-labelledby="estabilidad-progreso" />
-          {ready
-            ? <Alert kind="success">Lectura estable. Podés guardar la medición.</Alert>
-            : stability.motivo === 'GLUCOSA_NO_DISPONIBLE'
-              ? <Alert kind="info">{stability.mensaje}</Alert>
-              : connected && stability.mensaje && <p className="field-hint">{stability.mensaje}</p>}
-        </div>
-      )}
-
-
-      <p className="field-hint">
-        Se guarda la mediana de las últimas {required} lecturas válidas (dedo colocado, señal válida y valores que varían poco). Mantené
-        el dedo quieto hasta completar las {required} lecturas; después podés retirarlo y guardar (vale durante 2 minutos).
-      </p>
+      {stability?.motivo === 'GLUCOSA_NO_DISPONIBLE' && <Alert kind="info">{stability.mensaje}</Alert>}
       <div className="form-actions">
         {confirming ? (
           <>

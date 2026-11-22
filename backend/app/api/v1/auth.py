@@ -711,7 +711,7 @@ def checkAccountActivation(data: AccountActivationTokenRequest, db: DbSession):
 def completeAccountActivation(data: AccountActivationCompleteRequest, request: Request, response: Response, db: DbSession):
     return sessionCookie.deliver(request, response, accountActivationService.completeActivation(
         db, data.token, data.usuario, data.password.get_secret_value(), _clientInfo(request),
-        aceptaPolitica=data.aceptaPoliticaPrivacidad,
+        aceptaPolitica=data.aceptaPoliticaPrivacidad, nombre=data.nombre, apellido=data.apellido,
     ))
 
 

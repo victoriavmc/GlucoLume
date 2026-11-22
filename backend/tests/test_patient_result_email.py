@@ -196,12 +196,18 @@ def test_glucosa_experimental_y_oximetria_se_envian_con_su_modo_y_sin_marca_demo
     assert "PRUEBA (DEMO)" not in second["html"]
 
 
-def test_una_cuenta_individual_sigue_sin_recibir_pruebas_demo(db, mails, consumer):
+def test_una_cuenta_individual_puede_enviarse_una_prueba_demo_identificada(db, mails, consumer):
     from tests.test_measurements import completeOximetry  # noqa: PLC0415
     user, profileId = consumer
     done = completeOximetry(db, user, profileId, device(db))
     _withDeviceGlucose(db, done.idMedicion, "DEMO", 114)
-    expectError("RESULTADO_DEMO_NO_ENVIABLE", measurements.sendResultByEmail, db, user, done.idMedicion, ResultSendRequest())
+    mails.clear()
+    answer = measurements.sendResultByEmail(db, user, done.idMedicion, ResultSendRequest())
+    assert answer.estadoEnvio == "PENDIENTE"
+    [sent] = mails
+    assert sent["to"] == user.correoElectronico
+    assert "PRUEBA (DEMO)" in sent["html"] and "simulados" in sent["html"]
+    assert "Glucosa experimental (estimación" not in sent["html"]
 
 
 def user_mail_absent(entry):

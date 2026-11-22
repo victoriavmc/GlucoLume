@@ -39,7 +39,7 @@ export function formatIndex(value) {
 export const ORIGINS = { DEMO: 'DEMO (prueba)', EXPERIMENTAL: 'Experimental', SIN_CALIBRAR: 'Sin calibrar' };
 
 export const DEMO_NOTICE = 'Datos de prueba (DEMO): la glucosa es un valor sintético que genera el firmware para verificar la '
-  + 'comunicación. No es una glucemia, no entra en estadísticas ni en indicadores y no se envía como resultado.';
+  + 'comunicación. No es una glucemia y no entra en estadísticas ni en indicadores.';
 
 /** Estado del dispositivo que informa el backend (GET /acquisition/telemetry/status). */
 export const DEVICE_STATES = {

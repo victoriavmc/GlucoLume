@@ -206,3 +206,23 @@ def test_un_aviso_nuevo_reemplaza_al_enlace_anterior(db, mails):
 
     authService.liberarSesionesActivas(db, segundo)
     assert sesionesVigentes(db) == 0
+
+
+def test_fui_yo_levanta_el_bloqueo_por_tres_contrasenas_erroneas_en_todas_las_ips(db, mails):
+    from app.services import loginThrottle
+
+    makeUser(db)
+    _bloquearInicio(db)  # hay sesión vigente y ya salió el enlace «fui yo»
+    # Tres fallos desde una IP y uno desde otra: el bloqueo se alcanza en la primera.
+    for _ in range(3):
+        loginThrottle.registrarFallo(EMAIL, "198.51.100.7")
+    loginThrottle.registrarFallo(EMAIL, "203.0.113.9")
+    assert loginThrottle.retryAfter(EMAIL, "198.51.100.7") is not None  # bloqueada desde esa IP
+    assert loginThrottle.retryAfter(EMAIL, "203.0.113.9") is None  # y aún no desde la otra
+
+    [token] = _enlacesDeLiberacion(mails)
+    authService.liberarSesionesActivas(db, token)
+
+    assert loginThrottle.retryAfter(EMAIL, "198.51.100.7") is None
+    assert loginThrottle.retryAfter(EMAIL, "203.0.113.9") is None
+    assert authService.loginLocal(db, EMAIL, PASSWORD).estado == "AUTENTICADO"

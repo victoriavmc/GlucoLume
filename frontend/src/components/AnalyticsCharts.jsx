@@ -12,6 +12,11 @@ const TONES = {
   unknown: '#b8bdc9',
   soft: '#f6b6bd',
   info: '#7c3aed',
+  // Semáforo de glucosa (mismos colores que el semáforo de GlucoLume).
+  semaforoRojo: '#dc2626',
+  semaforoAmarillo: '#f59e0b',
+  semaforoVerde: '#16a34a',
+  semaforoSinRegla: '#94a3b8',
 };
 
 export const toneOf = (name) => TONES[name] ?? TONES.unknown;
@@ -202,10 +207,12 @@ export function SeriesChart({ title, unit, series, granularity = 'dia', decimals
  * (p. ej. experimental / DEMO, o masculino / femenino / sin informar): nunca se funden en una sola barra de un solo color.
  */
 export function StackedColumnChart({ title, categories, legend, width = 520, height = 220 }) {
-  const pad = { top: 22, right: 8, bottom: 38, left: 30 };
+  const pad = { top: 22, right: 22, bottom: 38, left: 30 };
   const totalOf = (category) => category.parts.reduce((sum, part) => sum + part.value, 0);
   const max = Math.max(1, ...categories.map(totalOf));
   const slot = (width - pad.left - pad.right) / Math.max(1, categories.length);
+  // Con muchas categorías (meses, semanas) se muestra una etiqueta de cada varias y siempre la última, para que no se amontonen ni se corten.
+  const every = Math.max(1, Math.ceil(categories.length / 8));
   const barWidth = Math.min(46, slot * 0.62);
   const y = (value) => pad.top + (height - pad.top - pad.bottom) * (1 - value / max);
   return (
@@ -231,7 +238,9 @@ export function StackedColumnChart({ title, categories, legend, width = 520, hei
                 return rect;
               })}
               {totalOf(category) > 0 && <text x={x + barWidth / 2} y={y(totalOf(category)) - 6} textAnchor="middle" className="trend-label">{fmt(totalOf(category))}</text>}
-              <text x={x + barWidth / 2} y={height - 18} textAnchor="middle" className="trend-label">{category.label}</text>
+              {(index % every === 0 || index === categories.length - 1) && (
+                <text x={index === categories.length - 1 && categories.length > 1 ? x + barWidth : x + barWidth / 2} y={height - 18} textAnchor={index === categories.length - 1 && categories.length > 1 ? 'end' : 'middle'} className="trend-label">{category.label}</text>
+              )}
             </g>
           );
         })}

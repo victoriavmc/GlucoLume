@@ -3,8 +3,8 @@
 #   docker compose -f compose.yaml -f compose.dev.yaml up --build
 #
 # - Frontend con Vite y recarga en caliente en http://localhost:5173 (como sin Docker). Llama a la API en
-#   http://localhost:8000, por lo que FRONTEND_URL del .env debe ser http://localhost:5173 (CORS y enlaces de correo).
-# - Backend con recarga automática y el código montado desde ./backend/app; API y Swagger en http://localhost:8000.
+#   http://127.0.0.1:8000, por lo que FRONTEND_URL del .env debe ser http://localhost:5173 (CORS y enlaces de correo).
+# - Backend con recarga automática y el código montado desde ./backend/app; API y Swagger en http://127.0.0.1:8000.
 # - Puertos solo en 127.0.0.1. Con el perfil "db", SQL Server queda en 127.0.0.1:1433 para herramientas de administración.
 # - SQL Server de Windows: DOCKER_DB_HOST=host.docker.internal (y DOCKER_DB_PORT si no es 1433) en el .env.
 
@@ -29,9 +29,9 @@ services:
     build:
       target: dev
       args:
-        VITE_API_BASE_URL: http://localhost:8000
+        VITE_API_BASE_URL: http://127.0.0.1:8000
     environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      VITE_API_BASE_URL: http://127.0.0.1:8000
     ports: !override
       - "127.0.0.1:5173:5173"
     volumes:

@@ -22,7 +22,7 @@ describe('enlace «fui yo» del aviso de inicio bloqueado', () => {
 
     await user.click(await screen.findByRole('button', { name: /Sí, fui yo/ }));
 
-    expect(await screen.findByText(/Cerramos la sesión que estaba abierta/)).toBeInTheDocument();
+    expect(await screen.findByText(/Cerramos las sesiones abiertas y levantamos el bloqueo/)).toBeInTheDocument();
     expect(calls.find((call) => call.key === LIBERAR).body).toEqual({ token: 'TOKEN_PRUEBA' });
     expect(window.location.search).toBe('');
     expect(screen.getByRole('link', { name: /Iniciar sesión/ })).toHaveAttribute('href', '/login');

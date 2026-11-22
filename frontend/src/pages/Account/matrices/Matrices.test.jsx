@@ -790,7 +790,7 @@ describe('Medición: matriz aplicada', () => {
       }),
     });
     renderAt('/app/mediciones/m-1');
-    expect(await screen.findByText('Matriz San José, versión 2 · Institucional')).toBeInTheDocument();
+    expect(await screen.findByText(/Matriz aplicada: Matriz San José, versión 2 · Institucional/)).toBeInTheDocument();
   });
 });
 

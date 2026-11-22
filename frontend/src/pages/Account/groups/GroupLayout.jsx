@@ -90,7 +90,6 @@ export default function GroupLayout() {
           {group.descripcion && <p className="group-hero-desc">{group.descripcion}</p>}
           <ul className="group-hero-meta" aria-label="Datos principales del grupo">
             <li><small>Tu rol</small> <Badge tone="brand">{ROLE_LABELS[group.miRol]}</Badge></li>
-            <li><Users size={16} aria-hidden="true" /> <span><b>{group.cantidadIntegrantes}</b> integrante{group.cantidadIntegrantes === 1 ? '' : 's'}</span></li>
             {group.administrador && <li><User size={16} aria-hidden="true" /> <small>Administra</small> <b>{group.administrador}</b></li>}
           </ul>
         </div>

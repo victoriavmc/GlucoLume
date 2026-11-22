@@ -181,9 +181,9 @@ export function checkAccountActivation(token) {
 }
 
 /** POST /auth/account-activation/complete { token, usuario, password } -> LoginResponse */
-export function completeAccountActivation(token, usuario, password, aceptaPoliticaPrivacidad = false) {
+export function completeAccountActivation(token, { nombre, apellido, usuario, password }, aceptaPoliticaPrivacidad = false) {
   return request('/auth/account-activation/complete', {
-    method: 'POST', body: { token, usuario, password, aceptaPoliticaPrivacidad },
+    method: 'POST', body: { token, nombre, apellido, usuario, password, aceptaPoliticaPrivacidad },
   });
 }
 

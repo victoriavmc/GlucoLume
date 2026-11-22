@@ -226,3 +226,10 @@ class RateLimiter:
         """Vacía los contadores de ESTE proceso (pruebas); no toca Redis."""
         with self._lock:
             self._events.clear()
+
+    def clearPrefix(self, prefixes: tuple[str, ...]) -> None:
+        """Olvida las claves de este proceso que empiezan por alguno de los prefijos. No toca Redis: sus claves son HMAC y no se pueden
+        buscar por prefijo; con RATE_LIMIT_REDIS_URL el desbloqueo no alcanza a los contadores compartidos."""
+        with self._lock:
+            for key in [k for k in self._events if k.startswith(prefixes)]:
+                del self._events[key]

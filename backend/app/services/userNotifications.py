@@ -33,7 +33,7 @@ from app.core.exceptions import AuthError
 from app.emails.eventTypes import EmailEventType
 from app.models.device import Device
 from app.models.groupUser import GroupUser
-from app.models.measurement import ORIGEN_DEMO, Measurement
+from app.models.measurement import Measurement
 from app.models.notificationEvents import (  # noqa: F401 - los avisos se reexportan: los demás servicios los usan como userNotifications.X
     ACTIVIDAD_SOSPECHOSA,
     AGREGADO_GRUPO,
@@ -568,12 +568,12 @@ def notifyMeasurementCompleted(db: Session, owner: User, measurement: Measuremen
     """Avisa a la cuenta individual dueña de una medición real que acaba de completarse: cuándo, en qué modo y los valores.
 
     En la página aparece el cartel de la derecha con esos datos. Por correo sale solo si la cuenta eligió el canal, con el detalle y un
-    enlace a esa medición. No avisa las pruebas DEMO, las mediciones de una institución ni las de cuentas que no son individuales.
+    enlace a esa medición. Las pruebas DEMO también avisan. No avisa las mediciones de una institución ni las de cuentas que no son individuales.
     Nunca propaga errores: la medición ya está confirmada.
     """
     try:
         db.expire(measurement)  # el cierre de la medición la actualizó con una sentencia directa: se lee la fila vigente
-        if institutional or measurement.origenGlucosa == ORIGEN_DEMO or not esIndividual(owner):
+        if institutional or not esIndividual(owner):
             return False
         glucosa = measurement.glucosaEstimada if measurement.glucosaEstimada is not None else measurement.glucosaDispositivo
         experimental = measurement.modoMedicion == "GLUCOSA_EXPERIMENTAL"

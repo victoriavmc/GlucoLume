@@ -5,7 +5,7 @@
 // pantalla no genera ni simula datos del sensor: muestra lo que el backend recibió y calculó.
 
 import {
-  Ban, CalendarDays, ChartColumn, Database, Droplet, FileText, FlaskConical, HeartPulse, BookOpen, Info, Mail, Settings, Signal, Smartphone, Sparkles,
+  Ban, CalendarDays, ChartColumn, Download, Droplet, FlaskConical, HeartPulse, BookOpen, Info, Mail, Settings, Signal, Smartphone, Sparkles,
   Trash2, User, Utensils, Wind,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,14 +13,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { enSegundoPlano } from '../../../api/client.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
 import { ExperimentalNotice } from '../../../components/ExperimentalNotice.jsx';
-import { Alert, CheckField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
+import { Alert, CheckField, SelectField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
+import { sexoLabel } from '../accountFormat.js';
+import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
+import '../institutions/exportControls.css';
 import { LiveAcquisition } from '../acquisition/LiveAcquisition.jsx';
 import { Badge } from '../../../components/Badge.jsx';
 import { DemoBadge, DeviceReadout } from './DeviceReadout.jsx';
 import { GlucoseReferencePanel } from './GlucoseReferencePanel.jsx';
 import { DeviceSession } from './DeviceSession.jsx';
 import {
-  ACTIVE_STATES, DEMO_NOTICE, MEALS, MODES, ORIGINS, STATES, dateTimeForApi, formatDateTime, formatIndex, formatNumber,
+  ACTIVE_STATES, DEMO_NOTICE, MEALS, MODES, STATES, dateTimeForApi, formatDateTime, formatNumber,
 } from './measurementFormat.js';
 import { Semaforo } from './Semaforo.jsx';
 import { useDeviceStatus } from './useDeviceStatus.js';
@@ -112,6 +116,36 @@ function CapillaryReference({ measurement, onSaved, handleOperationError }) {
   );
 }
 
+/** Descarga esta medición (CSV, Excel o PDF). La API valida el permiso y audita la exportación; acá solo se descarga lo que devuelve. */
+function MeasurementExport({ idMedicion, handleOperationError }) {
+  const [format, setFormat] = useState('csv');
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function download() {
+    setExporting(true);
+    setError('');
+    try {
+      const { blob, filename } = await measurementsApi.exportOwnMeasurements({ alcance: 'SELECCION', idsMedicion: [idMedicion] }, format);
+      saveBlob(blob, filename);
+    } catch (exportFailure) {
+      setError(handleOperationError(exportFailure));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="export-toolbar">
+      <SelectField label="Formato" value={format} onChange={(event) => setFormat(event.target.value)} options={EXPORT_FORMATS} />
+      <button type="button" className="btn btn-outline" disabled={exporting} onClick={download} aria-label="Exportar esta medición">
+        {exporting && <span className="spinner" aria-hidden="true" />} <Download size={16} aria-hidden="true" /> Exportar medición
+      </button>
+      {error && <Alert>{error}</Alert>}
+    </div>
+  );
+}
+
 function SendResult({ measurement, handleOperationError, onSent }) {
   const forPatient = measurement.envioResultado === 'PACIENTE';
   const pending = measurement.envioResultadoEstado === 'PENDIENTE';
@@ -193,6 +227,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const [confirming, setConfirming] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [liveActive, setLiveActive] = useState(false);
   const inProgress = Boolean(measurement && measurement.puedeOperar
@@ -272,7 +307,8 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const canCancel = measurement.puedeOperar && !liveActive && (state === 'PENDIENTE' || state === 'ADQUIRIENDO');
 
   const showNotice = state === 'COMPLETADA' && (glucose || measurement.origenGlucosa);
-  const deviceName = [measurement.dispositivo.nombre, measurement.dispositivo.codigoDispositivo].filter(Boolean).join(' · ');
+  // Exportar es del historial propio (cuenta individual): una medición de paciente se exporta desde la institución.
+  const canExport = state === 'COMPLETADA' && profileLabel === 'Mi perfil';
 
   return (
     <section className="panel measurement-detail" aria-labelledby="medicion-estado">
@@ -285,28 +321,25 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
             {measurement.esDemo && <DemoBadge />}
           </p>
         </div>
-        {showNotice && <span className="md-experimental"><Droplet size={16} aria-hidden="true" /> Uso experimental</span>}
+        <div className="md-hero-side">
+          {showNotice && <span className="md-experimental"><Droplet size={16} aria-hidden="true" /> Uso experimental</span>}
+          {glucose && measurement.matriz && (
+            <p className="md-hero-matrix"><BookOpen size={16} aria-hidden="true" /> Matriz aplicada: {`${measurement.matriz.nombre}, versión ${measurement.matriz.version} · ${measurement.matriz.ambito === 'INSTITUCION' ? 'Institucional' : 'Global'}`}</p>
+          )}
+        </div>
       </header>
       {error && <Alert>{error}</Alert>}
 
       {measurement.esDemo && <Alert kind="info"><b>Medición de prueba (DEMO).</b> {DEMO_NOTICE}</Alert>}
 
+      <div className="md-body">
       <dl className="detail-overview" aria-label="Datos generales de la medición">
         <div><span className="fact-icon"><CalendarDays size={20} aria-hidden="true" /></span><dt>Fecha y hora</dt><dd>{formatDateTime(measurement.fechaHoraInicio)}</dd></div>
-        <div><span className="fact-icon"><Database size={20} aria-hidden="true" /></span><dt>Origen de los datos</dt><dd>{measurement.origenGlucosa ? (ORIGINS[measurement.origenGlucosa] ?? measurement.origenGlucosa) : 'Sin dato'}</dd></div>
         <div><span className="fact-icon"><Settings size={20} aria-hidden="true" /></span><dt>Modo</dt><dd>{MODES[measurement.modoMedicion]}</dd></div>
-        <div><span className="fact-icon"><User size={20} aria-hidden="true" /></span><dt>Perfil asociado</dt><dd>{profileLabel}</dd></div>
+        <div><span className="fact-icon"><User size={20} aria-hidden="true" /></span><dt>Perfil asociado</dt><dd>{[sexoLabel(measurement.sexoModelo), measurement.edadAlMomento != null ? `${measurement.edadAlMomento} años` : null].filter(Boolean).join(' · ') || 'Sin género ni edad'}</dd></div>
         <div><span className="fact-icon"><Utensils size={20} aria-hidden="true" /></span><dt>Alimentación</dt><dd>{measurement.condicionComida === 'NO_INFORMADA' ? 'Sin informar' : (MEALS[measurement.condicionComida] ?? measurement.condicionComida)}</dd></div>
         {glucose && measurement.fechaHoraUltimaComida && ( // opcional: «Alimentación» ya dice si fue después de comer
           <div><span className="fact-icon"><Utensils size={20} aria-hidden="true" /></span><dt>Última comida</dt><dd>{formatDateTime(measurement.fechaHoraUltimaComida)}</dd></div>
-        )}
-        <div><span className="fact-icon"><Smartphone size={20} aria-hidden="true" /></span><dt>Dispositivo utilizado</dt><dd>{deviceName || 'Sin dato'}</dd></div>
-        {glucose && measurement.matriz && (
-          <div>
-            <span className="fact-icon"><BookOpen size={20} aria-hidden="true" /></span>
-            <dt>Matriz aplicada</dt>
-            <dd>{`${measurement.matriz.nombre}, versión ${measurement.matriz.version} · ${measurement.matriz.ambito === 'INSTITUCION' ? 'Institucional' : 'Global'}`}</dd>
-          </div>
         )}
       </dl>
 
@@ -356,23 +389,11 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
             )}
             <ResultCard label="Frecuencia cardíaca" value={measurement.frecuenciaCardiaca} unit="lpm" icon={HeartPulse} tone="rose" />
             <ResultCard label="SpO₂" value={measurement.spo2} unit="%" icon={Wind} tone="blue" />
-            {measurement.origenGlucosa && (
-              <ResultCard label="Índice óptico (Beer-Lambert)" value={measurement.indiceOptico} format={formatIndex}
-                note="Indicador óptico asociado al procesamiento del sensor." icon={Sparkles} tone="rose" />
-            )}
             {measurement.calidadSenal !== null && <ResultCard label="Calidad de señal" value={measurement.calidadSenal} icon={Signal} tone="violet" />}
-            {measurement.lecturasEstabilizadas !== null && (
-              <ResultCard label="N.º de lecturas" value={measurement.lecturasEstabilizadas} note="(se guarda la mediana)" icon={FileText} tone="rose" />
-            )}
           </ul>
-          {measurement.origenGlucosa && (
-            <p className="field-hint">
-              Este resultado consolida las lecturas estables de la sesión (mediana): no se conservan las lecturas segundo a segundo, así
-              que no hay una evolución temporal para graficar.
-            </p>
-          )}
         </section>
       )}
+      </div>
       {showNotice && <ExperimentalNotice variant="inline" />}
       {measurement.referenciaGlucosa && <GlucoseReferencePanel reference={measurement.referenciaGlucosa} />}
 
@@ -389,36 +410,36 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
         </details>
       )}
 
-      {state === 'COMPLETADA' && measurement.envioResultado && (
-        <details className="md-details">
-          <summary>
-            <span className="md-details-title"><Mail size={22} aria-hidden="true" /> Enviar resultado por correo</span>
-          </summary>
+      {(measurement.puedeEliminar || (state === 'COMPLETADA' && (measurement.envioResultado || canExport))) && (
+        <div className="form-actions md-actions">
+          {canExport && <MeasurementExport idMedicion={idMedicion} handleOperationError={handleOperationError} />}
+          {state === 'COMPLETADA' && measurement.envioResultado && (
+            <button type="button" className="btn btn-outline" aria-expanded={sendOpen} onClick={() => setSendOpen((open) => !open)}>
+              <Mail size={16} aria-hidden="true" /> Enviar resultado por correo
+            </button>
+          )}
+            {measurement.puedeEliminar && (confirmingDelete ? (
+              <>
+                <span className="field-hint">¿Eliminar esta medición de prueba? No afecta a tus mediciones reales.</span>
+                <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirmingDelete(false)}>Volver</button>
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={removeDemo}>
+                  {busy && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn btn-outline" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 size={16} aria-hidden="true" /> Eliminar medición de prueba
+              </button>
+            ))}
+        </div>
+      )}
+      {state === 'COMPLETADA' && measurement.envioResultado && sendOpen && (
+        <div className="md-details">
           <div className="md-details-body">
             <SendResult measurement={measurement} handleOperationError={handleOperationError} onSent={load} />
           </div>
-        </details>
-      )}
-
-      {measurement.puedeEliminar && (
-        <div className="form-actions">
-          {confirmingDelete ? (
-            <>
-              <span className="field-hint">¿Eliminar esta medición de prueba? No afecta a tus mediciones reales.</span>
-              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirmingDelete(false)}>Volver</button>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={removeDemo}>
-                {busy && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-outline" onClick={() => setConfirmingDelete(true)}>
-              <Trash2 size={16} aria-hidden="true" /> Eliminar medición de prueba
-            </button>
-          )}
         </div>
       )}
-
-      {!showNotice && <p className="field-hint">{measurement.aviso}</p>}
 
       {canCancel && (
         <div className="form-actions">

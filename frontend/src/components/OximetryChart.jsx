@@ -27,8 +27,11 @@ function scaleOf(series) {
   return { min: low - margin, max: high + margin };
 }
 
+const MAX_ZOOM = 8;
+
 export function OximetryChart({ spo2Series, fcSeries, domain, granularity = 'MEDICION', selected = null, onSelect }) {
   const [hover, setHover] = useState(null); // { variable, key }
+  const [zoom, setZoom] = useState(1); // 1 = período completo; con zoom el eje de tiempo se acerca a las mediciones
   const [setBox, WIDTH] = useElementWidth();
   const all = [...spo2Series, ...fcSeries];
   if (all.length === 0) return null;
@@ -38,9 +41,18 @@ export function OximetryChart({ spo2Series, fcSeries, domain, granularity = 'MED
   const innerH = HEIGHT - PAD.top - PAD.bottom;
 
   const times = all.map((point) => point.t);
-  const t0 = domain?.[0] ?? Math.min(...times);
-  const rawT1 = domain?.[1] ?? Math.max(...times);
-  const t1 = rawT1 > t0 ? rawT1 : t0 + HOUR;
+  const fullT0 = domain?.[0] ?? Math.min(...times);
+  const rawFullT1 = domain?.[1] ?? Math.max(...times);
+  const fullT1 = rawFullT1 > fullT0 ? rawFullT1 : fullT0 + HOUR;
+  const fullSpan = fullT1 - fullT0;
+  const dataT0 = Math.min(...times);
+  const dataT1 = Math.max(...times);
+  // Con zoom, el eje de tiempo se ajusta a las mediciones (con un mínimo de 15 minutos para que no se encimen en un solo punto).
+  const zoomed = zoom > 1;
+  const tSpan = zoomed ? Math.min(fullSpan, Math.max(fullSpan / zoom, (dataT1 - dataT0) * 1.2, HOUR / 4)) : fullSpan;
+  const tCenter = zoomed ? (dataT0 + dataT1) / 2 : (fullT0 + fullT1) / 2;
+  const t0 = zoomed ? Math.min(Math.max(tCenter - tSpan / 2, fullT0), fullT1 - tSpan) : fullT0;
+  const t1 = t0 + tSpan;
   const scales = { [SPO2]: scaleOf(spo2Series), [FC]: scaleOf(fcSeries) };
   const x = (t) => PAD.left + Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) * innerW;
   // Cada variable se dibuja con su propia escala; los 4 niveles de la grilla son los mismos para ambos ejes.
@@ -89,6 +101,14 @@ export function OximetryChart({ spo2Series, fcSeries, domain, granularity = 'MED
 
   return (
     <figure className="evolution-chart" ref={setBox}>
+      <div className="evo-zoom" role="group" aria-label="Zoom de la oximetría">
+        <button type="button" className="evo-zoom-btn" onClick={() => setZoom((level) => Math.max(1, level / 2))} disabled={zoom <= 1}
+          aria-label="Alejar gráfico">−</button>
+        <span className="evo-zoom-level" aria-live="polite">{zoom === 1 ? 'Vista completa' : `Zoom ${zoom}×`}</span>
+        <button type="button" className="evo-zoom-btn" onClick={() => setZoom((level) => Math.min(MAX_ZOOM, level * 2))} disabled={zoom >= MAX_ZOOM}
+          aria-label="Acercar gráfico">+</button>
+        {zoomed && <button type="button" className="evo-zoom-reset" onClick={() => setZoom(1)}>Ver todo</button>}
+      </div>
       <svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group"
         aria-label={`Oximetría experimental: SpO₂ y frecuencia cardíaca: ${measuredCount} ${measuredCount === 1 ? 'punto' : 'puntos'}`}>
         <title>Oximetría experimental: SpO₂ y frecuencia cardíaca</title>

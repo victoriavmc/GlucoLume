@@ -1,7 +1,7 @@
 // Módulo Medición (backend/app/api/v1/measurements.py). Perfil propio o pacientes a cargo del operador: el backend
 // decide en cada llamada qué perfil y qué mediciones corresponden a la cuenta. El navegador no guarda resultados.
 
-import { request } from './client.js';
+import { fileFrom, request } from './client.js';
 
 /** Filtros del historial: solo se envían los que tienen valor. */
 export function queryString(params) {
@@ -48,6 +48,15 @@ export function sendResult(idMedicion, data = {}) {
 
 export function registerCapillaryReference(idMedicion, data) {
   return request(`/measurements/${idMedicion}/capillary-reference`, { method: 'POST', body: data, auth: true });
+}
+
+/**
+ * Exporta el historial propio -> { blob, filename }. `body`: { alcance: 'SELECCION', idsMedicion } o { alcance: 'TODOS', desde?, hasta?,
+ * modo?, estado?, origen?, orden? }. `formato`: 'csv' (por defecto), 'xlsx' o 'pdf'. El backend audita cada exportación.
+ */
+export async function exportOwnMeasurements(body, formato = 'csv') {
+  return fileFrom(await request(`/measurements/export?formato=${formato}`, { method: 'POST', body, auth: true, file: true }),
+    `mis-mediciones.${formato}`);
 }
 
 /** Historial propio: { desde, hasta, modo, estado, origen (DEMO | REAL), orden, pagina, tamanioPagina }. */

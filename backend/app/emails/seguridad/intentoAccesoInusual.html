@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% block titulo %}Revisá una actividad de seguridad{% endblock %}
+{% block titulo %}Bloqueamos tu cuenta por intentos fallidos{% endblock %}
 {% block contenido %}
 <p style="{{ m.P }}">{{ motivo if motivo is defined else "Detectamos intentos de acceso a tu cuenta que no pudieron completarse." }}</p>
 {{ m.datos([
@@ -11,8 +11,11 @@
 {% if bloqueadoHasta is defined %}
 {% call m.aviso(alerta=true) %}Por seguridad, el acceso se bloqueó temporalmente. Vas a poder intentarlo de nuevo después de la hora indicada.{% endcall %}
 {% endif %}
-{{ m.boton(urlSeguridad, "Revisar seguridad") }}
+{% if urlLiberar is defined and urlLiberar %}
+<p style="{{ m.P }}">Si fuiste vos, tocá el botón para desbloquear tu cuenta. Después podés ingresar con tu contraseña normal. El enlace vence en {{ minutosValidez }} minutos y solo sirve una vez.</p>
+{{ m.boton(urlLiberar, "Fui yo, desbloquear la cuenta") }}
+{% endif %}
 {% endblock %}
 {% block complemento %}
-<p style="{{ m.P_SUAVE }}">Si fuiste vos y no recordás tu contraseña, podés restablecerla desde la pantalla de inicio de sesión.</p>
+<p style="{{ m.P_SUAVE }}">Si no fuiste vos, ignorá este correo: no hace falta hacer nada y el acceso vuelve a estar disponible después de la hora indicada.</p>
 {% endblock %}

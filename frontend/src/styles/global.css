@@ -302,6 +302,54 @@ main[tabindex='-1']:focus {
   color: var(--success);
 }
 
+/* Nota amarilla: aclaraciones de un formulario que no son error ni confirmación. */
+.note-amarilla {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: #fff8db;
+  border: 1px solid #f0d675;
+  color: #6b5600;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.note-amarilla svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.note-amarilla p {
+  margin: 0;
+}
+
+/* Nota roja: aviso de una restricción del formulario (mismo formato que la nota amarilla). */
+.note-roja {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: #fdecec;
+  border: 1px solid #f0b4b4;
+  color: #9b1c1c;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.note-roja svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.note-roja p {
+  margin: 0;
+}
+
 /* --- Formularios ----------------------------------------------------------------------- */
 
 .field {

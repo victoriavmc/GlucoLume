@@ -223,14 +223,15 @@ def test_un_intento_limitado_por_M2_no_calcula_argon2(monkeypatch, db, mails):
     llamadas = []
     real = security.verifyPassword
     monkeypatch.setattr(security, "verifyPassword", lambda *a, **k: llamadas.append(a) or real(*a, **k))
-    for _ in range(5):
+    limite = loginThrottle.LIMITES[0][1]
+    for _ in range(limite):
         with pytest.raises(AuthError):
             authService.loginLocal(db, EMAIL, WRONG, ClientInfo(ip="198.51.100.77"))
-    assert len(llamadas) == 5
+    assert len(llamadas) == limite
     with pytest.raises(AuthError) as limited:
         authService.loginLocal(db, EMAIL, PASSWORD, ClientInfo(ip="198.51.100.77"))
     assert limited.value.code == "CUENTA_BLOQUEADA"
-    assert len(llamadas) == 5  # el intento limitado no verificó ni una contraseña más
+    assert len(llamadas) == limite  # el intento limitado no verificó ni una contraseña más
 
 
 def test_saturacion_no_cuenta_como_fallo_de_contrasena(monkeypatch, db, mails):

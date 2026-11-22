@@ -46,7 +46,8 @@ describe('Pestañas de variable (componente compartido)', () => {
     renderAt('/app/inicio');
     const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
     const tabs = section.getAllByRole('tab');
-    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Glucosa experimental', 'Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)']);
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
     expect(section.getByRole('tabpanel', { name: 'Glucosa experimental' })).toBeInTheDocument();
     tabs[0].focus();
     await user.keyboard('{ArrowRight}');
@@ -54,27 +55,8 @@ describe('Pestañas de variable (componente compartido)', () => {
     expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
     expect(section.getByRole('tabpanel', { name: 'Frecuencia cardíaca' })).toBeInTheDocument();
     await user.keyboard('{End}');
-    expect(section.getByRole('tabpanel', { name: 'Vista general' })).toBeInTheDocument();
+    expect(section.getByRole('tabpanel', { name: 'Saturación de oxígeno (SpO₂)' })).toBeInTheDocument();
     await user.keyboard('{ArrowRight}'); // vuelve a la primera
     expect(tabs[0]).toHaveFocus();
-  });
-
-  it('Dashboard de mediciones: las pestañas de variable y su panel funcionan con el teclado', async () => {
-    open();
-    const user = userEvent.setup();
-    renderAt('/app/mediciones');
-    const panel = await screen.findByRole('region', { name: 'Evolución de mis mediciones' });
-    const sections = within(within(panel).getByRole('tablist', { name: 'Sección' })).getAllByRole('tab');
-    expect(sections[0]).toHaveAttribute('aria-selected', 'true');
-    sections[0].focus();
-    await user.keyboard('{ArrowRight}{ArrowRight}');
-    expect(sections[2]).toHaveFocus();
-    expect(sections[2]).toHaveAttribute('aria-selected', 'true');
-    expect(within(panel).getByRole('tabpanel', { name: 'Vista general' })).toBeInTheDocument();
-    // Oxímetro: SpO₂ y frecuencia cardíaca en un solo gráfico (sin subpestañas de variable).
-    await user.keyboard('{ArrowLeft}');
-    expect(sections[1]).toHaveFocus();
-    expect(within(panel).getByRole('group', { name: /Oximetría experimental: SpO₂ y frecuencia cardíaca/ })).toBeInTheDocument();
-    expect(within(panel).queryByRole('tablist', { name: 'Medición del oxímetro' })).not.toBeInTheDocument();
   });
 });

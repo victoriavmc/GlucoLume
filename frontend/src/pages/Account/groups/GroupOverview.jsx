@@ -2,7 +2,7 @@
 // habilitó cada uno (Compartido / No compartido): nunca correos ni los datos en sí. Los datos se consultan desde
 // «Datos compartidos», solo los autorizados. El administrador puede desvincular integrantes (con confirmación).
 
-import { ArrowRight, ChevronRight, Eye, Settings, ShieldCheck, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Eye, Settings, UserMinus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 
@@ -13,42 +13,9 @@ import { Avatar, GroupDashboardSection, SharingBadges } from './GroupDashboard.j
 import { GroupInvitations } from './GroupInvitations.jsx';
 import { ROLE_LABELS, formatDate, personName, sharesAnything } from './groupFormat.js';
 
-function QuickAccess({ to, icon: Icon, title, subtitle, description, action }) {
-  return (
-    <Link to={to} className="gd-quick">
-      <span className="gd-quick-icon"><Icon size={24} aria-hidden="true" /></span>
-      <span className="gd-quick-body">
-        <small>{title}</small>
-        <b>{subtitle}</b>
-        <span>{description}</span>
-        <span className="gd-quick-action">{action} <ArrowRight size={16} aria-hidden="true" /></span>
-      </span>
-      <ChevronRight size={18} className="gd-quick-chevron" aria-hidden="true" />
-    </Link>
-  );
-}
-
 export function GroupOverview() {
-  const { group, isAdmin } = useOutletContext();
   // Nombre, administrador, rol e integrantes ya están en el encabezado del grupo: no se repiten.
-  return (
-    <>
-      <section className="gd-quick-grid" aria-label="Accesos del grupo">
-        <QuickAccess to="privacidad" icon={ShieldCheck} title="Mi privacidad" subtitle="Elegí qué compartir"
-          description="Decidí qué información de tus mediciones puede ver el grupo." action="Configurar" />
-        <QuickAccess to="compartidos" icon={Eye} title="Datos compartidos" subtitle="Lo que otros te habilitaron"
-          description="Revisá la información que comparten contigo." action="Ver" />
-        {isAdmin ? (
-          <QuickAccess to="integrantes" icon={UserPlus} title="Invitaciones" subtitle="Invitar personas"
-            description="Sumá familiares o personas de confianza al grupo." action="Invitar" />
-        ) : (
-          <QuickAccess to="integrantes" icon={Users} title="Integrantes" subtitle={`${group.cantidadIntegrantes} en el grupo`}
-            description="Mirá quiénes forman el grupo y qué comparte cada uno." action="Ver" />
-        )}
-      </section>
-      <GroupDashboardSection />
-    </>
-  );
+  return <GroupDashboardSection />;
 }
 
 export function GroupMembers() {

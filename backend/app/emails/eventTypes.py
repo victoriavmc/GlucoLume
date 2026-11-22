@@ -208,7 +208,7 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
     ),
     _E.INTENTO_ACCESO_INUSUAL: EmailEventSpec(
         "seguridad/intentoAccesoInusual.html", "Revisá una actividad de seguridad", CATEGORIA_SEGURIDAD,
-        ("fechaEvento", "urlSeguridad"), ("urlSeguridad",), securityNotice=True, highPriority=True,
+        ("fechaEvento", "urlSeguridad"), ("urlSeguridad", "urlLiberar"), securityNotice=True, highPriority=True,
     ),
     _E.INICIO_BLOQUEADO_SESION_ACTIVA: EmailEventSpec(
         "seguridad/inicioBloqueadoSesionActiva.html", "Bloqueamos un inicio de sesión en tu cuenta", CATEGORIA_SEGURIDAD,

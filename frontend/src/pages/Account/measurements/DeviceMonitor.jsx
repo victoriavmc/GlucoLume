@@ -148,13 +148,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                 <SelectField label="Dispositivo" value={device.idDispositivo} onChange={(event) => setSelected(event.target.value)}
                   hint="Hay más de un dispositivo en tu inventario: elegí cuál vas a usar."
                   options={devices.map((item) => ({ value: item.idDispositivo, label: [item.nombre, item.codigoDispositivo].filter(Boolean).join(' · ') }))} />
-              ) : (
-                <p className="field-hint" role="status">
-                  <b>Dispositivo: </b>
-                  {[device.nombre, device.codigoDispositivo].filter(Boolean).join(' · ')}
-                  {isConnectedOne && ' (identificado automáticamente por la conexión)'}
-                </p>
-              ))}
+              ) : null)}
               <SelectField label="Modo de medición" value={focus} onChange={(event) => onFocus(event.target.value)}
                 options={Object.entries(FOCUS_MODES).map(([key, label]) => ({ value: key, label }))} />
               <SelectField label="Alimentación" value={condicionComida} onChange={(event) => setCondicionComida(event.target.value)}
@@ -187,10 +181,6 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
             </details>
             {extraOptions}
             <div className="measure-footer">
-              <p className="field-hint">
-                La adquisición empieza recién cuando pulsás «Iniciar medición». Las lecturas anteriores no se atribuyen a esta medición:
-                solo cuentan las que lleguen desde que inicies.
-              </p>
               <div className="form-actions">
                 <SubmitButton loading={saving} loadingLabel="Iniciando…" className="btn btn-primary btn-lg"
                   disabled={!online || !isConnectedOne || Boolean(readiness && !readiness.listo)}>Iniciar medición</SubmitButton>

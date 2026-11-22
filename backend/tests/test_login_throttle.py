@@ -14,13 +14,14 @@ from sqlalchemy.orm import sessionmaker
 from app.db.session import getDb
 from app.main import app
 from app.services import auth as authService
-from app.services import rateLimiter
+from app.services import loginThrottle, rateLimiter
 from app.services.rateLimiter import RateLimiter
 from tests.test_account_deletion import EMAIL, PASSWORD, db, engine, makeUser, mails  # noqa: F401 - fixtures
 
 WRONG = "OtraClave#2026"
 LOGIN = "/api/v1/auth/login"
 LIMITE_CORTO = 15 * 60
+N = loginThrottle.LIMITES[0][1]  # fallos que bloquean en 15 min (3)
 ORIGEN_ATACANTE = "198.51.100.10"
 ORIGEN_VICTIMA = "203.0.113.30"
 
@@ -83,9 +84,9 @@ def test_quince_intentos_seguidos_desde_una_ip_quedan_limitados_con_retry_after(
         r = login(ORIGEN_ATACANTE, "nadie@example.com", WRONG)
         statuses.append(r.status_code)
         retries.append(r.headers.get("retry-after"))
-    assert statuses == [401] * 5 + [429] * 10
-    assert retries[:5] == [None] * 5
-    assert all(value == str(LIMITE_CORTO) for value in retries[5:])
+    assert statuses == [401] * N + [429] * (15 - N)
+    assert retries[:N] == [None] * N
+    assert all(value == str(LIMITE_CORTO) for value in retries[N:])
 
 
 def loginPlataforma(ip: str, identificador: str, password: str):
@@ -102,13 +103,13 @@ def test_quince_intentos_al_acceso_administrativo_quedan_limitados(onlyDb, db, m
         r = loginPlataforma(ORIGEN_ATACANTE, EMAIL, WRONG)
         statuses.append(r.status_code)
         retries.append(r.headers.get("retry-after"))
-    assert statuses == [401] * 5 + [429] * 10
-    assert all(value == str(LIMITE_CORTO) for value in retries[5:])
+    assert statuses == [401] * N + [429] * (15 - N)
+    assert all(value == str(LIMITE_CORTO) for value in retries[N:])
     assert loginPlataforma(ORIGEN_ATACANTE, EMAIL, PASSWORD).status_code == 429  # ni la clave correcta salta el límite
 
 
 def test_el_rechazo_limitado_tiene_forma_consistente(onlyDb, db, mails, steps):
-    for _ in range(5):
+    for _ in range(N):
         login(ORIGEN_ATACANTE, EMAIL, WRONG)
     r = login(ORIGEN_ATACANTE, EMAIL, WRONG)
     assert r.status_code == 429
@@ -122,11 +123,11 @@ def test_el_rechazo_limitado_tiene_forma_consistente(onlyDb, db, mails, steps):
 def test_cuenta_existente_e_inexistente_se_ven_igual_antes_y_despues_del_limite(onlyDb, db, mails, steps):
     makeUser(db)
     db.commit()
-    existing = [summary(login(ORIGEN_ATACANTE, EMAIL, WRONG)) for _ in range(6)]
-    missing = [summary(login(ORIGEN_ATACANTE, "nadie@example.com", WRONG)) for _ in range(6)]
-    assert existing[:5] == missing[:5] and all(s[0] == 401 for s in existing[:5])
-    assert existing[5] == missing[5] and existing[5][0] == 429
-    assert existing[5][3] == str(LIMITE_CORTO)
+    existing = [summary(login(ORIGEN_ATACANTE, EMAIL, WRONG)) for _ in range(N + 1)]
+    missing = [summary(login(ORIGEN_ATACANTE, "nadie@example.com", WRONG)) for _ in range(N + 1)]
+    assert existing[:N] == missing[:N] and all(s[0] == 401 for s in existing[:N])
+    assert existing[N] == missing[N] and existing[N][0] == 429
+    assert existing[N][3] == str(LIMITE_CORTO)
 
 
 # --- Terceros y víctima --------------------------------------------------------------------------------------------------------------
@@ -146,7 +147,7 @@ def test_un_atacante_no_deja_fuera_a_la_victima_que_usa_la_clave_correcta(onlyDb
 def test_el_acceso_vuelve_solo_cuando_vencen_los_fallos(onlyDb, db, mails, steps):
     makeUser(db)
     db.commit()
-    for _ in range(5):
+    for _ in range(N):
         login(ORIGEN_ATACANTE, EMAIL, WRONG)
     assert login(ORIGEN_ATACANTE, EMAIL, PASSWORD).status_code == 429
     steps.advance(LIMITE_CORTO + 1)
@@ -160,7 +161,7 @@ def test_el_acceso_vuelve_solo_cuando_vencen_los_fallos(onlyDb, db, mails, steps
 def test_la_recuperacion_de_contrasena_sigue_disponible_con_el_login_limitado(onlyDb, db, mails, steps):
     makeUser(db)
     db.commit()
-    for _ in range(5):
+    for _ in range(N):
         login(ORIGEN_ATACANTE, EMAIL, WRONG)
     assert login(ORIGEN_ATACANTE, EMAIL, PASSWORD).status_code == 429
     r = http(ORIGEN_ATACANTE).post("/api/v1/auth/password/forgot", json={"correoElectronico": EMAIL})
@@ -170,7 +171,7 @@ def test_la_recuperacion_de_contrasena_sigue_disponible_con_el_login_limitado(on
 def test_el_intercambio_de_google_sigue_funcionando_con_el_login_limitado(onlyDb, db, mails, steps):
     user = makeUser(db)
     db.commit()
-    for _ in range(5):
+    for _ in range(N):
         login(ORIGEN_ATACANTE, EMAIL, WRONG)
     assert login(ORIGEN_ATACANTE, EMAIL, PASSWORD).status_code == 429
     code = authService.createGoogleExchangeCode(db, user)
@@ -195,7 +196,7 @@ def test_inicio_de_sesion_normal_no_se_limita_y_entrega_la_sesion(onlyDb, db, ma
 def test_el_limite_aplica_igual_a_cada_tipo_de_cuenta(onlyDb, db, mails, steps, tipoCuenta):
     makeUser(db, tipoCuenta=tipoCuenta)
     db.commit()
-    for _ in range(5):
+    for _ in range(N):
         login(ORIGEN_ATACANTE, EMAIL, WRONG)
     assert login(ORIGEN_ATACANTE, EMAIL, WRONG).status_code == 429
     assert login(ORIGEN_VICTIMA, EMAIL, PASSWORD).status_code == 200
@@ -225,7 +226,7 @@ def test_una_rafaga_de_pares_nuevos_no_anula_el_limite_del_par_de_la_victima(mon
     try:
         for i in range(600):  # primero el atacante llena la tabla con pares de un solo fallo
             loginThrottle.registrarFallo(f"nadie{i}@example.com", f"203.0.113.{i % 250}")
-        for _ in range(5):  # después la víctima falla desde su origen
+        for _ in range(N):  # después la víctima falla desde su origen
             loginThrottle.registrarFallo("victima@example.com", "198.51.100.9")
         assert loginThrottle.retryAfter("victima@example.com", "198.51.100.9") is not None, "el par de la víctima queda limitado"
     finally:

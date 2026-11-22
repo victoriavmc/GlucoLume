@@ -5,7 +5,7 @@
 //    política que el registro; nadie más la conoce. También puede ingresar con Google con ese mismo correo.
 // 3. Con la sesión abierta pasa a Instituciones, donde acepta o rechaza la invitación (la aceptación es explícita).
 
-import { ArrowRight, AtSign, CircleAlert, Lock, UserCheck } from 'lucide-react';
+import { ArrowRight, AtSign, CircleAlert, Lock, User, UserCheck } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -41,7 +41,7 @@ export default function ActivateAccount() {
   const rulesId = useId();
   const tokenRef = useRef(undefined);
   const [state, setState] = useState({ phase: 'checking' });
-  const [form, setForm] = useState({ usuario: '', password: '', confirm: '' });
+  const [form, setForm] = useState({ nombre: '', apellido: '', usuario: '', password: '', confirm: '' });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -69,7 +69,11 @@ export default function ActivateAccount() {
       return;
     }
     checkAccountActivation(tokenRef.current)
-      .then((info) => setState({ phase: 'form', info }))
+      .then((info) => {
+        // Se precarga lo que ya trae la invitación; la persona lo confirma (o lo corrige) antes de activar.
+        setForm((current) => ({ ...current, nombre: info.nombre ?? '', apellido: info.apellido ?? '' }));
+        setState({ phase: 'form', info });
+      })
       .catch((checkError) => setState({ phase: 'error', message: linkError(checkError) }));
   }, []);
 
@@ -84,6 +88,8 @@ export default function ActivateAccount() {
     event.preventDefault();
     if (saving) return;
     const next = {};
+    if (!form.nombre.trim()) next.nombre = 'Ingresá tu nombre.';
+    if (!form.apellido.trim()) next.apellido = 'Ingresá tu apellido.';
     const usuarioError = usernameError(form.usuario);
     if (usuarioError) next.usuario = usuarioError;
     if (!passwordMeetsPolicy(form.password)) next.password = 'La contraseña no cumple todos los requisitos.';
@@ -94,7 +100,9 @@ export default function ActivateAccount() {
     setError('');
     setSaving(true);
     try {
-      await completeActivation(tokenRef.current, form.usuario.trim(), form.password, true);
+      await completeActivation(tokenRef.current, {
+        nombre: form.nombre.trim(), apellido: form.apellido.trim(), usuario: form.usuario.trim(), password: form.password,
+      }, true);
       navigate('/app/instituciones', { replace: true, state: { notice: 'Activaste tu cuenta. Aceptá la invitación para sumarte a la institución.' } });
     } catch (activationError) {
       if (activationError.codigo === 'USUARIO_REGISTRADO') setErrors({ usuario: 'Ese nombre de usuario ya está en uso. Elegí otro.' });
@@ -150,6 +158,10 @@ export default function ActivateAccount() {
             </Alert>
           )}
           {error && <Alert>{error}</Alert>}
+          <TextField label="Nombre" icon={User} autoComplete="given-name" maxLength={100} value={form.nombre}
+            onChange={update('nombre')} error={errors.nombre} />
+          <TextField label="Apellido" icon={User} autoComplete="family-name" maxLength={100} value={form.apellido}
+            onChange={update('apellido')} error={errors.apellido} />
           <TextField label="Nombre de usuario" icon={AtSign} autoComplete="username" maxLength={50} value={form.usuario}
             onChange={update('usuario')} error={errors.usuario} />
           <TextField label="Contraseña" icon={Lock} revealable autoComplete="new-password" maxLength={128} value={form.password}

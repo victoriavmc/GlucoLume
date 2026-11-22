@@ -63,7 +63,7 @@ describe('Inicio de una cuenta individual', () => {
     expect(kpis.getByText('Última glucosa').closest('li')).toHaveTextContent('Experimental'); // la DEMO más nueva no pisa la experimental
     expect(kpis.getByText('Última frecuencia cardíaca').closest('li')).toHaveTextContent('72 lpm');
     expect(kpis.getByText('Última SpO₂').closest('li')).toHaveTextContent('98,2 %');
-    expect(kpis.getByText('Último índice óptico').closest('li')).toHaveTextContent('0,4231');
+    expect(kpis.queryByText('Último índice óptico')).not.toBeInTheDocument(); // la tarjeta de índice óptico ya no se muestra
     expect(screen.queryByRole('list', { name: 'Accesos rápidos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Consejos para diabéticos' })).not.toBeInTheDocument();
   });
@@ -72,25 +72,92 @@ describe('Inicio de una cuenta individual', () => {
     open([]);
     renderAt('/app/inicio');
     const kpis = within(await screen.findByRole('list', { name: 'Últimos valores medidos' }));
-    await waitFor(() => expect(kpis.getAllByText('Sin datos')).toHaveLength(4));
+    await waitFor(() => expect(kpis.getAllByText('Sin datos')).toHaveLength(3)); // glucosa, frecuencia y SpO₂
     expect(kpis.queryByText(/^0\b/)).not.toBeInTheDocument();
     // Dos secciones vacías: la evolución y «Cómo fueron tus mediciones».
     expect(await screen.findAllByText('No hay mediciones en este período.')).toHaveLength(2);
   });
 
-  it('el gráfico de glucosa cambia de período (1D, 7D, 30D) consultando ese período', async () => {
-    const { calls } = open([point('a', '2026-10-14T09:00:00', { glucosa: 102 })]);
+  it('la glucosa experimental de Inicio muestra el semáforo (resumen por color y zona del intervalo)', async () => {
+    const referencia = { referenciaMinima: 70, referenciaMaxima: 140 };
+    open([point('a', '2026-10-14T09:00:00', { glucosa: 102, semaforo: 'VERDE', ...referencia }),
+      point('b', '2026-10-14T13:00:00', { glucosa: 150, semaforo: 'ROJO', ...referencia })]);
+    renderAt('/app/inicio');
+    const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
+    const legend = await section.findByRole('list', { name: 'Resumen del semáforo' });
+    expect(legend).toHaveTextContent('Está bien 1');
+    expect(legend).toHaveTextContent('Muy alto 1');
+    expect(legend).toHaveTextContent('Revisar 0');
+    expect(section.getByText(/Intervalo recomendado: 70–140 mg\/dL/)).toBeInTheDocument();
+  });
+
+  it('«Cómo fueron tus mediciones» muestra el semáforo en dona y el promedio de glucosa experimental del período', async () => {
+    const referencia = { referenciaMinima: 70, referenciaMaxima: 140 };
+    open([point('a', '2026-10-14T09:00:00', { glucosa: 100, semaforo: 'VERDE', ...referencia }),
+      point('b', '2026-10-14T13:00:00', { glucosa: 110, semaforo: 'AMARILLO', ...referencia }),
+      point('c', '2026-10-14T20:00:00', { glucosa: 150, esDemo: true, origen: 'DEMO', semaforo: 'ROJO', ...referencia })]);
+    renderAt('/app/inicio');
+    const mix = within(await screen.findByRole('region', { name: 'Cómo fueron tus mediciones' }));
+    expect(await mix.findByRole('img', { name: 'Semáforo de glucosa: 3 en total' })).toBeInTheDocument();
+    expect(mix.getByRole('article', { name: 'Promedio de glucosa del período' })).toHaveTextContent('105 mg/dL');
+    expect(mix.getByRole('article', { name: 'Promedio de glucosa del período' })).toHaveTextContent('1 prueba DEMO no entra en el promedio.');
+  });
+
+  it('«Cómo fueron tus mediciones» también muestra el promedio de frecuencia cardíaca y de SpO₂ del período', async () => {
+    open([point('a', '2026-10-14T09:00:00', { frecuenciaCardiaca: 70, spo2: 97 }),
+      point('b', '2026-10-14T13:00:00', { frecuenciaCardiaca: 80, spo2: 99 })]);
+    renderAt('/app/inicio');
+    const mix = within(await screen.findByRole('region', { name: 'Cómo fueron tus mediciones' }));
+    await waitFor(() => expect(mix.getByRole('article', { name: 'Promedio de frecuencia cardíaca del período' })).toHaveTextContent('75 lpm'));
+    expect(mix.getByRole('article', { name: 'Promedio de frecuencia cardíaca del período' })).toHaveTextContent('promedio de 2 mediciones');
+    expect(mix.getByRole('article', { name: 'Promedio de SpO₂ del período' })).toHaveTextContent('98 %');
+  });
+
+  it('el gráfico de glucosa se puede acercar y volver a la vista completa', async () => {
+    open([point('a', '2026-10-14T09:00:00', { glucosa: 100 }), point('b', '2026-10-14T13:00:00', { glucosa: 104 })]);
     const user = userEvent.setup();
     renderAt('/app/inicio');
     const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
-    expect(await section.findByRole('group', { name: /Glucosa experimental: 1 punto/ })).toBeInTheDocument();
-    expect(section.getByRole('button', { name: 'Últimos 7 días' })).toHaveAttribute('aria-pressed', 'true');
-    await user.click(section.getByRole('button', { name: 'Último día' }));
-    expect(section.getByRole('button', { name: 'Último día' })).toHaveAttribute('aria-pressed', 'true');
-    await waitFor(() => expect(calls.filter((call) => call.key === 'GET /measurements/evolution').some((call) => new URL(call.url).searchParams.get('dias') === '1')).toBe(true));
+    await user.click(await section.findByRole('button', { name: 'Acercar gráfico' }));
+    expect(section.getByText('Zoom 2×')).toBeInTheDocument();
+    await user.click(section.getByRole('button', { name: 'Ver todo' }));
+    expect(section.getByText('Vista completa')).toBeInTheDocument();
   });
 
-  it('permite elegir la variable del gráfico (glucosa, frecuencia, SpO₂, índice óptico) y una vista general', async () => {
+  it('al elegir un punto del gráfico muestra su detalle (valor, fecha, hora y origen) y permite volver', async () => {
+    open([point('a', '2026-10-14T09:00:00', { glucosa: 100 }), point('b', '2026-10-14T13:00:00', { glucosa: 104, esDemo: true, origen: 'DEMO', frecuenciaCardiaca: 75 })]);
+    const user = userEvent.setup();
+    renderAt('/app/inicio');
+    const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
+    await user.click(await section.findByRole('button', { name: /: 104 mg\/dL \(DEMO\)$/ }));
+    const detail = within(section.getByRole('region', { name: 'Medición seleccionada' }));
+    expect(detail.getByText('Glucosa DEMO (simulada)')).toBeInTheDocument();
+    expect(detail.getByText('104 mg/dL')).toBeInTheDocument();
+    expect(detail.getByText('DEMO (prueba)')).toBeInTheDocument();
+    expect(detail.getByText('Frecuencia cardíaca')).toBeInTheDocument(); // los demás valores de la misma medición
+    await user.click(section.getByRole('button', { name: 'Volver a la evolución del período' }));
+    expect(section.queryByRole('region', { name: 'Medición seleccionada' })).not.toBeInTheDocument();
+  });
+
+  it('una prueba DEMO también muestra el semáforo de la matriz vigente', async () => {
+    open([point('d', '2026-10-14T09:00:00', { glucosa: 150, esDemo: true, origen: 'DEMO', semaforo: 'ROJO', referenciaMinima: 70, referenciaMaxima: 140 })]);
+    renderAt('/app/inicio');
+    const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
+    expect(await section.findByRole('list', { name: 'Resumen del semáforo' })).toHaveTextContent('Muy alto 1');
+  });
+
+  it('Inicio arriba muestra agrupación y período (sin filtro de origen) y consulta el período elegido', async () => {
+    const { calls } = open([point('a', '2026-10-14T09:00:00', { glucosa: 102 })]);
+    const user = userEvent.setup();
+    renderAt('/app/inicio');
+    const filters = within(await screen.findByRole('region', { name: 'Filtros del gráfico' }));
+    expect(filters.queryByLabelText('Origen de los datos de la evolución')).not.toBeInTheDocument();
+    expect(filters.getByLabelText('Período de la evolución')).toHaveValue('7');
+    await user.selectOptions(filters.getByLabelText('Período de la evolución'), '30');
+    await waitFor(() => expect(calls.some((call) => new URL(call.url).searchParams.get('dias') === '30')).toBe(true));
+  });
+
+  it('permite elegir la variable del gráfico (glucosa, frecuencia, SpO₂) y una vista general', async () => {
     open([point('a', '2026-10-14T09:00:00', { glucosa: 102, frecuenciaCardiaca: 72, spo2: 98, indiceOptico: 0.42 }),
       point('b', '2026-10-14T11:00:00', { frecuenciaCardiaca: 80, esDemo: true, origen: 'DEMO' })]);
     const user = userEvent.setup();
@@ -98,30 +165,10 @@ describe('Inicio de una cuenta individual', () => {
     const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
     const tabs = within(section.getByRole('tablist', { name: 'Variable a graficar' }));
     expect(tabs.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Glucosa experimental', 'Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)', 'Índice óptico', 'Vista general']);
+      'Glucosa experimental', 'Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)']); // sin índice óptico ni vista general
     expect(tabs.getByRole('tab', { name: 'Glucosa experimental' })).toHaveAttribute('aria-selected', 'true');
     await user.click(tabs.getByRole('tab', { name: 'Frecuencia cardíaca' }));
     expect(await section.findByRole('group', { name: /Frecuencia cardíaca: 2 puntos/ })).toBeInTheDocument(); // una experimental y una prueba DEMO
-    await user.click(tabs.getByRole('tab', { name: 'Índice óptico' }));
-    expect(await section.findByRole('group', { name: /Índice óptico: 1 punto/ })).toBeInTheDocument();
-    await user.click(tabs.getByRole('tab', { name: 'Vista general' }));
-    const overview = within(section.getByRole('tabpanel', { name: 'Vista general' })); // el panel lo nombra su pestaña
-    for (const title of ['Glucosa experimental', 'Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)', 'Índice óptico']) {
-      expect(overview.getByRole('article', { name: title })).toBeInTheDocument();
-    }
-  });
-
-  it('ofrece períodos de hasta 3 años y agrupa por mes en 1A (el período elegido siempre permite su agrupación)', async () => {
-    const { calls } = open([point('a', '2026-10-14T09:00:00', { glucosa: 102 })]);
-    const user = userEvent.setup();
-    renderAt('/app/inicio');
-    const section = within(await screen.findByRole('region', { name: 'Evolución reciente' }));
-    expect(section.getByRole('button', { name: 'Últimos 3 años' })).toBeInTheDocument();
-    expect(section.getByRole('button', { name: 'Últimos 90 días' })).toBeInTheDocument();
-    await user.click(section.getByRole('button', { name: 'Último año' }));
-    expect(section.getByRole('button', { name: 'Por mes' })).toHaveAttribute('aria-pressed', 'true');
-    expect(section.queryByRole('button', { name: 'Por hora' })).not.toBeInTheDocument();
-    await waitFor(() => expect(calls.some((call) => new URL(call.url).searchParams.get('dias') === '365')).toBe(true));
   });
 
   it('cuenta las mediciones por oximetría o glucosa y por condición de comida, por bloque de tiempo', async () => {

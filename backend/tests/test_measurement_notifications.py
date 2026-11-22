@@ -6,7 +6,7 @@
 #     python -m pytest tests/test_measurement_notifications.py -v
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.core.exceptions import AuthError
 from app.models.measurement import Measurement
@@ -78,21 +78,25 @@ def test_la_medicion_en_vivo_desde_el_dispositivo_tambien_avisa(db, consumer, br
     assert not mails  # el correo es opcional y esta cuenta no lo eligió
 
 
-def test_una_medicion_demo_o_de_una_institucion_no_avisa(db, mails):
+def test_una_medicion_de_una_institucion_no_avisa_pero_una_demo_si(db, mails):
     user, profileId = individual(db)
     done = measure(db, user, profileId, device(db), "97", 72)
     before = len(avisos(db, user))
     stored = db.get(Measurement, done.idMedicion)
 
     assert service.notifyMeasurementCompleted(db, user, stored, institutional=True) is False  # de una institución
+    assert len(avisos(db, user)) == before
 
     # Una medición DEMO lleva también su glucosa (CK_Medicion_origenConGlucosa): se marca como tal con sus dos campos.
+    # Se quita el aviso que dejó la medición para probar que la DEMO también avisa al completarse.
+    db.execute(delete(UserNotification).where(UserNotification.idUsuario == user.idUsuario,
+                                              UserNotification.evento == "MEDICION_REALIZADA"))
     db.execute(update(Measurement).where(Measurement.idMedicion == done.idMedicion).values(
         origenGlucosa="DEMO", glucosaDispositivo="117.00", unidadGlucosa="mg/dL"))
     db.commit()
     stored = db.get(Measurement, done.idMedicion)
-    assert service.notifyMeasurementCompleted(db, user, stored, institutional=False) is False  # DEMO: una prueba, no una medición
-    assert len(avisos(db, user)) == before
+    assert service.notifyMeasurementCompleted(db, user, stored, institutional=False) is False  # sin correo activo: solo la página
+    assert len(avisos(db, user)) == 1
 
 
 def test_el_mismo_hecho_no_duplica_el_aviso_ni_el_correo(db, mails):

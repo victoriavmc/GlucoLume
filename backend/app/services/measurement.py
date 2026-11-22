@@ -618,7 +618,7 @@ def _detail(db: Session, measurement: Measurement, access: ProfileAccess) -> Mea
         CapillaryReferenceMeasurement.idMedicion == measurement.idMedicion))
     samples = db.scalar(select(func.count()).select_from(SensorSample).where(
         SensorSample.idMedicion == measurement.idMedicion))
-    canSendResult = access.canOperate and measurement.estadoMedicion == COMPLETADA and measurement.origenGlucosa != ORIGEN_DEMO
+    canSendResult = access.canOperate and measurement.estadoMedicion == COMPLETADA
     return MeasurementDetail(
         idMedicion=measurement.idMedicion, idPerfilMedicion=measurement.idPerfilMedicion,
         modoMedicion=measurement.modoMedicion, estadoMedicion=measurement.estadoMedicion,
@@ -682,9 +682,10 @@ def _semaphoreAndRange(db: Session, measurement: Measurement, preloaded=None) ->
     return reference.semaforo, rule.glucosaMinReferencia, rule.glucosaMaxReferencia
 
 
-def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None,
-             estado: str | None, orden: str, pagina: int, tamanioPagina: int, origen: str | None = None,
-             hideExpired: bool = False) -> MeasurementPage:
+def historyQuery(idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None, estado: str | None,
+                 origen: str | None = None, hideExpired: bool = False):
+    """Consulta de mediciones de un perfil con los filtros del historial (validados). La usan la lista paginada y la exportación:
+    así lo que sale en un archivo es exactamente lo que filtra la pantalla."""
     if modo is not None and modo not in (OXIMETRIA, GLUCOSA):
         raise _error("DATOS_INVALIDOS", "El modo de medición no es válido.")
     if estado is not None and estado not in (PENDIENTE, ADQUIRIENDO, PROCESANDO, COMPLETADA, INVALIDA, CANCELADA):
@@ -693,8 +694,6 @@ def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, ha
         raise _error("DATOS_INVALIDOS", "El origen de los datos no es válido.")
     if desde and hasta and hasta < desde:
         raise _error("PERIODO_INVALIDO", "La fecha final no puede ser anterior a la inicial.")
-    tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
-    pagina = max(1, pagina)
     query = select(Measurement).where(Measurement.idPerfilMedicion == idPerfilMedicion)
     if hideExpired:  # vista personal: las canceladas/inválidas vencidas ya no se ven
         query = query.where(not_(hiddenCondition(nowForDb())))
@@ -710,6 +709,15 @@ def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, ha
         query = query.where(Measurement.origenGlucosa == ORIGEN_DEMO)
     elif origen == "REAL":  # todo lo que no es DEMO
         query = query.where(NOT_DEMO)
+    return query
+
+
+def _history(db: Session, idPerfilMedicion: uuid.UUID, *, desde: date | None, hasta: date | None, modo: str | None,
+             estado: str | None, orden: str, pagina: int, tamanioPagina: int, origen: str | None = None,
+             hideExpired: bool = False) -> MeasurementPage:
+    query = historyQuery(idPerfilMedicion, desde=desde, hasta=hasta, modo=modo, estado=estado, origen=origen, hideExpired=hideExpired)
+    tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
+    pagina = max(1, pagina)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     order = Measurement.fechaHoraInicio.asc() if orden == "asc" else Measurement.fechaHoraInicio.desc()
     rows = db.scalars(query.order_by(order, Measurement.idMedicion).offset((pagina - 1) * tamanioPagina)
@@ -1062,11 +1070,7 @@ def sendResultByEmail(db: Session, actor: User, idMedicion: uuid.UUID, data: Res
     _requireOperate(access)
     if measurement.estadoMedicion != COMPLETADA:
         raise _error("MEDICION_NO_COMPLETADA", "Solo se puede enviar el resultado de una medición completada.")
-    institutional = access.idInstitucion is not None
-    if measurement.origenGlucosa == ORIGEN_DEMO and not institutional:
-        # Una cuenta individual no recibe pruebas DEMO como resultado; a un paciente institucional se le envían identificadas como simuladas.
-        raise _error("RESULTADO_DEMO_NO_ENVIABLE",
-                     "Los datos DEMO son de prueba (la glucosa es sintética): no se envían como resultado.")
+    institutional = access.idInstitucion is not None  # las pruebas DEMO se envían igual, identificadas como simuladas (resultadoMedicion.html)
     if institutional:
         # Sin correo escrito se usa el que el paciente confirmó. Otra dirección nunca recibe el resultado directamente: se le pide al
         # paciente que la confirme desde su correo y el resultado sale recién entonces (GL-08; services/resultEmailConfirmation.py).

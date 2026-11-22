@@ -1,5 +1,5 @@
 // Dashboard personal (cuenta individual): encabezado con los accesos principales, última medición registrada, últimos valores, accesos
-// «Evolución de mis mediciones» (gráficos históricos interactivos), mediciones recientes y
+// mediciones recientes y
 // sección de pruebas DEMO de MI perfil.
 // Todo sale de la base real (GET /measurements/dashboard y GET /measurements/evolution); se vuelve a consultar al entrar, así que una
 // medición recién guardada aparece sin pasar por el historial.
@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import * as authApi from "../../../api/authApi.js";
 import * as dashboardApi from "../../../api/dashboardApi.js";
 import * as measurementsApi from "../../../api/measurementsApi.js";
 import { Alert } from "../../../components/FormControls.jsx";
@@ -27,15 +28,8 @@ import { OriginBadge } from "../../../components/Badge.jsx";
 import { EmptyState } from "../../../components/EmptyState.jsx";
 import { PageHeader } from "../../../components/PageHeader.jsx";
 import { DemoBadge } from "./DeviceReadout.jsx";
-import { EvolutionPanel } from "./EvolutionPanel.jsx";
 import { MeasurementsInfo } from "./MeasurementsInfo.jsx";
-import { useOwnMeasurementProfile } from "./useOwnMeasurementProfile.js";
-import {
-  MEALS,
-  ORIGINS,
-  formatDateTime,
-  formatNumber,
-} from "./measurementFormat.js";
+import { MEALS, formatDateTime, formatNumber } from "./measurementFormat.js";
 
 const MODE_SHORT = { OXIMETRIA: "Oximetría", GLUCOSA_EXPERIMENTAL: "Glucosa" };
 const RECENT_PREVIEW = 5; // el dashboard muestra las primeras; el resto está en el historial completo
@@ -56,17 +50,6 @@ function glucoseOf(item) {
 }
 
 /** Valores de una medición guardada en una línea. */
-function savedValues(item) {
-  const parts = [
-    `SpO₂ ${formatNumber(item.spo2, "%")}`,
-    `Frecuencia cardíaca ${formatNumber(item.frecuenciaCardiaca, "lpm")}`,
-  ];
-  const glucose = glucoseOf(item);
-  if (glucose)
-    parts.push(`${glucose.label} ${formatNumber(glucose.value, "mg/dL")}`);
-  return parts.join(" · ");
-}
-
 function LastSaved({ item }) {
   const glucose = item ? glucoseOf(item) : null;
   return (
@@ -86,7 +69,11 @@ function LastSaved({ item }) {
         )}
       </header>
       {item === null ? (
-        <EmptyState variant="inline" headingLevel={0} title="Todavía no guardaste ninguna medición." />
+        <EmptyState
+          variant="inline"
+          headingLevel={0}
+          title="Todavía no guardaste ninguna medición."
+        />
       ) : (
         <>
           <p className="dash-when">{formatDateTime(item.fechaHoraInicio)}</p>
@@ -110,27 +97,6 @@ function LastSaved({ item }) {
               <ChevronRight size={20} aria-hidden="true" />
             </Link>
           </div>
-          <p className="dash-last-meta">
-            {item.esDemo ? (
-              <b>Medición de prueba (DEMO)</b>
-            ) : (
-              <>
-                Origen:{" "}
-                {item.origenGlucosa
-                  ? (ORIGINS[item.origenGlucosa] ?? item.origenGlucosa)
-                  : (MODE_SHORT[item.modoMedicion] ?? item.modoMedicion)}
-              </>
-            )}
-            {item.condicionComida &&
-              item.condicionComida !== "NO_INFORMADA" && (
-                <span>{MEALS[item.condicionComida]}</span>
-              )}
-            {item.edadAlMomento !== null &&
-              item.edadAlMomento !== undefined && (
-                <span>{item.edadAlMomento} años</span>
-              )}
-          </p>
-          <p className="field-hint">{savedValues(item)}</p>
           {item.esDemo && (
             <p className="field-hint">
               Sus valores no se cuentan como indicadores experimentales.
@@ -166,7 +132,6 @@ function LatestCard({ icon: Icon, label, value, unit, when, demo }) {
     </li>
   );
 }
-
 
 function RecentTable({ items }) {
   return (
@@ -243,17 +208,25 @@ function RecentTable({ items }) {
 }
 
 export function PersonalDashboard({ handleOperationError }) {
-  const [period, setPeriod] = useState({ dias: 30 });
+  // Período fijo: el panel de evolución se quitó, pero las tarjetas de últimos valores y el aviso usan estos 30 días.
+  const [period] = useState({ dias: 30 });
   const [summary, setSummary] = useState(null);
   const [evolution, setEvolution] = useState(null);
   const [error, setError] = useState("");
   const [consentNotice, setConsentNotice] = useState(false);
   const navigate = useNavigate();
-  const { consent } = useOwnMeasurementProfile();
 
   // «Nueva medición» solo con la autorización de almacenamiento: si falta, un aviso lleva a Mi perfil para otorgarla.
-  function startMeasurement() {
-    if (consent && !consent.aceptado) setConsentNotice(true);
+  // La autorización se consulta al pulsar, no al entrar: el dashboard no la muestra y así no suma peticiones a la carga.
+  async function startMeasurement() {
+    let experimental = null;
+    try {
+      experimental = (await authApi.getConsents()).DATOS_EXPERIMENTALES ?? null;
+    } catch {
+      setConsentNotice(true); // sin respuesta no se puede confirmar la autorización: mismo aviso que antes
+      return;
+    }
+    if (experimental && !experimental.aceptado) setConsentNotice(true);
     else navigate("/app/mediciones/nueva");
   }
 
@@ -332,19 +305,23 @@ export function PersonalDashboard({ handleOperationError }) {
     <section className="dash" aria-labelledby="dashboard-personal">
       <PageHeader
         id="dashboard-personal"
-        title="Mi dashboard"
+        title="Mis mediciones"
         description="Resumen de tu estado y actividad reciente. Solo tus mediciones."
         actionsClassName="dash-actions"
-        actions={(
+        actions={
           <>
-            <button type="button" className="btn btn-primary" onClick={startMeasurement}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={startMeasurement}
+            >
               <span className="dash-plus">
                 <Plus size={14} aria-hidden="true" />
               </span>{" "}
               Nueva medición
             </button>
           </>
-        )}
+        }
       />
       {error && <Alert>{error}</Alert>}
       {summary === null ? (
@@ -383,12 +360,6 @@ export function PersonalDashboard({ handleOperationError }) {
             </p>
           )}
 
-          <EvolutionPanel
-            data={evolution}
-            period={period}
-            onPeriodChange={setPeriod}
-          />
-
           <section
             className="panel dash-recent"
             aria-labelledby="recientes-titulo"
@@ -406,10 +377,16 @@ export function PersonalDashboard({ handleOperationError }) {
               </Link>
             </div>
             {summary.recientes.length === 0 ? (
-              <EmptyState variant="inline" headingLevel={0} title="Todavía no hay mediciones recientes." />
+              <EmptyState
+                variant="inline"
+                headingLevel={0}
+                title="Todavía no hay mediciones recientes."
+              />
             ) : (
               <>
-                <RecentTable items={summary.recientes.slice(0, RECENT_PREVIEW)} />
+                <RecentTable
+                  items={summary.recientes.slice(0, RECENT_PREVIEW)}
+                />
                 {summary.recientes.length > RECENT_PREVIEW && (
                   <p className="field-hint">
                     Mostrando las {RECENT_PREVIEW} más recientes.{" "}
@@ -430,16 +407,25 @@ export function PersonalDashboard({ handleOperationError }) {
           title="Necesitamos tu autorización"
           role="dialog"
           onClose={() => setConsentNotice(false)}
-          actions={(
+          actions={
             <>
-              <button type="button" className="btn btn-ghost" onClick={() => setConsentNotice(false)}>Más tarde</button>
-              <Link to="/app/perfil" className="btn btn-primary">Ir a Mi perfil</Link>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setConsentNotice(false)}
+              >
+                Más tarde
+              </button>
+              <Link to="/app/perfil" className="btn btn-primary">
+                Ir a Mi perfil
+              </Link>
             </>
-          )}
+          }
         >
           <p>
-            Para medir necesitamos tu autorización para almacenar mediciones experimentales. Otorgála en Mi perfil y después volvé a
-            «Nueva medición».
+            Para medir necesitamos tu autorización para almacenar mediciones
+            experimentales. Otorgála en Mi perfil y después volvé a «Nueva
+            medición».
           </p>
         </Modal>
       )}

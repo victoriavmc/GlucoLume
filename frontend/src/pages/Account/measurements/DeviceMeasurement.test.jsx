@@ -89,7 +89,7 @@ function detail(overrides = {}) {
 const SAVED_DEMO = detail({
   estadoMedicion: 'COMPLETADA', fechaHoraFin: '2026-10-08T09:00:12', duracionMs: 12000, spo2: '99.65', frecuenciaCardiaca: 76,
   versionAlgoritmo: 'firmware-glucolume-max30100-v1', origenGlucosa: 'DEMO', glucosaDispositivo: '114.00', unidadGlucosa: 'mg/dL',
-  indiceOptico: '2.41492', lecturasEstabilizadas: 8, esDemo: true, puedeEliminar: true, puedeOperar: false,
+  indiceOptico: '2.41492', lecturasEstabilizadas: 8, esDemo: true, puedeEliminar: true, puedeOperar: false, envioResultado: 'CUENTA_PROPIA',
 });
 
 beforeEach(() => {
@@ -229,9 +229,8 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     api.set(status({ sesion: session(3, false, 'Todavía no hay suficientes lecturas válidas seguidas: mantené el dedo quieto.') }));
     await pushStatus(status({ sesion: session(3, false, 'Todavía no hay suficientes lecturas válidas seguidas: mantené el dedo quieto.') }));
     const live = await within(section).findByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    expect(within(live).getByText(/de 8/)).toBeInTheDocument();
-    expect(within(live).getByRole('progressbar')).toHaveAttribute('value', '3');
-    expect(within(live).getByText(/Todavía no hay suficientes lecturas/)).toBeInTheDocument();
+    expect(within(live).queryByText(/de 8/)).not.toBeInTheDocument(); // el contador de estabilidad ya no se muestra
+    expect(within(live).queryByText(/Todavía no hay suficientes lecturas/)).not.toBeInTheDocument(); // el mensaje de estabilidad ya no se muestra
     expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeDisabled(); // no hay lectura estable
 
     await pushStatus(status({ sesion: session(8, true) }));
@@ -246,10 +245,10 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     expect(results).toHaveTextContent('76 lpm');
     expect(results).toHaveTextContent('114 mg/dL');
     expect(results).toHaveTextContent('DEMO');
-    expect(results).toHaveTextContent('2,4149');
-    expect(results).toHaveTextContent('8 (se guarda la mediana)');
+    expect(results).not.toHaveTextContent('2,4149'); // el índice óptico ya no se muestra en el detalle
+    expect(results).not.toHaveTextContent('N.º de lecturas'); // el contador de lecturas ya no se muestra
     expect(screen.getByText(/Datos de prueba \(DEMO\)/)).toBeInTheDocument();
-    expect(screen.queryByText(/Enviar resultado por correo/)).not.toBeInTheDocument(); // un resultado DEMO no se envía
+    expect(screen.getByText(/Enviar resultado por correo/)).toBeInTheDocument(); // un resultado DEMO también se puede enviar
   });
 
   it('sin fecha de nacimiento ni sexo se puede iniciar sin completar nada: no se envía ningún dato inventado', async () => {
@@ -367,8 +366,8 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     const monitor = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
     expect(within(monitor).getByRole('heading', { name: /Medición en tiempo real/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('Edad en años (opcional)')).not.toBeInTheDocument(); // ya no es un formulario
-    expect(within(monitor).getByLabelText('Datos de la medición en curso')).toHaveTextContent('Mi perfil');
-    expect(within(monitor).getByLabelText('Datos de la medición en curso')).toHaveTextContent('ARD-001 · Bluetooth · COM4');
+    expect(within(monitor).getByLabelText('Datos de la medición en curso')).toHaveTextContent('Femenino · 36 años'); // el perfil muestra género y edad
+    expect(within(monitor).getByLabelText('Datos de la medición en curso')).not.toHaveTextContent('ARD-001'); // el dispositivo ya no se muestra
     expect(within(monitor).getAllByText('Sin señal').length).toBeGreaterThanOrEqual(2); // todavía no hay lecturas de ESTA sesión
     // Llegan lecturas reales de la sesión (una por segundo): cada tarjeta suma su propio punto.
     for (const n of [1, 2, 3, 4]) await pushStatus(inSession(n, live(n), n));
@@ -386,7 +385,7 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     expect(within(monitor).getByRole('button', { name: 'Guardar medición' })).toBeDisabled();
     // Una lectura inválida corta la línea y no se muestra como valor ni como cero.
     await pushStatus(inSession(5, live(5, { dedo: false, senalValida: false, bpm: null, spo2: null, glucosa: null, indiceOptico: null }), 0));
-    expect(within(monitor).getByLabelText('Indicadores de la adquisición')).toHaveTextContent('no colocado');
+    expect(within(monitor).queryByLabelText('Indicadores de la adquisición')).not.toBeInTheDocument(); // los indicadores ya no se muestran
     expect(within(within(monitor).getByRole('article', { name: 'SpO₂' })).queryByText('0')).not.toBeInTheDocument();
   });
 
@@ -399,13 +398,13 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     renderAt('/app/mediciones/nueva');
     const monitor = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
     expect(within(monitor).getByText('Iniciando adquisición')).toBeInTheDocument();
-    expect(within(monitor).getByLabelText('Indicadores de la adquisición')).toHaveTextContent('Dedo: sin dato');
+    expect(within(monitor).queryByLabelText('Indicadores de la adquisición')).not.toBeInTheDocument(); // los indicadores ya no se muestran
     expect(within(monitor).getByLabelText('Indicador de latidos detectados')).toHaveTextContent('0 latidos detectados');
     expect(within(monitor).getByLabelText('Tiempo y muestras de la medición')).toHaveTextContent('—'); // sin muestras reales todavía
     expect(within(within(monitor).getByRole('article', { name: 'Frecuencia cardíaca' })).queryByText('76', { selector: 'b' })).not.toBeInTheDocument();
     expect(within(monitor).getByRole('button', { name: 'Guardar medición' })).toBeDisabled();
     await pushStatus(open(fresh));
-    expect(within(monitor).getByLabelText('Indicadores de la adquisición')).toHaveTextContent('Dedo: colocado');
+    expect(within(monitor).queryByLabelText('Indicadores de la adquisición')).not.toBeInTheDocument(); // los indicadores ya no se muestran
     expect(within(within(monitor).getByRole('article', { name: 'Frecuencia cardíaca' })).getByText('71', { selector: 'b' })).toBeInTheDocument();
     expect(within(monitor).queryByText('Iniciando adquisición')).not.toBeInTheDocument();
   });
@@ -543,7 +542,7 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     const live = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    expect(within(live).getByText(/de 8/)).toBeInTheDocument();
+    expect(within(live).queryByText(/de 8/)).not.toBeInTheDocument(); // el contador de estabilidad ya no se muestra
     expect(screen.queryByText(/No hay un Arduino conectado/)).not.toBeInTheDocument(); // no mezcla el flujo de muestras crudas
   });
 });
@@ -694,7 +693,8 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
       [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, { ...SAVED_DEMO, origenGlucosa: 'SIN_CALIBRAR', glucosaDispositivo: null, esDemo: false, puedeEliminar: false, unidadGlucosa: null }),
     });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
-    expect(await screen.findByText('Sin calibrar')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Datos generales de la medición')).toBeInTheDocument();
+    expect(screen.queryByText('Origen de los datos')).not.toBeInTheDocument(); // el origen ya no se muestra en el detalle
     expect(screen.queryByRole('button', { name: /Eliminar medición de prueba/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Datos de prueba \(DEMO\)/)).not.toBeInTheDocument();
   });

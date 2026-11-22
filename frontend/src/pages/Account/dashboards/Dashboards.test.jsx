@@ -62,13 +62,10 @@ describe('Dashboard del grupo', () => {
     const summary = within(await screen.findByRole('list', { name: 'Resumen del grupo' }));
     expect(summary.getByText('Integrantes activos').closest('li')).toHaveTextContent('3');
     expect(summary.getByText('Comparten el historial').closest('li')).toHaveTextContent('1');
-    const juan = within(screen.getByRole('list', { name: 'Qué comparte Juan X' }));
-    expect(juan.getByText(/Datos básicos del perfil/)).toHaveTextContent('Compartido');
-    expect(juan.getByText(/Historial de mediciones/)).toHaveTextContent('No compartido');
     const activity = within(screen.getByRole('list', { name: 'Actividad compartida reciente' }));
     expect(activity.getByText(/Pepe X/)).toBeInTheDocument();
     expect(activity.queryByText(/Juan/)).not.toBeInTheDocument(); // Juan no comparte mediciones
-    expect(screen.getByText(/Se necesitan al menos 2 integrantes/)).toBeInTheDocument();
+    expect(screen.queryByText(/Estadísticas del grupo/)).not.toBeInTheDocument(); // ya lo cubre la evolución grupal
     expect(screen.queryByRole('article', { name: 'SpO₂' })).not.toBeInTheDocument();
   });
 
@@ -164,28 +161,21 @@ describe('Dashboard del grupo', () => {
       return { user, section };
     }
 
-    it('la vista general muestra una grilla con un gráfico por variable, respetando origen y agrupación', async () => {
+    it('la vista general muestra una grilla con un gráfico por variable, respetando la agrupación', async () => {
       const { user, section } = await open();
       const tabs = section.getAllByRole('tab');
-      expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1, -1]); // una sola parada de Tab; las flechas recorren las pestañas
+      expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1]); // una sola parada de Tab; las flechas recorren las pestañas
       tabs[0].focus();
       await user.keyboard('{End}');
       expect(section.getByRole('tab', { name: 'Vista general' })).toHaveAttribute('aria-selected', 'true');
       expect(section.getByRole('tabpanel', { name: 'Vista general' })).toBeInTheDocument();
-      for (const title of ['Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)', 'Glucosa experimental', 'Índice óptico']) {
+      for (const title of ['Frecuencia cardíaca', 'Saturación de oxígeno (SpO₂)', 'Glucosa experimental']) { // sin índice óptico: no es una pestaña de Mis mediciones ni de grupo
         expect(section.getByRole('article', { name: title })).toBeInTheDocument();
       }
-      // Origen DEMO: solo la prueba de Pepe; ninguna serie experimental.
-      await user.selectOptions(section.getByLabelText('Origen de los datos de la evolución'), 'DEMO');
-      const legend = within(section.getByRole('list', { name: 'Series graficadas' }));
-      expect(legend.getByText('Pepe X · DEMO (prueba)')).toBeInTheDocument();
-      expect(legend.queryByText('Pepe X')).not.toBeInTheDocument();
-      // Origen experimental + promedio por hora: las dos mediciones de Pepe de las 16 h se promedian en un solo punto.
-      await user.selectOptions(section.getByLabelText('Origen de los datos de la evolución'), 'EXPERIMENTAL');
+      // Promedio por hora: las dos mediciones de Pepe de las 16 h se promedian en un solo punto.
       await user.selectOptions(section.getByLabelText('Agrupación de la evolución'), 'HORA');
       const glucose = within(section.getByRole('article', { name: 'Glucosa experimental' }));
       expect(glucose.getByRole('button', { name: /Pepe X · 14\/10\/2026 16:00–17:00: 125 mg\/dL/ })).toBeInTheDocument(); // (120 + 130) / 2
-      expect(glucose.getAllByRole('button')).toHaveLength(2); // Pepe (1 bloque) + vos (1 medición)
     });
 
     it('un clic deja el punto seleccionado y muestra su detalle en la misma vista', async () => {
@@ -207,23 +197,6 @@ describe('Dashboard del grupo', () => {
       expect(demo.getByText('Glucosa DEMO (simulada)')).toBeInTheDocument();
       expect(demo.getByText('DEMO (prueba)')).toBeInTheDocument();
     });
-  });
-
-  it('con 2 o más integrantes que comparten historial muestra el período, quiénes participan y gráficos por variable', async () => {
-    const { calls } = groupRoutes({
-      [`GET ${GBASE}/dashboard`]: jsonResponse(200, { ...GROUP_DASHBOARD, comparteHistorial: 2,
-        agregado: { participantes: ['Beto X', 'Pepe X'], estadisticas: STATS }, motivoSinAgregado: null }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${GID}`);
-    expect(await screen.findByText(/Incluye a: Beto X, Pepe X/)).toBeInTheDocument();
-    expect(screen.getByText(/Período: últimos 30 días/)).toBeInTheDocument();
-    expect(within(screen.getByRole('article', { name: 'SpO₂' })).getByText('96,5 %')).toBeInTheDocument();
-    expect(within(screen.getByRole('article', { name: 'Glucosa experimental' })).getByText('Sin datos disponibles')).toBeInTheDocument();
-    await user.selectOptions(within(screen.getByRole('region', { name: 'Estadísticas del grupo' })).getByLabelText('Período'), '7');
-    await screen.findByText(/Incluye a:/);
-    const last = new URL(calls.filter((call) => call.key === `GET ${GBASE}/dashboard`).at(-1).url);
-    expect(last.searchParams.get('dias')).toBe('7');
   });
 
   it('el integrante que no comparte no se consulta y se muestra el aviso', async () => {

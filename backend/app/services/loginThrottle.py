@@ -4,7 +4,7 @@
 #   - Cada contraseña rechazada (cuenta existente, inexistente o sin contraseña local) cuenta para el par (identificador, origen). El origen
 #     es la IP real del cliente normalizada (app/api/rateLimit.normalizeIp). Nginx la fija desde el proxy de confianza
 #     (docker/nginx/default.conf.template): la cabecera X-Forwarded-For que manda el cliente no se usa.
-#   - Dos ventanas deslizantes (de la más corta a la más larga): 5 fallos en 15 min y 15 fallos en 1 h. Superada una, los intentos de ESE
+#   - Dos ventanas deslizantes (de la más corta a la más larga): 3 fallos en 15 min y 9 fallos en 1 h. Superada una, los intentos de ESE
 #     par se rechazan con CUENTA_BLOQUEADA y Retry-After. El límite se libera solo cuando vence el fallo más antiguo: nunca es permanente.
 #   - Se evalúa ANTES de buscar la cuenta y el contador es el mismo para identificadores existentes e inexistentes: la respuesta no revela
 #     si una cuenta existe (sin enumeración) y los intentos bloqueados no consumen Argon2.
@@ -28,10 +28,18 @@ from app.services.rateLimiter import RateLimiter
 
 # (nombre, fallos máximos, ventana en segundos). Orden de la más corta a la más larga.
 LIMITES = (
-    ("login:fallos:15m", 5, 15 * 60),
-    ("login:fallos:1h", 15, 60 * 60),
+    ("login:fallos:15m", 3, 15 * 60),
+    ("login:fallos:1h", 9, 60 * 60),
 )
 _limitadores = tuple(RateLimiter(maximo, ventana, name=nombre) for nombre, maximo, ventana in LIMITES)
+
+
+def limpiarCuenta(identificadores) -> None:
+    """Levanta el bloqueo de estos identificadores (correo y usuario de la cuenta) en TODOS los orígenes. Lo usa el enlace «fui yo» del
+    aviso: el titular confirmó por correo. Ver RateLimiter.clearPrefix: en modo Redis compartido no alcanza a esos contadores."""
+    prefijos = tuple(f"{i.strip().casefold()}|" for i in identificadores if i)
+    for limitador in _limitadores:
+        limitador.clearPrefix(prefijos)
 
 
 # Serialización de la decisión por par (identificador, origen): comprobar el límite, verificar la contraseña y registrar el fallo ocurren

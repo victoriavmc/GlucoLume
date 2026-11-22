@@ -63,7 +63,6 @@ export function SharedMeasurementDetail() {
             <div><dt>Origen del resultado</dt><dd>{data.origenGlucosa ? (ORIGIN_LABELS[data.origenGlucosa] ?? data.origenGlucosa) : 'Sin dato'}</dd></div>
             <div><dt>Alimentación</dt><dd>{MEALS[data.condicionComida] ?? data.condicionComida}</dd></div>
             <div><dt>Fin</dt><dd>{data.fechaHoraFin ? formatDateTime(data.fechaHoraFin) : 'Sin dato'}</dd></div>
-            <div><dt>Lecturas estabilizadas</dt><dd>{data.lecturasEstabilizadas ?? 'Sin dato'}</dd></div>
           </dl>
           <ExperimentalNotice variant="inline" />
         </section>

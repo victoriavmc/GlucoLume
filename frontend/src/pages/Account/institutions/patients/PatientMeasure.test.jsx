@@ -221,7 +221,7 @@ describe('Medición institucional: señal en vivo y guardado', () => {
     const live = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
     expect(screen.getByRole('heading', { name: /Datos del paciente/ })).toBeInTheDocument(); // el contexto del paciente no desaparece
     expect(within(live).getByLabelText('Datos de la medición en curso')).toHaveTextContent('PAC-ABC123');
-    expect(within(live).getByLabelText('Indicadores de la adquisición')).toHaveTextContent('Dedo: no colocado');
+    expect(within(live).queryByLabelText('Indicadores de la adquisición')).not.toBeInTheDocument(); // los indicadores ya no se muestran
     expect(within(live).getByText('Esperando dedo')).toBeInTheDocument();
     expect(within(live).getByRole('button', { name: 'Guardar medición' })).toBeDisabled();
 

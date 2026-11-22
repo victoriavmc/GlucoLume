@@ -77,15 +77,18 @@ def checkActivation(db: Session, token: str) -> ActivationInfo:
 
 def completeActivation(
     db: Session, token: str, usuario: str, password: str, clientInfo: ClientInfo | None = None,
-    aceptaPolitica: bool = False,
+    aceptaPolitica: bool = False, nombre: str | None = None, apellido: str | None = None,
 ) -> LoginResponse:
     """Activa la cuenta con las credenciales elegidas por la persona y abre su sesión. Una sola transacción.
 
-    Activar una cuenta invitada equivale a registrarse: exige confirmar la Política de Privacidad (queda registrado)."""
+    Activar una cuenta invitada equivale a registrarse: exige confirmar la Política de Privacidad (queda registrado).
+    Nombre y apellido los confirma la persona al activar (la API los exige); si no llegan se conservan los de la invitación."""
     accountToken, user = _load(db, token)
     consentService.requirePolicyAccepted(aceptaPolitica)
     usuario = usuario.strip()
-    authService._requirePasswordPolicy(password, usuario, user.correoElectronico, user.nombre, user.apellido)
+    nombre = nombre.strip() if nombre is not None else user.nombre
+    apellido = apellido.strip() if apellido is not None else user.apellido
+    authService._requirePasswordPolicy(password, usuario, user.correoElectronico, nombre, apellido)
     if db.scalar(select(User.idUsuario).where(User.usuario == usuario, User.idUsuario != user.idUsuario)):
         raise AuthError("USUARIO_REGISTRADO", "El nombre de usuario ya está registrado.")
     now = nowForDb()
@@ -99,7 +102,8 @@ def completeActivation(
         activated = db.execute(
             update(User)
             .where(User.idUsuario == user.idUsuario, User.estado == "PENDIENTE")
-            .values(estado="ACTIVO", usuario=usuario, fechaActualizacion=now).execution_options(synchronize_session=False)
+            .values(estado="ACTIVO", usuario=usuario, nombre=nombre, apellido=apellido, fechaActualizacion=now)
+            .execution_options(synchronize_session=False)
         ).rowcount
         if used != 1 or activated != 1:
             db.rollback()

@@ -662,15 +662,15 @@ def _persist(db: Session, actor: User, session) -> MeasurementDetail:
     db.commit()  # la medición queda confirmada solo si llega hasta aquí
     hub.release(session)  # la sesión se libera recién ahora: una falla anterior deja la sesión para reintentar
 
-    if not demo:
-        try:
-            owner = db.get(MeasurementProfile, measurement.idPerfilMedicion).idUsuario
-            ownerUser = db.get(User, owner) if owner is not None else None
-            if ownerUser is not None:
+    try:
+        owner = db.get(MeasurementProfile, measurement.idPerfilMedicion).idUsuario
+        ownerUser = db.get(User, owner) if owner is not None else None
+        if ownerUser is not None:
+            if not demo:  # el aviso al grupo no sale por una prueba DEMO
                 notifications.notifyGroupMeasurement(db, ownerUser, end)
-                userNotifications.notifyMeasurementCompleted(db, ownerUser, measurement, institutional=access.idInstitucion is not None)
-        except Exception:  # noqa: BLE001 - el aviso al grupo nunca deshace una medición ya confirmada
-            logger.exception("No se pudo enviar el aviso de medición al grupo (medición %s)", session.idMedicion)
+            userNotifications.notifyMeasurementCompleted(db, ownerUser, measurement, institutional=access.idInstitucion is not None)
+    except Exception:  # noqa: BLE001 - el aviso nunca deshace una medición ya confirmada
+        logger.exception("No se pudo enviar el aviso de medición (medición %s)", session.idMedicion)
     autoSend = None
     try:
         autoSend = measurements.autoSendResult(db, actor, session.idMedicion)  # también las pruebas DEMO (identificadas como simuladas)

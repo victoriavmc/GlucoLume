@@ -56,11 +56,11 @@ export default function LiberarSesionPage() {
 
   return (
     <AuthShell>
-      <h1 className="auth-title">Cerrar la sesión anterior</h1>
+      <h1 className="auth-title">Confirmar que fuiste vos</h1>
 
       {done ? (
         <div className="auth-form">
-          <Alert kind="success">Listo. Cerramos la sesión que estaba abierta. Ahora podés iniciar sesión con tu contraseña.</Alert>
+          <Alert kind="success">Listo. Cerramos las sesiones abiertas y levantamos el bloqueo. Ahora podés iniciar sesión con tu contraseña.</Alert>
           <Link to="/login" className="btn btn-primary btn-block btn-lg">
             Ir a iniciar sesión <ArrowRight size={18} aria-hidden="true" />
           </Link>
@@ -73,11 +73,11 @@ export default function LiberarSesionPage() {
       ) : (
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           <Alert kind="info">
-            Al confirmar se cierran las sesiones abiertas de tu cuenta. Después ingresás con tu contraseña normal. El enlace sirve una sola vez.
+            Al confirmar se cierran las sesiones abiertas de tu cuenta y se levanta el bloqueo por intentos fallidos. Después ingresás con tu contraseña normal. El enlace sirve una sola vez.
           </Alert>
           {error && <Alert>{error}</Alert>}
           <SubmitButton loading={saving} loadingLabel="Cerrando la sesión…">
-            Sí, fui yo: cerrar la sesión anterior
+            Sí, fui yo
           </SubmitButton>
           <p className="auth-foot">
             Si no fuiste vos, no confirmes. <Link to="/recuperar-contrasena">Restablecé tu contraseña</Link>: cierra todas las sesiones de tu cuenta.

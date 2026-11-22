@@ -1293,6 +1293,13 @@ a.summary-link {
 .evolution-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .evolution-chart { position: relative; margin: 0; }
 .evolution-chart svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+.evo-zoom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 4px; font-size: 14px; color: var(--ink-700); }
+.evo-zoom-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line-soft, #e5e7eb); background: #fff; font-size: 20px; line-height: 1; cursor: pointer; color: var(--ink-900); }
+.evo-zoom-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.evo-zoom-btn:focus-visible, .evo-zoom-reset:focus-visible { outline: 3px solid #f6b6bd; outline-offset: 2px; }
+.evo-zoom-level { min-width: 96px; font-weight: 600; }
+.evo-zoom-reset { border: 0; background: none; color: var(--red-600, #c20d19); font-weight: 600; cursor: pointer; padding: 6px 4px; }
+.evo-zoom .field-hint { margin: 0; flex-basis: 100%; }
 .evolution-chart figcaption { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-top: 6px; font-size: 13px; color: var(--ink-500); }
 .evo-grid { stroke: #eceef3; }
 .evo-line { fill: none; stroke-width: 1.6; stroke-opacity: 0.55; stroke-linejoin: round; }
@@ -1338,7 +1345,7 @@ a.summary-link {
 
 /* --- Matriz de referencia de glucosa (detalle) -------------------------------------------------------------- */
 
-.reference-panel { display: grid; gap: 14px; margin: 18px 0; padding: 18px; border-radius: var(--radius-lg); background: #fff; border: 1px solid var(--line-soft); box-shadow: var(--shadow-soft); }
+.reference-panel { display: block; margin: 18px 0; padding: 18px; border-radius: var(--radius-lg); background: #fff; border: 1px solid var(--line-soft); box-shadow: var(--shadow-soft); }
 .reference-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .reference-group { display: grid; gap: 10px; align-content: start; padding: 16px; border-radius: 12px; background: var(--red-50); border: 1px solid #f6d5d9; min-width: 0; }
 .reference-group h4 { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1553,7 +1560,7 @@ a.dash-card:hover { border-color: var(--red-600); }
 .gd-note p { margin: 0; color: var(--ink-700); }
 .gd-note-icon { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 50%; background: #dce9ff; color: #3b6fd8; }
 
-.gd-footnote { display: flex; align-items: flex-start; justify-content: center; gap: 8px; margin: 4px 0 0; color: var(--ink-500); font-size: 13.5px; text-align: center; }
+.gd-footnote { display: flex; align-items: flex-start; justify-content: center; gap: 8px; margin: 4px 0 0; padding: 16px 18px; border-radius: 18px; background: #eef4ff; border: 1px solid #dce7fb; color: var(--ink-700); font-size: 13.5px; text-align: center; }
 .gd-footnote svg { flex: none; margin-top: 2px; }
 
 @media (max-width: 1100px) { .gd-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -1712,6 +1719,8 @@ a.dash-card:hover { border-color: var(--red-600); }
 .evolution-overview { gap: 24px; }
 .evolution-overview .evolution-card { padding: 20px 22px; min-width: 0; }
 .evolution-overview .evolution-card h3 { margin: 0; font-size: 17px; }
+/* Evolución grupal: la vista general va una gráfica debajo de otra (sin zoom). */
+.gd-evo-overview { grid-template-columns: minmax(0, 1fr); }
 
 .gd-panel .point-detail { gap: 18px; padding: 22px 24px; border-radius: 20px; }
 .gd-panel .point-detail-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
@@ -1868,15 +1877,19 @@ a.dash-card:hover { border-color: var(--red-600); }
 .md-section-title svg { color: var(--red-600); }
 .md-section-title.is-block { margin-top: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
 .md-pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; border: 1px solid #cfe0fb; background: #eef4ff; color: #2b5fb8; font-size: 14px; font-weight: 600; }
-.measurement-detail .result-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.measurement-detail .result-card { grid-template-columns: auto 1fr; grid-template-areas: 'icon label' 'icon value' 'icon note'; column-gap: 16px; row-gap: 4px; align-items: center; padding: 18px 20px; border-radius: 18px; }
-.result-icon { grid-area: icon; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px; background: var(--red-100); color: var(--red-600); }
+.measurement-detail .result-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.measurement-detail .result-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'icon' 'label' 'value' 'note'; gap: 6px; align-items: start; align-content: start; padding: 16px 18px; border-radius: 16px; border: 0; background: #f6f7fb; box-shadow: none; min-width: 0; }
+.measurement-detail .result-card small { grid-area: label; align-self: start; font-size: 13px; color: var(--ink-500); line-height: 1.35; }
+.measurement-detail .result-card b { grid-area: value; font-size: 19px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.measurement-detail .result-card .result-icon { width: 44px; height: 44px; border-radius: 14px; }
+@media (max-width: 900px) { .measurement-detail .result-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } }
+.result-icon { grid-area: icon; margin-bottom: 4px; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px; background: var(--red-100); color: var(--red-600); }
 .result-icon.is-blue { background: #e3f0ff; color: #2b6cb0; }
 .result-icon.is-violet { background: #efe6ff; color: #7c3aed; }
-.measurement-detail .result-card small { grid-area: label; align-self: end; font-size: 15px; color: var(--ink-700); }
-.measurement-detail .result-card b { grid-area: value; font-size: 30px; }
 .measurement-detail .result-card .field-hint { grid-area: note; margin: 0; }
-.measurement-detail .reference-panel { padding: 22px; border-radius: 20px; }
+.measurement-detail .reference-panel { padding: 0; margin: 0; border-radius: 24px; }
+/* Acciones del detalle: cada botón en su propia fila, separadas y alineadas a la izquierda. */
+.measurement-detail .md-actions { flex-direction: column; align-items: flex-start; gap: 20px; margin-top: 12px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
 .measurement-detail .reference-panel .member-list-title { font-size: 22px; display: flex; align-items: center; gap: 12px; margin: 0; }
 .measurement-detail .reference-groups { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .measurement-detail .reference-group { background: #fff; border-radius: 18px; }
@@ -1909,6 +1922,16 @@ a.dash-card:hover { border-color: var(--red-600); }
 .md-card { display: grid; gap: 18px; padding: clamp(18px, 2.4vw, 28px); border-radius: 24px; border: 1px solid var(--line-soft); background: #fff; box-shadow: var(--shadow-soft); min-width: 0; margin: 0; }
 .md-card .md-section-head { margin-top: 0; }
 .md-card .md-section-title { font-size: 24px; }
+
+/* Un solo contenedor para la medición: datos generales, aviso y resultados, sin bordes entre sí. */
+.md-body { display: grid; min-width: 0; background: #fff; border: 1px solid var(--line-soft); border-radius: 24px; box-shadow: var(--shadow-soft); overflow: hidden; }
+.md-body > .detail-overview { margin: 0; padding: 22px 16px; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: #fff; }
+.md-body > .alert { margin: 18px 24px 0; }
+.md-body > .md-card { margin: 0; padding: 24px 24px 28px; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.md-hero-side { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; align-self: stretch; gap: 10px; text-align: right; }
+.md-hero-matrix { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink-700); font-size: 15px; font-weight: 700; text-align: right; }
+.md-hero-matrix svg { color: var(--red-600); }
+.md-hero-body p .ui-badge { vertical-align: middle; position: relative; top: 0; }
 .md-section-text { display: grid; gap: 4px; min-width: 0; }
 .md-section-text .field-hint { margin: 0; }
 .md-matrix { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 14px; border: 1px solid var(--line-soft); background: #fbf6f7; max-width: 100%; }
@@ -2280,3 +2303,41 @@ a.dash-card:hover { border-color: var(--red-600); }
 .mg-chart .an-donut .an-legend { width: 100%; }
 .mg-operators .mg-bar { width: 22%; min-width: 90px; }
 .mg-operators .mg-bar span { display: block; height: 12px; border-radius: 999px; background: linear-gradient(90deg, #f6b6bd, #e3101e); }
+
+/* Matriz de referencia: un solo contenedor, con los elementos separados de forma uniforme. */
+.reference-panel { border: 1px solid var(--line-soft); border-radius: 24px; background: #fff; overflow: hidden; }
+.reference-panel > .md-details-body { display: grid; gap: 14px; padding: 20px 26px 24px; }
+/* Matriz de referencia: ancho completo sin franjas, encabezado separado y grupos con el mismo margen en ambos lados. */
+.reference-panel > .md-details-summary { padding: 20px 26px; background: #fff; border-bottom: 1px solid transparent; }
+.reference-panel[open] > .md-details-summary { border-bottom-color: var(--line-soft); }
+.reference-panel > .md-details-body,
+.reference-panel .reference-groups { width: 100%; box-sizing: border-box; background: #fff; }
+.reference-panel > .md-details-body { padding: 20px 26px 24px; gap: 16px; }
+.reference-panel .reference-groups { display: grid; gap: 14px; margin: 0; }
+/* Matriz: reglas válidas como en el diseño aprobado: icono, dos divisores y semáforo a la derecha. */
+.reference-panel .reference-group > h4 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 8px; padding-left: 12px; border-left: 4px solid var(--red-600); font-size: 18px; }
+.reference-panel .reference-alt-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0; }
+.reference-panel .reference-alt-title b { padding: 6px 14px; border-radius: 999px; background: #f1f2f6; color: var(--ink-700); font-weight: 600; }
+.reference-panel .reference-alt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.reference-panel .reference-alt-item { display: flex; align-items: center; gap: 0; padding: 14px 4px; background: transparent; border: 0; }
+.reference-panel .reference-alt-icon { display: grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: 16px; background: var(--red-100); color: var(--red-600); }
+.reference-panel .reference-alt-text { flex: 1 1 auto; display: grid; gap: 4px; min-width: 0; margin-left: 20px; padding-left: 20px; border-left: 1px solid var(--line); }
+.reference-panel .reference-alt-label { font-size: 17px; font-weight: 700; color: var(--ink-900, #111827); }
+.reference-panel .reference-alt-range { color: var(--ink-500); font-size: 15px; }
+.reference-panel .reference-alt-status { flex: none; margin-left: 20px; padding-left: 20px; border-left: 1px solid var(--line); white-space: nowrap; }
+/* Matriz: sin recuadro alrededor del grupo ni líneas dobles bajo el encabezado, como en el diseño aprobado. */
+.reference-panel .reference-group { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.reference-panel > .md-details-body { border-top: 0; padding-top: 22px; }
+.reference-panel > .md-details-summary { border-bottom: 1px solid transparent; }
+/* Evolución de mediciones: títulos alineados con sus distintivos, estadísticas uniformes y filtros con el mismo estilo de la app. */
+.evolution-panel .evolution-card { padding: 22px; border-radius: 20px; }
+.evolution-panel .evo-side h3,
+.evolution-panel .evo-side h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 16px; line-height: 1.35; }
+.evolution-panel .evo-stat-list { display: grid; gap: 10px; }
+.evolution-panel .evo-stat { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #f6f7fb; border: 0; box-shadow: none; }
+.evolution-panel .evo-stat-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--red-100); color: var(--red-600); }
+.evolution-panel .evo-filters select,
+.evolution-panel .pe-filters select { height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-size: 15px; color: var(--ink-900, #111827); }
+.evolution-panel .evo-filters label,
+.evolution-panel .pe-filters label { font-size: 14px; font-weight: 600; color: var(--ink-700); }
+

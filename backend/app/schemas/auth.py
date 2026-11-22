@@ -391,6 +391,8 @@ class AccountActivationTokenRequest(BaseModel):
 class AccountActivationCompleteRequest(AccountActivationTokenRequest):
     """La persona elige sus credenciales: nadie más las conoce ni las define."""
 
+    nombre: Annotated[str, Field(min_length=1, max_length=100)]
+    apellido: Annotated[str, Field(min_length=1, max_length=100)]
     usuario: Annotated[str, Field(max_length=50)]
     password: NewPassword
     # Activar una cuenta invitada equivale a registrarse: exige confirmar la lectura de la Política de Privacidad.

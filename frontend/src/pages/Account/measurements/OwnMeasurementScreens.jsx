@@ -17,6 +17,14 @@ import { MeasurementHistory } from './MeasurementHistory.jsx';
 import { MeasurementsInfo } from './MeasurementsInfo.jsx';
 import { MeasurementsScreen, useIndividualOnly } from './MeasurementsPage.jsx';
 import { useOwnMeasurementProfile } from './useOwnMeasurementProfile.js';
+import { ageFrom, sexoLabel } from '../accountFormat.js';
+
+// Lo que se muestra del perfil durante la medición: género y edad (no el nombre del perfil ni datos del dispositivo).
+function ownProfileLabel(profile) {
+  const edad = profile.edad ?? ageFrom(profile.fechaNacimiento);
+  const partes = [sexoLabel(profile.sexoModelo), edad != null ? `${edad} años` : null].filter(Boolean);
+  return partes.length ? partes.join(' · ') : 'Sin género ni edad cargados';
+}
 
 /** /app/mediciones/nueva */
 export function NewMeasurementPage() {
@@ -58,7 +66,7 @@ export function NewMeasurementPage() {
         </section>
       ) : (
         <>
-          <DeviceMonitor idPerfilMedicion={profile.idPerfilMedicion} profileLabel="Mi perfil" profile={profile} autoConnect
+          <DeviceMonitor idPerfilMedicion={profile.idPerfilMedicion} profileLabel={ownProfileLabel(profile)} profile={profile} autoConnect
             handleOperationError={friendlyError}
             onSaved={setSavedMeasurement}
             onCancelled={() => navigate('/app/mediciones')} />
@@ -75,7 +83,7 @@ export function MeasurementHistoryPage() {
   return (
     <MeasurementsScreen title="Historial de mediciones" subtitle="Todas tus mediciones, con filtros y estadísticas.">
       <MeasurementHistory loadPage={measurementsApi.getOwnHistory} detailPath={(id) => `/app/mediciones/${id}`}
-        onDeleteDemo={measurementsApi.deleteOwnDemoMeasurements} handleOperationError={friendlyError}
+        onDeleteDemo={measurementsApi.deleteOwnDemoMeasurements} onExport={measurementsApi.exportOwnMeasurements} handleOperationError={friendlyError}
         emptyText="Todavía no hiciste ninguna medición." />
       <MeasurementsInfo />
     </MeasurementsScreen>

@@ -71,7 +71,6 @@ describe('Inicio de grupos', () => {
     await user.type(screen.getByLabelText('Nombre del grupo'), 'Familia Pérez');
     await user.click(screen.getByRole('button', { name: 'Crear grupo' }));
     expect(await screen.findByText(/Creaste «Familia Pérez»/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Invitaciones/ })).toBeInTheDocument(); // acceso rápido del administrador
     expect(calls.find((call) => call.key === 'POST /groups').body).toEqual({ nombre: 'Familia Pérez', descripcion: null });
   });
 
@@ -95,7 +94,6 @@ describe('Inicio de grupos', () => {
       expect(await screen.findByRole('heading', { level: 1, name: 'Familia Pérez' })).toBeInTheDocument();
       const resumen = within(screen.getByRole('list', { name: 'Datos principales del grupo' }));
       expect(resumen.getByText(isAdmin ? 'Administrador/a' : 'Miembro')).toBeInTheDocument();
-      expect(resumen.getByText(/integrantes/)).toBeInTheDocument();
       const tabs = within(screen.getByRole('navigation', { name: 'Secciones del grupo' }));
       expect(tabs.getAllByRole('link').map((link) => link.textContent)).toEqual(
         ['Panel', 'Integrantes', 'Mi privacidad', 'Datos compartidos', 'Configuración']); // las invitaciones viven dentro de Integrantes

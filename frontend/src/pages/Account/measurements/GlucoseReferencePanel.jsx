@@ -5,26 +5,19 @@
 // Distingue matriz APLICADA (participó de una estimación del servidor), de REFERENCIA (solo se consulta para comparar) y SIN_MATRIZ.
 // Con el sexo sin informar muestra las dos referencias (femenina y masculina) solo para consulta: ninguna se asigna ni se usa como resultado.
 
-import { BookOpen, Droplet, FlaskConical, User, Utensils, Venus } from 'lucide-react';
+import { FlaskConical, Soup, Utensils } from 'lucide-react';
 import { useState } from 'react';
 
 import { Alert } from '../../../components/FormControls.jsx';
 import { Badge } from '../../../components/Badge.jsx';
 import { TabPanel, Tabs } from '../../../components/Tabs.jsx';
-import { DemoBadge } from './DeviceReadout.jsx';
-import { MEALS, ORIGINS, SEXO } from './measurementFormat.js';
+import { MEALS } from './measurementFormat.js';
 import { Semaforo } from './Semaforo.jsx';
 
 const POSITIONS = {
   DENTRO: 'Dentro del intervalo configurado',
   POR_DEBAJO: 'Por debajo del intervalo configurado',
   POR_ENCIMA: 'Por encima del intervalo configurado',
-};
-
-const STATE_TEXT = {
-  APLICADA: 'Matriz aplicada: participó en el cálculo de la estimación de este resultado.',
-  REFERENCIA: 'Matriz de referencia: se consulta para comparar el resultado; no participó en ningún cálculo.',
-  SIN_MATRIZ: 'Referencia no disponible: no había una matriz vigente asociada a esta medición.',
 };
 
 const SEX_LABELS = { FEMENINO: 'Femenino', MASCULINO: 'Masculino', NO_INFORMADO: 'Sexo no informado', CUALQUIER_SEXO: 'Cualquier sexo' };
@@ -93,9 +86,14 @@ function Alternatives({ group }) {
         <ul className="reference-alt-list" aria-label={`Reglas disponibles: ${group.titulo}`}>
           {group.reglas.map((candidate) => (
             <li key={candidate.idRegla} className="reference-alt-item">
-              <span className="reference-alt-label">{alternativeLabel(candidate)}</span>
-              <span className="reference-alt-range">{ageText(candidate)} · {rangeText(candidate)}</span>
-              <Semaforo color={candidate.semaforo} />
+              <span className="reference-alt-icon">
+                {candidate.condicionComida === 'POSTPRANDIAL' ? <Soup size={22} aria-hidden="true" /> : <Utensils size={22} aria-hidden="true" />}
+              </span>
+              <span className="reference-alt-text">
+                <b className="reference-alt-label">{alternativeLabel(candidate)}</b>
+                <small className="reference-alt-range">{ageText(candidate)} · {rangeText(candidate)}</small>
+              </span>
+              <span className="reference-alt-status"><Semaforo color={candidate.semaforo} /></span>
             </li>
           ))}
         </ul>
@@ -138,45 +136,19 @@ function Group({ group, value, demo, sexNotInformed }) {
 }
 
 /** Un dato que se tiene en cuenta para elegir la regla: ícono, nombre y valor. */
-function Fact({ icon: Icon, label, children, empty }) {
-  return (
-    <li className="ref-fact">
-      <span className="ref-fact-icon"><Icon size={22} aria-hidden="true" /></span>
-      <small>{label}</small>
-      <b className={empty ? 'is-empty' : undefined}>{children}</b>
-    </li>
-  );
-}
-
 export function GlucoseReferencePanel({ reference }) {
   const groups = reference.grupos ?? [];
   const firstApplied = groups.findIndex((group) => group.aplicada);
   const [chosen, setChosen] = useState(null);
   const active = Math.min(chosen ?? (firstApplied >= 0 ? firstApplied : 0), Math.max(groups.length - 1, 0));
   return (
-    <section className="md-card reference-panel" aria-label="Matriz de referencia de glucosa">
-      <header className="md-section-head">
-        <div className="md-section-text">
-          <h3 className="md-section-title"><FlaskConical size={22} aria-hidden="true" /> Matriz de referencia de glucosa</h3>
-          <p className="field-hint">Las referencias pueden variar según la edad, el sexo utilizado por el modelo y el tipo de comida.</p>
-        </div>
-        <span className="md-matrix">
-          <BookOpen size={20} aria-hidden="true" />
-          <b>{reference.matriz ? `${reference.matriz.nombre}, versión ${reference.matriz.version}` : 'Sin matriz'}</b>
-        </span>
-      </header>
-      <ul className="ref-facts" aria-label="Datos que se tienen en cuenta para las reglas">
-        <Fact icon={Droplet} label="Glucosa obtenida" empty={reference.valor === null}>
-          {reference.valor !== null ? <>{number(reference.valor)} {reference.unidad} {reference.esDemo && <DemoBadge />}</> : 'Sin dato'}
-        </Fact>
-        <Fact icon={User} label="Edad utilizada" empty={reference.edad === null}>{reference.edad !== null ? `${reference.edad} años` : 'No informada'}</Fact>
-        <Fact icon={Venus} label="Sexo utilizado" empty={!reference.sexoModelo}>{reference.sexoModelo ? (SEXO[reference.sexoModelo] ?? reference.sexoModelo) : 'No informado'}</Fact>
-        <Fact icon={Utensils} label="Alimentación">{MEALS[reference.condicionComida] ?? reference.condicionComida}</Fact>
-      </ul>
-      <p className="field-hint">{STATE_TEXT[reference.estado]}</p>
-      {reference.esDemo && (
-        <Alert kind="info">El valor es DEMO: una simulación del firmware, no la glucosa real de la persona. Las comparaciones son solo ilustrativas.</Alert>
-      )}
+    <details className="md-details reference-panel" aria-label="Matriz de referencia de glucosa">
+      <summary className="md-details-summary">
+        <span className="md-details-title"><FlaskConical size={22} aria-hidden="true" /> Matriz de referencia de glucosa</span>
+        <span className="md-details-hint">Ver</span>
+      </summary>
+      <div className="md-details-body">
+      {reference.estado === 'SIN_MATRIZ' && <p className="field-hint">Referencia no disponible: no había una matriz vigente asociada a esta medición.</p>}
       {reference.avisoSexo && <Alert kind="info">{reference.avisoSexo}</Alert>}
       {reference.estado !== 'SIN_MATRIZ' && groups.length > 0 && (
         <div className="reference-groups">
@@ -191,6 +163,7 @@ export function GlucoseReferencePanel({ reference }) {
           </TabPanel>
         </div>
       )}
-    </section>
+      </div>
+    </details>
   );
 }

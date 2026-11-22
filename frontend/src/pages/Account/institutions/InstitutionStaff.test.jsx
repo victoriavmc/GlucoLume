@@ -500,6 +500,8 @@ describe("Activación de la cuenta invitada", () => {
       ).body,
     ).toEqual({
       token: "tok-123",
+      nombre: "Lucía",
+      apellido: "Sosa",
       usuario: "luciasosa",
       password: "Moderacion#Segura2026",
       aceptaPoliticaPrivacidad: true,

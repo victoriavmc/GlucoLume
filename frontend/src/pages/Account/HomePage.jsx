@@ -8,7 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { Alert } from '../../components/FormControls.jsx';
-import { DateBlock, LatestKpis, MeasurementMix, RecentEvolution, WellbeingNotice } from './home/HomeParts.jsx';
+import { DateBlock, HomeFilters, LatestKpis, MeasurementMix, RecentEvolution, WellbeingNotice } from './home/HomeParts.jsx';
 import { useHomeData } from './home/useHomeData.js';
 import { effectiveGrouping } from './measurements/evolutionModel.js';
 import './home/home.css';
@@ -46,11 +46,12 @@ export default function HomePage() {
       )}
       {error && <Alert>{error}</Alert>}
 
+      {individual && <HomeFilters days={chartDays} onDaysChange={setChartDays} grouping={grouping} onGroupingChange={setChosenGrouping} />}
       {individual && <LatestKpis latest={latest} />}
 
-      {individual && <RecentEvolution chart={chart} days={chartDays} onDaysChange={setChartDays} grouping={grouping} onGroupingChange={setChosenGrouping} />}
-
       {individual && <MeasurementMix chart={chart} days={chartDays} grouping={grouping} />}
+
+      {individual && <RecentEvolution chart={chart} days={chartDays} grouping={grouping} />}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 # Ejecutar desde backend/:
 #     python -m pytest tests/test_login_lockout.py -v
 #
-# El login se limita por (identificador, origen) en app/services/loginThrottle.py: 5 fallos en 15 min y 15 en 1 h. Esas ventanas usan el
+# El login se limita por (identificador, origen) en app/services/loginThrottle.py: 3 fallos en 15 min y 9 en 1 h. Esas ventanas usan el
 # reloj monotónico de RateLimiter, que estas pruebas reemplazan por uno controlable (`steps`). La reautenticación con sesión cuenta sus fallos
 # en la auditoría (persistente, por operación) y usa el reloj de la aplicación (`clock`).
 
@@ -20,7 +20,7 @@ from app.core.config import getSettings
 from app.core.exceptions import AuthError
 from app.models.localCredential import LocalCredential
 from app.services import auth as authService
-from app.services import rateLimiter
+from app.services import loginThrottle, rateLimiter
 from app.utils.timeZone import nowForDb
 from app.utils.userAgent import ClientInfo
 from tests.test_account_deletion import (  # noqa: F401 - fixtures
@@ -36,6 +36,7 @@ WRONG = "OtraClave#2026"
 ORIGEN_A = "198.51.100.10"
 ORIGEN_B = "198.51.100.20"
 LIMITE_CORTO_SEGUNDOS = 15 * 60
+N = loginThrottle.LIMITES[0][1]  # fallos que bloquean en 15 min (3)
 ALERTA_ASUNTO = "actividad de seguridad"  # asunto del correo INTENTO_ACCESO_INUSUAL ("Revisá una actividad de seguridad")
 
 
@@ -100,7 +101,7 @@ def lockMinutes() -> int:
 def test_cinco_fallos_limitan_ese_origen_y_el_sexto_recibe_retry_after(db, mails, steps):
     makeUser(db)
     # Los cinco primeros fallos se procesan como contraseña incorrecta (el quinto incluido).
-    assert codes([attempt(db) for _ in range(5)]) == ["CREDENCIALES_INVALIDAS"] * 5
+    assert codes([attempt(db) for _ in range(N)]) == ["CREDENCIALES_INVALIDAS"] * N
     sixth = attempt(db)
     assert sixth.code == "CUENTA_BLOQUEADA"
     assert sixth.retryAfterSeconds == LIMITE_CORTO_SEGUNDOS
@@ -108,7 +109,7 @@ def test_cinco_fallos_limitan_ese_origen_y_el_sexto_recibe_retry_after(db, mails
 
 def test_mientras_dura_el_limite_ni_la_contrasena_correcta_se_procesa_ni_los_fallos_suman(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     for _ in range(20):
         assert attempt(db).code == "CUENTA_BLOQUEADA"
@@ -119,7 +120,7 @@ def test_mientras_dura_el_limite_ni_la_contrasena_correcta_se_procesa_ni_los_fal
 
 def test_el_tiempo_restante_disminuye_y_el_acceso_vuelve_solo(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     steps.advance(300)
     blocked = attempt(db, PASSWORD)
@@ -131,20 +132,20 @@ def test_el_tiempo_restante_disminuye_y_el_acceso_vuelve_solo(db, mails, steps):
 
 def test_no_se_puede_renovar_el_limite_insistiendo_desde_el_mismo_origen(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     for _ in range(50):  # insistir mientras dura el límite no lo extiende: los rechazos no se registran
         assert attempt(db).code == "CUENTA_BLOQUEADA"
 
     steps.advance(LIMITE_CORTO_SEGUNDOS + 1)
     # Vencido el límite, vuelven a caber exactamente cinco intentos (el sexto ya queda bloqueado), como al principio.
-    assert codes([attempt(db) for _ in range(5)]) == ["CREDENCIALES_INVALIDAS"] * 5
+    assert codes([attempt(db) for _ in range(N)]) == ["CREDENCIALES_INVALIDAS"] * N
     assert attempt(db).code == "CUENTA_BLOQUEADA"
 
 
 def test_un_tercero_desde_otro_origen_no_deja_fuera_a_la_victima(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db, ip=ORIGEN_A)  # el atacante agota su límite
     assert attempt(db, ip=ORIGEN_A).code == "CUENTA_BLOQUEADA"
     # La víctima entra con la contraseña correcta desde otro origen, sin esperar.
@@ -153,22 +154,22 @@ def test_un_tercero_desde_otro_origen_no_deja_fuera_a_la_victima(db, mails, step
 
 def test_el_limite_es_por_identificador_no_por_origen_entero(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db, identificador="otra@example.com", ip=ORIGEN_A)
     assert attempt(db, PASSWORD, identificador=EMAIL, ip=ORIGEN_A).estado == "AUTENTICADO"
 
 
 def test_el_identificador_se_normaliza_para_el_limite(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db, identificador="  " + EMAIL.upper() + " ")
     assert attempt(db, identificador=EMAIL).code == "CUENTA_BLOQUEADA"
 
 
 def test_existente_e_inexistente_reciben_la_misma_respuesta_al_limite(db, mails, steps):
     makeUser(db)
-    existing = [attempt(db, identificador=EMAIL) for _ in range(5)]
-    missing = [attempt(db, identificador="nadie@example.com") for _ in range(5)]
+    existing = [attempt(db, identificador=EMAIL) for _ in range(N)]
+    missing = [attempt(db, identificador="nadie@example.com") for _ in range(N)]
     assert [(e.code, e.message) for e in existing] == [(m.code, m.message) for m in missing]
 
     blockedExisting = attempt(db, identificador=EMAIL)
@@ -185,32 +186,25 @@ def test_cuenta_inexistente_responde_igual_que_contrasena_incorrecta(db, mails, 
     assert wrong.retryAfterSeconds is None
 
 
-def test_el_limite_corto_se_levanta_pero_el_largo_sigue_vigente(db, mails, steps):
-    """Quince fallos en una hora: el límite de 15 min vence, pero el de una hora sigue bloqueando hasta que venzan los fallos."""
+def test_el_limite_corto_se_levanta_y_vuelve_a_caber_un_intento(db, mails, steps):
+    """Con N fallos se bloquea 15 min; vencido el bloqueo, un intento vuelve a recibir credenciales inválidas (no bloqueo)."""
     makeUser(db)
-    for _ in range(5):
-        attempt(db)
+    assert codes([attempt(db) for _ in range(N)]) == ["CREDENCIALES_INVALIDAS"] * N
+    assert attempt(db, PASSWORD).code == "CUENTA_BLOQUEADA"
     steps.advance(LIMITE_CORTO_SEGUNDOS + 1)
-    for _ in range(5):
-        attempt(db)
-    steps.advance(LIMITE_CORTO_SEGUNDOS + 1)
-    for _ in range(5):
-        attempt(db)  # 15 fallos en poco más de una hora
-    blocked = attempt(db, PASSWORD)
-    assert blocked.code == "CUENTA_BLOQUEADA"
-    assert blocked.retryAfterSeconds > LIMITE_CORTO_SEGUNDOS  # ahora manda la ventana de una hora
+    assert codes([attempt(db)]) == ["CREDENCIALES_INVALIDAS"]
 
 
 def test_el_limite_tambien_aplica_al_acceso_de_administracion(db, mails, steps):
     makeUser(db, tipoCuenta="ADMINISTRADOR_PLATAFORMA")
-    for _ in range(5):
+    for _ in range(N):
         attempt(db, acceso="PLATAFORMA")
     assert attempt(db, PASSWORD, acceso="PLATAFORMA").code == "CUENTA_BLOQUEADA"
 
 
 def test_aviso_al_titular_una_vez_al_alcanzar_el_limite_y_nunca_a_quien_ataca(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     alerts = [m for m in mails if m["to"] == EMAIL and ALERTA_ASUNTO in m["subject"].lower()]
     assert len(alerts) == 1
@@ -252,13 +246,13 @@ def test_solicitudes_simultaneas_no_superan_el_limite(engine, db, mails, steps):
     assert errors == []
     listed = codes(results)
     # Solo cinco intentos llegan a verificar la contraseña; el resto se rechaza por el límite.
-    assert listed.count("CREDENCIALES_INVALIDAS") == 5
-    assert listed.count("CUENTA_BLOQUEADA") == workers - 5
+    assert listed.count("CREDENCIALES_INVALIDAS") == N
+    assert listed.count("CUENTA_BLOQUEADA") == workers - N
 
 
 def test_retry_after_se_expresa_en_la_cabecera_del_rechazo(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     steps.advance(120)
     with pytest.raises(AuthError) as locked:
@@ -289,3 +283,32 @@ def test_reautenticacion_no_comparte_el_contador_con_el_login(db, mails, clock, 
     assert authService.verifyCurrentPassword(db, row, PASSWORD, "cambio_contrasena") is True
     db.commit()
     assert user.idUsuario == credential(db).idUsuario
+
+
+def test_nueve_fallos_en_una_hora_bloquean_aunque_el_corto_ya_haya_vencido(db, mails, steps):
+    """Tres bloques de N fallos separados por 15 min: el límite de 15 min vence, pero el de una hora (9) bloquea hasta que venzan."""
+    makeUser(db)
+    for bloque in range(3):
+        assert codes([attempt(db) for _ in range(N)]) == ["CREDENCIALES_INVALIDAS"] * N
+        if bloque < 2:
+            steps.advance(LIMITE_CORTO_SEGUNDOS + 1)
+    blocked = attempt(db, PASSWORD)
+    assert blocked.code == "CUENTA_BLOQUEADA"
+    assert blocked.retryAfterSeconds > LIMITE_CORTO_SEGUNDOS  # manda la ventana de una hora
+
+
+def test_el_correo_de_bloqueo_trae_fui_yo_y_desbloquea_la_cuenta(db, mails, steps):
+    """El correo de intentos fallidos trae un enlace de un solo uso que levanta el bloqueo desde cualquier origen."""
+    import re
+
+    makeUser(db)
+    for _ in range(N):
+        attempt(db)
+    [aviso] = [m for m in mails if ALERTA_ASUNTO in m["subject"].lower()]
+    token = re.search(r"liberar-sesion\?token=([A-Za-z0-9_-]+)", aviso["html"]).group(1)
+    assert attempt(db, PASSWORD).code == "CUENTA_BLOQUEADA"
+
+    authService.liberarSesionesActivas(db, token)
+
+    resultado = attempt(db, PASSWORD, ip=ORIGEN_A)  # el mismo origen que quedó bloqueado
+    assert not (isinstance(resultado, AuthError) and resultado.code == "CUENTA_BLOQUEADA")

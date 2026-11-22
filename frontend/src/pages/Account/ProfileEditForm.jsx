@@ -4,31 +4,48 @@
 // campos que cambiaron. Nombre, apellido y usuario no admiten vacío; fecha de nacimiento y sexo son opcionales y
 // se quitan enviando null. El correo no es editable: el backend no tiene endpoint para cambiarlo.
 
-import { AtSign, CalendarDays, Mail, Save, User, X } from 'lucide-react';
-import { useId, useState } from 'react';
+import {
+  AlertCircle,
+  AtSign,
+  CalendarDays,
+  Info,
+  Mail,
+  Save,
+  User,
+  X,
+} from "lucide-react";
+import { useId, useState } from "react";
 
-import * as authApi from '../../api/authApi.js';
-import { ApiError } from '../../api/client.js';
-import { friendlyError } from '../../auth/errorMessages.js';
-import { Alert, SubmitButton, TextField } from '../../components/FormControls.jsx';
-import { usernameError } from '../../utils/validation.js';
-import { SEXO_OPTIONS, ageFrom, todayIso } from './accountFormat.js';
+import * as authApi from "../../api/authApi.js";
+import { ApiError } from "../../api/client.js";
+import { friendlyError } from "../../auth/errorMessages.js";
+import {
+  Alert,
+  SubmitButton,
+  TextField,
+} from "../../components/FormControls.jsx";
+import { usernameError } from "../../utils/validation.js";
+import { SEXO_OPTIONS, ageFrom, todayIso } from "./accountFormat.js";
 
-const FIELDS = ['nombre', 'apellido', 'usuario', 'fechaNacimiento', 'sexo'];
+const FIELDS = ["nombre", "apellido", "usuario", "fechaNacimiento", "sexo"];
 // Opcionales: la persona puede quitarlos (se envían como null).
-const OPTIONAL_FIELDS = ['fechaNacimiento', 'sexo'];
+const OPTIONAL_FIELDS = ["fechaNacimiento", "sexo"];
 const MAX_AGE = 130; // EDAD_MAXIMA del backend
 
 function initialForm(user) {
-  return Object.fromEntries(FIELDS.map((field) => [field, user[field] ?? '']));
+  return Object.fromEntries(FIELDS.map((field) => [field, user[field] ?? ""]));
 }
 
 function validate(form, user) {
   const errors = {};
   for (const field of FIELDS) {
     // Un dato obligatorio que ya tenía valor no puede quedar vacío (el backend no admite null).
-    if (!OPTIONAL_FIELDS.includes(field) && user[field] && !String(form[field]).trim()) {
-      errors[field] = 'Este dato no puede quedar vacío.';
+    if (
+      !OPTIONAL_FIELDS.includes(field) &&
+      user[field] &&
+      !String(form[field]).trim()
+    ) {
+      errors[field] = "Este dato no puede quedar vacío.";
     }
   }
   if (form.usuario.trim() || user.usuario === null) {
@@ -36,8 +53,10 @@ function validate(form, user) {
     if (error) errors.usuario = error;
   }
   if (form.fechaNacimiento) {
-    if (form.fechaNacimiento > todayIso()) errors.fechaNacimiento = 'La fecha de nacimiento no puede ser futura.';
-    else if (ageFrom(form.fechaNacimiento) > MAX_AGE) errors.fechaNacimiento = `La edad no puede superar los ${MAX_AGE} años.`;
+    if (form.fechaNacimiento > todayIso())
+      errors.fechaNacimiento = "La fecha de nacimiento no puede ser futura.";
+    else if (ageFrom(form.fechaNacimiento) > MAX_AGE)
+      errors.fechaNacimiento = `La edad no puede superar los ${MAX_AGE} años.`;
   }
   return errors;
 }
@@ -45,12 +64,13 @@ function validate(form, user) {
 function changedFields(form, user) {
   const changes = {};
   for (const field of FIELDS) {
-    const value = typeof form[field] === 'string' ? form[field].trim() : form[field];
+    const value =
+      typeof form[field] === "string" ? form[field].trim() : form[field];
     if (OPTIONAL_FIELDS.includes(field)) {
       // Campo vacío = quitar el dato (null), solo si antes tenía valor.
       const next = value || null;
       if (next !== (user[field] ?? null)) changes[field] = next;
-    } else if (value && value !== (user[field] ?? '')) {
+    } else if (value && value !== (user[field] ?? "")) {
       changes[field] = value;
     }
   }
@@ -59,12 +79,16 @@ function changedFields(form, user) {
 
 function serverFieldErrors(error) {
   if (!(error instanceof ApiError)) return {};
-  if (error.codigo === 'USUARIO_NO_DISPONIBLE' || error.codigo === 'USUARIO_REQUERIDO') {
+  if (
+    error.codigo === "USUARIO_NO_DISPONIBLE" ||
+    error.codigo === "USUARIO_REQUERIDO"
+  ) {
     return { usuario: friendlyError(error) };
   }
   const errors = {};
   for (const field of error.fields ?? []) {
-    if (FIELDS.includes(field.ruta) && !errors[field.ruta]) errors[field.ruta] = field.mensaje;
+    if (FIELDS.includes(field.ruta) && !errors[field.ruta])
+      errors[field.ruta] = field.mensaje;
   }
   return errors;
 }
@@ -74,13 +98,14 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
   const ids = { fecha: useId(), sexo: useId() };
   const [form, setForm] = useState(() => initialForm(user));
   const [fieldErrors, setFieldErrors] = useState({});
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   function update(field) {
     return (event) => {
       setForm((current) => ({ ...current, [field]: event.target.value }));
-      if (fieldErrors[field]) setFieldErrors((current) => ({ ...current, [field]: undefined }));
+      if (fieldErrors[field])
+        setFieldErrors((current) => ({ ...current, [field]: undefined }));
     };
   }
 
@@ -95,7 +120,7 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
       onSaved({ ...account, actualizado: false });
       return;
     }
-    setError('');
+    setError("");
     setSaving(true);
     try {
       onSaved(await authApi.updateProfile(changes));
@@ -108,7 +133,12 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
   }
 
   return (
-    <form className="panel" onSubmit={handleSubmit} noValidate aria-labelledby="editar-perfil">
+    <form
+      className="panel"
+      onSubmit={handleSubmit}
+      noValidate
+      aria-labelledby="editar-perfil"
+    >
       <div className="panel-title">
         <span className="panel-icon">
           <User size={22} aria-hidden="true" />
@@ -122,33 +152,81 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
       {error && <Alert>{error}</Alert>}
 
       <div className="form-grid">
-        <TextField label="Nombre" name="nombre" icon={User} autoComplete="given-name" maxLength={100}
-          value={form.nombre} onChange={update('nombre')} error={fieldErrors.nombre} />
-        <TextField label="Apellido" name="apellido" icon={User} autoComplete="family-name" maxLength={100}
-          value={form.apellido} onChange={update('apellido')} error={fieldErrors.apellido} />
-        <TextField label="Nombre de usuario" name="usuario" icon={AtSign} autoComplete="username" maxLength={50}
-          value={form.usuario} onChange={update('usuario')} error={fieldErrors.usuario} />
-        <TextField label="Correo electrónico" name="correoElectronico" icon={Mail} value={user.correoElectronico ?? ''}
-          readOnly disabled aria-describedby={`${ids.fecha}-correo`} />
+        <TextField
+          label="Nombre"
+          name="nombre"
+          icon={User}
+          autoComplete="given-name"
+          maxLength={100}
+          value={form.nombre}
+          onChange={update("nombre")}
+          error={fieldErrors.nombre}
+        />
+        <TextField
+          label="Apellido"
+          name="apellido"
+          icon={User}
+          autoComplete="family-name"
+          maxLength={100}
+          value={form.apellido}
+          onChange={update("apellido")}
+          error={fieldErrors.apellido}
+        />
+        <TextField
+          label="Nombre de usuario"
+          name="usuario"
+          icon={AtSign}
+          autoComplete="username"
+          maxLength={50}
+          value={form.usuario}
+          onChange={update("usuario")}
+          error={fieldErrors.usuario}
+        />
+        <TextField
+          label="Correo electrónico"
+          name="correoElectronico"
+          icon={Mail}
+          value={user.correoElectronico ?? ""}
+          readOnly
+          disabled
+          aria-describedby={`${ids.fecha}-correo`}
+        />
         <div className="field">
           <label className="field-label" htmlFor={ids.fecha}>
             Fecha de nacimiento
           </label>
           <div className="field-control">
             <CalendarDays className="field-icon" size={20} aria-hidden="true" />
-            <input id={ids.fecha} type="date" className="field-input" max={todayIso()}
-              value={form.fechaNacimiento} onChange={update('fechaNacimiento')}
-              aria-invalid={fieldErrors.fechaNacimiento ? 'true' : undefined}
-              aria-describedby={fieldErrors.fechaNacimiento ? `${ids.fecha}-error` : undefined} />
+            <input
+              id={ids.fecha}
+              type="date"
+              className="field-input"
+              max={todayIso()}
+              value={form.fechaNacimiento}
+              onChange={update("fechaNacimiento")}
+              aria-invalid={fieldErrors.fechaNacimiento ? "true" : undefined}
+              aria-describedby={
+                fieldErrors.fechaNacimiento ? `${ids.fecha}-error` : undefined
+              }
+            />
           </div>
-          {fieldErrors.fechaNacimiento && <p className="field-error" id={`${ids.fecha}-error`}>{fieldErrors.fechaNacimiento}</p>}
+          {fieldErrors.fechaNacimiento && (
+            <p className="field-error" id={`${ids.fecha}-error`}>
+              {fieldErrors.fechaNacimiento}
+            </p>
+          )}
         </div>
         <div className="field">
           <label className="field-label" htmlFor={ids.sexo}>
             Sexo
           </label>
-          <select id={ids.sexo} className="field-input field-select" value={form.sexo} onChange={update('sexo')}
-            aria-invalid={fieldErrors.sexo ? 'true' : undefined}>
+          <select
+            id={ids.sexo}
+            className="field-input field-select"
+            value={form.sexo}
+            onChange={update("sexo")}
+            aria-invalid={fieldErrors.sexo ? "true" : undefined}
+          >
             <option value="">No informar</option>
             {SEXO_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>
@@ -156,22 +234,39 @@ export function ProfileEditForm({ account, onSaved, onCancel }) {
               </option>
             ))}
           </select>
-          {fieldErrors.sexo && <p className="field-error">{fieldErrors.sexo}</p>}
+          {fieldErrors.sexo && (
+            <p className="field-error">{fieldErrors.sexo}</p>
+          )}
         </div>
       </div>
-      <p className="field-hint">
-        La fecha de nacimiento y el sexo son opcionales. Se recomiendan porque ayudan a que la estimación experimental sea más
-        precisa, pero no hacen falta para medir. Si ya los informaste y querés quitarlos, dejá el campo vacío y guardá.
-      </p>
-      <p className="field-hint" id={`${ids.fecha}-correo`}>
-        El correo electrónico no puede modificarse desde aquí.
-      </p>
+      <div className="note-amarilla" role="note">
+        <Info size={18} aria-hidden="true" />
+        <p>
+          La fecha de nacimiento y el sexo son opcionales. Se recomiendan porque
+          ayudan a que la estimación experimental sea más precisa, pero no hacen
+          falta para medir. Si ya los informaste y querés quitarlos, dejá el
+          campo vacío y guardá.
+        </p>
+      </div>
+      <div className="note-roja" role="note" id={`${ids.fecha}-correo`}>
+        <AlertCircle size={18} aria-hidden="true" />
+        <p>El correo electrónico no puede modificarse.</p>
+      </div>
 
       <div className="form-actions">
-        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onCancel}
+          disabled={saving}
+        >
           <X size={18} aria-hidden="true" /> Cancelar
         </button>
-        <SubmitButton loading={saving} loadingLabel="Guardando…" className="btn btn-primary">
+        <SubmitButton
+          loading={saving}
+          loadingLabel="Guardando…"
+          className="btn btn-primary"
+        >
           <Save size={18} aria-hidden="true" /> Guardar cambios
         </SubmitButton>
       </div>

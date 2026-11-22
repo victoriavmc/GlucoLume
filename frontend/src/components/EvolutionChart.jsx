@@ -3,7 +3,7 @@
 // modo y origen; al elegirlo (clic/Enter) se avisa con `onSelect` para abrir su detalle. Los puntos DEMO se dibujan con otro marcador y
 // otro trazo. No interpola: entre dos mediciones solo hay una línea guía; si no hay datos no se dibuja nada.
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { MODES } from '../pages/Account/groups/groupFormat.js';
 import { ChartTooltip } from './ChartTooltip.jsx';
@@ -13,9 +13,13 @@ import { BLOCK_NAMES, formatClock, formatDay, formatValue, pointWhen, timeTicks 
 const GROUP_PHRASES = { HORA: 'una hora', DIA: 'un día', SEMANA: 'una semana', MES: 'un mes' };
 const PAD_WIDE = { top: 18, right: 22, bottom: 40, left: 62 };
 const PAD_NARROW = { top: 18, right: 14, bottom: 40, left: 52 };
+const MAX_ZOOM = 8;
+const HOUR_MS = 3_600_000;
 
 export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, color, dotColor, selectedKey = null, onSelect, domain, granularity = 'MEDICION', range = null }) {
   const [hover, setHover] = useState(null);
+  const [zoom, setZoom] = useState(1); // 1 = vista completa; cada acercamiento divide por 2 el rango visible, alrededor de las mediciones
+  const clipId = `evo-plot-${useId()}`;
   const [setBox, WIDTH] = useElementWidth(); // se dibuja con el ancho real del contenedor (sin escalar un dibujo fijo)
   if (series.length === 0) return null;
   const HEIGHT = Math.round(Math.min(340, Math.max(240, WIDTH * 0.32))); // ancha pero no innecesariamente alta
@@ -24,16 +28,32 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
   const innerH = HEIGHT - PAD.top - PAD.bottom;
 
   const times = series.map((point) => point.t);
-  const t0 = domain?.[0] ?? Math.min(...times);
+  const fullT0 = domain?.[0] ?? Math.min(...times);
   const rawT1 = domain?.[1] ?? Math.max(...times);
-  const t1 = rawT1 > t0 ? rawT1 : t0 + 3_600_000; // un solo punto: ventana mínima de una hora
+  const fullT1 = rawT1 > fullT0 ? rawT1 : fullT0 + HOUR_MS; // un solo punto: ventana mínima de una hora
   // El rango de referencia entra en la escala (aunque ningún valor llegue a sus bordes) para que se vea completo.
   const values = [...series.map((point) => point.value), ...(range ? [range.max, range.min].filter((edge) => edge !== null) : [])];
   const low = Math.min(...values);
   const high = Math.max(...values);
   const margin = (high - low || Math.max(Math.abs(high) * 0.05, 1)) * 0.15;
-  const yMin = low - margin;
-  const yMax = high + margin;
+  const fullYMin = low - margin;
+  const fullYMax = high + margin;
+  // Con zoom, la escala se ajusta a las mediciones (sin el intervalo ni el período entero) y el eje de tiempo se acerca a ellas.
+  const zoomed = zoom > 1;
+  const dataLow = Math.min(...series.map((point) => point.value));
+  const dataHigh = Math.max(...series.map((point) => point.value));
+  const dataSpanY = Math.max(dataHigh - dataLow, Math.abs(dataHigh) * 0.02, 1);
+  const ySpan = zoomed ? Math.max((fullYMax - fullYMin) / zoom, dataSpanY * 1.3) : fullYMax - fullYMin;
+  const yCenter = zoomed ? (dataLow + dataHigh) / 2 : (fullYMin + fullYMax) / 2;
+  const yMin = yCenter - ySpan / 2;
+  const yMax = yCenter + ySpan / 2;
+  const dataT0 = Math.min(...times);
+  const dataT1 = Math.max(...times);
+  const fullTSpan = fullT1 - fullT0;
+  const tSpan = zoomed ? Math.min(fullTSpan, Math.max(fullTSpan / zoom, (dataT1 - dataT0) * 1.2, HOUR_MS / 2)) : fullTSpan;
+  const tCenter = zoomed ? (dataT0 + dataT1) / 2 : (fullT0 + fullT1) / 2;
+  const t0 = zoomed ? Math.min(Math.max(tCenter - tSpan / 2, fullT0), fullT1 - tSpan) : fullT0;
+  const t1 = t0 + tSpan;
   const x = (t) => PAD.left + Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) * innerW; // un promedio queda dentro del eje
   const y = (value) => PAD.top + innerH - ((value - yMin) / (yMax - yMin)) * innerH;
   const { ticks: xTicks, step: xStep } = timeTicks(t0, t1);
@@ -52,8 +72,20 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
 
   return (
     <figure className="evolution-chart" ref={setBox}>
+      <div className="evo-zoom" role="group" aria-label="Zoom del gráfico">
+        <button type="button" className="evo-zoom-btn" onClick={() => setZoom((level) => Math.max(1, level / 2))} disabled={zoom <= 1}
+          aria-label="Alejar gráfico">−</button>
+        <span className="evo-zoom-level" aria-live="polite">{zoom === 1 ? 'Vista completa' : `Zoom ${zoom}×`}</span>
+        <button type="button" className="evo-zoom-btn" onClick={() => setZoom((level) => Math.min(MAX_ZOOM, level * 2))} disabled={zoom >= MAX_ZOOM}
+          aria-label="Acercar gráfico">+</button>
+        {zoomed && <button type="button" className="evo-zoom-reset" onClick={() => setZoom(1)}>Ver todo</button>}
+        <span className="field-hint">Acercá para separar las mediciones que quedan encimadas.</span>
+      </div>
       <svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label={`${title}: ${series.length} ${series.length === 1 ? 'punto' : 'puntos'}`}>
         <title>{title}</title>
+        <defs>
+          <clipPath id={clipId}><rect x={PAD.left} y={PAD.top} width={innerW} height={innerH} /></clipPath>
+        </defs>
         {yTicks.map((tick) => (
           <g key={`y${tick}`}>
             <line x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} className="evo-grid" />
@@ -69,7 +101,7 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
         <line x1={PAD.left} x2={WIDTH - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} className="trend-axis" />
         {range && (
           // Zonas del semáforo: verde dentro del intervalo, amarillo por debajo del piso, rojo por encima del tope.
-          <g aria-hidden="true" className="evo-range">
+          <g aria-hidden="true" className="evo-range" clipPath={`url(#${clipId})`}>
             <rect x={PAD.left} y={PAD.top} width={innerW} height={Math.max(0, y(range.max) - PAD.top)} className="evo-range-high" />
             <rect x={PAD.left} y={y(range.max)} width={innerW} height={Math.max(0, y(range.min ?? yMin) - y(range.max))} className="evo-range-ok" />
             {range.min !== null && (
@@ -90,7 +122,8 @@ export function EvolutionChart({ title, demoTitle, series, unit, decimals = 0, c
               onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(point); } }}>
               <circle cx={x(point.t)} cy={y(point.value)} r={14} className="evo-hit" />
               {point.demo
-                ? <rect x={x(point.t) - 5} y={y(point.value) - 5} width={10} height={10} transform={`rotate(45 ${x(point.t)} ${y(point.value)})`} className={`evo-demo${selected ? ' is-selected' : ''}`} />
+                ? <rect x={x(point.t) - 5} y={y(point.value) - 5} width={10} height={10} transform={`rotate(45 ${x(point.t)} ${y(point.value)})`}
+                  style={dotColor ? { fill: dotColor(point), stroke: dotColor(point) } : undefined} className={`evo-demo${selected ? ' is-selected' : ''}`} />
                 : <circle cx={x(point.t)} cy={y(point.value)} r={selected ? 7 : 5} style={{ fill: dotColor?.(point) ?? color }} className={`evo-dot${selected ? ' is-selected' : ''}`} />}
               {point.count > 1 && <text x={x(point.t)} y={y(point.value) - 11} textAnchor="middle" className="evo-count">{point.count}</text>}
             </g>

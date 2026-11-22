@@ -1,5 +1,5 @@
 # Reglas de M-2 aprobadas (auditoría 07/11/2026). Cubren lo que el usuario exigió después de la primera implementación:
-#  - el límite del login es por (cuenta, origen): 5 fallos en 15 min y 15 en 1 h;
+#  - el límite del login es por (cuenta, origen): 3 fallos en 15 min y 9 en 1 h;
 #  - los intentos bloqueados quedan trazados en INTENTO_INGRESO, distinguidos de las contraseñas incorrectas, y acotados (una traza por
 #    cuenta, origen y ventana), sin guardar la IP en claro;
 #  - la respuesta y el trabajo de la solicitud no dependen de que la cuenta exista (protección contra enumeración, también por tiempo);
@@ -20,12 +20,14 @@ from app.db.session import getDb
 from app.main import app
 from app.models.localCredential import LocalCredential
 from app.services import auth as authService
+from app.services import loginThrottle
 from app.services import email as emailService
 from app.services import userNotifications as service
 from app.utils.userAgent import ClientInfo
 from tests.test_account_deletion import EMAIL, PASSWORD, audits, db, engine, mails, makeUser  # noqa: F401 - fixtures
 from tests.test_login_lockout import FakeMonotonic, clock, steps  # noqa: F401 - fixtures de reloj
 
+N = loginThrottle.LIMITES[0][1]  # fallos que bloquean en 15 min (3)
 WRONG = "OtraClave#2026"
 ORIGEN_A = "198.51.100.10"
 ORIGEN_B = "198.51.100.20"
@@ -55,13 +57,13 @@ def intentos(db, user):
 
 def test_los_intentos_bloqueados_quedan_trazados_una_vez_por_ventana_y_con_titulo_propio(db, mails, steps):
     user = makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         assert attempt(db).code == "CREDENCIALES_INVALIDAS"
     for _ in range(10):  # diez intentos ya bloqueados en la misma ventana
         assert attempt(db).code == "CUENTA_BLOQUEADA"
 
     titulos = Counter(n.titulo for n in intentos(db, user))
-    assert titulos[TITULO_CONTRASENA] == 5  # una traza por contraseña incorrecta, como antes
+    assert titulos[TITULO_CONTRASENA] == N  # una traza por contraseña incorrecta, como antes
     assert titulos[TITULO_LIMITE] == 1  # los bloqueados: una sola traza para toda la ventana (sin registros sin fin)
     assert len(mails) == 1  # el correo de actividad sospechosa sale una vez, al activarse el límite
 
@@ -73,12 +75,12 @@ def test_los_intentos_bloqueados_quedan_trazados_una_vez_por_ventana_y_con_titul
 
 def test_una_ventana_nueva_genera_una_nueva_traza(db, mails, steps, clock):
     user = makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     attempt(db)  # primera traza de la ventana
     clock.advance(minutes=16)  # la ventana del reloj de la aplicación avanza y el límite de 15 min se libera
     steps.advance(16 * 60)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     attempt(db)  # segunda traza, en la nueva ventana
     assert Counter(n.titulo for n in intentos(db, user))[TITULO_LIMITE] == 2
@@ -196,12 +198,12 @@ def http(engine):  # noqa: F811 - SQLite de prueba, como en las demás pruebas H
 def test_las_cabeceras_de_origen_del_cliente_no_cambian_el_limite(db, mails, steps, http):
     makeUser(db)
     codigos = []
-    for i in range(7):
+    for i in range(N + 4):
         r = http.post("/api/v1/auth/login", json={"identificador": EMAIL, "password": WRONG},
                       headers={"X-Forwarded-For": f"198.51.100.{100 + i}", "X-Real-IP": f"192.0.2.{i}"})
         codigos.append(r.json().get("codigo"))
     # Cada intento llega con otra cabecera de origen: el límite sigue contando un único origen, el del socket.
-    assert codigos[:5] == ["CREDENCIALES_INVALIDAS"] * 5 and codigos[5:] == ["CUENTA_BLOQUEADA"] * 2
+    assert codigos[:N] == ["CREDENCIALES_INVALIDAS"] * N and codigos[N:] == ["CUENTA_BLOQUEADA"] * 4
 
 
 # --- Un solo proceso: el contador en memoria no se multiplica --------------------------------------------------------------------------
@@ -234,7 +236,7 @@ def test_cada_intento_limitado_queda_auditado_una_vez_y_sin_IP_en_claro(db, mail
     from app.models.audit import Audit
 
     user = makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     for _ in range(10):
         assert attempt(db).code == "CUENTA_BLOQUEADA"
@@ -249,7 +251,7 @@ def test_cada_intento_limitado_queda_auditado_una_vez_y_sin_IP_en_claro(db, mail
 
 def test_intento_limitado_de_cuenta_inexistente_se_audita_solo_con_hmac(db, mails, steps):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db, identificador="nadie.inexistente@example.com")
     for _ in range(3):
         attempt(db, identificador="nadie.inexistente@example.com")
@@ -299,7 +301,7 @@ def test_el_bloqueo_de_reautenticacion_sobrevive_a_un_proceso_nuevo(db, mails, c
 
 def test_una_rafaga_que_llena_la_cola_no_rompe_el_rechazo_y_se_cuenta(db, mails, steps, monkeypatch):
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
     monkeypatch.setattr(authService._colaAuditoriaLimite, "maximo", 0)  # cola llena
     antes = authService._colaAuditoriaLimite.desbordadas
@@ -314,7 +316,7 @@ def test_un_fallo_al_escribir_la_auditoria_del_limite_no_cambia_la_respuesta(db,
     import logging
 
     makeUser(db)
-    for _ in range(5):
+    for _ in range(N):
         attempt(db)
 
     def caida(*args, **kwargs):

@@ -580,6 +580,7 @@ export const AYUDA_INSTITUCIONAL = [
       { texto: 'Personal: en Personal elegí las personas (selección) o TODOS (con los filtros de rol, estado y búsqueda), luego el formato y Exportar. Así se exportan moderadores y operadores, filtrando por rol.' },
       { texto: 'Pacientes: en Pacientes elegí los pacientes o TODOS con los filtros, luego el formato y Exportar.' },
       { texto: 'Matrices: abrí la matriz y tocá Exportar. Elegí CSV, Excel o PDF.' },
+      { texto: 'Mis mediciones: en Historial de mediciones marcá algunas (de la página que ves) o exportá todas con los filtros, elegí el formato y descargá.' },
     ],
     casos: [
       { titulo: 'CASO 1 · Exportar moderadores', texto: 'Propietario o moderador: en Personal, filtrá por rol Moderador y exportá.' },

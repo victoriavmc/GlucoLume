@@ -18,24 +18,17 @@ import { MODES } from '../groups/groupFormat.js';
 import { formatDateTime } from './measurementFormat.js';
 import {
   GRANULARITIES, ORIGIN_FILTERS, ORIGIN_SUFFIX, VARIABLES, aggregateSeries, bucketLabel, describePoint, formatClock, formatDay, formatValue, otherValues,
-  parseStamp, periodWindow, seriesFor, variableName,
+  SEMAFORO, SIN_REGLA_COLOR, glucoseSemaforo, parseStamp, periodWindow, seriesFor, variableName,
 } from './evolutionModel.js';
 
 const PERIOD_DAYS = [1, 7, 14, 30, 90];
 const OVERVIEW = 'GENERAL';
 // Orden de las pestañas: la glucosa (objetivo del proyecto) primero.
-const TABS = ['glucosa', 'frecuenciaCardiaca', 'spo2', 'calidadSenal', 'indiceOptico'];
+const TABS = ['glucosa', 'frecuenciaCardiaca', 'spo2', 'calidadSenal'];
 // Oxímetro: SpO₂ y frecuencia cardíaca en un mismo gráfico. La glucosa es una sección aparte (con su semáforo).
 const OXIMETRY_KEYS = ['spo2', 'frecuenciaCardiaca'];
 const SECTION_GLUCOSA = 'glucosa';
 const SECTION_OXIMETRO = 'oximetria';
-// Mismos rótulos y colores que el semáforo del historial («Está bien», «Revisar», «Muy alto»).
-const SEMAFORO = {
-  VERDE: { label: 'Está bien', color: '#16a34a' },
-  AMARILLO: { label: 'Revisar', color: '#f59e0b' },
-  ROJO: { label: 'Muy alto', color: '#dc2626' },
-};
-const SIN_REGLA_COLOR = '#94a3b8';
 const personalPointPath = (id) => `/app/mediciones/${id}`;
 
 function StatCards({ title, stats, variable, tag }) {
@@ -168,7 +161,7 @@ export function EvolutionPanel({
   // El eje X representa el período elegido (p. ej. las últimas 24 horas), no solo el rango en que hay datos.
   const domain = periodWindow(data, period, points.map((point) => ({ t: parseStamp(point.fecha) })).filter((point) => Number.isFinite(point.t)));
   const variable = variableChoice ?? (compact ? OVERVIEW : seriesOf('glucosa').length > 0 ? 'glucosa' : 'frecuenciaCardiaca');
-  const visible = Object.keys(VARIABLES).filter((key) => seriesOf(key).length > 0);
+  const visible = Object.keys(VARIABLES).filter((key) => key !== 'indiceOptico' && seriesOf(key).length > 0); // sin índice óptico en Mis mediciones
   const overview = variable === OVERVIEW;
   const spec = VARIABLES[variable];
   // Glucosa y oxímetro son secciones distintas; «Vista general» reúne todo. En la ficha del paciente (`compact`) cada variable va sola.
@@ -180,14 +173,10 @@ export function EvolutionPanel({
   const noPoints = points.filter((point) => (origin === 'TODOS' || (origin === 'DEMO' ? point.esDemo : !point.esDemo))).length === 0;
   // El semáforo (solo glucosa) se ve por medición; con una agrupación (promedios) no hay un semáforo por punto.
   const semaforoOn = section === SECTION_GLUCOSA && granularity === 'MEDICION';
-  const semaforoCounts = Object.fromEntries(Object.keys(SEMAFORO).map((key) => [key, series.filter((point) => point.semaforo === key).length]));
-  const sinRegla = series.filter((point) => !point.demo && !point.semaforo).length;
-  const dotColor = semaforoOn ? (point) => SEMAFORO[point.semaforo]?.color ?? SIN_REGLA_COLOR : undefined;
-  // Rango de referencia de la regla que define el semáforo: el de la medición más reciente (glucosa experimental, sin DEMO).
-  const withRange = series.filter((point) => !point.demo && point.rangeMax !== null && point.rangeMax !== undefined);
-  const latestRange = withRange.at(-1);
-  const glucoseRange = section === SECTION_GLUCOSA && latestRange ? { min: latestRange.rangeMin ?? null, max: latestRange.rangeMax } : null;
-  const rangesVary = new Set(withRange.map((point) => `${point.rangeMin}:${point.rangeMax}`)).size > 1;
+  // Mismo cálculo que en Inicio (glucoseSemaforo): colores, conteos y el intervalo de la medición más reciente (DEMO incluida).
+  const semaforo = section === SECTION_GLUCOSA ? glucoseSemaforo(series) : null;
+  const { counts: semaforoCounts, sinRegla, dotColor: semaforoDot, range: glucoseRange, rangesVary } = semaforo ?? {};
+  const dotColor = semaforoOn ? semaforoDot : undefined;
 
   function changeVariable(key) {
     setVariableChoice(key);

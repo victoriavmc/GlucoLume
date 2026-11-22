@@ -21,3 +21,21 @@
 .export-check-cell {
   width: 1%;
 }
+
+/* Detalle de una medición: exportar, enviar y eliminar en una misma línea, con los controles alineados por la base. */
+.measurement-detail .md-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.measurement-detail .export-toolbar {
+  align-items: flex-end;
+  flex-wrap: nowrap;
+}
+
+.measurement-detail .export-toolbar .field {
+  min-width: 190px;
+  margin: 0;
+}

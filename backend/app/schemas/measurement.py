@@ -426,3 +426,21 @@ class InstitutionIndicators(BaseModel):
     medicionesPorEstado: dict[str, int]
     medicionesPorModo: dict[str, int]
     completadas: dict[str, MetricSummary]
+
+
+# --- Exportación del historial propio (POST /measurements/export) ------------------------------------------------------
+
+
+class OwnMeasurementExportRequest(BaseModel):
+    """`SELECCION`: las mediciones de `idsMedicion` (de la página que se ve). `TODOS`: las que coinciden con los filtros del historial."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alcance: Literal["SELECCION", "TODOS"]
+    idsMedicion: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    desde: date | None = None
+    hasta: date | None = None
+    modo: Literal["OXIMETRIA", "GLUCOSA_EXPERIMENTAL"] | None = None
+    estado: Literal["PENDIENTE", "ADQUIRIENDO", "PROCESANDO", "COMPLETADA", "INVALIDA", "CANCELADA"] | None = None
+    origen: Literal["DEMO", "REAL"] | None = None
+    orden: Literal["asc", "desc"] = "desc"

@@ -108,8 +108,8 @@ export function AuthProvider({ children }) {
 
   /** Activación de una cuenta invitada: la persona eligió sus credenciales y el backend abre la sesión. */
   const completeActivation = useCallback(
-    async (token, usuario, password, aceptaPolitica) =>
-      handleLoginResponse(await authApi.completeAccountActivation(token, usuario, password, aceptaPolitica), false),
+    async (token, datos, aceptaPolitica) =>
+      handleLoginResponse(await authApi.completeAccountActivation(token, datos, aceptaPolitica), false),
     [handleLoginResponse],
   );
 

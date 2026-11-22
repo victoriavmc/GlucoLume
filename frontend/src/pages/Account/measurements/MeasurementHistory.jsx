@@ -2,7 +2,7 @@
 // perfil propio y cada paciente institucional: cambia solo de dónde salen los datos (`loadPage`/`loadEvolution`),
 // que el backend autoriza en cada consulta. Los gráficos usan solo mediciones completadas.
 
-import { Activity, ChevronLeft, ChevronRight, Filter, Trash2 } from 'lucide-react';
+import { Activity, ChevronLeft, ChevronRight, Download, Filter, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -10,7 +10,10 @@ import { Badge, OriginBadge } from '../../../components/Badge.jsx';
 import { EmptyState } from '../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../components/FormControls.jsx';
 import { SkeletonList } from '../../../components/Skeleton.jsx';
+import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
 import { useLatestRequest } from '../../../utils/useLatestRequest.js';
+import '../institutions/exportControls.css';
 import { DemoBadge } from './DeviceReadout.jsx';
 import { EvolutionPanel } from './EvolutionPanel.jsx';
 import { MEALS, MODES, ORIGINS, STATES, formatDateTime } from './measurementFormat.js';
@@ -53,13 +56,21 @@ function Evolution({ loadEvolution, pointPath, handleOperationError }) {
   );
 }
 
-export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo }) {
+/** Filtros con valor, listos para la API de exportación (sin campos vacíos). */
+function filledFilters(filters) {
+  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''));
+}
+
+export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onExport }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [confirmingDemo, setConfirmingDemo] = useState(false);
   const [notice, setNotice] = useState('');
   const [pagina, setPagina] = useState(1);
   const [page, setPage] = useState(null);
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState(() => new Set()); // mediciones marcadas para exportar (solo de la página visible)
+  const [exportFormat, setExportFormat] = useState('csv');
+  const [exporting, setExporting] = useState(false);
 
   const beginRequest = useLatestRequest(); // filtros, páginas, el refresco por vencimiento y «eliminar demos» comparten esta carga: gana la última
 
@@ -89,11 +100,40 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
     return () => clearInterval(timer);
   }, [expiring, load]);
 
+  // La selección es de la página y de los filtros que se ven: al cambiar cualquiera de los dos, se limpia.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [filters, pagina]);
+
   function update(field) {
     return (event) => {
       setFilters((current) => ({ ...current, [field]: event.target.value }));
       setPagina(1);
     };
+  }
+
+  function toggleOne(id) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleExport(body) {
+    setExporting(true);
+    setError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await onExport(body, exportFormat);
+      saveBlob(blob, filename);
+      setNotice(`Exportación lista: ${filename}.`);
+    } catch (exportError) {
+      setError(handleOperationError(exportError));
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function deleteDemo() {
@@ -112,6 +152,9 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
   const hasDemo = Boolean(page?.items.some((item) => item.esDemo));
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
   const filtered = Object.entries(filters).some(([key, current]) => current !== EMPTY_FILTERS[key]);
+  // Exportar: solo en el perfil propio (`onExport`). La API vuelve a validar cada pedido.
+  const pageIds = page?.items.map((measurement) => measurement.idMedicion) ?? [];
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
 
   return (
     <>
@@ -161,6 +204,10 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
               {page.items.map((measurement) => (
                 <li key={measurement.idMedicion} className="member-row measurement-card">
                   <span>
+                    {onExport && (
+                      <input type="checkbox" className="export-check" checked={selected.has(measurement.idMedicion)}
+                        onChange={() => toggleOne(measurement.idMedicion)} aria-label={`Seleccionar la medición del ${formatDateTime(measurement.fechaHoraInicio)}`} />
+                    )}{onExport && ' '}
                     <b>{formatDateTime(measurement.fechaHoraInicio)}</b>
                     <small> · {MODES[measurement.modoMedicion] ?? measurement.modoMedicion} · {MEALS[measurement.condicionComida] ?? measurement.condicionComida}{measurement.modoMedicion === 'GLUCOSA_EXPERIMENTAL' && ` · Última comida: ${measurement.fechaHoraUltimaComida ? formatDateTime(measurement.fechaHoraUltimaComida) : 'Sin informar'}`}</small>
                     {measurement.origenGlucosa && !measurement.esDemo && (
@@ -194,6 +241,24 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
                 </li>
               ))}
             </ul>
+            {onExport && (
+              <div className="export-toolbar export-toolbar--end">
+                <label className="field-hint">
+                  <input type="checkbox" className="export-check" checked={allOnPageSelected}
+                    onChange={() => setSelected(allOnPageSelected ? new Set() : new Set(pageIds))} />{' '}
+                  Seleccionar esta página
+                </label>
+                <SelectField label="Formato" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)} options={EXPORT_FORMATS} />
+                <button type="button" className="btn btn-outline" disabled={selected.size === 0 || exporting}
+                  onClick={() => handleExport({ alcance: 'SELECCION', idsMedicion: [...selected] })}>
+                  <Download size={18} aria-hidden="true" /> Exportar seleccionadas{selected.size > 0 ? ` (${selected.size})` : ''}
+                </button>
+                <button type="button" className="btn btn-outline" disabled={exporting}
+                  onClick={() => handleExport({ alcance: 'TODOS', ...filledFilters(filters) })}>
+                  <Download size={18} aria-hidden="true" /> Exportar todas{filtered ? ' las filtradas' : ''} ({page.total})
+                </button>
+              </div>
+            )}
             {onDeleteDemo && (hasDemo || filters.origen === 'DEMO') && (
               <div className="form-actions">
                 {confirmingDemo ? (
