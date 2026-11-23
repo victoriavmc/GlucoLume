@@ -81,8 +81,8 @@ def purgeStartAudits(db) -> None:
 def test_dry_run_no_escribe_nada_y_prevee_las_cantidades(db):
     plan = seeder.buildPlan(db, anchor=ANCHOR)
     assert not plan.bloqueado
-    assert plan.conteo()["Usuario"] == {"CREAR": 21}
-    assert plan.conteo()["PerfilMedicion"] == {"CREAR": 39}
+    assert plan.conteo()["Usuario"] == {"CREAR": len(C.ACCOUNTS)}
+    assert plan.conteo()["PerfilMedicion"] == {"CREAR": C.expectedCounts()["perfiles_individuales"] + C.expectedCounts()["pacientes_asignados"]}
     assert all(not etapa for etapa in plan.etapas)  # ningún registro preparado para insertar
     assert countRows(db, User) == 0
     assert countRows(db, Measurement) == 0
@@ -211,6 +211,8 @@ def test_cinco_configuraciones_de_privacidad_del_grupo(db, seeded):
         "grupo-integrante-3": (False, False, True, False),
         "grupo-integrante-4": (False, False, False, True),
         "grupo-integrante-5": (True, True, True, True),
+        "grupo-integrante-6": (True, True, True, True),
+        "grupo-integrante-7": (True, True, True, True),
     }
     for key, (perfil, ultima, historial, avisos) in expected.items():
         link = C.demoId("vinculo-grupo", key)
@@ -224,7 +226,8 @@ def test_avisos_no_exponen_valores_y_el_administrador_no_ve_sus_propios_datos_en
     admin = actor(db, "grupo-admin")
     group = C.demoId("grupo", C.GROUP_KEY)
     notices = groups.sharedNotices(db, admin, group, C.demoId("vinculo-grupo", "grupo-integrante-4"))
-    assert notices.total == len(next(specs for key, specs in C.individualMeasurements() if key == "grupo-integrante-4"))
+    integrante4 = next(specs for key, specs in C.individualMeasurements() if key == "grupo-integrante-4")
+    assert notices.total == sum(1 for spec in integrante4 if spec.estado == C.ESTADO_COMPLETADA)  # solo las completadas se avisan
     assert all(set(item.model_dump().keys()) == {"fechaHoraInicio"} for item in notices.items)
     with pytest.raises(AuthError):  # tus propios datos se consultan desde tu perfil
         groups.sharedProfile(db, admin, group, C.demoId("vinculo-grupo", "grupo-admin"))
@@ -436,7 +439,7 @@ def test_cli_dry_run_luego_aplicar_idempotente_y_sin_imprimir_contrasenas(db, en
 
     lines.clear()
     assert demoSeed.run(args + ["--verificar"], out=lines.append) == 0
-    assert any("Cuentas verificadas: 21 de 21" in line for line in lines)
+    assert any(f"Cuentas verificadas: {len(C.ACCOUNTS)} de {len(C.ACCOUNTS)}" in line for line in lines)
 
     old = passwords["operador-a-1"]
     assert demoSeed.run(args + ["--aplicar", "--regenerar-contrasenas"], out=lines.append) == 0
@@ -498,7 +501,7 @@ def test_individuo_ve_su_historial_propio_completadas_y_canceladas_se_ocultan(db
     specs = dict(C.individualMeasurements())["individual-a"]
     completed = sum(1 for spec in specs if spec.estado == C.ESTADO_COMPLETADA)
     hidden = len(specs) - completed
-    assert hidden == 2  # una cancelada y una inválida en la cuenta de la escena A
+    assert hidden > 0 and {spec.estado for spec in specs} >= {"CANCELADA", "INVALIDA"}  # hay canceladas e inválidas en la cuenta A
     page = measurements.listOwnHistory(db, actor(db, "individual-a"), tamanioPagina=50)
     assert page.total == completed
     assert all(item.estadoMedicion == "COMPLETADA" for item in page.items)

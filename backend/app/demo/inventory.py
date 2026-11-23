@@ -20,7 +20,8 @@ PLACEHOLDER_NO_DISPONIBLE = "(no disponible: regenerar con --regenerar-contrasen
 CATEGORIAS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Usuarios individuales", ("individual-a",)),
     ("Integrantes del grupo familiar", ("grupo-admin", "grupo-integrante-1", "grupo-integrante-2", "grupo-integrante-3",
-                                         "grupo-integrante-4", "grupo-integrante-5")),
+                                         "grupo-integrante-4", "grupo-integrante-5",
+                                         "grupo-integrante-6", "grupo-integrante-7")),
     ("Propietarios", ("propietario-a", "propietario-b")),
     ("Moderadores", ("moderador-a-1", "moderador-a-2", "moderador-b-1", "moderador-b-2")),
     ("Operadores", tuple(f"operador-{i}-{n}" for i in ("a", "b") for n in (1, 2, 3, 4))),

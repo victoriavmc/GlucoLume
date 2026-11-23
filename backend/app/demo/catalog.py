@@ -18,7 +18,7 @@ from __future__ import annotations
 import random
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 DEMO_NAMESPACE = uuid.UUID("6f1c2a7e-3b8d-4e51-9a0c-64d0e0b1d3a7")  # fijo: cambiarlo cambia todos los IDs demo
@@ -26,7 +26,12 @@ EMAIL_DOMAIN = "example.com"
 NOTA_MEDICION = "DEMO - medición sintética de demostración académica. No es un dato médico ni un resultado validado."
 NOTA_INSTITUCION = "Institución sintética de demostración académica. No corresponde a una institución real."
 NOTA_GRUPO = "Grupo familiar sintético de demostración académica."
-HISTORY_DAYS = 60  # ventana de mediciones hacia atrás desde la fecha de ancla (cubre los filtros de 7, 30 y 90 días)
+HISTORY_START = date(2022, 1, 1)  # primera medición del historial demo de las cuentas individuales
+DATA_END_DATE = date(2026, 11, 23)  # último día del historial: la última medición de cada cuenta individual es ese día a las 17:00
+DATA_END_HOUR = 17
+HISTORY_DAYS = (DATA_END_DATE - HISTORY_START).days
+HISTORY_START_DATETIME = datetime.combine(HISTORY_START, time(0, 0))  # ventana de mediciones individuales hacia atrás desde la fecha de ancla
+PATIENT_HISTORY_DAYS = 60  # ventana de mediciones de los pacientes institucionales (altas y transferencias son recientes)
 
 # Tipos de cuenta, estados y valores permitidos (los mismos literales que usan los modelos).
 CONSUMIDOR_FINAL = "CONSUMIDOR_FINAL"
@@ -93,6 +98,10 @@ ACCOUNTS: tuple[Account, ...] = (
             "B - Integrante 4: solo avisos (fecha y hora de cada medición, nunca valores).", date(1996, 2, 25)),
     Account("grupo-integrante-5", "Carla", "Núñez", CONSUMIDOR_FINAL, "FEMENINO", "Integrante del grupo familiar 5",
             "B - Integrante 5: comparte datos básicos, última medición, historial y avisos.", date(1959, 12, 4)),
+    Account("grupo-integrante-6", "Lucas", "Ferrari", CONSUMIDOR_FINAL, "MASCULINO", "Integrante del grupo familiar 6",
+            "B - Integrante 6: comparte datos básicos, última medición, historial y avisos.", date(1989, 8, 17)),
+    Account("grupo-integrante-7", "Julia", "Bravo", CONSUMIDOR_FINAL, "FEMENINO", "Integrante del grupo familiar 7",
+            "B - Integrante 7: comparte datos básicos, última medición, historial y avisos.", date(1973, 4, 22)),
     # Personal institucional (14 cuentas: 2 propietarios, 4 moderadores, 8 operadores).
     Account("propietario-a", "Gabriel", "Montes", USUARIO_INSTITUCIONAL, "MASCULINO", "Propietario",
             "C: propietario de la Institución Demo A y de la Institución Demo C (administra más de una institución)."),
@@ -126,16 +135,18 @@ ACCOUNTS: tuple[Account, ...] = (
 ACCOUNTS_BY_KEY = {account.key: account for account in ACCOUNTS}
 
 # Integrantes del grupo: permisos de compartición (compartePerfil, comparteUltimaMedicion, comparteHistorial, notificaMedicion)
-# y cantidad de mediciones propias, distinta para cada uno.
+# y frecuencia de medición propia (porcentaje de días del historial con medición: 1, 2 o 3 mediciones por día).
 GROUP_MEMBERS: tuple[tuple[str, tuple[bool, bool, bool, bool], int], ...] = (
-    ("grupo-integrante-1", (True, False, False, False), 4),
-    ("grupo-integrante-2", (False, True, False, False), 11),
-    ("grupo-integrante-3", (False, False, True, False), 16),
-    ("grupo-integrante-4", (False, False, False, True), 6),
-    ("grupo-integrante-5", (True, True, True, True), 22),
+    ("grupo-integrante-1", (True, False, False, False), 35),
+    ("grupo-integrante-2", (False, True, False, False), 50),
+    ("grupo-integrante-3", (False, False, True, False), 40),
+    ("grupo-integrante-4", (False, False, False, True), 30),
+    ("grupo-integrante-5", (True, True, True, True), 55),
+    ("grupo-integrante-6", (True, True, True, True), 45),
+    ("grupo-integrante-7", (True, True, True, True), 25),
 )
-GROUP_ADMIN_MEASUREMENTS = 9
-INDIVIDUAL_A_MEASUREMENTS = 14
+GROUP_ADMIN_ACTIVITY = 45
+INDIVIDUAL_A_ACTIVITY = 60
 GROUP_KEY = "familia-demo"
 GROUP_NAME = "Grupo familiar DEMO"
 
@@ -233,7 +244,7 @@ class DemoDevice:
 
 
 DEVICES: tuple[DemoDevice, ...] = (
-    # Un dispositivo propio por cada cuenta individual (ind-01 … ind-07): nadie comparte dispositivo.
+    # Un dispositivo propio por cada cuenta individual (ind-01 … ind-09): nadie comparte dispositivo.
     DemoDevice("ind-01", "DEMO-DISP-IND-01", None),
     DemoDevice("ind-02", "DEMO-DISP-IND-02", None),
     DemoDevice("ind-03", "DEMO-DISP-IND-03", None),
@@ -241,6 +252,8 @@ DEVICES: tuple[DemoDevice, ...] = (
     DemoDevice("ind-05", "DEMO-DISP-IND-05", None),
     DemoDevice("ind-06", "DEMO-DISP-IND-06", None),
     DemoDevice("ind-07", "DEMO-DISP-IND-07", None),
+    DemoDevice("ind-08", "DEMO-DISP-IND-08", None),
+    DemoDevice("ind-09", "DEMO-DISP-IND-09", None),
     DemoDevice("a-01", "DEMO-DISP-A-01", "a"),
     DemoDevice("a-02", "DEMO-DISP-A-02", "a"),
     DemoDevice("b-01", "DEMO-DISP-B-01", "b"),
@@ -256,6 +269,8 @@ INDIVIDUAL_DEVICE_KEYS: dict[str, str] = {
     "grupo-integrante-3": "ind-05",
     "grupo-integrante-4": "ind-06",
     "grupo-integrante-5": "ind-07",
+    "grupo-integrante-6": "ind-08",
+    "grupo-integrante-7": "ind-09",
 }
 
 
@@ -364,7 +379,7 @@ def patientDeviceKey(patient: Patient) -> str:
 class MeasurementSpec:
     profileKey: str
     index: int
-    dayOffset: int  # días hacia atrás desde la fecha de ancla (1 … HISTORY_DAYS)
+    dayOffset: int  # días hacia atrás desde la fecha de ancla (0 = DATA_END_DATE, hasta HISTORY_DAYS)
     hour: int
     minute: int
     modo: str
@@ -386,64 +401,99 @@ class MeasurementSpec:
         return anchor - timedelta(days=self.dayOffset) + timedelta(hours=self.hour, minutes=self.minute)
 
 
-def measurementsFor(profileKey: str, count: int, *, baseBpm: int) -> tuple[MeasurementSpec, ...]:
-    """Mediciones de un perfil: fechas y horas distintas (algunos días con dos o más), estados variados (CANCELADA e INVALIDA
-    en una minoría), modos y condiciones de alimentación mezclados y rangos fisiológicos verosímiles para la demostración."""
-    if count <= 0:
-        return ()
+def _glucosaDemo(rng: random.Random, condicion: str) -> Decimal:
+    """Glucosa sintética (mg/dL) con valores en todas las zonas del semáforo: mayoría en rango, algunas fuera de rango."""
+    roll = rng.random()
+    if roll < 0.10:  # por debajo del rango de la condición
+        low, high = 55, 70
+    elif roll < 0.22:  # por encima del rango de la condición
+        low, high = {"AYUNO": (108, 140), "POSTPRANDIAL": (176, 235), "NO_INFORMADA": (142, 190)}[condicion]
+    else:
+        low, high = {"AYUNO": (78, 104), "POSTPRANDIAL": (118, 172), "NO_INFORMADA": (92, 138)}[condicion]
+    return Decimal(rng.randint(low * 10, high * 10)) / Decimal(10)
+
+
+def _spec(profileKey: str, index: int, dayOffset: int, hour: int, minute: int, estado: str, rng: random.Random,
+          baseBpm: int) -> MeasurementSpec:
+    completed = estado == ESTADO_COMPLETADA
+    modo = MODO_GLUCOSA if rng.random() < 0.6 else MODO_OXIMETRIA
+    condicion = rng.choice(("AYUNO", "POSTPRANDIAL", "NO_INFORMADA"))
+    minutosComida = None
+    if condicion == "AYUNO":
+        minutosComida = rng.randint(480, 720)
+    elif condicion == "POSTPRANDIAL":
+        minutosComida = rng.randint(45, 180)
+    glucosa = _glucosaDemo(rng, condicion) if completed and modo == MODO_GLUCOSA else None
+    return MeasurementSpec(
+        profileKey=profileKey,
+        index=index,
+        dayOffset=dayOffset,
+        hour=hour,
+        minute=minute,
+        modo=modo,
+        estado=estado,
+        condicion=condicion,
+        minutosDesdeComida=minutosComida,
+        frecuenciaCardiaca=max(52, min(110, baseBpm + rng.randint(-8, 14))) if completed else None,
+        spo2=Decimal(rng.randint(950, 995)) / Decimal(10) if completed else None,
+        glucosa=glucosa,
+        calidadSenal=Decimal(str(round(rng.uniform(0.72, 0.98), 3))) if completed else None,
+        indiceOptico=Decimal(str(round(rng.uniform(1.8, 2.9), 5))) if completed else None,
+        lecturas=rng.randint(8, 25) if completed else None,
+    )
+
+
+def _estado(rng: random.Random) -> str:
+    roll = rng.random()
+    if roll < 0.02:
+        return ESTADO_INVALIDA
+    if roll < 0.06:
+        return ESTADO_CANCELADA
+    return ESTADO_COMPLETADA
+
+
+def individualMeasurementsFor(profileKey: str, *, activity: int, baseBpm: int) -> tuple[MeasurementSpec, ...]:
+    """Historial de una cuenta individual desde HISTORY_START hasta DATA_END_DATE. Cada día tiene medición con probabilidad
+    `activity` (%), y ese día 1, 2 o 3 mediciones en horas distintas. El último día (DATA_END_DATE) termina con una medición a las 17:00."""
     rng = random.Random(f"demo-mediciones:{profileKey}")
-    uniqueDays = sorted(rng.sample(range(1, HISTORY_DAYS + 1), k=max(1, min(HISTORY_DAYS, round(count * 0.75)))))
     out: list[MeasurementSpec] = []
-    for index in range(count):
-        if count >= 13 and index % 13 == 12:
-            estado = ESTADO_INVALIDA
-        elif count >= 9 and index % 9 == 8:
-            estado = ESTADO_CANCELADA
+    for dayOffset in range(HISTORY_DAYS, -1, -1):
+        if dayOffset == 0:
+            hours = sorted(rng.sample(range(7, DATA_END_HOUR), k=rng.randint(0, 2))) + [DATA_END_HOUR]
+        elif rng.random() * 100 < activity:
+            hours = sorted(rng.sample(range(7, 23), k=rng.choices((1, 2, 3), weights=(5, 3, 2))[0]))
         else:
-            estado = ESTADO_COMPLETADA
-        completed = estado == ESTADO_COMPLETADA
-        modo = MODO_GLUCOSA if rng.random() < 0.6 else MODO_OXIMETRIA
-        condicion = rng.choice(("AYUNO", "POSTPRANDIAL", "NO_INFORMADA"))
-        minutosComida = None
-        if condicion == "AYUNO":
-            minutosComida = rng.randint(480, 720)
-        elif condicion == "POSTPRANDIAL":
-            minutosComida = rng.randint(45, 180)
-        glucosa = None
-        if completed and modo == MODO_GLUCOSA:
-            low, high = {"AYUNO": (78, 104), "POSTPRANDIAL": (118, 172), "NO_INFORMADA": (92, 138)}[condicion]
-            glucosa = Decimal(rng.randint(low * 10, high * 10)) / Decimal(10)
-        out.append(MeasurementSpec(
-            profileKey=profileKey,
-            index=index,
-            dayOffset=uniqueDays[index % len(uniqueDays)],
-            hour=rng.randint(7, 22),
-            minute=rng.randint(0, 59),
-            modo=modo,
-            estado=estado,
-            condicion=condicion,
-            minutosDesdeComida=minutosComida,
-            frecuenciaCardiaca=max(52, min(110, baseBpm + rng.randint(-8, 14))) if completed else None,
-            spo2=Decimal(rng.randint(950, 995)) / Decimal(10) if completed else None,
-            glucosa=glucosa,
-            calidadSenal=Decimal(str(round(rng.uniform(0.72, 0.98), 3))) if completed else None,
-            indiceOptico=Decimal(str(round(rng.uniform(1.8, 2.9), 5))) if completed else None,
-            lecturas=rng.randint(8, 25) if completed else None,
-        ))
+            continue
+        for position, hour in enumerate(hours):
+            last = dayOffset == 0 and position == len(hours) - 1
+            minute = 0 if last else rng.randint(0, 59)
+            estado = ESTADO_COMPLETADA if last else _estado(rng)
+            out.append(_spec(profileKey, len(out), dayOffset, hour, minute, estado, rng, baseBpm))
+    return tuple(out)
+
+
+def patientMeasurements() -> tuple[tuple[Patient, tuple[MeasurementSpec, ...]], ...]:
+    """Mediciones de los pacientes: cantidad fija por paciente, repartidas en PATIENT_HISTORY_DAYS."""
+    out = []
+    for patient in PATIENTS:
+        rng = random.Random(f"demo-mediciones:{patient.key}")
+        count = patient.mediciones
+        uniqueDays = sorted(rng.sample(range(1, PATIENT_HISTORY_DAYS + 1), k=max(1, min(PATIENT_HISTORY_DAYS, round(count * 0.75)))))
+        specs = []
+        for index in range(count):
+            hour, minute = rng.randint(7, 22), rng.randint(0, 59)
+            specs.append(_spec(patient.key, index, uniqueDays[index % len(uniqueDays)], hour, minute, _estado(rng), rng,
+                               70 + (patient.seq * 2) % 12))
+        out.append((patient, tuple(specs)))
     return tuple(out)
 
 
 def individualMeasurements() -> tuple[tuple[str, tuple[MeasurementSpec, ...]], ...]:
     """(clave de cuenta, mediciones) de cada cuenta individual."""
-    plan = [("individual-a", INDIVIDUAL_A_MEASUREMENTS), ("grupo-admin", GROUP_ADMIN_MEASUREMENTS)]
-    plan += [(key, count) for key, _, count in GROUP_MEMBERS]
-    return tuple((key, measurementsFor(key, count, baseBpm=64 + (index * 3) % 14))
-                 for index, (key, count) in enumerate(plan))
-
-
-def patientMeasurements() -> tuple[tuple[Patient, tuple[MeasurementSpec, ...]], ...]:
-    return tuple((patient, measurementsFor(patient.key, patient.mediciones, baseBpm=70 + (patient.seq * 2) % 12))
-                 for patient in PATIENTS)
+    plan = [("individual-a", INDIVIDUAL_A_ACTIVITY), ("grupo-admin", GROUP_ADMIN_ACTIVITY)]
+    plan += [(key, activity) for key, _, activity in GROUP_MEMBERS]
+    return tuple((key, individualMeasurementsFor(key, activity=activity, baseBpm=64 + (index * 3) % 14))
+                 for index, (key, activity) in enumerate(plan))
 
 
 def expectedCounts() -> dict[str, int]:

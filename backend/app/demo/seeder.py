@@ -130,8 +130,8 @@ def assertAllowed(*, autorizarProduccion: bool = False, confirmarBase: str | Non
 
 
 def defaultAnchor() -> datetime:
-    """Medianoche (hora de Argentina, naive) del día de ejecución: el mismo día produce los mismos datos."""
-    return datetime.combine(nowForDb().date(), time(0, 0))
+    """Medianoche del último día del historial demo (C.DATA_END_DATE): los datos terminan ese día a las 17:00, siempre."""
+    return datetime.combine(C.DATA_END_DATE, time(0, 0))
 
 
 def repoRoots() -> list[Path]:
@@ -281,7 +281,7 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
         plan.items.append(PlanItem("Grupo", C.GROUP_KEY, "CREAR", C.GROUP_NAME))
         if building:
             plan.etapas[1].append(Group(idGrupo=groupId, nombre=C.GROUP_NAME, descripcion=C.NOTA_GRUPO, estado="ACTIVO",
-                                        fechaCreacion=anchor - timedelta(days=70), fechaActualizacion=now))
+                                        fechaCreacion=C.HISTORY_START_DATETIME - timedelta(days=30), fechaActualizacion=now))
     for device in C.DEVICES:
         if _exists(db, Device, device.id):
             plan.items.append(PlanItem("Dispositivo", device.key, "YA_EXISTE"))
@@ -292,7 +292,7 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
                 idDispositivo=device.id, codigoDispositivo=device.codigo, nombre=f"Dispositivo DEMO {device.key} (sintético)",
                 modelo="GlucoLume DEMO", modeloSensor=C.SENSOR_DEMO, versionFirmware=C.VERSION_FIRMWARE_DEMO, estado="OPERATIVO",
                 idInstitucionAsignada=C.INSTITUTIONS_BY_KEY[device.institution].id if device.institution else None,
-                idInstitucionUsuarioResponsable=None, fechaRegistro=anchor - timedelta(days=60),
+                idInstitucionUsuarioResponsable=None, fechaRegistro=C.HISTORY_START_DATETIME - timedelta(days=1),
             ))
 
     # Etapa 2 — cuenta individual ↔ dispositivo que usa en su historial (como la primera medición real: la cuenta queda vinculada a ese
@@ -327,8 +327,8 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
             perfil, ultima, historial, avisos = flags
             plan.etapas[2].append(GroupUser(
                 idGrupoUsuario=linkId, idGrupo=groupId, idUsuario=accounts[key].id, rolGrupo=role, estadoRelacion="ACTIVO",
-                nivelComparticion="NINGUNA", fechaInvitacion=anchor - timedelta(days=60),
-                fechaIncorporacion=anchor - timedelta(days=59), visualiza=True, compartePerfil=perfil,
+                nivelComparticion="NINGUNA", fechaInvitacion=C.HISTORY_START_DATETIME - timedelta(days=3),
+                fechaIncorporacion=C.HISTORY_START_DATETIME - timedelta(days=2), visualiza=True, compartePerfil=perfil,
                 comparteUltimaMedicion=ultima, comparteHistorial=historial, notificaMedicion=avisos,
             ))
 
@@ -377,7 +377,7 @@ def _profilesAndMeasurements(db: Session, plan: Plan, building: bool, now: datet
         profileId = C.demoId("perfil", accountKey)
         _profileItem(db, plan, building, accountKey, profileId, lambda pid, a=account, s=specs: MeasurementProfile(
             idPerfilMedicion=pid, tipoPerfil=C.PERFIL_CONSUMIDOR, idUsuario=a.id, nombre=a.nombre, apellido=a.apellido,
-            fechaNacimiento=a.fechaNacimiento, sexoModelo=a.sexo, fechaCreacion=now - timedelta(days=60),
+            fechaNacimiento=a.fechaNacimiento, sexoModelo=a.sexo, fechaCreacion=C.HISTORY_START_DATETIME,
             fechaUltimaMedicion=_lastCompletedEnd(s, plan.anchor)))
         _measurements(plan, building, specs, profileId, accountKey, account.fechaNacimiento, account.sexo,
                       existingMeasurements, C.deviceKeyForIndividual(accountKey),
@@ -402,7 +402,7 @@ def _profilesAndMeasurements(db: Session, plan: Plan, building: bool, now: datet
 
 def _altaFecha(anchor: datetime) -> datetime:
     """Alta de los pacientes: antes de la primera medición del historial."""
-    return anchor - timedelta(days=C.HISTORY_DAYS + 1)
+    return anchor - timedelta(days=C.PATIENT_HISTORY_DAYS + 1)
 
 
 def _relation(institution: str, account: str) -> uuid.UUID:
