@@ -93,9 +93,10 @@ describe('Dashboard del grupo', () => {
     renderAt(`/app/grupo/${GID}`);
     expect(await screen.findByRole('heading', { name: 'Evolución grupal de mediciones' })).toBeInTheDocument();
     const legend = within(await screen.findByRole('list', { name: 'Series graficadas' }));
-    expect(legend.getByText('Pepe X · DEMO (prueba)')).toBeInTheDocument();
+    // Una sola línea por integrante, con sus DEMO y experimentales unificadas (la marca DEMO va en cada punto, no en la leyenda).
+    expect(legend.getByText('Pepe X')).toBeInTheDocument();
     expect(legend.getByText('Yo X (vos)')).toBeInTheDocument();
-    expect(legend.getByText('Yo X (vos) · DEMO (prueba)')).toBeInTheDocument();
+    expect(legend.queryByText(/DEMO \(prueba\)$/)).not.toBeInTheDocument();
     expect(legend.queryByText(/Juan|Ana/)).not.toBeInTheDocument();
     expect(calls.some((call) => /\/shared\/gu-(juan|ana)\//.test(call.key))).toBe(false); // no compartieron el historial
     expect(calls.some((call) => call.key.includes('/shared/gu-me/'))).toBe(false);

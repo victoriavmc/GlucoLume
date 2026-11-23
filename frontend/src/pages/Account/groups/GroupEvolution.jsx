@@ -292,8 +292,9 @@ function GroupLineChart({
               {item.points.map((point) => {
                 const id = `${item.key}|${point.key}`;
                 const selected = id === selectedKey;
+                const demoTag = point.origin === "DEMO" ? " · DEMO (prueba)" : "";
                 const label =
-                  `${item.label} · ${when(point).date} ${when(point).time ?? ""}`.trim() +
+                  `${item.label}${demoTag} · ${when(point).date} ${when(point).time ?? ""}`.trim() +
                   `: ${formatValue(point.value, decimals(point))} ${spec.unit}`;
                 return (
                   <g

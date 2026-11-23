@@ -175,6 +175,9 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
     signals += recorded
     hidden += recordedHidden
 
+    # Señales ya analizadas (todos sus eventos marcados): no se muestran, pero se cuentan y los indicadores siguen igual.
+    hidden += sum(1 for s in signals if s.analizada)
+    signals = [s for s in signals if not s.analizada]
     signals.sort(key=lambda s: (s.clasificacion != classification.CONFIRMADO, -s.cantidad))
     indicators = _indicators(db, since, until, idInstitucion, attempts)
     return SecuritySignals(
