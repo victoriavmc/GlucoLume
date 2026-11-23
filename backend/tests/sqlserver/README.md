@@ -35,5 +35,10 @@ python -m pytest -v tests/sqlserver
 Sin esas variables la prueba se omite (no es un fallo).
 
 ## Estado
-- La prueba **no se ha ejecutado** contra SQL Server todavía: falta crear la base de prueba con un usuario que tenga permisos para hacerlo.
-- Lo que sí se verificó: el hint `WITH (UPDLOCK, ROWLOCK)` se compila para SQL Server (`test_individual_device_reuse.py`).
+- **PENDIENTE**: la prueba no se ha ejecutado contra SQL Server. Falta una base `*_Concurrencia_Prueba` creada por un DBA.
+- Verificado de forma estática: los 41 modelos del ORM tienen su tabla en `GlucoLume_DB_v5.sql` (40) más `GlucoLume_vinculo_cuenta_dispositivo.sql`
+  (la tabla de vínculos). Las tablas de auditoría (`Auditoria`, `AuditoriaContexto`, `AuditoriaRevision`, `AuditoriaTecnicaMedicion`) están en v5.
+- Verificado: el hint `WITH (UPDLOCK, ROWLOCK)` se compila para SQL Server.
+- Nota: el script de vínculos exige `-v CONFIRMAR=AGREGAR_VINCULO_CUENTA_DISPOSITIVO`; `preparar_base_prueba.ps1` ya lo pasa.
+- Riesgo a resolver antes de integrar: `docs/BASE_DE_DATOS.md` no menciona el script de vínculos, así que una instalación nueva desde v5
+  quedaría sin la tabla y la vinculación individual se desactivaría en silencio (ver `schemaCompat.hasTable`).

@@ -23,7 +23,9 @@ $scripts = @(
 ) | ForEach-Object { (Resolve-Path $_).Path }
 
 $auth = if ($E) { @('-E') } else { @('-U', $Usuario, '-P', (Read-Host -Prompt 'Contraseña del administrador' -AsSecureString | ForEach-Object { [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($_)) })) }
-$comun = @('-S', "$Servidor,$Puerto", '-b') + $auth
+$comun = @('-S', "$Servidor,$Puerto", '-b', '-C', '-I') + $auth
+# El script de vínculos no hace nada sin esta confirmación explícita (ver su encabezado).
+$confirmacion = @{ 'GlucoLume_vinculo_cuenta_dispositivo.sql' = @('-v', 'CONFIRMAR=AGREGAR_VINCULO_CUENTA_DISPOSITIVO') }
 
 # 1) Base nueva (vacía). Si ya existe, el script no la borra: hay que eliminarla a mano (no se hace aquí).
 & sqlcmd @comun -Q "IF DB_ID(N'$Base') IS NOT NULL THROW 50000, 'La base ya existe: elegí otro nombre o borrala a mano.', 1; CREATE DATABASE [$Base];"
@@ -34,7 +36,10 @@ foreach ($script in $scripts) {
     $texto = $texto -replace '\[GlucoLume\]', "[$Base]"
     $temporal = Join-Path $env:TEMP ("glucolume_" + [IO.Path]::GetFileName($script))
     Set-Content -LiteralPath $temporal -Value $texto -Encoding Unicode
-    & sqlcmd @comun -d $Base -i $temporal
+    $extra = $confirmacion[[IO.Path]::GetFileName($script)]
+    if ($null -eq $extra) { $extra = @() }
+    & sqlcmd @comun -d $Base -i $temporal @extra
+    if ($LASTEXITCODE -ne 0) { throw "sqlcmd falló con $script (código $LASTEXITCODE)" }
     Remove-Item -LiteralPath $temporal
 }
 Write-Host "Base '$Base' lista. Ahora creá el login de ejecución (solo db_datareader y db_datawriter sobre esta base)."
