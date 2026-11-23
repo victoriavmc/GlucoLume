@@ -156,14 +156,8 @@ describe('entrega al backend', () => {
 
   it('si otro puente o navegador ya atiende el dispositivo, cierra el puerto y lo explica', async () => {
     const send = vi.fn().mockRejectedValue(Object.assign(new Error('Ya hay otro puente serie activo para este dispositivo.'), { codigo: 'PUENTE_DUPLICADO', status: 409 }));
-    const { link, port, clock, tick } = setup({ send });
+    const { link, port } = setup({ send });
     await link.connect('USB');
-    port.push('GLUCOLUME,ID=ARD-001\r\n'); // el firmware habla: ya no aplica el corte por falta de datos
-    await vi.waitFor(() => expect(send).toHaveBeenCalled());
-    expect(link.getSnapshot().estado).not.toBe(STATES.ERROR); // dentro de la ventana de liberación: sigue reintentando
-    expect(port.closed).toBe(false);
-    clock.now += 16000;
-    tick();
     await vi.waitFor(() => expect(link.getSnapshot().estado).toBe(STATES.ERROR));
     expect(link.getSnapshot().error).toMatch(/otro puente u otro navegador/);
     await vi.waitFor(() => expect(port.closed).toBe(true));

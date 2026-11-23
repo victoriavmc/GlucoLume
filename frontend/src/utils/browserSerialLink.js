@@ -27,9 +27,6 @@ const MAX_AGE_MS = 86_400_000;
 // El firmware informa GLUCOLUME,ID=… al arrancar y cada 10 s (ID_PERIOD_MS): la espera tiene que cubrir ese período, si no el puerto
 // se cierra justo antes de la siguiente identificación (igual que PROBE_SECONDS = 12 s en el puente de Python).
 const IDENTIFY_TIMEOUT_MS = 15000;
-// Un enlace anterior (pestaña recién cerrada o recargada, o un puente que se detuvo) figura activo hasta 10 s sin latidos en el servidor. Durante
-// esa ventana el 409 PUENTE_DUPLICADO no es definitivo: se reintenta solo, sin pedirle al cliente que toque nada de nuevo.
-const TAKEOVER_WAIT_MS = 15000;
 const DEVICE_PREFIXES = ['GLUCOLUME,', 'ST,', 'S,', 'ERR,', 'PONG']; // única evidencia de que el firmware de GlucoLume está hablando
 
 function isDeviceLine(text) {
@@ -163,10 +160,6 @@ export function createBrowserLink(deps = {}) {
       emit({ lineasEnviadas: snapshot.lineasEnviadas + batch.length, ultimoEnvio: current.lastSent, error: null });
     } catch (error) {
       if (run !== current) return;
-      if (error?.codigo === 'PUENTE_DUPLICADO' && now() - current.openedAt < TAKEOVER_WAIT_MS) {
-        emit({ error: 'El enlace anterior de este equipo todavía se está cerrando: GlucoLume reintenta solo.' });
-        return;
-      }
       if (error?.codigo === 'PUENTE_DUPLICADO' || error?.status === 401 || error?.status === 403) {
         await shutdown(current, { estado: STATES.ERROR, error: describeSendError(error) }, false);
       } else {

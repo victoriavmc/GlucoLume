@@ -1,17 +1,17 @@
-# IndividualDevice - Dispositivo vinculado a cada cuenta individual (una cuenta, UN dispositivo)
+# IndividualDevice - Dispositivo vinculado a cada cuenta individual (una cuenta, UN dispositivo a la vez)
 #
-# La primera medición de una cuenta individual con un dispositivo lo deja vinculado a esa cuenta (dbo.VinculoCuentaDispositivo). Después,
-# esa cuenta solo puede medir con ESE dispositivo: con otro se rechaza. Un mismo dispositivo puede estar vinculado a varias cuentas, y cada
-# medición conserva su cuenta y su dispositivo, así que nada se mezcla. La vinculación es independiente de la asignación institucional,
-# que no se toca. El vínculo no se muestra a la propia cuenta; el administrador lo ve en el inventario global, con una referencia corta
-# de la cuenta (nunca su nombre ni su correo).
+# La cuenta individual mide con el dispositivo que tiene vinculado (dbo.VinculoCuentaDispositivo). «Conectar dispositivo» vincula el Arduino
+# que está conectado ahora: si el Arduino informa su ID propio, el dispositivo lógico es el de ese ID (se registra si no existe); si no,
+# se reutiliza el vinculado (si está OPERATIVO) o se crea uno de prueba. Conectar otro Arduino reemplaza el vínculo; el anterior queda
+# intacto (estado, mediciones e historial). Un mismo dispositivo puede estar vinculado a varias cuentas, y cada medición conserva su cuenta
+# y su dispositivo. La vinculación es independiente de la asignación institucional, que no se toca.
 # Sin la tabla en la base instalada no se vincula nada y la medición sigue como siempre (schemaCompat.hasTable).
 
+from datetime import datetime  # noqa: F401  (se mantiene por compatibilidad con importadores existentes)
+
 import uuid
-from datetime import datetime
 
 from sqlalchemy import false, func, select, true
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthError
@@ -34,21 +34,51 @@ def _available(db: Session) -> bool:
     return schemaCompat.hasTable(db, TABLE)
 
 
-def hasLinkTable(db: Session) -> bool:
-    return _available(db)
+def _findDeviceByCode(db: Session, codigo: str) -> Device | None:
+    return db.scalar(select(Device).where(func.lower(Device.codigoDispositivo) == codigo.strip().lower()))
 
 
-def requireLinkedDevice(db: Session, actor, device: Device) -> None:
-    """Cuenta individual: vincula el dispositivo la primera vez y después exige ese mismo. Sin tabla, no hace nada."""
+def _newTestDevice(db: Session, codigo: str) -> Device:
+    device = Device(codigoDispositivo=codigo, nombre="Dispositivo de prueba", modelo=MODELO_PRUEBA,
+                    modeloSensor="MAX30100", estado=ESTADO_OPERATIVO)
+    db.add(device)
+    db.flush()
+    return device
+
+
+def _linkDevice(db: Session, actor, device: Device, *, created: bool) -> None:
+    """Vincula la cuenta a `device`, reemplazando el vínculo anterior (el dispositivo anterior no se toca)."""
+    link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
+    if link is not None and link.idDispositivo == device.idDispositivo:
+        return
+    now = nowForDb()
+    previous = link.idDispositivo if link is not None else None
+    if link is None:
+        link = AccountDeviceLink(idUsuario=actor.idUsuario, idDispositivo=device.idDispositivo, fechaVinculo=now)
+        db.add(link)
+    else:
+        link.idDispositivo = device.idDispositivo
+        link.fechaVinculo = now
+    db.flush()
+    if created:
+        registerEvent(db, "CRUD", "REGISTRAR_DISPOSITIVO", True, actor.idUsuario, "Dispositivo", device.idDispositivo, modulo="DISPOSITIVOS",
+                      datosNuevos={"modeloSensor": "MAX30100", "estado": ESTADO_OPERATIVO, "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA",
+                                   "registroAutomatico": True, "idInstitucion": None})
+    registerEvent(db, "CRUD", "VINCULAR_CUENTA_DISPOSITIVO", True, actor.idUsuario, "VinculoCuentaDispositivo", link.idVinculo,
+                  modulo="DISPOSITIVOS", datosPrevios={"idDispositivo": str(previous)} if previous else None,
+                  datosNuevos={"idDispositivo": str(device.idDispositivo), "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA"})
+
+
+def requireLinkedDevice(db: Session, actor, device: Device, *, physical: bool = False) -> None:
+    """Cuenta individual: vincula el dispositivo la primera vez. Si ya tiene otro vinculado, solo cambia cuando `physical` es True
+    (el Arduino conectado se verificó como ese dispositivo por su ID propio). Sin tabla, no hace nada."""
     if actor.tipoCuenta != TIPO_INDIVIDUAL or not _available(db):
         return
     link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
-    if link is None:
-        db.add(AccountDeviceLink(idUsuario=actor.idUsuario, idDispositivo=device.idDispositivo))
-        db.flush()
-        return
-    if link.idDispositivo != device.idDispositivo:
-        raise AuthError("DISPOSITIVO_YA_VINCULADO", "Tu cuenta ya tiene vinculado otro dispositivo: medí con ese.")
+    if link is not None and link.idDispositivo != device.idDispositivo and not physical:
+        raise AuthError("DISPOSITIVO_YA_VINCULADO",
+                        "Tu cuenta tiene vinculado otro dispositivo. Conectá este Arduino con «Conectar dispositivo» para usarlo.")
+    _linkDevice(db, actor, device, created=False)
 
 
 def linkedDeviceCount(db: Session) -> int | None:
@@ -58,24 +88,10 @@ def linkedDeviceCount(db: Session) -> int | None:
     return db.scalar(select(func.count(func.distinct(AccountDeviceLink.idDispositivo)))) or 0
 
 
-def _auditDeclaredConfirmation(db: Session, actor, device: Device, identity: dict, reused: bool) -> None:
-    """Confirmación manual de «Conectar dispositivo» cuando el Arduino NO informa ID propio (identidad DECLARADA): queda en la auditoría
-    general (solo plataforma; la cuenta individual no puede consultarla). Se guarda cuenta, dispositivo lógico, tipo, código declarado y
-    resultado: nunca credenciales ni datos personales."""
-    if identity.get("nivel") != "DECLARADA":
-        return  # con ID propio la identidad se verificó sola: no hay confirmación manual que auditar
-    registerEvent(db, "CRUD", "CONFIRMAR_DISPOSITIVO_CONEXION", True, actor.idUsuario, "Dispositivo", device.idDispositivo,
-                  modulo="DISPOSITIVOS", datosNuevos={"identificacion": "DECLARADA", "codigoDeclarado": identity.get("codigo"),
-                                                     "confirmacionManual": True,
-                                                     "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA", "reutilizado": reused},
-                  observacion="Identidad física no verificable: la cuenta individual confirmó manualmente qué dispositivo es.")
-
-
 def connectTestDevice(db: Session, actor) -> Device:
-    """«Conectar dispositivo» de una cuenta individual de prueba. Sin cambios si el dispositivo vinculado está OPERATIVO (solo confirma que
-    el Arduino conectado es ese registro). Si NO está operativo, crea un dispositivo de prueba nuevo (código único, generado por el sistema,
-    OPERATIVO), lo vincula a la cuenta y deja el anterior intacto (estado, mediciones e historial). Requiere el puente conectado. El
-    código generado identifica el registro de prueba: no reemplaza ninguna validación de identidad ni de autorización."""
+    """«Conectar dispositivo» de una cuenta individual. Con Arduino que informa su ID propio, vincula el dispositivo de ese ID (lo registra
+    si no existe). Sin ID propio, reutiliza el vinculado si está OPERATIVO o crea uno de prueba (código generado por el sistema). Requiere el
+    puente conectado. No reemplaza ninguna validación de identidad ni de autorización."""
     from app.acquisition.telemetry import hub  # import local: el módulo de adquisición importa servicios de medición
 
     if actor.tipoCuenta != TIPO_INDIVIDUAL:
@@ -84,71 +100,28 @@ def connectTestDevice(db: Session, actor) -> Device:
         raise AuthError("NO_DISPONIBLE", "Los vínculos de dispositivos todavía no están disponibles en esta instalación.")
     if hub.deviceState() != "CONECTADO":
         raise AuthError("PUENTE_NO_CONECTADO", "Conectá el Arduino para continuar.")
-    # Serializa las conexiones de ESTA cuenta: dos pedidos simultáneos no crean dos dispositivos lógicos (el segundo ve el vínculo del primero).
-    db.scalar(lockAccountQuery(actor.idUsuario))
-    link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
-    current = db.get(Device, link.idDispositivo) if link is not None else None
-    if current is not None and current.estado == ESTADO_OPERATIVO:
-        _auditDeclaredConfirmation(db, actor, current, hub.identity(), reused=True)
-        db.commit()  # libera el bloqueo: se reutiliza el dispositivo lógico de la cuenta, sin crear otro
-        hub.confirm(actor.idUsuario, current.idDispositivo)
-        return current
-    # Sin vínculo (primera conexión) o con un dispositivo que ya no está OPERATIVO: se registra uno nuevo. El anterior queda intacto.
-    # Si otra conexión de la misma cuenta ganó la carrera (UQ por cuenta), se deshace esta y se reutiliza la que quedó.
-    try:
-        # Sin vínculo (primera conexión) o con un dispositivo que ya no está OPERATIVO: se registra uno nuevo. El anterior queda intacto.
-        now = nowForDb()
-        device = Device(codigoDispositivo=str(uuid.uuid4()), nombre="Dispositivo de prueba", modelo=MODELO_PRUEBA,
-                        modeloSensor="MAX30100", estado=ESTADO_OPERATIVO)
-        db.add(device)
-        db.flush()
-        previous = link.idDispositivo if link is not None else None
-        if link is None:
-            link = AccountDeviceLink(idUsuario=actor.idUsuario, idDispositivo=device.idDispositivo, fechaVinculo=now)
-            db.add(link)
-            db.flush()
+    identity = hub.identity()
+    created = False
+    if identity["nivel"] == "FISICA" and identity["codigo"]:
+        device = _findDeviceByCode(db, identity["codigo"])
+        if device is None:
+            device = _newTestDevice(db, identity["codigo"].strip())
+            created = True
+        elif device.idInstitucionAsignada is not None or device.estado != ESTADO_OPERATIVO:
+            raise AuthError("DISPOSITIVO_NO_DISPONIBLE",
+                            "Este Arduino no está disponible para una cuenta individual: pertenece a una institución o no está operativo.")
+    else:
+        link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
+        current = db.get(Device, link.idDispositivo) if link is not None else None
+        if current is not None and current.estado == ESTADO_OPERATIVO:
+            device = current
         else:
-            link.idDispositivo = device.idDispositivo
-            link.fechaVinculo = now
-        registerEvent(db, "CRUD", "REGISTRAR_DISPOSITIVO", True, actor.idUsuario, "Dispositivo", device.idDispositivo, modulo="DISPOSITIVOS",
-                      datosNuevos={"modeloSensor": "MAX30100", "estado": ESTADO_OPERATIVO, "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA",
-                                   "registroAutomatico": True, "idInstitucion": None})
-        registerEvent(db, "CRUD", "VINCULAR_CUENTA_DISPOSITIVO", True, actor.idUsuario, "VinculoCuentaDispositivo", link.idVinculo,
-                      modulo="DISPOSITIVOS", datosPrevios={"idDispositivo": str(previous)} if previous else None,
-                      datosNuevos={"idDispositivo": str(device.idDispositivo), "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA"})
-        _auditDeclaredConfirmation(db, actor, device, hub.identity(), reused=False)
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        winner = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
-        existing = db.get(Device, winner.idDispositivo) if winner is not None else None
-        if existing is None or existing.estado != ESTADO_OPERATIVO:
-            raise
-        hub.confirm(actor.idUsuario, existing.idDispositivo)
-        return existing
+            device = _newTestDevice(db, str(uuid.uuid4()))
+            created = True
+    _linkDevice(db, actor, device, created=created)
+    db.commit()
     hub.confirm(actor.idUsuario, device.idDispositivo)
     return device
-
-
-def lockAccountQuery(userId):
-    """Bloqueo de la fila de la cuenta hasta el commit. SQLAlchemy NO traduce with_for_update() a SQL Server (lo ignora), así que se
-    pide el hint de T-SQL explícitamente; en otros motores (pruebas SQLite) el hint no se usa."""
-    return (select(User.idUsuario).where(User.idUsuario == userId)
-            .with_hint(User.__table__, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql"))
-
-
-def ownLinkedDevice(db: Session, actor) -> Device | None:
-    """El dispositivo lógico vinculado a la cuenta individual (None si no tiene o si la base no tiene la tabla)."""
-    if not _available(db):
-        return None
-    link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
-    return db.get(Device, link.idDispositivo) if link is not None else None
-
-
-def isOwnLinkedDevice(db: Session, actor, device: Device) -> bool:
-    """¿Es ESTE dispositivo el vinculado a la cuenta? Solo esto autoriza medir con él (nunca el código físico del Arduino)."""
-    linked = ownLinkedDevice(db, actor)
-    return linked is not None and linked.idDispositivo == device.idDispositivo
 
 
 def linked(db: Session, column):

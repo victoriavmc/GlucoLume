@@ -83,8 +83,6 @@ from app.schemas.measurement import (
     SamplesRequest,
 )
 from app.services import device as deviceService
-from app.core.config import getSettings
-from app.services import individualDevice
 from app.services import institution as institutions
 from app.services import patientAccess
 from app.services import matrix as matrixService
@@ -227,17 +225,10 @@ def listDevices(db: Session, actor: User, idPerfilMedicion: uuid.UUID) -> list[D
     """Dispositivos operativos que se pueden usar para medir ese perfil (solo lectura)."""
     access = _access(db, actor, db.get(MeasurementProfile, idPerfilMedicion), "PERFIL_NO_ENCONTRADO", PROFILE_NOT_FOUND)
     _requireOperate(access)
-    if access.idInstitucion is None and actor.tipoCuenta == individualDevice.TIPO_INDIVIDUAL and individualDevice.hasLinkTable(db):
-        # Cuenta individual: solo ve su propio dispositivo lógico vinculado (nunca los de otras cuentas ni los sin vincular).
-        own = individualDevice.ownLinkedDevice(db, actor)
-        devices = [own] if own is not None and own.estado == DEVICE_OPERATIVO else []
-        shared = getSettings().DEMO_SHARED_PHYSICAL_DEVICE
-    else:
-        devices = db.scalars(select(Device).where(Device.estado == DEVICE_OPERATIVO).order_by(Device.codigoDispositivo)).all()
-        shared = False
+    devices = db.scalars(select(Device).where(Device.estado == DEVICE_OPERATIVO).order_by(Device.codigoDispositivo)).all()
     return [
         DeviceSummary(idDispositivo=d.idDispositivo, codigoDispositivo=d.codigoDispositivo, nombre=d.nombre,
-                      modelo=d.modelo, modeloSensor=d.modeloSensor, versionFirmware=d.versionFirmware, simulacionCompartida=shared)
+                      modelo=d.modelo, modeloSensor=d.modeloSensor, versionFirmware=d.versionFirmware)
         for d in devices if _deviceUsable(d, access.idInstitucion, _operatorRelation(access))
     ]
 
