@@ -28,6 +28,7 @@ from app.acquisition.link import link
 from app.acquisition.telemetry import (
     REGISTRATION_RECHECK_SECONDS, UNSTABLE_MESSAGES, BridgeConflict, CommandRejected, Stable, Unstable, hub,
 )
+from app.core.config import getSettings
 from app.core.exceptions import AuthError
 from app.models.device import Device
 from app.models.measurement import Measurement
@@ -535,11 +536,16 @@ def _requireGlucoseSchema(db: Session) -> None:
                         "esquema vigente). Mientras tanto podés medir en modo Oximetría.")
 
 
-def _requireSameDevice(actor: User, access, device: Device, bridge, which: str) -> dict:
+def _requireSameDevice(db: Session, actor: User, access, device: Device, bridge, which: str) -> dict:
     """El Arduino que está conectado ahora es el dispositivo `device`. Con ID propio se compara ese ID (nunca el puerto). Si el
-    firmware no informa uno, un operador solo puede medir con el dispositivo que confirmó a mano para esta conexión; las cuentas
-    individuales siguen usando el código configurado en el puente, como siempre."""
+    firmware no informa uno, un operador solo puede medir con el dispositivo que confirmó a mano para esta conexión. Cuenta individual:
+    el Arduino conectado es la fuente física y la medición se asocia al dispositivo lógico vinculado a la cuenta (nunca se compara el
+    código físico con el UUID del registro de prueba)."""
     identity = hub.identity()
+    if (getSettings().DEMO_SHARED_PHYSICAL_DEVICE and bridge is not None and access.idInstitucion is None and access.relation is None
+            and actor.tipoCuenta == individualDevice.TIPO_INDIVIDUAL and individualDevice.isOwnLinkedDevice(db, actor, device)):
+        # Solo simulación: el Arduino conectado se asocia al registro lógico vinculado a ESTA cuenta (ver DEMO_SHARED_PHYSICAL_DEVICE).
+        return identity
     if bridge is None or identity["codigo"] is None:
         raise AuthError("DISPOSITIVO_NO_COINCIDE", f"El dispositivo conectado por el puente no es el {which}.")
     if access.relation is None and hub.isConfirmed(actor.idUsuario, device.idDispositivo):
@@ -571,10 +577,10 @@ def startSession(db: Session, actor: User, data: TelemetrySessionStart) -> Measu
     device = db.get(Device, data.idDispositivo)
     if device is None or not measurements._deviceUsable(device, access.idInstitucion, measurements._operatorRelation(access)):
         raise AuthError("DISPOSITIVO_NO_DISPONIBLE", "El dispositivo no está disponible para medir este perfil.")
-    identity = _requireSameDevice(actor, access, device, bridge, "elegido para esta medición")
-    # Cuenta individual: un solo dispositivo vinculado. Solo un Arduino con ID propio verificado puede cambiar el vínculo al medir.
-    physical = identity["nivel"] == "FISICA" and (identity["codigo"] or "").strip().lower() == device.codigoDispositivo.strip().lower()
-    individualDevice.requireLinkedDevice(db, actor, device, physical=physical)
+    # Primero se comprueba que el Arduino conectado sea este dispositivo (o el vinculado a la cuenta); recién después se vincula (la primera
+    # vez) o se exige el vinculado. Así nunca se vincula a la cuenta un dispositivo que no está conectado.
+    identity = _requireSameDevice(db, actor, access, device, bridge, "elegido para esta medición")
+    individualDevice.requireLinkedDevice(db, actor, device)  # cuenta individual: un solo dispositivo vinculado
     if identity["nivel"] == "FISICA":
         deviceService.syncConnection(db, actor, device, firmware=identity["firmware"], medio=bridge.medium, identidad="FISICA")
     try:
@@ -633,7 +639,7 @@ def _persist(db: Session, actor: User, session) -> MeasurementDetail:
     state = hub.deviceState()
     if state != "CONECTADO":
         raise _notConnected(state)
-    _requireSameDevice(actor, access, device, hub.bridge, "de esta medición")
+    _requireSameDevice(db, actor, access, device, hub.bridge, "de esta medición")
     verdict = hub.stability()
     if isinstance(verdict, Unstable):
         raise AuthError("LECTURA_NO_ESTABLE", verdict.message)
