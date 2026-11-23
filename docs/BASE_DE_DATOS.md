@@ -13,7 +13,8 @@ ni migra bases: todo lo de este documento se hace a mano, con un usuario adminis
 
 | Qué | Dónde |
 |---|---|
-| Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026 y corregido el 23/10/2026; **38 tablas** —incluye `PuenteCredencial` (H-16) y las de «Notificaciones», con `AccesoConocido` desde el 29/10/2026—, 49 claves foráneas, 127 `CHECK` y los **31 índices** que el export original había perdido; **no crea usuarios, roles ni permisos**: los aplican los scripts de permisos) |
+| Esquema vigente | `database/reference/GlucoLume_DB_v5.sql` (UTF-16, generado por SSMS el 19/10/2026 y corregido el 23/10/2026; **40 tablas** (el vínculo cuenta–dispositivo va en su propio script, ver §2) —incluye `PuenteCredencial` (H-16) y las de «Notificaciones», con `AccesoConocido` desde el 29/10/2026—, 49 claves foráneas, 127 `CHECK` y los **31 índices** que el export original había perdido; **no crea usuarios, roles ni permisos**: los aplican los scripts de permisos) |
+| Vínculo cuenta individual–dispositivo | `database/reference/GlucoLume_vinculo_cuenta_dispositivo.sql`: crea `VinculoCuentaDispositivo` (una fila por cuenta individual). **Obligatorio** en toda instalación: sin esta tabla la vinculación individual queda desactivada. Idempotente. Requiere `-v CONFIRMAR="AGREGAR_VINCULO_CUENTA_DISPOSITIVO"`. Datos de ejemplo opcionales en `GlucoLume_vinculo_cuenta_dispositivo_datos.sql` |
 | Matriz global de referencia | `database/reference/MATRIZ.SQL`: carga la matriz global v1 «ADA Diabetes Tests - objetivos adultos no gestantes» (2 reglas: preprandial 80–130 mg/dL y posprandial menor de 180 mg/dL, 60–120 min desde el inicio de la comida; sin distinción por sexo ni edad) y el procedimiento `usp_GlucoLume_CompararGlucosa`. Criterios y limitaciones en [MATRIZ_REFERENCIA_GLUCOSA.md](MATRIZ_REFERENCIA_GLUCOSA.md); sus cambios de esquema sobre `ReglaMatriz` ya están en v5 (v5 no contiene filas de datos) |
 | Vaciado de datos (no es instalación) | `database/reference/BorrarRap.sql`: borra todas las filas; exige `-v BASE=<base> CONFIRMAR_BORRADO=<base>` iguales a la base conectada; nunca sobre una base con datos reales |
 | Permisos de mínimo privilegio (no es instalación) | `GlucoLume_permisos.sql` (roles de API y de conservación; `DELETE` solo en 14 tablas; `DENY UPDATE, DELETE` sobre la auditoría), `GlucoLume_permisos_quitar_roles_fijos.sql` (quita `db_datareader`/`db_datawriter`; reversible con `…_restaurar_roles_fijos.sql`), `GlucoLume_permisos_verificar.sql` (solo comprueba) y `GlucoLume_permisos_revertir.sql`. Validados en SQL Server 2022 descartable; **no aplicados a tu instancia** (§5) |
@@ -104,6 +105,10 @@ restaura una base sin una columna, el backend lo nota sin reiniciarse.
      docker compose --profile db exec db /opt/mssql-tools18/bin/sqlcmd -C -I -S localhost -U sa -d GlucoLume -b -i /tmp/v5.sql
      ```
      (la contraseña de `sa` la toma `SQLCMDPASSWORD` de `docker/db.env`). En Linux/macOS: `iconv -f UTF-16 -t UTF-8 …`.
+2b. **Vínculo cuenta individual–dispositivo (obligatorio):** aplicar `GlucoLume_vinculo_cuenta_dispositivo.sql` con la misma conexión que el paso 2 y la confirmación explícita:
+   - Windows: `sqlcmd -S localhost\GLUCOLUME -E -C -I -b -d GlucoLume -i database\reference\GlucoLume_vinculo_cuenta_dispositivo.sql -v CONFIRMAR="AGREGAR_VINCULO_CUENTA_DISPOSITIVO"`
+   - Contenedor: copiar el archivo como en el paso 2 (`docker cp`) y ejecutar el mismo `sqlcmd` dentro de `glucolume-db-1` con `-v CONFIRMAR=...`.
+   Sin `-v CONFIRMAR` el script no hace nada (lo indica su encabezado). Comprobar que la tabla existe antes de seguir.
 3. Si se quiere la matriz global de referencia precargada, ejecutar `MATRIZ.SQL` completo (2 reglas; también se puede crear desde el panel de la plataforma). Sobre una base instalada con la matriz v2 (DEMO), `MATRIZ.SQL` agrega la v1 nueva, desactiva la v2 y no modifica sus reglas ni las mediciones.
 4. **Cuentas y permisos (H-02):** crear los inicios de sesión en la instancia —uno para la API y, aparte, uno para la conservación— con contraseñas propias (nunca `sa`), y
    aplicar los permisos con los scripts de `database/reference` (cada uno exige su `CONFIRMAR`; ver el encabezado de cada archivo):
@@ -116,6 +121,7 @@ restaura una base sin una columna, el backend lo nota sin reiniciarse.
    sqlcmd … -d GlucoLume -I -i GlucoLume_permisos_quitar_roles_fijos.sql -v API_LOGIN="glucolume_app" CONFIRMAR="QUITAR_ROLES_FIJOS_GLUCOLUME"
    sqlcmd … -d GlucoLume -I -i GlucoLume_permisos_verificar.sql -v API_LOGIN="glucolume_app"      # solo comprueba
    ```
+   Si los permisos ya se aplicaron antes del vínculo, volver a ejecutar `GlucoLume_permisos.sql` (es idempotente) para que los roles cubran `VinculoCuentaDispositivo`.
    La API usa `DB_USER=glucolume_app`; `DB_JOBS_USER=glucolume_jobs` es solo del servicio `lifecycle` y de las herramientas de conservación y de `bridgeTokens`.
 5. Generar `MFA_ENCRYPTION_KEY` (comando en `.env.example`) **antes del primer uso** y guardarla aparte: con otra clave los secretos MFA
    guardados dejan de descifrarse.
@@ -141,6 +147,7 @@ actualiza con scripts **idempotentes y transaccionales** que no tocan filas, sie
    - `GlucoLume_actualizar_instalada.sql -v CONFIRMAR="ACTUALIZAR_GLUCOLUME_V5"`: las 6 `CK_Medicion_*` y los 31 índices que falten (cada uno se crea solo si no existe; los `UX_*` son
      únicos filtrados: si los datos violaran una regla, el script falla y se revierte entero).
    - `GlucoLume_agregar_puente_credencial.sql -v CONFIRMAR="AGREGAR_PUENTE_CREDENCIAL"`: la tabla `PuenteCredencial` (H-16).
+   - `GlucoLume_vinculo_cuenta_dispositivo.sql -v CONFIRMAR="AGREGAR_VINCULO_CUENTA_DISPOSITIVO"`: la tabla `VinculoCuentaDispositivo` (no toca filas de otras tablas; idempotente). Después, volver a ejecutar `GlucoLume_permisos.sql` si ya se aplicaron los permisos.
    - `GlucoLume_notificaciones_usuario.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_USUARIO"` y, después, `GlucoLume_notificaciones_v2.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V2"` y `GlucoLume_notificaciones_v3.sql -v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V3"` (eliminación lógica de avisos de la bandeja, `fechaEliminacion`):
      tablas de «Notificaciones» y su rediseño (claves de unicidad, estado del correo, nuevos avisos, `AccesoConocido`; corrige −3 h las fechas anteriores). Detalle en [NOTIFICACIONES.md](NOTIFICACIONES.md) §8. Sin ellos el módulo queda «no disponible», sin fallar.
    - Los permisos de §2 paso 4 / §5 (`GlucoLume_permisos.sql` y, aparte, `…_quitar_roles_fijos.sql`).
