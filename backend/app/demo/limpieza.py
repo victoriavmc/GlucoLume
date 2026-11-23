@@ -51,14 +51,13 @@ def _semillas() -> dict[str, set[uuid.UUID]]:
     """IDs fijos del catálogo, por tabla."""
     return {
         "Usuario": {a.id for a in C.ACCOUNTS},
-        "Institucion": {i.id for i in C.INSTITUTIONS},
+        "Institucion": set(),  # el catálogo demo no tiene instituciones
         "Grupo": {C.demoId("grupo", C.GROUP_KEY)},
         "GrupoUsuario": {C.demoId("vinculo-grupo", k) for k in ["grupo-admin"] + [m[0] for m in C.GROUP_MEMBERS]},
-        "InstitucionUsuario": {s.id for s in C.STAFF},
+        "InstitucionUsuario": set(),
         "Dispositivo": {d.id for d in C.DEVICES},
-        "PerfilMedicion": {C.demoId("perfil", a.key) for a in C.ACCOUNTS if a.individual} | {p.id for p in C.PATIENTS},
-        "Medicion": {s.id for _, specs in C.individualMeasurements() for s in specs}
-                    | {s.id for _, specs in C.patientMeasurements() for s in specs},
+        "PerfilMedicion": {C.demoId("perfil", a.key) for a in C.ACCOUNTS if a.individual},
+        "Medicion": {s.id for _, specs in C.individualMeasurements() for s in specs},
     }
 
 

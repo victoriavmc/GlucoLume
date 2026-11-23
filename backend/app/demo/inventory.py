@@ -22,9 +22,6 @@ CATEGORIAS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Integrantes del grupo familiar", ("grupo-admin", "grupo-integrante-1", "grupo-integrante-2", "grupo-integrante-3",
                                          "grupo-integrante-4", "grupo-integrante-5",
                                          "grupo-integrante-6", "grupo-integrante-7")),
-    ("Propietarios", ("propietario-a", "propietario-b")),
-    ("Moderadores", ("moderador-a-1", "moderador-a-2", "moderador-b-1", "moderador-b-2")),
-    ("Operadores", tuple(f"operador-{i}-{n}" for i in ("a", "b") for n in (1, 2, 3, 4))),
 )
 PRIVACIDAD = ("Datos básicos", "Última medición", "Historial", "Avisos")
 
@@ -42,11 +39,7 @@ def _institucion(key: str) -> str:
     account = C.ACCOUNTS_BY_KEY[key]
     if account.key == "individual-a":
         return "Sin grupo familiar"
-    if account.individual:
-        return "Grupo familiar DEMO (administrador)" if key == "grupo-admin" else "Grupo familiar DEMO (integrante)"
-    links = [s for s in C.STAFF if s.account == key]
-    names = ", ".join(C.INSTITUTIONS_BY_KEY[s.institution].nombre for s in links)
-    return names
+    return "Grupo familiar DEMO (administrador)" if key == "grupo-admin" else "Grupo familiar DEMO (integrante)"
 
 
 def inventoryRows() -> list[dict[str, str]]:
@@ -59,7 +52,7 @@ def inventoryRows() -> list[dict[str, str]]:
                 "clave": key,
                 "nombre": f"{account.nombre} {account.apellido}",
                 "correo": account.correo,
-                "tipoCuenta": "Individual (CONSUMIDOR_FINAL)" if account.individual else "Institucional (USUARIO_INSTITUCIONAL)",
+                "tipoCuenta": "Individual (CONSUMIDOR_FINAL)",
                 "rol": account.rol,
                 "institucion": _institucion(key),
                 "privacidad": _privacidad(key),

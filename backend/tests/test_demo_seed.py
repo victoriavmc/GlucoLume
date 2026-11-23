@@ -82,7 +82,7 @@ def test_dry_run_no_escribe_nada_y_prevee_las_cantidades(db):
     plan = seeder.buildPlan(db, anchor=ANCHOR)
     assert not plan.bloqueado
     assert plan.conteo()["Usuario"] == {"CREAR": len(C.ACCOUNTS)}
-    assert plan.conteo()["PerfilMedicion"] == {"CREAR": C.expectedCounts()["perfiles_individuales"] + C.expectedCounts()["pacientes_asignados"]}
+    assert plan.conteo()["PerfilMedicion"] == {"CREAR": len(C.ACCOUNTS)}
     assert all(not etapa for etapa in plan.etapas)  # ningún registro preparado para insertar
     assert countRows(db, User) == 0
     assert countRows(db, Measurement) == 0
@@ -92,11 +92,10 @@ def test_aplicar_crea_exactamente_lo_previsto(db, seeded):
     expected = C.expectedCounts()
     assert countRows(db, User) == expected["usuarios"]
     counts = seeder.countDemoRows(db)
-    assert counts["Institucion"] == expected["instituciones"]
     assert counts["Grupo"] == expected["grupos"]
     assert counts["Dispositivo"] == expected["dispositivos"]
-    assert counts["PerfilMedicion"] == expected["perfiles_individuales"] + expected["pacientes_asignados"]
-    assert counts["Medicion"] == expected["mediciones_individuales"] + expected["mediciones_pacientes"]
+    assert counts["PerfilMedicion"] == expected["perfiles_individuales"]
+    assert counts["Medicion"] == expected["mediciones_individuales"]
     assert countRows(db, LocalCredential) == expected["credenciales"]
 
 
@@ -190,7 +189,7 @@ def test_cuentas_demo_inician_sesion_con_el_flujo_real_sin_mfa_ni_correo(db, see
 
 def test_contrasena_incorrecta_no_entra(db, seeded):
     with pytest.raises(AuthError):
-        auth.loginLocal(db, account("operador-a-1").correo, seeded["operador-a-2"])
+        auth.loginLocal(db, account("individual-a").correo, seeded["grupo-admin"])
 
 
 def test_cinco_configuraciones_de_privacidad_del_grupo(db, seeded):
@@ -236,101 +235,22 @@ def test_avisos_no_exponen_valores_y_el_administrador_no_ve_sus_propios_datos_en
 # --- Instituciones, propietarios, operadores ----------------------------------------------------------------------------
 
 
-def test_propietario_administra_dos_instituciones_con_el_mismo_titular(db, seeded):
-    owner = actor(db, "propietario-a")
-    mine = {row.idInstitucion for row in institutions.listMine(db, owner)}
-    assert C.INSTITUTIONS_BY_KEY["a"].id in mine and C.INSTITUTIONS_BY_KEY["c"].id in mine
-    assert C.INSTITUTIONS_BY_KEY["b"].id not in mine  # no ve la institución del otro propietario
-    detail = institutions.getDetail(db, owner, C.INSTITUTIONS_BY_KEY["c"].id)
-    assert detail is not None
 
 
-def test_propietario_de_b_no_accede_a_la_institucion_a(db, seeded):
-    with pytest.raises(AuthError):
-        institutions.getDetail(db, actor(db, "propietario-b"), C.INSTITUTIONS_BY_KEY["a"].id)
 
 
-def test_operador_solo_consulta_sus_propios_pacientes(db, seeded):
-    own = max((p for p in C.PATIENTS if p.institution == "a" and p.operator == "operador-a-1"), key=lambda p: p.mediciones)
-    ownProfile = C.demoId("perfil", own.key)
-    page = measurements.listPatientHistory(db, actor(db, "operador-a-1"), C.INSTITUTIONS_BY_KEY["a"].id, ownProfile)
-    assert page.total == own.mediciones
-    other = next(p for p in C.PATIENTS if p.institution == "a" and p.operator == "operador-a-2")
-    with pytest.raises(AuthError):  # asignado a otro operador: no se consulta su historial
-        measurements.listPatientHistory(db, actor(db, "operador-a-1"), C.INSTITUTIONS_BY_KEY["a"].id,
-                                        C.demoId("perfil", other.key))
 
 
-def test_operador_de_otra_institucion_no_accede_a_pacientes_ajenos(db, seeded):
-    patientOfA = next(p for p in C.PATIENTS if p.institution == "a")
-    with pytest.raises(AuthError):
-        measurements.listPatientHistory(db, actor(db, "operador-b-1"), C.INSTITUTIONS_BY_KEY["b"].id,
-                                        C.demoId("perfil", patientOfA.key))
 
 
-def test_cada_paciente_tiene_un_unico_operador_y_los_documentos_son_unicos(db, seeded):
-    perOperator: dict[str, int] = {}
-    for patient in C.PATIENTS:
-        perOperator[patient.operator] = perOperator.get(patient.operator, 0) + 1
-    assert set(perOperator.values()) <= {3, 4, 5}
-    assert len(C.PATIENTS) == sum(perOperator.values()) == 32
-    documents = [p.dni for p in C.PATIENTS if p.dni]
-    assert len(documents) == len(set(documents))
 
 
-def test_cada_medicion_de_paciente_queda_atribuida_a_su_operador(db, seeded):
-    audits = {row.idRegistro: row for row in startAudits(db)}
-    assert len(audits) == C.expectedCounts()["mediciones_pacientes"]  # solo las de pacientes: las individuales no tienen operador
-    for patient, specs in C.patientMeasurements():
-        for spec in specs:
-            row = audits[spec.id]
-            # Antes de la transferencia, la medición es del operador de origen; después, del responsable actual.
-            authorKey = patient.origen if patient.alta == C.TRANSFERENCIA and spec.start(ANCHOR) < ANCHOR - timedelta(days=C.CAMBIO_DIAS) \
-                else patient.operator
-            assert row.idUsuario == account(authorKey).id
-            assert row.idRelacionado == C.demoId("vinculo-institucional", f"{patient.institution}:{authorKey}")
-            assert row.fechaHora == spec.start(ANCHOR)
-    # Como cualquier auditoría de la demo, bloquea la limpieza automática (riesgo K2 de la guía).
-    assert limpieza.plan(db).bloqueada
 
 
-def test_pacientes_llegaron_a_su_operador_por_alta_asignacion_o_transferencia(db, seeded):
-    creations = {row.idRegistro: row for row in db.scalars(select(Audit).where(Audit.accion == "CREAR_PACIENTE")).all()}
-    assert len(creations) == len(C.PATIENTS)
-    transfers = db.scalars(select(ProfileTransfer)).all()
-    assert len(transfers) == sum(1 for p in C.PATIENTS if p.alta == C.TRANSFERENCIA)
-    for transfer in transfers:
-        assert transfer.estado == "ACEPTADA" and transfer.fechaTransferencia is not None
-    for patient in C.PATIENTS:
-        creation = creations[patient.id]
-        assert creation.idUsuario == account(patient.registrante).id
-        if patient.alta == C.ALTA_MODERADOR:
-            assert creation.datosNuevos and '"rolRegistrante": "MODERADOR"' in creation.datosNuevos
-        profile = db.get(MeasurementProfile, patient.id)
-        assert profile.idInstitucionUsuarioResponsable == C.demoId("vinculo-institucional", patient.relationKey)
 
 
-def test_moderadores_incorporan_a_dos_operadores_cada_uno(db, seeded):
-    invitedBy = {}
-    for link in C.STAFF:
-        if link.rol == C.ROL_OPERADOR:
-            invitedBy.setdefault(link.invitadoPor, []).append(link.account)
-    for inst in C.MAIN_INSTITUTIONS:
-        assert sorted(invitedBy[f"moderador-{inst}-1"]) == [f"operador-{inst}-1", f"operador-{inst}-2"]
-        assert sorted(invitedBy[f"moderador-{inst}-2"]) == [f"operador-{inst}-3", f"operador-{inst}-4"]
 
 
-def test_auditoria_de_inicio_se_completa_en_una_segunda_carga(db, seeded):
-    purgeStartAudits(db)  # carga anterior a esta versión: mediciones y altas sin auditoría
-    passwords = allPasswords()
-    plan = seeder.buildPlan(db, anchor=ANCHOR, passwords=passwords)
-    assert plan.conteo()["AuditoriaInicio"] == {"CREAR": 1}
-    seeder.apply(db, plan)
-    assert len(startAudits(db)) == C.expectedCounts()["mediciones_pacientes"]
-    assert seeder.buildPlan(db, anchor=ANCHOR, passwords=passwords).conteo()["AuditoriaInicio"] == {"YA_EXISTE": 1}
-
-
-# --- Administrador existente, limpieza y auditoría ----------------------------------------------------------------------
 
 
 def _platformAdmin(db) -> User:
@@ -371,7 +291,7 @@ def test_limpieza_elimina_solo_lo_demo_y_conserva_datos_reales(db, engine):
     purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
     cleanup = limpieza.plan(db)
     assert not cleanup.bloqueada, cleanup.bloqueos
-    assert set(cleanup.resumen()) >= {"Usuario", "Institucion", "Medicion", "PerfilMedicion", "Dispositivo", "Grupo"}
+    assert set(cleanup.resumen()) >= {"Usuario", "Medicion", "PerfilMedicion", "Dispositivo", "Grupo"}
     borrados = limpieza.execute(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
     assert borrados["Usuario"] == len(C.ACCOUNTS)
     assert seeder.countDemoRows(db) == {k: 0 for k in seeder.countDemoRows(db)}
@@ -441,12 +361,12 @@ def test_cli_dry_run_luego_aplicar_idempotente_y_sin_imprimir_contrasenas(db, en
     assert demoSeed.run(args + ["--verificar"], out=lines.append) == 0
     assert any(f"Cuentas verificadas: {len(C.ACCOUNTS)} de {len(C.ACCOUNTS)}" in line for line in lines)
 
-    old = passwords["operador-a-1"]
+    old = passwords["individual-a"]
     assert demoSeed.run(args + ["--aplicar", "--regenerar-contrasenas"], out=lines.append) == 0
     fresh = inventory.readPasswords(private)
-    assert fresh["operador-a-1"] != old
-    stored = db.get(LocalCredential, C.demoId("credencial", "operador-a-1"))
-    assert security.verifyPassword(fresh["operador-a-1"], stored.passwordHash)[0]
+    assert fresh["individual-a"] != old
+    stored = db.get(LocalCredential, C.demoId("credencial", "individual-a"))
+    assert security.verifyPassword(fresh["individual-a"], stored.passwordHash)[0]
     assert not security.verifyPassword(old, stored.passwordHash)[0]
 
 

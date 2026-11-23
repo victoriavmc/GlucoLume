@@ -1,15 +1,15 @@
-# Demo - Catálogo determinista de los datos de demostración académica
+# Demo - Catálogo determinista de los datos de demostración
 #
-# Solo describe QUÉ se carga (cuentas, instituciones, grupo, dispositivos, pacientes y mediciones sintéticas). No toca la base:
-# app/demo/seeder.py lo convierte en registros mediante los modelos y servicios existentes.
+# Solo describe QUÉ se carga: 9 cuentas individuales (sin instituciones ni personal institucional), un grupo familiar con sus
+# permisos, 9 dispositivos propios (uno por cuenta) y el historial de mediciones sintéticas desde HISTORY_START hasta DATA_END_DATE.
+# No toca la base: app/demo/seeder.py lo convierte en registros mediante los modelos y servicios existentes.
 #
 # Reglas del catálogo:
-#   - Ningún dato corresponde a personas, instituciones ni dispositivos reales. Correos en example.com (dominio reservado),
-#     documentos con el prefijo DEMO (normalizados A-Z0-9 como exige la base), dispositivos DEMO-DISP-*.
+#   - Ningún dato corresponde a personas ni dispositivos reales. Correos en example.com (dominio reservado) y dispositivos DEMO-DISP-*.
 #   - Todo identificador sale de una clave fija (uuid5). Ejecutar la carga dos veces produce los mismos IDs (idempotencia) y la
 #     limpieza encuentra exactamente lo que creó la carga, sin tocar nada más.
-#   - Los datos de glucosa son DEMO (valor sintético del firmware, excluido de indicadores clínicos por la propia aplicación).
-#     Cada medición lleva además una observación que la identifica como sintética.
+#   - Los datos de glucosa son DEMO (valor sintético, excluido de indicadores clínicos por la propia aplicación). Cada medición
+#     lleva además una observación que la identifica como sintética.
 #   - Las mediciones se generan con un generador pseudoaleatorio sembrado con la clave de cada perfil: la misma fecha de ancla
 #     produce siempre los mismos valores.
 
@@ -24,21 +24,16 @@ from decimal import Decimal
 DEMO_NAMESPACE = uuid.UUID("6f1c2a7e-3b8d-4e51-9a0c-64d0e0b1d3a7")  # fijo: cambiarlo cambia todos los IDs demo
 EMAIL_DOMAIN = "example.com"
 NOTA_MEDICION = "DEMO - medición sintética de demostración académica. No es un dato médico ni un resultado validado."
-NOTA_INSTITUCION = "Institución sintética de demostración académica. No corresponde a una institución real."
 NOTA_GRUPO = "Grupo familiar sintético de demostración académica."
-HISTORY_START = date(2022, 1, 1)  # primera medición del historial demo de las cuentas individuales
-DATA_END_DATE = date(2026, 11, 23)  # último día del historial: la última medición de cada cuenta individual es ese día a las 17:00
+HISTORY_START = date(2022, 1, 1)  # primera medición del historial demo
+DATA_END_DATE = date(2026, 11, 23)  # último día del historial: la última medición de cada cuenta es ese día a las 17:00
 DATA_END_HOUR = 17
 HISTORY_DAYS = (DATA_END_DATE - HISTORY_START).days
-HISTORY_START_DATETIME = datetime.combine(HISTORY_START, time(0, 0))  # ventana de mediciones individuales hacia atrás desde la fecha de ancla
-PATIENT_HISTORY_DAYS = 60  # ventana de mediciones de los pacientes institucionales (altas y transferencias son recientes)
+HISTORY_START_DATETIME = datetime.combine(HISTORY_START, time(0, 0))
 
-# Tipos de cuenta, estados y valores permitidos (los mismos literales que usan los modelos).
 CONSUMIDOR_FINAL = "CONSUMIDOR_FINAL"
-USUARIO_INSTITUCIONAL = "USUARIO_INSTITUCIONAL"
-PERFIL_INSTITUCIONAL = "INSTITUCIONAL"
 PERFIL_CONSUMIDOR = "CONSUMIDOR_FINAL"
-ROL_PROPIETARIO, ROL_MODERADOR, ROL_OPERADOR = "PROPIETARIO", "MODERADOR", "OPERADOR"
+ROL_PROPIETARIO = "PROPIETARIO"
 MODO_GLUCOSA, MODO_OXIMETRIA = "GLUCOSA_EXPERIMENTAL", "OXIMETRIA"
 ESTADO_COMPLETADA, ESTADO_CANCELADA, ESTADO_INVALIDA = "COMPLETADA", "CANCELADA", "INVALIDA"
 ORIGEN_DEMO = "DEMO"
@@ -52,7 +47,7 @@ def demoId(kind: str, key: str) -> uuid.UUID:
     return uuid.uuid5(DEMO_NAMESPACE, f"{kind}:{key}")
 
 
-# --- Cuentas ---------------------------------------------------------------------------------------------------------
+# --- Cuentas individuales --------------------------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -80,20 +75,16 @@ class Account:
 
 
 ACCOUNTS: tuple[Account, ...] = (
-    # Escenario A — individual sin grupo.
     Account("individual-a", "Valeria", "Soto", CONSUMIDOR_FINAL, "FEMENINO", "Individual sin grupo",
-            "A: perfil propio con mediciones en distintos días, estadísticas, historial y última medición. Sin vínculos institucionales.",
-            date(1990, 3, 14)),
-    # Escenario B — administrador de grupo familiar y cinco integrantes con permisos distintos.
+            "A: perfil propio con mediciones, estadísticas, historial y última medición. Sin grupo familiar.", date(1990, 3, 14)),
     Account("grupo-admin", "Tomás", "Herrera", CONSUMIDOR_FINAL, "MASCULINO", "Individual - administrador de grupo familiar",
             "B: administra el grupo. Sus propios datos no están compartidos: el grupo no los ve.", date(1982, 7, 2)),
     Account("grupo-integrante-1", "Sofía", "Castro", CONSUMIDOR_FINAL, "FEMENINO", "Integrante del grupo familiar 1",
-            "B - Integrante 1: solo datos básicos (edad y sexo). No comparte última medición, historial ni avisos.", date(2001, 11, 20)),
+            "B - Integrante 1: solo datos básicos (edad y sexo).", date(2001, 11, 20)),
     Account("grupo-integrante-2", "Nicolás", "Vega", CONSUMIDOR_FINAL, "MASCULINO", "Integrante del grupo familiar 2",
-            "B - Integrante 2: solo la última medición. No comparte datos básicos ni historial.", date(1975, 1, 9)),
+            "B - Integrante 2: solo la última medición.", date(1975, 1, 9)),
     Account("grupo-integrante-3", "Julieta", "Pardo", CONSUMIDOR_FINAL, "FEMENINO", "Integrante del grupo familiar 3",
-            "B - Integrante 3: solo el historial (incluye gráficos y estadísticas). No comparte última medición ni avisos.",
-            date(1968, 5, 30)),
+            "B - Integrante 3: solo el historial (incluye gráficos y estadísticas).", date(1968, 5, 30)),
     Account("grupo-integrante-4", "Mateo", "Ríos", CONSUMIDOR_FINAL, "MASCULINO", "Integrante del grupo familiar 4",
             "B - Integrante 4: solo avisos (fecha y hora de cada medición, nunca valores).", date(1996, 2, 25)),
     Account("grupo-integrante-5", "Carla", "Núñez", CONSUMIDOR_FINAL, "FEMENINO", "Integrante del grupo familiar 5",
@@ -102,35 +93,6 @@ ACCOUNTS: tuple[Account, ...] = (
             "B - Integrante 6: comparte datos básicos, última medición, historial y avisos.", date(1989, 8, 17)),
     Account("grupo-integrante-7", "Julia", "Bravo", CONSUMIDOR_FINAL, "FEMENINO", "Integrante del grupo familiar 7",
             "B - Integrante 7: comparte datos básicos, última medición, historial y avisos.", date(1973, 4, 22)),
-    # Personal institucional (14 cuentas: 2 propietarios, 4 moderadores, 8 operadores).
-    Account("propietario-a", "Gabriel", "Montes", USUARIO_INSTITUCIONAL, "MASCULINO", "Propietario",
-            "C: propietario de la Institución Demo A y de la Institución Demo C (administra más de una institución)."),
-    Account("propietario-b", "Patricia", "Lencina", USUARIO_INSTITUCIONAL, "FEMENINO", "Propietario",
-            "C: propietaria de la Institución Demo B. No ve datos de la Institución Demo A."),
-    Account("moderador-a-1", "Lorena", "Acosta", USUARIO_INSTITUCIONAL, "FEMENINO", "Moderador",
-            "C: gestiona operadores y ve el panel institucional de la Institución Demo A; no administra moderadores."),
-    Account("moderador-a-2", "Diego", "Salinas", USUARIO_INSTITUCIONAL, "MASCULINO", "Moderador",
-            "C: segundo moderador de la Institución Demo A."),
-    Account("moderador-b-1", "Ezequiel", "Funes", USUARIO_INSTITUCIONAL, "MASCULINO", "Moderador",
-            "C: gestiona operadores de la Institución Demo B."),
-    Account("moderador-b-2", "Romina", "Ledesma", USUARIO_INSTITUCIONAL, "FEMENINO", "Moderador",
-            "C: segundo moderador de la Institución Demo B."),
-    Account("operador-a-1", "Camila", "Ortiz", USUARIO_INSTITUCIONAL, "FEMENINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo A."),
-    Account("operador-a-2", "Federico", "Luna", USUARIO_INSTITUCIONAL, "MASCULINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo A."),
-    Account("operador-a-3", "Irene", "Paz", USUARIO_INSTITUCIONAL, "FEMENINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo A."),
-    Account("operador-a-4", "Hernán", "Quiroga", USUARIO_INSTITUCIONAL, "MASCULINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo A."),
-    Account("operador-b-1", "Sabrina", "Dávila", USUARIO_INSTITUCIONAL, "FEMENINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo B."),
-    Account("operador-b-2", "Matías", "Benítez", USUARIO_INSTITUCIONAL, "MASCULINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo B."),
-    Account("operador-b-3", "Noelia", "Sosa", USUARIO_INSTITUCIONAL, "FEMENINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo B."),
-    Account("operador-b-4", "Ignacio", "Correa", USUARIO_INSTITUCIONAL, "MASCULINO", "Operador",
-            "D: opera solo sus pacientes asignados en la Institución Demo B."),
 )
 ACCOUNTS_BY_KEY = {account.key: account for account in ACCOUNTS}
 
@@ -151,92 +113,13 @@ GROUP_KEY = "familia-demo"
 GROUP_NAME = "Grupo familiar DEMO"
 
 
-# --- Instituciones ---------------------------------------------------------------------------------------------------
-
-
-def cuitDigits(seq: int) -> str:
-    """CUIT sintético con dígito verificador válido (módulo 11). Base 3099999XXX: no pertenece a una persona física."""
-    base = f"3099999{seq:03d}"
-    weights = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
-    remainder = 11 - sum(int(d) * w for d, w in zip(base, weights)) % 11
-    if remainder == 10:
-        raise ValueError(f"Base de CUIT sin dígito verificador válido: {base}")
-    check = 0 if remainder == 11 else remainder
-    return f"{base}{check}"
-
-
-@dataclass(frozen=True)
-class Institution:
-    key: str
-    nombre: str
-    tipoInstitucion: str
-    seq: int
-    propietario: str  # clave de la cuenta propietaria
-
-    @property
-    def id(self) -> uuid.UUID:
-        return demoId("institucion", self.key)
-
-    @property
-    def cuit(self) -> str:
-        return cuitDigits(self.seq)
-
-
-INSTITUTIONS: tuple[Institution, ...] = (
-    Institution("a", "Institución Demo A", "CONSULTORIO", 1, "propietario-a"),
-    Institution("b", "Institución Demo B", "CLINICA", 2, "propietario-b"),
-    Institution("c", "Institución Demo C", "CONSULTORIO", 3, "propietario-a"),
-)
-INSTITUTIONS_BY_KEY = {institution.key: institution for institution in INSTITUTIONS}
-MAIN_INSTITUTIONS = ("a", "b")  # las dos con personal, pacientes y mediciones; C solo demuestra un propietario con dos instituciones
-
-
-@dataclass(frozen=True)
-class StaffLink:
-    """Vínculo de una cuenta institucional con una institución."""
-    institution: str
-    account: str
-    rol: str
-    invitadoPor: str | None  # clave de la cuenta que la incorporó (None para el propietario que la creó)
-    funcionProfesional: str | None = None
-    matricula: str | None = None
-    legajo: str | None = None
-
-    @property
-    def id(self) -> uuid.UUID:
-        return demoId("vinculo-institucional", f"{self.institution}:{self.account}")
-
-
-def _staff() -> tuple[StaffLink, ...]:
-    links: list[StaffLink] = [
-        StaffLink("a", "propietario-a", ROL_PROPIETARIO, None),
-        StaffLink("b", "propietario-b", ROL_PROPIETARIO, None),
-        StaffLink("c", "propietario-a", ROL_PROPIETARIO, None),
-    ]
-    for inst, owner in (("a", "propietario-a"), ("b", "propietario-b")):
-        for n in (1, 2):
-            links.append(StaffLink(inst, f"moderador-{inst}-{n}", ROL_MODERADOR, owner))
-        functions = ("OPERADOR", "ENFERMERO", "MEDICO", "OPERADOR")
-        for n in (1, 2, 3, 4):
-            # Cada moderador incorpora a dos operadores: el 1 a los operadores 1 y 2, el 2 a los operadores 3 y 4.
-            invitedBy = f"moderador-{inst}-{1 if n <= 2 else 2}"
-            links.append(StaffLink(inst, f"operador-{inst}-{n}", ROL_OPERADOR, invitedBy,
-                                   funcionProfesional=functions[n - 1], legajo=f"DEMO-LEG-{inst.upper()}{n}",
-                                   matricula=f"DEMO-MAT-{inst.upper()}{n}" if functions[n - 1] != "OPERADOR" else None))
-    return tuple(links)
-
-
-STAFF: tuple[StaffLink, ...] = _staff()
-
-
-# --- Dispositivos ----------------------------------------------------------------------------------------------------
+# --- Dispositivos (uno propio por cuenta individual) -----------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class DemoDevice:
     key: str
     codigo: str
-    institution: str | None  # None: sin institución (uso individual)
 
     @property
     def id(self) -> uuid.UUID:
@@ -244,20 +127,15 @@ class DemoDevice:
 
 
 DEVICES: tuple[DemoDevice, ...] = (
-    # Un dispositivo propio por cada cuenta individual (ind-01 … ind-09): nadie comparte dispositivo.
-    DemoDevice("ind-01", "DEMO-DISP-IND-01", None),
-    DemoDevice("ind-02", "DEMO-DISP-IND-02", None),
-    DemoDevice("ind-03", "DEMO-DISP-IND-03", None),
-    DemoDevice("ind-04", "DEMO-DISP-IND-04", None),
-    DemoDevice("ind-05", "DEMO-DISP-IND-05", None),
-    DemoDevice("ind-06", "DEMO-DISP-IND-06", None),
-    DemoDevice("ind-07", "DEMO-DISP-IND-07", None),
-    DemoDevice("ind-08", "DEMO-DISP-IND-08", None),
-    DemoDevice("ind-09", "DEMO-DISP-IND-09", None),
-    DemoDevice("a-01", "DEMO-DISP-A-01", "a"),
-    DemoDevice("a-02", "DEMO-DISP-A-02", "a"),
-    DemoDevice("b-01", "DEMO-DISP-B-01", "b"),
-    DemoDevice("b-02", "DEMO-DISP-B-02", "b"),
+    DemoDevice("ind-01", "DEMO-DISP-IND-01"),
+    DemoDevice("ind-02", "DEMO-DISP-IND-02"),
+    DemoDevice("ind-03", "DEMO-DISP-IND-03"),
+    DemoDevice("ind-04", "DEMO-DISP-IND-04"),
+    DemoDevice("ind-05", "DEMO-DISP-IND-05"),
+    DemoDevice("ind-06", "DEMO-DISP-IND-06"),
+    DemoDevice("ind-07", "DEMO-DISP-IND-07"),
+    DemoDevice("ind-08", "DEMO-DISP-IND-08"),
+    DemoDevice("ind-09", "DEMO-DISP-IND-09"),
 )
 
 # Dispositivo con el que mide cada cuenta individual (cada una tiene el suyo).
@@ -276,100 +154,6 @@ INDIVIDUAL_DEVICE_KEYS: dict[str, str] = {
 
 def deviceKeyForIndividual(accountKey: str) -> str:
     return INDIVIDUAL_DEVICE_KEYS[accountKey]
-
-
-# --- Pacientes institucionales ---------------------------------------------------------------------------------------
-
-# Pacientes por operador (en el orden operador-x-1 … operador-x-4): entre 3 y 5 por operador, 32 en total.
-PATIENTS_PER_OPERATOR = {"a": (3, 5, 4, 4), "b": (4, 3, 5, 4)}
-# Cantidad de mediciones por paciente (ciclo): entre 1 y 4, como en el seguimiento real de un paciente asignado.
-PATIENT_MEASUREMENT_CYCLE = (1, 2, 3, 4, 2, 1, 4, 3)
-# Cómo llegó cada paciente a su operador actual (ciclo por número de paciente dentro de la institución). Cada caso deja el rastro que
-# deja la aplicación: el alta del operador, el alta de un moderador con asignación, o una transferencia entre operadores aceptada.
-ALTA_OPERADOR = "ALTA_OPERADOR"
-ALTA_MODERADOR = "ALTA_MODERADOR"
-TRANSFERENCIA = "TRANSFERENCIA"
-ALTA_CYCLE = (ALTA_OPERADOR, ALTA_MODERADOR, TRANSFERENCIA)
-# Hace cuántos días se aceptó la transferencia. Las mediciones anteriores a esa fecha son del operador de origen (historial).
-CAMBIO_DIAS = 25
-FIRST_NAMES = ("Lucía", "Mateo", "Valentina", "Joaquín", "Renata", "Benjamín", "Agustina", "Santiago", "Victoria", "Lautaro",
-               "Florencia", "Facundo", "Milagros", "Tobías", "Pilar", "Bruno", "Abril", "Thiago", "Catalina", "Ignacio")
-LAST_NAMES = ("Quiroga", "Ferreyra", "Molina", "Aguirre", "Palacios", "Gómez", "Barrios", "Cabrera", "Figueroa", "Ibarra",
-              "Medina", "Rojas", "Sandoval", "Trejo", "Villalba", "Zárate", "Ojeda", "Peralta", "Robledo", "Vázquez")
-
-
-@dataclass(frozen=True)
-class Patient:
-    institution: str
-    operator: str  # clave de la cuenta operadora responsable (asignación única: el modelo admite un responsable por paciente)
-    seq: int  # número dentro de la institución
-    nombre: str
-    apellido: str
-    dni: str | None
-    fechaNacimiento: date | None
-    sexoModelo: str | None
-    mediciones: int
-    alta: str  # ALTA_OPERADOR | ALTA_MODERADOR | TRANSFERENCIA
-    registrante: str  # clave de la cuenta que dio de alta al paciente (operador o moderador de la institución)
-    origen: str | None  # solo en TRANSFERENCIA: operador que lo tuvo antes (y que lo solicitó transferir)
-
-    @property
-    def key(self) -> str:
-        return f"paciente-{self.institution}-{self.seq:02d}"
-
-    @property
-    def id(self) -> uuid.UUID:
-        """ID del PerfilMedicion del paciente (mismo criterio que los perfiles individuales: demoId('perfil', clave))."""
-        return demoId("perfil", self.key)
-
-    @property
-    def pseudonimo(self) -> str:
-        return f"DEMO-PAC-{self.institution.upper()}-{self.seq:03d}"
-
-    @property
-    def relationKey(self) -> str:
-        return f"{self.institution}:{self.operator}"
-
-
-def _patients() -> tuple[Patient, ...]:
-    out: list[Patient] = []
-    for inst in MAIN_INSTITUTIONS:
-        seq = 0
-        for position, count in enumerate(PATIENTS_PER_OPERATOR[inst], start=1):
-            for _ in range(count):
-                seq += 1
-                operator = f"operador-{inst}-{position}"
-                alta = ALTA_CYCLE[(seq - 1) % len(ALTA_CYCLE)]
-                if alta == ALTA_OPERADOR:
-                    registrante, origen = operator, None
-                elif alta == ALTA_MODERADOR:
-                    registrante, origen = f"moderador-{inst}-{1 if position <= 2 else 2}", None
-                else:  # lo dio de alta el operador anterior (el siguiente en la institución) y luego se transfirió
-                    registrante = origen = f"operador-{inst}-{position % 4 + 1}"
-                out.append(Patient(
-                    institution=inst,
-                    operator=operator,
-                    seq=seq,
-                    alta=alta,
-                    registrante=registrante,
-                    origen=origen,
-                    nombre=FIRST_NAMES[(seq * 5) % len(FIRST_NAMES)],
-                    apellido=LAST_NAMES[(seq * 3 + (1 if inst == "b" else 0)) % len(LAST_NAMES)],
-                    # Documento sintético: prefijo DEMO, solo A-Z0-9 (CK_PerfilMedicion_dniNormalizado). Sin documento en algunos.
-                    dni=None if seq % 9 == 8 else f"DEMO{inst.upper()}{seq:03d}",
-                    fechaNacimiento=None if seq % 5 == 4 else date(1945 + (seq * 7) % 60, (seq % 12) + 1, (seq % 27) + 1),
-                    sexoModelo=None if seq % 6 == 5 else ("FEMENINO" if seq % 2 else "MASCULINO"),
-                    mediciones=PATIENT_MEASUREMENT_CYCLE[(seq - 1) % len(PATIENT_MEASUREMENT_CYCLE)],
-                ))
-    return tuple(out)
-
-
-PATIENTS: tuple[Patient, ...] = _patients()
-
-
-def patientDeviceKey(patient: Patient) -> str:
-    position = int(patient.operator.rsplit("-", 1)[1])
-    return f"{patient.institution}-{'01' if position <= 2 else '02'}"
 
 
 # --- Mediciones sintéticas -------------------------------------------------------------------------------------------
@@ -425,15 +209,8 @@ def _spec(profileKey: str, index: int, dayOffset: int, hour: int, minute: int, e
         minutosComida = rng.randint(45, 180)
     glucosa = _glucosaDemo(rng, condicion) if completed and modo == MODO_GLUCOSA else None
     return MeasurementSpec(
-        profileKey=profileKey,
-        index=index,
-        dayOffset=dayOffset,
-        hour=hour,
-        minute=minute,
-        modo=modo,
-        estado=estado,
-        condicion=condicion,
-        minutosDesdeComida=minutosComida,
+        profileKey=profileKey, index=index, dayOffset=dayOffset, hour=hour, minute=minute, modo=modo, estado=estado,
+        condicion=condicion, minutosDesdeComida=minutosComida,
         frecuenciaCardiaca=max(52, min(110, baseBpm + rng.randint(-8, 14))) if completed else None,
         spo2=Decimal(rng.randint(950, 995)) / Decimal(10) if completed else None,
         glucosa=glucosa,
@@ -454,7 +231,7 @@ def _estado(rng: random.Random) -> str:
 
 def individualMeasurementsFor(profileKey: str, *, activity: int, baseBpm: int) -> tuple[MeasurementSpec, ...]:
     """Historial de una cuenta individual desde HISTORY_START hasta DATA_END_DATE. Cada día tiene medición con probabilidad
-    `activity` (%), y ese día 1, 2 o 3 mediciones en horas distintas. El último día (DATA_END_DATE) termina con una medición a las 17:00."""
+    `activity` (%), y ese día 1, 2 o 3 mediciones en horas distintas. El último día termina con una medición a las 17:00."""
     rng = random.Random(f"demo-mediciones:{profileKey}")
     out: list[MeasurementSpec] = []
     for dayOffset in range(HISTORY_DAYS, -1, -1):
@@ -472,22 +249,6 @@ def individualMeasurementsFor(profileKey: str, *, activity: int, baseBpm: int) -
     return tuple(out)
 
 
-def patientMeasurements() -> tuple[tuple[Patient, tuple[MeasurementSpec, ...]], ...]:
-    """Mediciones de los pacientes: cantidad fija por paciente, repartidas en PATIENT_HISTORY_DAYS."""
-    out = []
-    for patient in PATIENTS:
-        rng = random.Random(f"demo-mediciones:{patient.key}")
-        count = patient.mediciones
-        uniqueDays = sorted(rng.sample(range(1, PATIENT_HISTORY_DAYS + 1), k=max(1, min(PATIENT_HISTORY_DAYS, round(count * 0.75)))))
-        specs = []
-        for index in range(count):
-            hour, minute = rng.randint(7, 22), rng.randint(0, 59)
-            specs.append(_spec(patient.key, index, uniqueDays[index % len(uniqueDays)], hour, minute, _estado(rng), rng,
-                               70 + (patient.seq * 2) % 12))
-        out.append((patient, tuple(specs)))
-    return tuple(out)
-
-
 def individualMeasurements() -> tuple[tuple[str, tuple[MeasurementSpec, ...]], ...]:
     """(clave de cuenta, mediciones) de cada cuenta individual."""
     plan = [("individual-a", INDIVIDUAL_A_ACTIVITY), ("grupo-admin", GROUP_ADMIN_ACTIVITY)]
@@ -499,23 +260,13 @@ def individualMeasurements() -> tuple[tuple[str, tuple[MeasurementSpec, ...]], .
 def expectedCounts() -> dict[str, int]:
     """Cantidades previstas (la fuente del dry-run y de las pruebas)."""
     individuals = individualMeasurements()
-    patients = patientMeasurements()
     return {
         "usuarios": len(ACCOUNTS),
-        "usuarios_individuales": sum(1 for account in ACCOUNTS if account.individual),
-        "usuarios_institucionales": sum(1 for account in ACCOUNTS if not account.individual),
         "credenciales": len(ACCOUNTS),
-        "consentimientos": 2 * sum(1 for account in ACCOUNTS if account.individual),
-        "instituciones": len(INSTITUTIONS),
-        "vinculos_institucionales": len(STAFF),
-        "propietarios": 2,
-        "moderadores": 4,
-        "operadores": 8,
-        "pacientes_asignados": len(PATIENTS),
+        "consentimientos": 2 * len(ACCOUNTS),
         "grupos": 1,
         "vinculos_grupo": 1 + len(GROUP_MEMBERS),
         "dispositivos": len(DEVICES),
-        "perfiles_individuales": sum(1 for account in ACCOUNTS if account.individual),
+        "perfiles_individuales": len(ACCOUNTS),
         "mediciones_individuales": sum(len(items) for _, items in individuals),
-        "mediciones_pacientes": sum(len(items) for _, items in patients),
     }
