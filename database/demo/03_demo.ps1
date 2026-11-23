@@ -46,9 +46,12 @@ if (($IsLinux) -and $Aplicar -and $Accion -eq 'cargar') {
 $docker = @(
     'compose', 'run', '--rm',
     '-v', "${CarpetaCredenciales}:/demo-secrets",
-    '-e', 'GLUCOLUME_DEMO_CREDENCIALES=/demo-secrets/credenciales-demo.txt',
-    'backend', 'python', '-m', 'app.cli.demoSeed'
-) + $cli
+    '-e', 'GLUCOLUME_DEMO_CREDENCIALES=/demo-secrets/credenciales-demo.txt'
+)
+# Contraseña común para todas las cuentas demo (si se define en el entorno, se pasa al contenedor sin mostrarla).
+if ($env:GLUCOLUME_DEMO_PASSWORD) { $docker += '-e', 'GLUCOLUME_DEMO_PASSWORD' }
+$docker += 'backend', 'python', '-m', 'app.cli.demoSeed'
+$docker += $cli
 
 Push-Location $raiz
 try {

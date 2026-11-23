@@ -110,6 +110,21 @@ def test_cada_cuenta_individual_tiene_su_propio_dispositivo_y_sus_mediciones(db,
         assert rows and all(row.idDispositivo == deviceId for row in rows), a.key
 
 
+def test_cada_cuenta_demo_tiene_su_propio_nombre_de_usuario(db, seeded):
+    names = [user.usuario for user in db.scalars(select(User).where(User.correoElectronico.like("demo.%"))).all()]
+    assert len(names) == len(seeder.ACCOUNTS) and len(set(names)) == len(names)
+    assert all(name and len(name) >= 4 and "@" not in name for name in names)
+
+
+def test_contrasena_comun_elegida_por_el_responsable_para_todas_las_cuentas(monkeypatch):
+    monkeypatch.setenv(seeder.DEMO_PASSWORD_ENV, "Demo-Clave-2026!")
+    assert {seeder.generatePassword(a) for a in seeder.ACCOUNTS} == {"Demo-Clave-2026!"}
+    monkeypatch.setenv(seeder.DEMO_PASSWORD_ENV, "corta")
+    with pytest.raises(seeder.SeedError) as error:
+        seeder.generatePassword(seeder.ACCOUNTS[0])
+    assert "corta" not in str(error.value)  # el mensaje de error nunca muestra la contraseña
+
+
 def test_segunda_ejecucion_no_duplica_ningun_registro(db, seeded):
     before = seeder.countDemoRows(db)
     plan = seeder.buildPlan(db, anchor=ANCHOR)

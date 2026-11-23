@@ -131,6 +131,8 @@ ACCOUNTS: tuple[Account, ...] = (
             "B - Integrante 7: comparte datos básicos, última medición, historial y avisos.", date(1973, 4, 22)),
 )
 ACCOUNTS_BY_KEY = {account.key: account for account in ACCOUNTS}
+# Nombre de usuario (login) de cada cuenta demo: individuo1 a individuo9, en el orden de ACCOUNTS.
+USUARIOS_DEMO = {account.key: f"individuo{n}" for n, account in enumerate(ACCOUNTS, start=1)}
 
 # Integrantes del grupo: permisos de compartición (compartePerfil, comparteUltimaMedicion, comparteHistorial, notificaMedicion)
 # y frecuencia de medición propia (porcentaje de días del historial con medición: 1, 2 o 3 mediciones por día).
@@ -707,9 +709,27 @@ def defaultCredentialsPath() -> Path:
 # --- Contraseñas ------------------------------------------------------------------------------------------------------
 
 
+DEMO_PASSWORD_ENV = "GLUCOLUME_DEMO_PASSWORD"
+
+
+def _commonPasswordFor(account: Account, password: str) -> str:
+    """Valida la contraseña común elegida por el responsable para todas las cuentas demo. El mensaje nunca incluye la contraseña."""
+    errors = security.passwordPolicyErrors(password)
+    if errors:
+        raise SeedError(f"{DEMO_PASSWORD_ENV} no cumple la política de contraseñas: " + "; ".join(errors))
+    identifiers = (account.key, account.correo.split("@", 1)[0], account.nombre, account.apellido)
+    if security.passwordContainsPersonalData(password, *identifiers):
+        raise SeedError(f"{DEMO_PASSWORD_ENV} contiene datos de la cuenta {account.key}: elegí otra contraseña.")
+    return password
+
+
 def generatePassword(account: Account) -> str:
-    """Contraseña temporal de demostración: cumple la política real (security.passwordPolicyErrors), no es común y no contiene el
-    correo ni el nombre de la cuenta. Solo se escribe en el archivo privado de credenciales; nunca en logs ni reportes."""
+    """Contraseña de la cuenta demo. Si está definida GLUCOLUME_DEMO_PASSWORD, todas las cuentas usan esa (validada con la política).
+    Si no, se genera una temporal aleatoria que cumple la política real (security.passwordPolicyErrors), no es común y no contiene
+    el correo ni el nombre de la cuenta. Solo se escribe en el archivo privado de credenciales; nunca en logs ni reportes."""
+    common = os.environ.get(DEMO_PASSWORD_ENV)
+    if common:
+        return _commonPasswordFor(account, common)
     identifiers = (account.key, account.correo.split("@", 1)[0], account.nombre, account.apellido)
     while True:
         candidate = "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(PASSWORD_LENGTH))
@@ -780,7 +800,7 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
         if building:
             plan.etapas[0].append(User(
                 idUsuario=account.id, nombre=account.nombre, apellido=account.apellido, correoElectronico=account.correo,
-                usuario=None, tipoCuenta=account.tipoCuenta, estado=ESTADO_ACTIVO, fechaCreacion=now, fechaActualizacion=now,
+                usuario=USUARIOS_DEMO[account.key], tipoCuenta=account.tipoCuenta, estado=ESTADO_ACTIVO, fechaCreacion=now, fechaActualizacion=now,
                 fechaEliminacion=None, fechaNacimiento=account.fechaNacimiento, sexo=account.sexo,
                 notificarNuevoInicioSesion=False, fechaInicioGracia=None, fechaVencimientoGracia=None,
             ))
