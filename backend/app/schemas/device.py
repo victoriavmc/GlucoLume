@@ -223,6 +223,8 @@ class DeviceResponsible(BaseModel):
     nombre: str | None
     apellido: str | None
     activo: bool
+    # Solo en el inventario global (plataforma); en una institución no se expone.
+    correoElectronico: str | None = None
 
 
 class DeviceInstitutionOption(BaseModel):
@@ -254,6 +256,10 @@ class DeviceItem(BaseModel):
     # Solo en el inventario global (el institucional ya está acotado a una institución).
     nombreInstitucion: str | None = None
     responsable: DeviceResponsible | None
+    # Solo en el inventario global: el dispositivo está vinculado a al menos una cuenta individual.
+    vinculadoCuentasIndividuales: bool = False
+    # Solo en el inventario global: correos de las cuentas individuales vinculadas.
+    correosIndividuales: list[str] = []
     fechaRegistro: datetime
     fechaAsignacionInstitucional: datetime | None
     # Operativo (estado OPERATIVO) no significa conectado: la conectividad real la informa la adquisición.
@@ -273,10 +279,20 @@ class DeviceRegistration(BaseModel):
     medio: str | None = None
 
 
+class IndividualAccountRef(BaseModel):
+    """Cuenta individual vinculada a un dispositivo (solo en el inventario global, para la administración de la plataforma)."""
+
+    nombre: str | None = None
+    apellido: str | None = None
+    correoElectronico: str | None = None
+
+
 class DeviceDetail(DeviceItem):
     permisos: DevicePermissions
     medicionesRegistradas: int | None = None
     registro: DeviceRegistration | None = None
+    # Solo inventario global: cuentas individuales vinculadas (vacío en la vista institucional).
+    cuentasIndividuales: list[IndividualAccountRef] = []
 
 
 class DevicePage(BaseModel):
@@ -325,3 +341,16 @@ class DeviceResolveResult(BaseModel):
     motivoNoDisponible: str | None = None
     # No se afirma que esté conectado: eso lo determina el servicio de adquisición con la comunicación efectiva.
     conexionVerificada: bool = False
+
+
+class DeviceExportRequest(BaseModel):
+    """`SELECCION`: los dispositivos de `idsDispositivo` que la cuenta puede ver. `TODOS`: los que coinciden con los filtros del listado."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alcance: Literal["SELECCION", "TODOS"]
+    idsDispositivo: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    busqueda: str | None = Field(default=None, max_length=100)
+    estado: str | None = Field(default=None, max_length=30)
+    asignado: bool | None = None
+    uso: Literal["INSTITUCION", "INDIVIDUAL"] | None = None

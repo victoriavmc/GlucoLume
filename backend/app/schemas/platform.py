@@ -5,7 +5,7 @@
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 
@@ -195,6 +195,10 @@ class DeviceCounters(BaseModel):
     # El sistema no registra la conexión de cada dispositivo (la telemetría vive en memoria): «desconectados» solo se informa si hay datos verificables.
     desconectados: int | None = None
     conexionVerificable: bool = False
+    # Dispositivos vinculados a al menos una cuenta individual (None: la base todavía no tiene la tabla de vínculos).
+    asignadosCuentasIndividuales: int | None = None
+    # El modelo no vincula dispositivos con cuentas individuales: solo se informa cuando exista esa asignación (hoy, None = no disponible).
+    asignadosCuentasIndividuales: int | None = None
 
 
 class CountBy(BaseModel):
@@ -232,6 +236,7 @@ class UserCounters(BaseModel):
     conVinculoInstitucional: int = 0
     institucionalesSinVinculo: int = 0
     registradasPeriodo: int = 0
+    noInstitucionalesRegistradasPeriodo: int = 0  # registradas en el período, sin contar las institucionales
     registradas7Dias: int = 0
 
 
@@ -242,6 +247,7 @@ class InstitutionCounters(BaseModel):
     inactivas: int = 0  # INACTIVA: inhabilitadas
     moderadores: int
     operadores: int
+    cuentasInstitucionales: int = 0  # cuentas distintas con un vínculo activo como propietario, moderador u operador
 
 
 class GroupCounters(BaseModel):
@@ -353,6 +359,17 @@ class InstitutionPage(BaseModel):
     pagina: int
     tamanioPagina: int
     porEstado: dict[str, int]
+
+
+class InstitutionExportRequest(BaseModel):
+    """`SELECCION`: las instituciones de `idsInstitucion`. `TODAS`: todas las que coinciden con los filtros del listado."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alcance: Literal["SELECCION", "TODAS"]
+    idsInstitucion: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    busqueda: str | None = Field(default=None, max_length=100)
+    estado: Literal["ACTIVA", "INACTIVA", "CERRADA"] | None = None
 
 
 class InstitutionDevice(BaseModel):

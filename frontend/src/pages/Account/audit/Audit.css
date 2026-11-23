@@ -52,6 +52,26 @@
   font-size: 15px;
 }
 
+.audit-table thead th {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  background: #fafafc;
+}
+
+.audit-table tbody tr:hover td {
+  background: #fafafc;
+}
+
+.audit-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: var(--ink-700);
+}
+
 .audit-table td,
 .audit-table th {
   padding: 14px 12px;
@@ -536,3 +556,48 @@
 .audit-review .audit-note {
   flex-basis: 100%;
 }
+
+/* Eventos críticos de seguridad (auditoría general): solo las señales que requieren revisión o seguimiento. */
+.audit-critical-panel { display: grid; gap: 18px; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--line); border-radius: var(--radius-lg, 18px); background: #fff; box-shadow: var(--shadow-card); }
+.audit-critical-title { display: flex; align-items: center; gap: 14px; }
+.audit-critical-title h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.audit-critical-title p { margin: 2px 0 0; color: var(--ink-500); font-size: 14px; }
+.audit-critical-title-icon, .audit-critical-icon { display: grid; place-items: center; flex: none; border-radius: 14px; background: #fde8ea; color: var(--red-600); }
+.audit-critical-title-icon { width: 52px; height: 52px; }
+.audit-critical-count { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 999px; background: #f1f2f6; color: var(--ink-700); font-size: 15px; }
+.audit-critical-empty { margin: 0; padding: 18px; border-radius: var(--radius-md); background: #f8f9fb; color: var(--ink-700); font-weight: 600; }
+.audit-critical-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.audit-critical { display: grid; gap: 12px; align-content: start; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--red-600); border-radius: var(--radius-md); background: #fff; min-width: 0; }
+.audit-critical.is-suspicious { border-left-color: #f08a00; }
+.audit-critical-head { display: flex; align-items: center; gap: 10px; }
+.audit-critical-icon { width: 44px; height: 44px; }
+.audit-critical.is-suspicious .audit-critical-icon { background: #fff4e0; color: #b45309; }
+.audit-critical-badge { padding: 4px 10px; border-radius: 999px; background: #fde8ea; color: var(--red-600); font-size: 13px; font-weight: 600; }
+.audit-critical-badge.is-suspicious { background: #fff4e0; color: #b45309; }
+.audit-critical h3 { margin: 0; font-size: 17px; }
+.audit-critical > p { margin: 0; color: var(--ink-700); font-size: 14px; line-height: 1.4; }
+.audit-critical-facts { display: grid; gap: 6px; margin: 0; font-size: 14px; }
+.audit-critical-facts div { display: flex; flex-wrap: wrap; gap: 6px; }
+.audit-critical-facts dt { color: var(--ink-500); }
+.audit-critical-facts dd { margin: 0; font-weight: 600; }
+.audit-critical .btn { justify-self: start; }
+
+/* Tabla de auditoría: usuario con inicial, uso, evento con fecha y resultado destacado. */
+.audit-table th { white-space: nowrap; }
+.audit-table td { vertical-align: middle; }
+.audit-user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.audit-avatar {
+  display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--red-50, #fdeced); color: var(--red-600, #c81e2b); font-weight: 700; font-size: 12px;
+}
+.audit-event { font-weight: 600; color: var(--ink-900, #1d2433); }
+.audit-table .audit-cell { display: grid; gap: 2px; min-width: 0; }
+.audit-table .audit-note { overflow-wrap: anywhere; }
+.audit-table .audit-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.audit-actions { white-space: nowrap; text-align: right; }
+.audit-actions .btn { margin-left: 4px; }
+
+/* Estado de análisis de cada evento crítico de seguridad: «Analizado» o «Falta analizar». */
+.audit-critical-status { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.audit-critical-status.is-done { background: #f3fbf6; color: #15803d; border: 1px solid #bfe5cd; }
+.audit-critical-status.is-missing { background: #fff4f5; color: #b91c1c; border: 1px solid #f4b6bb; }

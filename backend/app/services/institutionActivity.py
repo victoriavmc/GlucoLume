@@ -84,6 +84,7 @@ CATALOG = {
     "ACTIVAR_MATRIZ": ("MATRICES", "Matriz activada"),
     "DESACTIVAR_MATRIZ": ("MATRICES", "Matriz desactivada"),
     "ARCHIVAR_MATRIZ": ("MATRICES", "Matriz archivada"),
+    "ELIMINAR_MATRIZ": ("MATRICES", "Versión de matriz eliminada"),
     "CREAR_REGLA_MATRIZ": ("MATRICES", "Regla de matriz agregada"),
     "MODIFICAR_REGLA_MATRIZ": ("MATRICES", "Regla de matriz actualizada"),
     "ELIMINAR_REGLA_MATRIZ": ("MATRICES", "Regla de matriz eliminada"),

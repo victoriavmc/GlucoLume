@@ -26,6 +26,12 @@
 .pd-chip.is-warning .pd-dot, .pd-dot.is-warn { background: #f08a00; }
 .pd-chip.is-danger .pd-dot, .pd-dot.is-danger { background: var(--red-600); }
 
+/* Contenedor «Resumen»: agrupa las cifras clave y los accesos */
+.pd-summary { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fff; }
+.pd-summary-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.pd-summary-head h2 { margin: 0; font-size: 17px; }
+.pd-summary-head small { color: var(--ink-500); font-size: 13px; }
+
 /* Cifras clave */
 .pd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
 .pd-stat { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--line); border-left: 4px solid #d3d6df; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-card); }
@@ -40,7 +46,7 @@
 .pd-hint { display: block; margin-top: 2px; color: var(--ink-500); font-size: 12.5px; line-height: 1.35; }
 
 /* Tarjetas */
-.pd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.pd-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
 .pd-card { display: grid; gap: 16px; align-content: start; min-width: 0; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--line); border-radius: var(--radius-lg, 18px); background: #fff; box-shadow: var(--shadow-card); }
 .pd-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .pd-card-head > div { flex: 1; min-width: 200px; }
@@ -52,6 +58,16 @@
 
 /* Números secundarios */
 .pd-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0; }
+/* Cuentas y grupos: los cuatro indicadores en una fila (dos columnas en pantallas chicas) */
+.pd-card-cuentas .pd-minis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .pd-card-cuentas .pd-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.pd-card-dispositivos .pd-minis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .pd-card-dispositivos .pd-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.pd-card-cuentas .pd-mini { min-height: 104px; display: flex; flex-direction: column; justify-content: space-between; }
 .pd-mini { padding: 12px 14px; border-radius: 12px; background: #f8f8fb; }
 .pd-mini dt { font-size: 13px; color: var(--ink-500); }
 .pd-mini dd { margin: 2px 0 0; font-size: 22px; font-weight: 700; color: var(--ink-900); }
@@ -102,3 +118,39 @@
 /* Control de la institución: acciones y avisos de pausa / exceso. */
 .pd-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .pd-actions .btn { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Seguridad y actividad (dashboard de la plataforma): indicadores, motivos de fallo, actividad y alertas. */
+.pd-sec { display: grid; gap: 18px; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--line); border-radius: var(--radius-lg, 18px); background: #fff; box-shadow: var(--shadow-card); }
+.pd-sec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.pd-sec-head > div { flex: 1; min-width: 220px; }
+.pd-sec-head h2 { margin: 0; font-size: 22px; }
+.pd-sec-head p { margin: 2px 0 0; color: var(--ink-500); font-size: 14px; }
+.pd-sec-icon, .pd-sec-kpi-icon { display: grid; place-items: center; flex: none; border-radius: 14px; background: var(--red-50, #fdeced); color: var(--red-600); }
+.pd-sec-icon { width: 48px; height: 48px; }
+.pd-sec-link { display: inline-flex; align-items: center; gap: 8px; color: var(--red-600); border-color: var(--red-600); }
+.pd-sec-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.pd-sec-kpi { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fff; }
+.pd-sec-kpi > div { min-width: 0; }
+.pd-sec-kpi-icon { width: 46px; height: 46px; }
+.pd-sec-kpi small { display: block; color: var(--ink-500); font-size: 13px; }
+.pd-sec-kpi b { display: block; font-size: clamp(26px, 2.6vw, 32px); line-height: 1.1; color: var(--ink-900); }
+.pd-sec-kpi.is-danger .pd-sec-kpi-icon { background: #fde8ea; }
+.pd-sec-pill { justify-self: start; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+.pd-sec-pill.is-ok { background: #e7f7ec; color: #15803d; }
+.pd-sec-pill.is-warn { background: #fff4e0; color: #b45309; }
+.pd-sec-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; }
+.pd-sec-panel { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fff; }
+.pd-sec-panel > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.pd-sec-panel h3 { margin: 0; font-size: 17px; }
+.pd-sec-chip { padding: 4px 12px; border-radius: 999px; background: #f1f2f6; color: var(--ink-700); font-size: 13px; }
+.pd-sec-chip.is-danger { background: #fde8ea; color: var(--red-600); }
+.pd-sec-bars { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.pd-sec-bars li { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(90px, 1.2fr) auto; align-items: center; gap: 12px; font-size: 14px; }
+.pd-sec-bar-track { display: block; height: 10px; border-radius: 999px; background: #f1f2f6; overflow: hidden; }
+.pd-sec-bar-track > span { display: block; height: 100%; border-radius: 999px; background: var(--red-600); }
+.pd-sec-bars b { min-width: 34px; padding: 3px 8px; border-radius: 999px; background: #f1f2f6; text-align: center; font-size: 13px; }
+.pd-sec-feed { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.pd-sec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; border-radius: 10px; background: #f8f9fb; font-size: 14px; }
+.pd-sec-text { flex: 1; min-width: 0; }
+.pd-sec-row small { color: var(--ink-500); font-size: 13px; }
+@media (max-width: 600px) { .pd-sec-bars li { grid-template-columns: 1fr auto; } .pd-sec-bar-track { grid-column: 1 / -1; grid-row: 2; } }

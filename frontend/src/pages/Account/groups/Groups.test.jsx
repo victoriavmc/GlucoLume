@@ -562,7 +562,7 @@ describe('Mediciones compartidas: pruebas DEMO y vista ampliada', () => {
     expect(within(realRow).getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', `/app/grupo/${ID}/compartidos/gu-beto/mediciones/m-real`);
   });
 
-  it('con solo pruebas DEMO no dice que no hay mediciones: las grafica identificadas como DEMO en la evolución', async () => {
+  it('con solo pruebas DEMO no dice que no hay mediciones: las grafica en la misma línea del integrante, sin separarlas', async () => {
     routes({
       [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
       [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
@@ -582,8 +582,8 @@ describe('Mediciones compartidas: pruebas DEMO y vista ampliada', () => {
     await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
     expect(await screen.findByRole('heading', { name: 'Evolución de Beto Ruiz' })).toBeInTheDocument();
     const legend = within(await screen.findByRole('list', { name: 'Series graficadas' }));
-    expect(legend.getByText('Beto Ruiz · DEMO (prueba)')).toBeInTheDocument(); // solo pruebas, identificadas
-    expect(legend.queryByText('Beto Ruiz')).not.toBeInTheDocument(); // ninguna serie experimental
+    expect(legend.getByText('Beto Ruiz')).toBeInTheDocument(); // una sola serie por integrante, sin separar DEMO
+    expect(legend.queryByText(/DEMO \(prueba\)/)).not.toBeInTheDocument();
     expect(screen.queryByText('No hay mediciones completadas en este período.')).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Pruebas DEMO compartidas' })).not.toBeInTheDocument();
   });

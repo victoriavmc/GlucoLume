@@ -89,6 +89,14 @@ def archive(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return matrixService.archive(db, auth.user, idMatriz)
 
 
+@router.delete("/{idMatriz}", status_code=status.HTTP_204_NO_CONTENT, summary="Borrar una versión que nunca se usó",
+               description="Borra la versión y sus reglas. 409 `MATRIZ_CON_MEDICIONES` si ya se usó en una medición (se archiva en "
+               "su lugar) y 409 `MATRIZ_ESTADO_INVALIDO` si está activa (desactivarla primero).")
+def deleteMatrix(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
+    matrixService.deleteVersion(db, auth.user, idMatriz)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{idMatriz}/export", response_class=Response, summary="Exportar la matriz con sus reglas (CSV, Excel o PDF)",
              description="Quien puede ver la matriz: la plataforma (globales); el propietario y el moderador de la institución (las suyas y "
              "la global activa). Un operador u otra institución recibe 404 y el intento queda en la auditoría de exportaciones. Una fila "

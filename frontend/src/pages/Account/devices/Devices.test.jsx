@@ -1,6 +1,6 @@
 import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearTokens, saveTokens } from '../../../auth/tokenStore.js';
 import { ACCOUNT, TOKENS, jsonResponse, mockApi } from '../../../test/helpers.js';
@@ -83,7 +83,7 @@ describe('Inventario global (plataforma)', () => {
       ['Descomisionados', '1'], ['Asignados', '2'], ['Sin asignar', '5']]) {
       expect(cards.getByText(label).closest('li')).toHaveTextContent(value);
     }
-    expect(screen.getByText(/no que esté conectado/)).toBeInTheDocument();
+    expect(screen.queryByText(/no que esté conectado/)).not.toBeInTheDocument(); // el aviso «Operativo no es conectado» se quitó del inventario global
     expect(screen.queryByText(/Conectados|Desconectados/)).not.toBeInTheDocument();
     const table = within(await screen.findByRole('table', { name: 'Dispositivos' }));
     expect(table.getByText('GL-0002').closest('tr')).toHaveTextContent('Centro Médico San José');
@@ -202,7 +202,7 @@ describe('Detalle y acciones (global)', () => {
     expect(data.getByText('MAX30102')).toBeInTheDocument();
     expect(data.getByText('Centro Médico San José')).toBeInTheDocument();
     expect(data.getByText('Ana Paz')).toBeInTheDocument();
-    expect(data.getByText(/No informado: el inventario no verifica la conexión/)).toBeInTheDocument();
+    expect(data.queryByText(/no verifica la conexión/)).not.toBeInTheDocument(); // la fila «Estado de conexión» se quitó del detalle
     expect(data.getByText('Disponible para medir', { exact: false })).toBeInTheDocument();
     expect(await screen.findByText('Todavía no hay mediciones con este dispositivo.')).toBeInTheDocument();
   });
@@ -328,6 +328,19 @@ describe('Detalle y acciones (global)', () => {
     expect(row).toHaveTextContent('MAX30100');
     expect(row).toHaveTextContent('Centro Médico San José');
     expect(row).toHaveTextContent('Completada');
+  });
+
+  it('las mediciones se filtran por estado de medición y el filtro informa cuando no hay coincidencias', async () => {
+    open({
+      [`GET /devices/${DID}`]: jsonResponse(200, detail()),
+      [`GET /devices/${DID}/measurements`]: jsonResponse(200, { items: [], total: 0, pagina: 1, tamanioPagina: 25 }),
+      'GET /devices/institutions': jsonResponse(200, []),
+    });
+    renderAt(`/app/dispositivos/${DID}`);
+    await screen.findByText('Todavía no hay mediciones con este dispositivo.');
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Estado de la medición'), 'CANCELADA');
+    expect(await screen.findByText('No hay mediciones en ese estado.')).toBeInTheDocument();
   });
 });
 
@@ -503,5 +516,34 @@ describe('Inventario institucional', () => {
     renderAt(`/app/instituciones/${ID}/dispositivos/${DID}`);
     expect(await screen.findByText('No encontramos ese dispositivo.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Cambiar estado' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Exportar dispositivos', () => {
+  it('exporta los dispositivos marcados o todos los filtrados, en el formato elegido, y la descarga lleva el nombre del servidor', async () => {
+    const { calls } = routes(INSTITUTIONAL, {
+      [`GET /institutions/${ID}`]: jsonResponse(200, institution('PROPIETARIO')),
+      [`GET ${BASE}`]: page([item({ idInstitucionAsignada: ID })]), [`GET ${BASE}/summary`]: jsonResponse(200, COUNTS),
+      [`POST ${BASE}/export`]: () => new Response('x', {
+        headers: { 'Content-Disposition': 'attachment; filename="dispositivos-prueba.xlsx"' },
+      }),
+    });
+    URL.createObjectURL = vi.fn(() => 'blob:prueba');
+    URL.revokeObjectURL = vi.fn();
+    const user = userEvent.setup();
+    renderAt(`/app/instituciones/${ID}/dispositivos`);
+    expect(await screen.findByRole('button', { name: /Exportar seleccionados/ })).toBeDisabled();
+    await user.click(await screen.findByLabelText('Seleccionar GL-0001'));
+    await user.selectOptions(screen.getByLabelText('Formato de exportación'), 'xlsx');
+    await user.click(screen.getByRole('button', { name: 'Exportar seleccionados (1)' }));
+    await waitFor(() => expect(calls.some((call) => call.key === `POST ${BASE}/export`)).toBe(true));
+    const selected = calls.find((call) => call.key === `POST ${BASE}/export`);
+    expect(selected.url).toContain('formato=xlsx');
+    expect(selected.body).toEqual({ alcance: 'SELECCION', idsDispositivo: [DID] });
+    expect(await screen.findByText('Exportación lista: dispositivos-prueba.xlsx.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Exportar todos/ }));
+    await waitFor(() => expect(calls.filter((call) => call.key === `POST ${BASE}/export`)).toHaveLength(2));
+    expect(calls.filter((call) => call.key === `POST ${BASE}/export`)[1].body).toEqual({ alcance: 'TODOS' });
   });
 });

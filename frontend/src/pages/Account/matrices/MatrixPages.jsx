@@ -4,7 +4,7 @@
 //   - …/:idMatriz                         detalle de una versión con su editor de reglas.
 // Todo sale de FastAPI: el ámbito, la versión activa y las acciones permitidas los decide el backend.
 
-import { ArrowLeft, ExternalLink, Layers, Plus } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Layers, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
@@ -21,8 +21,24 @@ import { MATRIX_STATES, formatDate, stateBadge } from './matrixFormat.js';
 
 const PLATFORM_ACCOUNTS = ['MODERADOR_PLATAFORMA', 'ADMINISTRADOR_PLATAFORMA'];
 
-function VersionList({ items, emptyText }) {
+// Solo se borra una versión que nunca se usó y no está activa (el backend lo vuelve a validar).
+const canDelete = (item) => item.estado !== 'ACTIVA' && item.medicionesRegistradas === 0;
+
+function VersionList({ items, emptyText, onDelete }) {
+  const [confirmingId, setConfirmingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   if (items.length === 0) return <EmptyState variant="framed" headingLevel={0} title={emptyText} />;
+
+  async function confirmDelete(item) {
+    setDeletingId(item.idMatriz);
+    try {
+      await onDelete(item);
+    } finally {
+      setDeletingId(null);
+      setConfirmingId(null);
+    }
+  }
+
   return (
     <ul className="member-list-items" aria-label="Versiones de matrices">
       {items.map((item) => (
@@ -39,6 +55,20 @@ function VersionList({ items, emptyText }) {
             <ExternalLink size={16} aria-hidden="true" /> Ver reglas
           </Link>
           <Badge tone={toneFromClass(stateBadge(item.estado))}>{MATRIX_STATES[item.estado]}</Badge>
+          {onDelete && canDelete(item) && (confirmingId === item.idMatriz ? (
+            <span className="member-actions">
+              <span className="field-hint">¿Borrar esta versión y sus reglas? No se puede deshacer.</span>
+              <button type="button" className="btn btn-ghost" disabled={deletingId !== null} onClick={() => setConfirmingId(null)}>Volver</button>
+              <button type="button" className="btn btn-primary" disabled={deletingId !== null} onClick={() => confirmDelete(item)}>
+                {deletingId === item.idMatriz && <span className="spinner" aria-hidden="true" />} Confirmar
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="btn btn-ghost" disabled={deletingId !== null} onClick={() => setConfirmingId(item.idMatriz)}
+              aria-label={`Borrar versión ${item.version} de ${item.nombre}`} title="Borrar esta versión">
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          ))}
         </li>
       ))}
     </ul>
@@ -115,6 +145,7 @@ export function GlobalMatricesPage() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [notice, setNotice] = useState('');
   const platform = PLATFORM_ACCOUNTS.includes(account.usuario.tipoCuenta);
 
   const load = useCallback(async () => {
@@ -125,6 +156,19 @@ export function GlobalMatricesPage() {
       setItems([]);
     }
   }, []);
+
+  async function removeVersion(item) {
+    setError('');
+    setNotice('');
+    try {
+      await matricesApi.deleteMatrix(item.idMatriz);
+      setItems((current) => current.filter((existing) => existing.idMatriz !== item.idMatriz));
+      setNotice(`Borramos la versión ${item.version} de ${item.nombre}.`);
+    } catch (deleteError) {
+      setError(friendlyError(deleteError));
+      await load();
+    }
+  }
 
   useEffect(() => {
     if (platform) load();
@@ -137,6 +181,7 @@ export function GlobalMatricesPage() {
     <div className="page">
       <PageHeader title="Administración de matrices globales" description="Referencia de GlucoLume para usuarios individuales y para instituciones sin matriz propia activa." />
       {error && <Alert>{error}</Alert>}
+      {notice && <Alert kind="success">{notice}</Alert>}
       <section className="panel" aria-labelledby="globales-activa">
         <div className="panel-head">
           <div className="panel-title">
@@ -169,7 +214,7 @@ export function GlobalMatricesPage() {
       </section>
       <section className="panel" aria-labelledby="globales-versiones">
         <h2 id="globales-versiones">Versiones</h2>
-        {items !== null && <VersionList items={items} emptyText="Todavía no hay matrices globales. Creá la primera." />}
+        {items !== null && <VersionList items={items} onDelete={removeVersion} emptyText="Todavía no hay matrices globales. Creá la primera." />}
       </section>
     </div>
   );
@@ -184,7 +229,8 @@ export function GlobalMatrixDetailPage() {
     <div className="page">
       <Link to=".." relative="path" className="back-link"><ArrowLeft size={16} aria-hidden="true" /> Matrices globales</Link>
       <MatrixDetail idMatriz={idMatriz} handleOperationError={friendlyError} titleAs="h1"
-        onOpenMatrix={(id) => navigate(`../${id}`, { relative: 'path' })} />
+        onOpenMatrix={(id) => navigate(`../${id}`, { relative: 'path' })}
+        onDeleted={() => navigate('..', { relative: 'path' })} />
     </div>
   );
 }

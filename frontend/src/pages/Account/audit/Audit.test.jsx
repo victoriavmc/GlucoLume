@@ -58,27 +58,22 @@ function routes(me, extra = {}) {
 }
 
 describe('Auditoría general (administrador del sistema)', () => {
-  it('muestra el resumen, la actividad por módulo e institución y la tabla de eventos', async () => {
+  it('no muestra el resumen de actividad y deja el listado de eventos', async () => {
     routes(ADMIN, {
       'GET /audit': page([event(), event({ idAuditoria: 'e-2', accion: 'LOGIN_LOCAL', modulo: 'CUENTA', idInstitucion: null, nombreInstitucion: null, resultado: 'FALLO', critica: false })]),
       'GET /audit/summary': jsonResponse(200, SUMMARY),
     });
     renderAt('/app/auditoria');
     expect(await screen.findByRole('heading', { name: 'Auditoría general' })).toBeInTheDocument();
-    const cards = within(await screen.findByRole('list', { name: 'Resumen de la auditoría' }));
-    expect(cards.getByText('Total de eventos').closest('li')).toHaveTextContent('12');
-    expect(cards.getByText('Fallidos').closest('li')).toHaveTextContent('2');
-    expect(cards.getByText('Operaciones críticas').closest('li')).toHaveTextContent('3');
-    expect(within(screen.getByRole('list', { name: 'Actividad por módulo' })).getByText('Matrices y reglas')).toBeInTheDocument();
-    expect(within(screen.getByRole('list', { name: 'Actividad por institución' })).getByText('Clínica Norte')).toBeInTheDocument();
     const table = within(await screen.findByRole('table', { name: 'Eventos de auditoría' }));
     expect(table.getByText('Activar matriz')).toBeInTheDocument();
     expect(table.getByText('Crítica')).toBeInTheDocument();
     expect(table.getAllByText('09/10/2026 14:32')).toHaveLength(2);
     expect(table.getByText('Fallido')).toBeInTheDocument();
-    expect(table.getByRole('columnheader', { name: 'Institución' })).toBeInTheDocument();
+    expect(table.getByRole('columnheader', { name: 'Fecha' })).toBeInTheDocument();
+    expect(table.queryByRole('columnheader', { name: 'Institución' })).not.toBeInTheDocument(); // la institución ya no es columna (se filtra en «Más filtros»)
+    expect(screen.queryByRole('heading', { name: 'Resumen de actividad' })).not.toBeInTheDocument();
   });
-
   it('el menú ofrece Auditoría solo al administrador del sistema', async () => {
     routes(ADMIN, { 'GET /audit': page([]), 'GET /audit/summary': jsonResponse(200, SUMMARY) });
     renderAt('/app/auditoria');
@@ -101,24 +96,23 @@ describe('Auditoría general (administrador del sistema)', () => {
     },
   );
 
-  it('los filtros se envían al backend (institución, usuario, módulo, acción, resultado y período)', async () => {
+  it('los filtros se envían al backend (usuario, módulo, acción, resultado, período y operaciones)', async () => {
     const { calls } = routes(ADMIN, { 'GET /audit': () => page([]), 'GET /audit/summary': () => jsonResponse(200, SUMMARY) });
     const user = userEvent.setup();
     renderAt('/app/auditoria');
     await screen.findByText('Todavía no hay eventos registrados.');
-    await user.selectOptions(await screen.findByLabelText('Institución'), ID);
     await user.type(screen.getByLabelText('Usuario'), 'duenia');
     await user.selectOptions(screen.getByLabelText('Módulo'), 'MATRICES');
     await user.type(screen.getByLabelText('Acción'), 'activar');
     await user.selectOptions(screen.getByLabelText('Resultado'), 'FALLO');
     await user.type(screen.getByLabelText('Desde'), '2026-10-01');
     await user.type(screen.getByLabelText('Hasta'), '2026-10-09');
-    await user.click(screen.getByRole('checkbox', { name: /operaciones críticas/ }));
+    await user.click(screen.getByRole('button', { name: /^Todos/ }));
     await waitFor(() => {
       const last = new URL(calls.filter((call) => call.key === 'GET /audit').at(-1).url);
       expect(Object.fromEntries(last.searchParams)).toEqual({
-        idInstitucion: ID, usuario: 'duenia', modulo: 'MATRICES', accion: 'activar', resultado: 'FALLO',
-        desde: '2026-10-01', hasta: '2026-10-09', critica: 'true', pagina: '1', tamanioPagina: '20',
+        usuario: 'duenia', modulo: 'MATRICES', accion: 'activar', resultado: 'FALLO',
+        desde: '2026-10-01', hasta: '2026-10-09', estadoCritico: 'TODAS_CRITICAS', pagina: '1', tamanioPagina: '20',
       });
     }, { timeout: 5000 });
     expect(await screen.findByText('No hay eventos que coincidan con los filtros.')).toBeInTheDocument();
@@ -169,8 +163,8 @@ describe('Auditoría general (administrador del sistema)', () => {
     renderAt('/app/auditoria');
     const table = await screen.findByRole('table', { name: 'Eventos de auditoría' });
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(expect.arrayContaining(
-      ['Fecha y hora', 'Módulo', 'Acción', 'Usuario responsable', 'Entidad afectada', 'Resultado']));
-    expect(within(table).getByText('Paciente PAC-0001')).toBeInTheDocument();
+      ['Usuario', 'Uso', 'Tipo de evento', 'Módulo', 'Resultado']));
+    expect(within(table).getByText('Sobre: Paciente PAC-0001')).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: /Ver detalle/ }));
     await screen.findByRole('heading', { name: 'Detalle del evento' });
     const detail = screen;
@@ -185,17 +179,15 @@ describe('Auditoría general (administrador del sistema)', () => {
     expect(detail.getByLabelText('Valores nuevos')).toHaveTextContent(NEW);
   });
 
-  it('si el resumen falla lo informa y no muestra ceros mientras el listado tiene eventos', async () => {
+  it('si el resumen falla no se informa en la auditoría general y el listado sigue', async () => {
     routes(ADMIN, {
       'GET /audit': page([event(), event({ idAuditoria: 'e-2' })]),
       'GET /audit/summary': jsonResponse(500, { codigo: 'ERROR_SERVIDOR', detail: 'Error' }),
     });
     renderAt('/app/auditoria');
-    expect(await screen.findByText(/No pudimos cargar el resumen de actividad/)).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: 'Resumen de la auditoría' })).not.toBeInTheDocument();
     expect(within(await screen.findByRole('table', { name: 'Eventos de auditoría' })).getAllByRole('row')).toHaveLength(3);
+    expect(screen.queryByText(/No pudimos cargar el resumen de actividad/)).not.toBeInTheDocument();
   });
-
   it('el resumen y el listado piden lo mismo: mismos filtros y mismo período', async () => {
     const { calls } = routes(ADMIN, { 'GET /audit': page([event()]), 'GET /audit/summary': jsonResponse(200, SUMMARY) });
     const user = userEvent.setup();
@@ -210,21 +202,16 @@ describe('Auditoría general (administrador del sistema)', () => {
     });
   });
 
-  it('muestra el resumen con cuatro indicadores y la actividad por módulo, y marca un evento rechazado', async () => {
+  it('marca un evento rechazado en el listado de la auditoría general', async () => {
     routes(ADMIN, {
       'GET /audit': page([event({ idAuditoria: 'e-3', resultado: 'FALLO', rechazado: true, accion: 'CONSULTAR_AUDITORIA' }), event()]),
       'GET /audit/summary': jsonResponse(200, SUMMARY),
     });
     renderAt('/app/auditoria');
-    const cards = within(await screen.findByRole('list', { name: 'Resumen de la auditoría' }));
-    expect(cards.getAllByRole('listitem')).toHaveLength(4);
-    expect(cards.getByText('Total de eventos').closest('li')).toHaveTextContent('12');
-    expect(within(screen.getByRole('list', { name: 'Actividad por módulo' })).getByText('Matrices y reglas').closest('li')).toHaveTextContent('7');
     const table = within(await screen.findByRole('table', { name: 'Eventos de auditoría' }));
     expect(table.getByText('Rechazado')).toBeInTheDocument();
     expect(table.getByText('Exitoso')).toBeInTheDocument();
   });
-
   it('«Aceptar invitación» muestra Campo / Antes / Después con etiquetas y distingue «sin valor»', async () => {
     const base = event({ accion: 'ACEPTAR_INVITACION_INSTITUCION', accionEtiqueta: 'Aceptar invitación institucional', modulo: 'INSTITUCIONES' });
     routes(ADMIN, {
@@ -327,7 +314,7 @@ describe('Auditoría general (administrador del sistema)', () => {
     });
     const user = userEvent.setup();
     renderAt('/app/auditoria');
-    expect(await screen.findByText('Paciente PAC-0001')).toBeInTheDocument();
+    expect(await screen.findByText('Sobre: Paciente PAC-0001')).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: /Ver detalle/ }));
     await screen.findByRole('heading', { name: 'Detalle del evento' });
     const detail = screen;

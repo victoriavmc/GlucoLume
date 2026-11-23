@@ -154,22 +154,27 @@ export function nextBucketStart(start, granularity) {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
 }
 
-/** Agrega por hora, día, semana o mes (promedio dentro de cada grupo DEMO/experimental por separado). `MEDICION` deja cada observación tal cual. */
-export function aggregateSeries(series, granularity) {
+/**
+ * Agrega por hora, día, semana o mes (promedio dentro de cada bloque). Por defecto, DEMO y experimental se promedian por separado;
+ * con `splitDemo: false` se unifican en el mismo bloque (origen «MIXTO» si hay de ambos). `MEDICION` deja cada observación tal cual.
+ */
+export function aggregateSeries(series, granularity, { splitDemo = true } = {}) {
   if (granularity === 'MEDICION') return series;
   const buckets = new Map();
   for (const point of series) {
     const start = bucketStart(point.t, granularity);
-    const id = `${start}:${point.demo ? 'demo' : 'exp'}`;
-    if (!buckets.has(id)) buckets.set(id, { key: id, start, demo: point.demo, items: [] });
+    const id = `${start}:${!splitDemo ? 'all' : point.demo ? 'demo' : 'exp'}`;
+    if (!buckets.has(id)) buckets.set(id, { key: id, start, items: [] });
     buckets.get(id).items.push(point);
   }
   return [...buckets.values()].sort((a, b) => a.start - b.start).map((bucket) => {
     const end = nextBucketStart(bucket.start, granularity);
+    const allDemo = bucket.items.every((item) => item.demo);
+    const anyDemo = bucket.items.some((item) => item.demo);
     return {
       key: bucket.key, ids: bucket.items.flatMap((item) => item.ids), t: (bucket.start + end) / 2,
-      value: bucket.items.reduce((sum, item) => sum + item.value, 0) / bucket.items.length, demo: bucket.demo,
-      origin: bucket.items.length === 1 ? bucket.items[0].origin : bucket.demo ? 'DEMO' : 'EXPERIMENTAL',
+      value: bucket.items.reduce((sum, item) => sum + item.value, 0) / bucket.items.length, demo: allDemo,
+      origin: bucket.items.length === 1 ? bucket.items[0].origin : allDemo ? 'DEMO' : anyDemo ? 'MIXTO' : 'EXPERIMENTAL',
       mode: bucket.items.length === 1 ? bucket.items[0].mode : null, count: bucket.items.length, items: bucket.items,
       // Intervalo de referencia: el de la medición más reciente del bloque (los promedios no tienen semáforo por punto).
       rangeMin: bucket.items.at(-1).rangeMin, rangeMax: bucket.items.at(-1).rangeMax,

@@ -3,7 +3,7 @@
 // GET /platform/me; el backend vuelve a comprobarlos en cada llamada (ocultar una opción no reemplaza la autorización).
 
 import {
-  Bell, Building2, ClipboardList, CreditCard, Cpu, Gauge, KeyRound, Layers, LogOut, Menu, ShieldCheck, UserCog, UserRound, Users, X,
+  Bell, Building2, ClipboardList, Cpu, Gauge, KeyRound, Layers, LogOut, Menu, ShieldCheck, UserCog, UserRound, Users, X,
 } from 'lucide-react';
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -25,11 +25,6 @@ const NAV = [
   { heading: 'Inicio', items: [
     { to: '/plataforma/dashboard', label: 'Dashboard general', icon: Gauge },
     { to: '/plataforma/instituciones', label: 'Instituciones', icon: Building2, permission: 'SUPERVISAR_INSTITUCIONES' },
-    { to: '/plataforma/notificaciones', label: 'Notificaciones', icon: Bell },
-  ] },
-  { heading: 'Administración', items: [
-    { to: '/plataforma/moderadores', label: 'Moderadores del sistema', icon: Users, permission: 'GESTIONAR_MODERADORES' },
-    { to: '/plataforma/transferencia', label: 'Transferir administración', icon: UserCog, permission: 'TRANSFERIR_ADMINISTRACION' },
   ] },
   { heading: 'Inventario', items: [
     { to: '/plataforma/dispositivos', label: 'Dispositivos globales', icon: Cpu, permission: 'CONSULTAR_DISPOSITIVOS_GLOBALES' },
@@ -40,13 +35,15 @@ const NAV = [
   { heading: 'Auditoría', items: [
     { to: '/plataforma/auditoria', label: 'Auditoría y seguridad', icon: ClipboardList, permission: 'CONSULTAR_AUDITORIA_GLOBAL' },
   ] },
-  { heading: 'Suscripciones y pagos', items: [
-    { to: '/plataforma/suscripciones', label: 'Próximamente', icon: CreditCard, permission: 'SUSCRIPCIONES_Y_PAGOS' },
+  { heading: 'Administración', items: [
+    { to: '/plataforma/moderadores', label: 'Moderadores del sistema', icon: Users, permission: 'GESTIONAR_MODERADORES' },
+    { to: '/plataforma/transferencia', label: 'Transferir administración', icon: UserCog, permission: 'TRANSFERIR_ADMINISTRACION' },
   ] },
   { heading: 'Cuenta', items: [
     { to: '/plataforma/perfil', label: 'Mi perfil', icon: UserRound },
     { to: '/plataforma/seguridad', label: 'Seguridad y MFA', icon: ShieldCheck },
     { to: '/plataforma/cambiar-contrasena', label: 'Cambiar contraseña', icon: KeyRound },
+    { to: '/plataforma/notificaciones', label: 'Notificaciones', icon: Bell },
   ] },
 ];
 

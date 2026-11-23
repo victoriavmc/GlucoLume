@@ -680,7 +680,7 @@ describe('Dashboard por operador', () => {
     const work = within(screen.getByRole('list', { name: 'Transferencias y dispositivos' }));
     expect(work.getByText('Transferencias enviadas').closest('li')).toHaveTextContent('1 pendiente');
     expect(work.getByText('Dispositivos disponibles').closest('li')).toHaveTextContent('operativos');
-    expect(screen.getByRole('combobox', { name: 'Período' })).toHaveValue('30'); // el filtro de período va en el encabezado
+    expect(screen.getByRole('button', { name: '30 días' })).toHaveAttribute('aria-pressed', 'true'); // el filtro de período va en el encabezado
 
     // Orden: dashboard, actividad, pacientes asignados y tarjetas de trabajo.
     await screen.findByRole('heading', { name: 'Pacientes asignados' });

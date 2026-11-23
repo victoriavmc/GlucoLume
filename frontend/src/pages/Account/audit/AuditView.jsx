@@ -7,7 +7,7 @@
 // Colores: verde = exitoso, naranja = advertencia o sospechoso, rojo = error o crítico, gris = informativo. El significado siempre va también
 // en texto (nunca solo el color).
 
-import { CheckCircle2, ChevronLeft, ChevronRight, Filter, KeyRound, ListChecks, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle2, ChevronLeft, ChevronRight, Filter, KeyRound, ListChecks, ShieldAlert, ShieldCheck, User, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
@@ -18,7 +18,8 @@ import { PageHeader } from '../../../components/PageHeader.jsx';
 import { BarList, Kpi, KpiGrid } from '../../../components/dashboard.jsx';
 import { formatInstant } from '../../../utils/dateTime.js';
 import './Audit.css';
-import { AuditReviewToggle } from './AuditReviewToggle.jsx';
+import './AuditFilters.css';
+import { AUDIT_CHANGED, AuditReviewToggle } from './AuditReviewToggle.jsx';
 import {
   ACTOR_ORIGINS, AUDIT_CATEGORIES, AUDIT_CLASSIFICATIONS, AUDIT_MODULES, CLASSIFICATION_HELP, actionLabel, eventName, resultInfo, severityInfo,
 } from './auditLabels.js';
@@ -28,20 +29,18 @@ export { AUDIT_MODULES, actionLabel };
 const PAGE_SIZE = 20;
 const BASE_FILTERS = {
   desde: '', hasta: '', usuario: '', modulo: '', accion: '', categoria: '', clasificacion: '', origenActor: '', resultado: '', idInstitucion: '',
-  critica: false,
+  uso: '', estadoCritico: '',
 };
 // Solo la administración de la plataforma puede filtrar por estos (y solo ella recibe IP, cliente y correlación).
+const AUTO_REFRESH_MS = 15000;
 const ADMIN_FILTERS = { identificador: '', idCorrelacion: '', ip: '', refIdentificador: '', idCuenta: '' };
-const MORE_FILTERS = ['clasificacion', 'origenActor', 'identificador', 'idCorrelacion', 'ip'];
 
 function cleanFilters(filters, { withInstitution, admin }) {
   const params = {};
   for (const [key, value] of Object.entries(filters)) {
     if (key === 'idInstitucion' && !withInstitution) continue;
     if (key in ADMIN_FILTERS && !admin) continue;
-    if (key === 'critica') {
-      if (value) params.critica = true;
-    } else if (value) {
+    if (value) {
       params[key] = typeof value === 'string' ? value.trim() : value;
     }
   }
@@ -90,6 +89,33 @@ function Summary({ summary, failed, global }) {
 }
 
 /** Quién obró: el nombre y, si es la administración de GlucoLume o el sistema, una marca para distinguirlo del personal de la institución. */
+const USE_LABELS = { INDIVIDUAL: 'Individual', INSTITUCION: 'Institución', PLATAFORMA: 'Plataforma' };
+const USE_ICONS = { INDIVIDUAL: User, INSTITUCION: Building2, PLATAFORMA: ShieldCheck };
+
+/** Uso de la cuenta que obró: individual, institucional o de plataforma (el sistema no tiene cuenta). */
+function UseBadge({ uso }) {
+  // Sin cuenta que obró (p. ej. un error del servidor): el uso no aplica, no se etiqueta como categoría.
+  if (!uso) return <span className="audit-note">—</span>;
+  const Icon = USE_ICONS[uso];
+  return <Badge tone={uso === 'PLATAFORMA' ? 'brand' : uso === 'INDIVIDUAL' ? 'info' : 'neutral'} icon={Icon}>{USE_LABELS[uso] ?? uso}</Badge>;
+}
+
+/** Usuario con inicial, nombre y, solo para la administración, correo. */
+function UserCell({ item, admin }) {
+  const name = item.usuario ?? 'Sistema';
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
+  return (
+    <span className="audit-user">
+      <span className="audit-avatar" aria-hidden="true">{initials}</span>
+      <span className="audit-cell">
+        <span className="audit-event">{name}{item.origenActor === 'PLATAFORMA' && <> <Badge tone="brand" size="sm">Administración</Badge></>}</span>
+        {admin && item.correoUsuario && <small className="audit-note">{item.correoUsuario}</small>}
+        {admin && item.ipOrigen && <small className="audit-note">IP {item.ipOrigen}</small>}
+      </span>
+    </span>
+  );
+}
+
 function ActorCell({ item, admin }) {
   return (
     <span className="audit-cell">
@@ -100,7 +126,7 @@ function ActorCell({ item, admin }) {
 }
 
 export function AuditView({
-  title, lead, global, embedded = false, loadPage, loadSummary, handleOperationError, institutionOptions,
+  title, lead, global, embedded = false, showSummary = true, loadPage, loadSummary, handleOperationError, institutionOptions,
   admin = global, hideInstitution = false, fixedParams, urlParams, headingLevel, preset,
 }) {
   // Filtros y página viven en la URL: al volver desde un detalle se recupera el mismo listado. `urlParams` (ámbito elegido) se conserva en la
@@ -112,7 +138,7 @@ export function AuditView({
     const initial = { ...emptyFilters };
     for (const key of Object.keys(emptyFilters)) {
       const value = searchParams.get(key);
-      if (value) initial[key] = key === 'critica' ? value === 'true' : value;
+      if (value) initial[key] = value;
     }
     return initial;
   });
@@ -152,6 +178,32 @@ export function AuditView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(params), pagina, loadPage, fixedKey]);
 
+  // Sincronización automática: cada 30 s (solo con la pestaña visible) vuelve a pedir el listado y el resumen con los mismos filtros.
+  const [refreshTick, setRefreshTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') setRefreshTick((tick) => tick + 1); }, AUTO_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
+  // Actualización inmediata: al marcar un evento como analizado, o al volver a la pestaña, sin recargar la página.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') setRefreshTick((tick) => tick + 1); };
+    window.addEventListener(AUDIT_CHANGED, refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener(AUDIT_CHANGED, refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (refreshTick === 0) return undefined;
+    let active = true;
+    loadPage({ ...(fixedParams ?? {}), ...params, pagina, tamanioPagina: PAGE_SIZE }).then((result) => active && setPage(result), () => {});
+    loadSummary({ ...(fixedParams ?? {}), ...params }).then((result) => active && (setSummary(result), setSummaryFailed(false)), () => active && setSummaryFailed(true));
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
+
   // El resumen usa los mismos filtros que el listado (salvo la institución del selector global, que no cambia las opciones).
   useEffect(() => {
     let active = true;
@@ -179,14 +231,19 @@ export function AuditView({
 
   function update(field) {
     return (event) => {
-      setFilters((current) => ({ ...current, [field]: field === 'critica' ? event.target.checked : event.target.value }));
+      setFilters((current) => ({ ...current, [field]: event.target.value }));
       setPagina(1);
     };
   }
 
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
   const filtered = JSON.stringify(filters) !== JSON.stringify(emptyFilters);
-  const moreActive = MORE_FILTERS.some((key) => key in filters && filters[key]);
+  // Chips del estado crítico: la cantidad sale del resumen con los mismos filtros (sin cantidad si el resumen no está disponible).
+  const stateChips = [
+    { value: 'CRITICA_SIN_ANALIZAR', label: 'Sin analizar', tone: 'danger', count: summaryFailed ? '—' : summary?.criticasSinAnalizar },
+    { value: 'CRITICA_ANALIZADA', label: 'Analizados', tone: 'success', count: summaryFailed ? '—' : summary?.criticasAnalizadas },
+    { value: 'TODAS_CRITICAS', label: 'Todos', tone: 'neutral', count: summaryFailed ? '—' : summary?.criticas },
+  ];
   const showOrigin = !global || Boolean(fixedParams?.idInstitucion) || Boolean(fixedParams?.idCuenta);
 
   return (
@@ -194,71 +251,71 @@ export function AuditView({
       {title && <PageHeader as={embedded || headingLevel === 2 ? 'h2' : 'h1'} title={title} description={lead} />}
       {error && <Alert>{error}</Alert>}
 
-      <section className="panel" aria-labelledby="auditoria-resumen">
-        <div className="panel-title">
-          <span className="panel-icon is-lg"><ShieldAlert size={26} aria-hidden="true" /></span>
-          <div><h2 id="auditoria-resumen">Resumen de actividad</h2><p>Según los filtros elegidos. Fechas en tu hora local.</p></div>
-        </div>
-        <Summary summary={summary} failed={summaryFailed} global={withInstitution} />
-      </section>
+      {showSummary && (
+        <section className="panel" aria-labelledby="auditoria-resumen">
+          <div className="panel-title">
+            <span className="panel-icon is-lg"><ShieldAlert size={26} aria-hidden="true" /></span>
+            <div><h2 id="auditoria-resumen">Resumen de actividad</h2><p>Según los filtros elegidos. Fechas en tu hora local.</p></div>
+          </div>
+          <Summary summary={summary} failed={summaryFailed} global={withInstitution} />
+        </section>
+      )}
 
       <section className="panel" aria-labelledby="auditoria-eventos">
         <div className="panel-head">
           <h2 id="auditoria-eventos">Eventos</h2>
           {page && page.total > 0 && <span className="audit-count">{page.total.toLocaleString('es-AR')} {page.total === 1 ? 'evento' : 'eventos'}</span>}
         </div>
-        <form className="audit-filters" aria-label="Filtros de auditoría" onSubmit={(event) => event.preventDefault()}>
-          <TextField label="Desde" type="date" value={filters.desde} onChange={update('desde')} />
-          <TextField label="Hasta" type="date" value={filters.hasta} onChange={update('hasta')} />
-          <TextField label="Usuario" value={filters.usuario} maxLength={100} onChange={update('usuario')} placeholder="Nombre o usuario" />
-          {withInstitution && (
-            <SelectField label="Institución" value={filters.idInstitucion} onChange={update('idInstitucion')}>
-              <option value="">Todas</option>
-              {institutions.map((item) => <option key={item.clave} value={item.clave}>{item.nombre}</option>)}
-            </SelectField>
-          )}
-          <SelectField label="Tipo de evento" value={filters.categoria} onChange={update('categoria')}>
-            <option value="">Todos</option>
-            {Object.entries(AUDIT_CATEGORIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </SelectField>
-          <SelectField label="Módulo" value={filters.modulo} onChange={update('modulo')}>
-            <option value="">Todos</option>
-            {Object.entries(AUDIT_MODULES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </SelectField>
-          <TextField label="Acción" value={filters.accion} maxLength={50} onChange={update('accion')} placeholder="Ej.: matriz, transferencia" />
-          <SelectField label="Resultado" value={filters.resultado} onChange={update('resultado')}>
-            <option value="">Todos</option><option value="EXITO">Exitosos</option><option value="FALLO">Fallidos</option>
-          </SelectField>
-          <details className="audit-more-filters" open={moreActive || undefined}>
-            <summary>Más filtros{moreActive ? ' (activos)' : ''}</summary>
-            <div className="audit-filters">
-              <SelectField label="Clasificación" value={filters.clasificacion} onChange={update('clasificacion')} hint="Un error aislado no es un ataque.">
-                <option value="">Todas</option>
-                {Object.entries(AUDIT_CLASSIFICATIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-              </SelectField>
-              <SelectField label="Autor del evento" value={filters.origenActor} onChange={update('origenActor')}>
-                <option value="">Todos</option>
-                {Object.entries(ACTOR_ORIGINS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-              </SelectField>
-              {admin && (
-                <>
-                  <TextField label="Correo o usuario consultado" value={filters.identificador} maxLength={254} onChange={update('identificador')}
-                    hint="Exacto. Incluye intentos sobre una cuenta inexistente." />
-                  <TextField label="Identificador de correlación" value={filters.idCorrelacion} maxLength={64} onChange={update('idCorrelacion')}
-                    placeholder="Cabecera X-Request-ID" />
-                  <TextField label="IP de origen" value={filters.ip} maxLength={45} onChange={update('ip')} placeholder="Ej.: 203.0.113.7 o 203.0.113.*" />
-                </>
-              )}
+        <form className="audit-filter-card" aria-label="Filtros de auditoría" onSubmit={(event) => event.preventDefault()}>
+          <div className="audit-filter-head">
+            <span className="audit-filter-title"><Filter size={18} aria-hidden="true" /> Filtros de búsqueda</span>
+            <div className="audit-state-chips" role="group" aria-label="Estado de las operaciones críticas">
+              <span className="audit-state-label">Estado (críticos)</span>
+              {stateChips.map(({ value, label, tone, count }) => (
+                <button key={value} type="button" className={`audit-state-chip is-${tone}${filters.estadoCritico === value ? ' is-active' : ''}`}
+                  aria-pressed={filters.estadoCritico === value}
+                  onClick={() => { setFilters((current) => ({ ...current, estadoCritico: current.estadoCritico === value ? '' : value })); setPagina(1); }}>
+                  {label}{count !== undefined && count !== null && <b>{count}</b>}
+                </button>
+              ))}
             </div>
-          </details>
-          <div className="audit-filter-extra">
-            <CheckField label="Solo operaciones críticas" checked={filters.critica} onChange={update('critica')} />
-            {filtered && (
+          </div>
+          <div className="audit-filters">
+            <TextField label="Desde" type="date" value={filters.desde} onChange={update('desde')} />
+            <TextField label="Hasta" type="date" value={filters.hasta} onChange={update('hasta')} />
+            <TextField label="Usuario" value={filters.usuario} maxLength={100} onChange={update('usuario')} placeholder="Nombre, apellido, correo o usuario" />
+            <SelectField label="Uso" value={filters.uso} onChange={update('uso')}>
+              <option value="">Todos</option>
+              <option value="INSTITUCION">Institución</option>
+              <option value="INDIVIDUAL">Individual</option>
+              <option value="PLATAFORMA">Plataforma</option>
+              <option value="SIN_CUENTA">— (sin cuenta)</option>
+            </SelectField>
+            <SelectField label="Tipo de evento" value={filters.categoria} onChange={update('categoria')}>
+              <option value="">Todos</option>
+              {Object.entries(AUDIT_CATEGORIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </SelectField>
+            <SelectField label="Módulo" value={filters.modulo} onChange={update('modulo')}>
+              <option value="">Todos</option>
+              {Object.entries(AUDIT_MODULES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </SelectField>
+            <SelectField label="Resultado" value={filters.resultado} onChange={update('resultado')}>
+              <option value="">Todos</option><option value="EXITO">Exitosos</option><option value="FALLO">Fallidos</option>
+            </SelectField>
+            <TextField label="Acción" value={filters.accion} maxLength={50} onChange={update('accion')} placeholder="Ej.: matriz, transferencia" />
+            <SelectField label="Clasificación" value={filters.clasificacion} onChange={update('clasificacion')}>
+              <option value="">Todas</option>
+              {Object.entries(AUDIT_CLASSIFICATIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </SelectField>
+            {admin && <TextField label="IP de origen" value={filters.ip} maxLength={45} onChange={update('ip')} placeholder="Ej.: 203.0.113.7 o 203.0.113.*" />}
+          </div>
+          {filtered && (
+            <div className="audit-filter-actions">
               <button type="button" className="btn btn-ghost" onClick={() => { setFilters(emptyFilters); setPagina(1); }}>
                 <Filter size={16} aria-hidden="true" /> Limpiar filtros
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </form>
         {(filters.idCuenta || filters.refIdentificador) && (
           <p className="audit-chip" role="status">
@@ -277,9 +334,8 @@ export function AuditView({
               <table className="data-table audit-table" aria-label="Eventos de auditoría">
                 <thead>
                   <tr>
-                    <th scope="col">Fecha y hora</th><th scope="col">Módulo</th><th scope="col">Acción</th>
-                    <th scope="col">Usuario responsable</th><th scope="col">Entidad afectada</th>
-                    {withInstitution && <th scope="col">Institución</th>}<th scope="col">Resultado</th><th scope="col"><span className="sr-only">Detalle</span></th>
+                    <th scope="col">Fecha</th><th scope="col">Usuario</th><th scope="col">Uso</th><th scope="col">Tipo de evento</th>
+                    <th scope="col">Módulo</th><th scope="col">Resultado</th><th scope="col"><span className="sr-only">Operaciones</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -289,20 +345,25 @@ export function AuditView({
                     const kind = item.clasificacion;
                     return (
                       <tr key={item.idAuditoria} className={`audit-row is-${severity.key.toLowerCase()}`}>
-                        <td data-label="Fecha y hora">{formatInstant(item.fechaHora)}</td>
-                        <td data-label="Módulo"><Badge>{AUDIT_MODULES[item.modulo] ?? item.modulo}</Badge></td>
-                        <td data-label="Acción" className="audit-action">
+                        <td data-label="Fecha" className="audit-date">{formatInstant(item.fechaHora)}</td>
+                        <td data-label="Usuario"><UserCell item={item} admin={admin} /></td>
+                        <td data-label="Uso"><UseBadge uso={item.usoCuenta} /></td>
+                        <td data-label="Tipo de evento" className="audit-action">
                           <span className="audit-cell">
-                            <span>{eventName(item)}{item.critica && <> <Badge tone="warning" size="sm">Crítica</Badge></>}</span>
+                            <span className="audit-event">{eventName(item)}{item.critica && <> <Badge tone="warning" size="sm">Crítica</Badge></>}</span>
+                            {item.entidadEtiqueta && <small className="audit-note">Sobre: {item.entidadEtiqueta}</small>}
                             {item.motivoEtiqueta && <small className="audit-note">{item.motivoEtiqueta}</small>}
                           </span>
                         </td>
-                        <td data-label="Usuario responsable"><ActorCell item={item} admin={admin} /></td>
-                        <td data-label="Entidad afectada">{item.entidadEtiqueta ?? '—'}</td>
-                        {withInstitution && <td data-label="Institución">{item.nombreInstitucion ?? '—'}</td>}
+                        <td data-label="Módulo"><Badge>{AUDIT_MODULES[item.modulo] ?? item.modulo}</Badge></td>
                         <td data-label="Resultado">
                           <span className="audit-result">
                             <Badge tone={severity.tone}>{result.label}</Badge>
+                            {item.critica && (
+                              <Badge tone={item.revision?.revisado ? 'success' : 'danger'} size="sm" icon={AlertTriangle}>
+                                {item.revision ? (item.revision.revisado ? 'Analizado' : 'Sin analizar') : 'Pendiente'}
+                              </Badge>
+                            )}
                             {(kind === 'SOSPECHOSO' || kind === 'CONFIRMADO') && (
                               <Badge tone={kind === 'SOSPECHOSO' ? 'warning' : 'danger'} size="sm" title={CLASSIFICATION_HELP[kind]}>{AUDIT_CLASSIFICATIONS[kind]}</Badge>
                             )}
@@ -314,7 +375,7 @@ export function AuditView({
                               name={`${eventName(item)}, ${formatInstant(item.fechaHora)}`}
                               onChange={(revision) => setItemRevision(item.idAuditoria, revision)} />
                           )}
-                          <Link to={item.idAuditoria} state={{ search: location.search }} className="btn btn-ghost"
+                          <Link to={item.idAuditoria} state={{ search: location.search }} className="btn btn-outline btn-sm"
                             aria-label={`Ver detalle: ${eventName(item)}, ${formatInstant(item.fechaHora)}`}>Ver detalle</Link>
                         </td>
                       </tr>

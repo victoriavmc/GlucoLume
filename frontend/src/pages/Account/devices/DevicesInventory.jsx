@@ -1,11 +1,10 @@
 // Inventario de dispositivos: indicadores reales, listado con búsqueda, filtros y paginación, alta y cambio de estado.
 // Compartido por el inventario global (plataforma) y el de cada institución; cambia solo `api` y lo que el backend permite.
-// «Operativo» no es «conectado»: el inventario no conoce la conectividad y por eso no la muestra.
 // En una institución el alta asigna el dispositivo al propietario (lo decide FastAPI) y lo único que se modifica desde la
 // lista es el estado; la autorización de cada operación se vuelve a validar en el servidor.
 
 import {
-  AlertCircle, Building2, CheckCircle2, ChevronLeft, ChevronRight, Cpu, Info, Link2Off, List, PackageOpen, Plus, Search, Trash2, Wrench,
+  AlertCircle, Building2, CheckCircle2, ChevronLeft, ChevronRight, Cpu, Download, Info, Link2Off, List, PackageOpen, Plus, Search, Trash2, Wrench,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -16,14 +15,17 @@ import { Alert, SelectField, TextField } from '../../../components/FormControls.
 import { Kpi, KpiGrid } from '../../../components/dashboard.jsx';
 import { Modal } from '../../../components/Modal.jsx';
 import { PageHeader } from '../../../components/PageHeader.jsx';
+import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
 import { useLatestRequest } from '../../../utils/useLatestRequest.js';
 import '../institutions/InstitutionPanel.css';
+import '../institutions/exportControls.css';
 import './DevicesInventory.css';
 import { DeviceForm } from './DeviceForm.jsx';
 import { DEVICE_STATES, EDITABLE_STATES, personLabel, stateBadge } from './deviceFormat.js';
 
 const PAGE_SIZE = 10;
-const EMPTY_FILTERS = { busqueda: '', estado: '', asignado: '' };
+const EMPTY_FILTERS = { busqueda: '', estado: '', asignado: '', uso: '' };
 
 function Summary({ summary, institutional }) {
   if (!summary) return <p className="field-hint" role="status">Cargando indicadores…</p>;
@@ -41,7 +43,7 @@ function Summary({ summary, institutional }) {
 }
 
 /** Aviso sobre la asignación y sobre qué significa «operativo» (estado administrativo ≠ conexión ≠ disponibilidad real). */
-function AssignmentNote({ institutional, connectivityAvailable }) {
+function AssignmentNote({ institutional }) {
   if (institutional) {
     return (
       <div className="info-note" role="note">
@@ -60,19 +62,7 @@ function AssignmentNote({ institutional, connectivityAvailable }) {
       </div>
     );
   }
-  if (connectivityAvailable) return null;
-  return (
-    <div className="info-note" role="note">
-      <Info size={22} aria-hidden="true" />
-      <div>
-        <b>«Operativo» no es «conectado».</b>
-        <p>
-          La conexión en vivo de los dispositivos todavía no está disponible en el inventario: «operativo» indica que puede
-          usarse para medir, no que esté conectado.
-        </p>
-      </div>
-    </div>
-  );
+  return null;
 }
 
 /** Cambio de estado administrativo desde la lista: pide confirmación explícita y no ofrece el retiro definitivo. */
@@ -130,6 +120,9 @@ export function DevicesInventory({
   const [changing, setChanging] = useState(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState(() => new Set()); // dispositivos marcados para exportar (solo de la página visible)
+  const [exportFormat, setExportFormat] = useState('csv');
+  const [exporting, setExporting] = useState(null); // clave de la exportación en curso: evita pedidos repetidos
 
   const beginRequest = useLatestRequest(); // una respuesta lenta de un filtro anterior no pisa a la del filtro actual
 
@@ -155,6 +148,11 @@ export function DevicesInventory({
     load();
   }, [load]);
 
+  // Cambiar de página o de filtro limpia la selección: solo se exporta lo que se ve marcado.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [filters, pagina]);
+
   function update(field) {
     return (event) => {
       setFilters((current) => ({ ...current, [field]: event.target.value }));
@@ -164,11 +162,61 @@ export function DevicesInventory({
 
   const filtered = Object.values(filters).some(Boolean);
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
+  // Inventario global: el responsable institucional por correo; si es de uso individual, los correos de sus cuentas.
   const ownerText = (device) => {
+    if (!institutional) {
+      if (device.responsable) return device.responsable.correoElectronico || personLabel(device.responsable);
+      if (device.correosIndividuales?.length) return device.correosIndividuales.join(', ');
+      return device.idInstitucionAsignada ? 'Sin responsable' : 'No responsable';
+    }
     if (device.responsable) return personLabel(device.responsable);
     if (device.esMio) return 'Vos';
     return showOwner ? 'Sin asignar' : '—';
   };
+  // Inventario global, columna «Uso»: la institución asignada, «Individual» si está vinculado a una cuenta, o «Sin asignar».
+  const usageText = (device) => {
+    if (device.idInstitucionAsignada) return device.nombreInstitucion ?? 'Institución';
+    return device.vinculadoCuentasIndividuales ? 'Individual' : 'Sin asignar';
+  };
+  const pageIds = page ? page.items.map((device) => device.idDispositivo) : [];
+  const allVisibleSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  function toggleAll() {
+    setSelected(allVisibleSelected ? new Set() : new Set(pageIds));
+  }
+
+  function toggleOne(id) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Filtros del listado, tal como los recibe el backend para exportar «todos».
+  const exportFilters = () => ({
+    busqueda: filters.busqueda.trim() || undefined,
+    estado: filters.estado || undefined,
+    asignado: filters.asignado === '' ? undefined : filters.asignado === 'true',
+    uso: filters.uso || undefined,
+  });
+
+  async function handleExport(key, body) {
+    setExporting(key);
+    setError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await api.exportList(body, exportFormat);
+      saveBlob(blob, filename);
+      setNotice(`Exportación lista: ${filename}.`);
+    } catch (failure) {
+      setError(handleOperationError(failure));
+    } finally {
+      setExporting(null);
+    }
+  }
+
   const register = (
     <button type="button" className="btn btn-primary" onClick={() => { setNotice(''); setRegistering(true); }}>
       <Plus size={18} aria-hidden="true" /> Registrar dispositivo
@@ -191,7 +239,7 @@ export function DevicesInventory({
           {canRegister && !registering && register}
         </div>
         <Summary summary={summary} institutional={institutional} />
-        <AssignmentNote institutional={institutional} connectivityAvailable={Boolean(summary?.conectividadDisponible)} />
+        <AssignmentNote institutional={institutional} />
       </section>
 
       {registering && (
@@ -206,7 +254,7 @@ export function DevicesInventory({
           <h2 id="inventario-listado">Dispositivos</h2>
         </div>
         <form className="form-grid measurement-filters device-filters" aria-label="Filtros del inventario" onSubmit={(event) => event.preventDefault()}>
-          <TextField label="Buscar" icon={Search} value={filters.busqueda} maxLength={100} onChange={update('busqueda')} placeholder="Código, nombre o modelo" />
+          <TextField label="Buscar" icon={Search} value={filters.busqueda} maxLength={100} onChange={update('busqueda')} placeholder="Código, nombre, modelo o responsable" />
           <SelectField label="Estado" value={filters.estado} onChange={update('estado')}>
             <option value="">Todos</option>
             {Object.entries(DEVICE_STATES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -214,6 +262,11 @@ export function DevicesInventory({
           {!institutional && (
             <SelectField label="Asignación" value={filters.asignado} onChange={update('asignado')}>
               <option value="">Todos</option><option value="true">Asignados</option><option value="false">Sin asignar</option>
+            </SelectField>
+          )}
+          {!institutional && (
+            <SelectField label="Uso" value={filters.uso} onChange={update('uso')}>
+              <option value="">Todos</option><option value="INSTITUCION">Institución</option><option value="INDIVIDUAL">Individual</option>
             </SelectField>
           )}
           {filtered && <button type="button" className="btn btn-ghost" onClick={() => { setFilters(EMPTY_FILTERS); setPagina(1); }}>Limpiar filtros</button>}
@@ -232,12 +285,30 @@ export function DevicesInventory({
           )
         ) : (
           <>
+            <div className="export-toolbar device-export" role="group" aria-label="Exportar dispositivos">
+              <select className="field-input field-select" aria-label="Formato de exportación" value={exportFormat}
+                onChange={(event) => setExportFormat(event.target.value)}>
+                {EXPORT_FORMATS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <button type="button" className="btn btn-outline btn-sm" disabled={selected.size === 0 || exporting !== null}
+                onClick={() => handleExport('seleccion', { alcance: 'SELECCION', idsDispositivo: [...selected] })}>
+                <Download size={16} aria-hidden="true" /> Exportar seleccionados{selected.size > 0 ? ` (${selected.size})` : ''}
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={exporting !== null}
+                onClick={() => handleExport('todos', { alcance: 'TODOS', ...exportFilters() })}>
+                <Download size={16} aria-hidden="true" /> Exportar todos{filtered ? ' los filtrados' : ''} ({page.total})
+              </button>
+            </div>
             <div className="table-scroll">
               <table className="data-table device-table" aria-label="Dispositivos">
                 <thead>
                   <tr>
+                    <th scope="col" className="export-check-cell">
+                      <input type="checkbox" className="export-check" aria-label="Seleccionar todos los de esta página"
+                        checked={allVisibleSelected} onChange={toggleAll} />
+                    </th>
                     <th scope="col">Código</th><th scope="col">Nombre</th><th scope="col">Modelo</th><th scope="col">Estado</th>
-                    <th scope="col">Institución</th>
+                    <th scope="col">{institutional ? 'Institución' : 'Uso'}</th>
                     <th scope="col">{institutional ? 'Propietario asignado' : 'Responsable'}</th>
                     <th scope="col"><span className="sr-only">Acciones</span></th>
                   </tr>
@@ -245,11 +316,15 @@ export function DevicesInventory({
                 <tbody>
                   {page.items.map((device) => (
                     <tr key={device.idDispositivo}>
+                      <td className="export-check-cell" data-label="Exportar">
+                        <input type="checkbox" className="export-check" aria-label={`Seleccionar ${device.codigoDispositivo}`}
+                          checked={selected.has(device.idDispositivo)} onChange={() => toggleOne(device.idDispositivo)} />
+                      </td>
                       <th scope="row" data-label="Código">{device.codigoDispositivo}</th>
                       <td data-label="Nombre">{device.nombre ?? '—'}</td>
                       <td data-label="Modelo">{device.modelo ?? device.modeloSensor}</td>
                       <td data-label="Estado"><Badge tone={toneFromClass(stateBadge(device.estado))}>{DEVICE_STATES[device.estado]}</Badge></td>
-                      <td data-label="Institución">{institutional ? institutionName ?? '—' : device.nombreInstitucion ?? 'Sin asignar'}</td>
+                      <td data-label={institutional ? 'Institución' : 'Uso'}>{institutional ? institutionName ?? '—' : usageText(device)}</td>
                       <td data-label={institutional ? 'Propietario asignado' : 'Responsable'}>{ownerText(device)}</td>
                       <td className="device-actions">
                         <Link to={detailPath(device.idDispositivo)} className="btn btn-ghost" aria-label={`Ver detalle de ${device.codigoDispositivo}`}>Ver detalle</Link>

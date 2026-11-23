@@ -134,7 +134,7 @@ ADMIN_ONLY_FILTERS = frozenset({"idInstitucion", "ip", "idCorrelacion", "identif
 FILTER_DEFAULTS = dict(
     idInstitucion=None, idUsuario=None, usuario=None, modulo=None, accion=None, resultado=None, desde=None, hasta=None, critica=None,
     categoria=None, clasificacion=None, idCuenta=None, identificador=None, idCorrelacion=None, ip=None, motivo=None, origenActor=None,
-    refIdentificador=None,
+    refIdentificador=None, uso=None, estadoCritico=None,
 )
 CONTEXT_FILTERS = ("idCorrelacion", "ip", "motivo", "refIdentificador")
 _IP_TEXT = re.compile(r"^[0-9A-Fa-f.:*]{1,45}$")
@@ -163,7 +163,7 @@ def _filtered(query: Select, **given) -> Select:
         query = query.where(Audit.idUsuario.in_(
             select(User.idUsuario).where(
                 (func.coalesce(User.nombre, "") + " " + func.coalesce(User.apellido, "") + " "
-                 + func.coalesce(User.usuario, "")).ilike(term, escape="\\"))))
+                 + func.coalesce(User.usuario, "") + " " + func.coalesce(User.correoElectronico, "")).ilike(term, escape="\\"))))
     if f["identificador"] and f["identificador"].strip():
         # Correo o nombre de usuario EXACTO: las cuentas que lo tienen y los intentos sobre ese identificador cuando no existía (por su huella).
         raw = f["identificador"].strip()
@@ -193,6 +193,22 @@ def _filtered(query: Select, **given) -> Select:
         query = query.where(Audit.fechaHora < datetime.combine(f["hasta"] + timedelta(days=1), time.min))
     if f["critica"] is True:
         query = query.where(Audit.accion.in_(ACCIONES_CRITICAS))
+    if f["estadoCritico"]:
+        critical = Audit.accion.in_(ACCIONES_CRITICAS)
+        analyzed = Audit.idAuditoria.in_(select(AuditReview.idAuditoria))
+        if f["estadoCritico"] == "CRITICA_ANALIZADA":
+            query = query.where(critical, analyzed)
+        elif f["estadoCritico"] == "CRITICA_SIN_ANALIZAR":
+            query = query.where(critical, ~analyzed)
+        else:
+            query = query.where(critical)
+    if f["uso"] == "SIN_CUENTA":
+        # Eventos sin cuenta que obró (p. ej. errores del servidor): sin usuario o con una cuenta sin uso conocido.
+        known = select(User.idUsuario).where(User.tipoCuenta.in_(("USUARIO_INSTITUCIONAL", "CONSUMIDOR_FINAL", *PLATFORM_ACCOUNTS)))
+        query = query.where(or_(Audit.idUsuario.is_(None), Audit.idUsuario.not_in(known)))
+    elif f["uso"]:
+        account = {"INSTITUCION": ("USUARIO_INSTITUCIONAL",), "INDIVIDUAL": ("CONSUMIDOR_FINAL",), "PLATAFORMA": PLATFORM_ACCOUNTS}[f["uso"]]
+        query = query.where(Audit.idUsuario.in_(select(User.idUsuario).where(User.tipoCuenta.in_(account))))
     if f["motivo"]:
         query = query.where(_contextWhere(AuditContext.motivo == f["motivo"]))
     if f["idCorrelacion"]:
@@ -320,7 +336,7 @@ ACTION_LABELS = {
     "TOMAR_CONTROL_DISPOSITIVO": "Toma del control temporal del dispositivo", "CONECTAR_DISPOSITIVO_NAVEGADOR": "Conexión del dispositivo desde el navegador", "SOLTAR_CONTROL_DISPOSITIVO": "Liberación del control del dispositivo",
     # Matrices
     "CREAR_MATRIZ": "Creación de matriz", "CREAR_VERSION_MATRIZ": "Nueva versión de matriz", "MODIFICAR_MATRIZ": "Modificación de matriz",
-    "ACTIVAR_MATRIZ": "Activación de matriz", "DESACTIVAR_MATRIZ": "Desactivación de matriz", "ARCHIVAR_MATRIZ": "Archivo de matriz",
+    "ACTIVAR_MATRIZ": "Activación de matriz", "DESACTIVAR_MATRIZ": "Desactivación de matriz", "ARCHIVAR_MATRIZ": "Archivo de matriz", "ELIMINAR_MATRIZ": "Eliminación de versión de matriz",
     "CREAR_REGLA_MATRIZ": "Creación de regla de matriz", "MODIFICAR_REGLA_MATRIZ": "Modificación de regla de matriz",
     "ELIMINAR_REGLA_MATRIZ": "Eliminación de regla de matriz", "ACCEDER_MATRIZ": "Acceso a una matriz",
     # Grupos
@@ -804,6 +820,15 @@ def _fullName(user: User | None) -> str | None:
     return (f"{user.nombre or ''} {user.apellido or ''}".strip()) or user.usuario
 
 
+def _uso(account: User | None) -> str | None:
+    """Uso de la cuenta que obró: institucional, individual o de plataforma (None si no hay cuenta, p. ej. el sistema)."""
+    if account is None:
+        return None
+    if account.tipoCuenta in PLATFORM_ACCOUNTS:
+        return "PLATAFORMA"
+    return {"USUARIO_INSTITUCIONAL": "INSTITUCION", "CONSUMIDOR_FINAL": "INDIVIDUAL"}.get(account.tipoCuenta)
+
+
 def _item(audit: Audit, resolver: Resolver, institution: Institution | None, *, showInstitution: bool,
           context: AuditContext | None = None, network: bool = False, reviews: dict | None = None) -> dict:
     """`network`: solo la administración de la plataforma recibe IP, cliente, correlación y referencia del identificador."""
@@ -813,8 +838,11 @@ def _item(audit: Audit, resolver: Resolver, institution: Institution | None, *, 
     user = resolver.actor(audit, snapshot)
     if user is None and motivo == "CUENTA_INEXISTENTE":
         user = "Cuenta no registrada"
+    actorAccount = resolver.actors.get(audit.idUsuario) if audit.idUsuario is not None else None
     return dict(
         idAuditoria=audit.idAuditoria, fechaHora=audit.fechaHora, usuario=user, modulo=audit.modulo,
+        correoUsuario=actorAccount.correoElectronico if (network and actorAccount is not None) else None,
+        usoCuenta=_uso(actorAccount),
         accion=audit.accion, tipoEntidad=audit.tablaAfectada, idEntidad=resolver.entityId(audit),
         idInstitucion=audit.idInstitucion,
         nombreInstitucion=institution.nombre if (showInstitution and institution) else None,
@@ -949,7 +977,7 @@ def _moduleCounts(db: Session, base) -> list[tuple[str, int]]:
 def _summary(db: Session, scope: uuid.UUID | None, *, filters: dict, byInstitution: bool) -> AuditSummary:
     f = _validate(db, filters)
     base = _filtered(
-        _scoped(select(Audit.resultado, Audit.accion, Audit.modulo, Audit.idInstitucion), scope),
+        _scoped(select(Audit.resultado, Audit.accion, Audit.modulo, Audit.idInstitucion, Audit.idAuditoria), scope),
         **{**f, "idInstitucion": scope if scope is not None else f["idInstitucion"]},
     ).subquery()
     failedAccessNames = sorted(classification.ACCESOS_FALLIDOS[0])
@@ -963,6 +991,9 @@ def _summary(db: Session, scope: uuid.UUID | None, *, filters: dict, byInstituti
         func.coalesce(func.sum(case((base.c.accion.in_(sorted(classification.CONFIRMADOS)), 1), else_=0)), 0),
     ).select_from(base)).one()
     byModule = _moduleCounts(db, base)
+    # Críticas analizadas (con marca): una consulta aparte, porque SQL Server no admite subconsultas dentro de un agregado.
+    criticalAnalyzed = db.scalar(select(func.count()).select_from(base).where(
+        base.c.accion.in_(ACCIONES_CRITICAS), base.c.idAuditoria.in_(select(AuditReview.idAuditoria)))) or 0
     institutionsCount: list[AuditCount] = []
     if byInstitution:
         rows = db.execute(
@@ -973,7 +1004,7 @@ def _summary(db: Session, scope: uuid.UUID | None, *, filters: dict, byInstituti
         institutionsCount = [AuditCount(clave=str(r[0]), nombre=r[1], total=r[2]) for r in rows]
     return AuditSummary(
         total=total, exitosos=total - failed, fallidos=failed, criticas=critical, accesosFallidos=failedAccess, sospechosos=suspicious,
-        confirmados=confirmed,
+        confirmados=confirmed, criticasAnalizadas=criticalAnalyzed, criticasSinAnalizar=critical - criticalAnalyzed,
         porModulo=[AuditCount(clave=m, total=n) for m, n in byModule], porInstitucion=institutionsCount,
     )
 
@@ -1143,9 +1174,6 @@ def accountHeader(db: Session, actor: User, idUsuario: uuid.UUID) -> AuditAccoun
 
 # --- Señales de seguridad (administración) --------------------------------------------------------------------------------
 
-MAX_SIGNAL_DAYS = 31
-
-
 def securitySignals(db: Session, actor: User, *, desde: date | None = None, hasta: date | None = None, idInstitucion: uuid.UUID | None = None,
                     **thresholdOverrides):
     """Patrones sospechosos y controles activados en el período (por omisión, ayer y hoy), con los umbrales de la configuración o los indicados."""
@@ -1154,6 +1182,4 @@ def securitySignals(db: Session, actor: User, *, desde: date | None = None, hast
     desde, hasta = desde or defaultFrom, hasta or defaultTo
     if hasta < desde:
         raise _error("PERIODO_INVALIDO", "La fecha final no puede ser anterior a la inicial.")
-    if (hasta - desde).days > MAX_SIGNAL_DAYS:
-        raise _error("PERIODO_INVALIDO", f"El análisis de seguridad admite hasta {MAX_SIGNAL_DAYS} días por consulta.")
     return securityDetection.analyze(db, desde, hasta, securityDetection.thresholds(**thresholdOverrides), idInstitucion=idInstitucion)

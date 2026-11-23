@@ -1,0 +1,19 @@
+/* Filtros de la auditoría de plataforma: tarjeta con título, chips de estado crítico y campos en cuadrícula. */
+.audit-filter-card { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md, 14px); background: #fff; }
+.audit-filter-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.audit-filter-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--ink-900, #1d2433); }
+.audit-state-chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.audit-state-label { font-size: 12px; font-weight: 600; color: var(--ink-500, #5b6578); text-transform: uppercase; letter-spacing: 0.02em; }
+.audit-state-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #f8f8fb; color: var(--ink-700, #3d4658); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.audit-state-chip b { font-weight: 800; }
+.audit-state-chip.is-danger { color: #b91c1c; border-color: #f4b6bb; background: #fff4f5; }
+.audit-state-chip.is-success { color: #15803d; border-color: #bfe5cd; background: #f3fbf6; }
+.audit-state-chip.is-active { box-shadow: 0 0 0 2px var(--red-600, #dc2626) inset; }
+.audit-state-chip:focus-visible { outline: 2px solid var(--red-600, #dc2626); outline-offset: 2px; }
+.audit-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.audit-filter-actions { display: flex; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .audit-filters { grid-template-columns: minmax(0, 1fr); }
+  .audit-filter-actions { justify-content: stretch; }
+  .audit-filter-actions .btn { width: 100%; }
+}

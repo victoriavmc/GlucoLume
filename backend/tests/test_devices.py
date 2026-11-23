@@ -536,6 +536,18 @@ def test_las_mediciones_del_dispositivo_de_una_institucion_solo_incluyen_sus_pac
     assert devices.getDevice(db, instScope(db, team.owner, team.id), device.idDispositivo).medicionesRegistradas == 1
 
 
+def test_las_mediciones_se_filtran_por_estado_y_paginan_de_a_25(db, mails, team, north, admin):
+    patient, device = institutionalSetup(db, team)
+    start(db, team, patient, device)
+    scope = instScope(db, team.moderator, team.id)
+    state = devices.listMeasurements(db, scope, device.idDispositivo).items[0].estadoMedicion
+    other = "CANCELADA" if state != "CANCELADA" else "COMPLETADA"
+    assert devices.listMeasurements(db, scope, device.idDispositivo, estado=state).total == 1
+    assert devices.listMeasurements(db, scope, device.idDispositivo, estado=other).total == 0
+    page = devices.listMeasurements(db, scope, device.idDispositivo)
+    assert page.tamanioPagina == 25
+
+
 # --- Desvincular y descomisionar ----------------------------------------------------------------------------
 
 

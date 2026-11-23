@@ -24,8 +24,8 @@ from app.demo import catalog as C
 TABLAS_PERMITIDAS = frozenset({
     "Medicion", "MedicionReferenciaCapilar", "MuestraSensor", "EnvioResultado", "AuditoriaTecnicaMedicion",
     "NotificacionUsuario", "SesionUsuario", "TokenCuenta", "ConsentimientoUsuario", "CredencialLocal",
-    "CredencialLocalHistorial", "FactorMfa", "CodigoRecuperacionMfa", "IdentidadExterna", "PerfilMedicion", "Dispositivo",
-    "GrupoUsuario", "Grupo", "InstitucionUsuario", "Institucion", "Usuario", "TransferenciaPerfil",
+    "CredencialLocalHistorial", "FactorMfa", "CodigoRecuperacionMfa", "IdentidadExterna", "PerfilMedicion", "VinculoCuentaDispositivo",
+    "Dispositivo", "GrupoUsuario", "Grupo", "InstitucionUsuario", "Institucion", "Usuario", "TransferenciaPerfil",
 })
 
 

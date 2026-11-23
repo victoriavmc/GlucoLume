@@ -1,6 +1,5 @@
 // Evolución grupal: por cada integrante que autorizó compartir su HISTORIAL (también el propio, si lo compartiste) se grafica cada medición
-// con su fecha y hora completas. Las experimentales van en línea continua y las pruebas DEMO en línea punteada con puntos huecos, siempre
-// rotuladas «DEMO (prueba)». Vista por variable o «Vista general» (grilla con todas, como en el dashboard personal), con los mismos filtros:
+// con su fecha y hora completas. Una sola línea por integrante: sus mediciones DEMO y experimentales se unifican, sin separarlas. Vista por variable o «Vista general» (grilla con todas, como en el dashboard personal), con los mismos filtros:
 // período, origen de los datos y agrupación (cada medición, promedio por hora o por día). Hover = tooltip; clic = el punto queda resaltado y
 // su detalle aparece en la misma vista. Quien solo compartió la última medición, el aviso o los datos básicos NO figura: ni se consulta ni se
 // grafica. Los permisos los vuelve a verificar el backend en cada consulta.
@@ -83,7 +82,7 @@ function niceTicks(min, max, count = 4) {
   return ticks;
 }
 
-/** Un gráfico multiserie: una línea por integrante (y otra, punteada, por sus pruebas DEMO). `series[].points` ya vienen agrupados. */
+/** Un gráfico multiserie: una línea por integrante. `series[].points` ya vienen agrupados. */
 function GroupLineChart({
   title,
   variable,
@@ -289,7 +288,6 @@ function GroupLineChart({
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 strokeOpacity="0.7"
-                strokeDasharray={item.demo ? "6 5" : undefined}
               />
               {item.points.map((point) => {
                 const id = `${item.key}|${point.key}`;
@@ -329,7 +327,7 @@ function GroupLineChart({
                       r={selected ? 8 : hover === id ? 7 : 5}
                       stroke={selected ? "#1d2433" : item.color}
                       strokeWidth={selected ? 3 : 2}
-                      fill={item.demo ? "#fff" : item.color}
+                      fill={item.color}
                     />
                     {point.count > 1 && (
                       <text
@@ -354,12 +352,12 @@ function GroupLineChart({
           top={(y(shown.point.value) / HEIGHT) * 100}
           member={shown.item.name}
           color={shown.item.color}
-          variable={variableName(variable, shown.item.demo)}
+          variable={variableName(variable, shown.point.demo)}
           value={formatValue(shown.point.value, decimals(shown.point))}
           unit={spec.unit}
           date={when(shown.point).date}
           time={when(shown.point).time}
-          demo={shown.item.demo}
+          demo={Boolean(shown.point.demo)}
           note={
             shown.point.bucket
               ? `Promedio de ${shown.point.count} ${shown.point.count === 1 ? "medición" : "mediciones"}${shown.point.bucket.granularity === "DIA" ? " del día" : " de esa hora"}`
@@ -402,7 +400,7 @@ export function GroupEvolution({
       setLoaded({ dias, items: [], failed: 0 });
       return undefined;
     }
-    // Compartido: las estadísticas traen cada medición experimental (`puntos`) y, aparte, las pruebas DEMO (`puntosDemo`).
+    // Compartido: las estadísticas traen cada medición experimental (`puntos`) y las pruebas DEMO (`puntosDemo`); ambas se unifican por persona.
     // Propio: la evolución personal con todos los registros, cada uno marcado DEMO o experimental.
     const fetchMember = async (member) => {
       if (!member.esVos) {
@@ -455,55 +453,35 @@ export function GroupEvolution({
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Las series de una variable con el origen y la agrupación elegidos: por integrante, una experimental y otra DEMO (nunca mezcladas).
+  // Las series de una variable con la agrupación elegida: una línea por integrante, con sus mediciones DEMO y experimentales unificadas.
   const seriesOf = (variableKey) =>
     (loaded?.items ?? [])
-      .flatMap((item, index) => {
-        const color = COLORS[index % COLORS.length];
-        const build = (demo) =>
-          aggregateSeries(
-            item.readings
-              .filter(
-                (reading) =>
-                  reading.demo === demo && present(reading[variableKey]),
-              )
-              .map((reading) => ({
-                key: String(reading.idMedicion),
-                ids: [reading.idMedicion],
-                t: parseStamp(reading.fecha),
-                value: Number(reading[variableKey]),
-                demo,
-                origin: demo ? "DEMO" : "EXPERIMENTAL",
-                mode: reading.modoMedicion,
-                count: 1,
-              }))
-              .filter((point) => Number.isFinite(point.t))
-              .sort((a, b) => a.t - b.t),
-            granularity,
-          );
-        const meta = {
-          memberId: item.id,
-          name: item.name,
-          self: item.self,
-          color,
-        };
-        return [
-          {
-            ...meta,
-            key: `${item.id}-exp`,
-            demo: false,
-            label: item.name,
-            points: build(false),
-          },
-          {
-            ...meta,
-            key: `${item.id}-demo`,
-            demo: true,
-            label: `${item.name} · DEMO (prueba)`,
-            points: build(true),
-          },
-        ].filter(Boolean);
-      })
+      .map((item, index) => ({
+        memberId: item.id,
+        name: item.name,
+        self: item.self,
+        color: COLORS[index % COLORS.length],
+        key: String(item.id),
+        label: item.name,
+        points: aggregateSeries(
+          item.readings
+            .filter((reading) => present(reading[variableKey]))
+            .map((reading) => ({
+              key: String(reading.idMedicion),
+              ids: [reading.idMedicion],
+              t: parseStamp(reading.fecha),
+              value: Number(reading[variableKey]),
+              demo: reading.demo,
+              origin: reading.demo ? "DEMO" : "EXPERIMENTAL",
+              mode: reading.modoMedicion,
+              count: 1,
+            }))
+            .filter((point) => Number.isFinite(point.t))
+            .sort((a, b) => a.t - b.t),
+          granularity,
+          { splitDemo: false },
+        ),
+      }))
       .filter((item) => item.points.length > 0);
 
   const overview = variable === OVERVIEW;
@@ -551,7 +529,7 @@ export function GroupEvolution({
       <PointDetail
         member={item.name}
         color={item.color}
-        variable={variableName(chosen, item.demo)}
+        variable={variableName(chosen, point.demo)}
         value={formatValue(
           point.value,
           bucket ? Math.max(spec.decimals, 1) : spec.decimals,
@@ -565,7 +543,7 @@ export function GroupEvolution({
               : undefined
             : formatClock(point.t)
         }
-        demo={item.demo}
+        demo={Boolean(point.demo)}
         summary={describePoint(point, chosen)}
         others={otherValues(raw, chosen)}
       >
@@ -717,7 +695,7 @@ export function GroupEvolution({
                   {legendSeries.map((item) => (
                     <li key={item.key}>
                       <span
-                        className={`gd-evo-swatch${item.demo ? " is-demo" : ""}`}
+                        className="gd-evo-swatch"
                         style={{ "--swatch": item.color }}
                         aria-hidden="true"
                       />
@@ -732,7 +710,7 @@ export function GroupEvolution({
                 {legendSeries.map((item) => (
                   <li key={item.key}>
                     <span
-                      className={`gd-evo-swatch${item.demo ? " is-demo" : ""}`}
+                      className="gd-evo-swatch"
                       style={{ "--swatch": item.color }}
                       aria-hidden="true"
                     />

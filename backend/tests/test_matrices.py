@@ -408,6 +408,28 @@ def test_no_se_archiva_una_activa_y_nada_se_borra(db, mails, team):
     assert db.scalar(select(func.count()).select_from(MatrixRule)) == 1
 
 
+def test_se_borra_una_version_que_nunca_se_uso_y_con_ella_sus_reglas(db, mails, team):
+    draft = newMatrix(db, team.owner, ambito="INSTITUCION", idInstitucion=team.id, rules=(None, rule(edadDesde=70, edadHasta=80)))
+    assert draft.permisos.puedeEliminar
+    matrices.deleteVersion(db, team.owner, draft.idMatriz)
+    assert db.scalar(select(func.count()).select_from(Matrix)) == 0
+    assert db.scalar(select(func.count()).select_from(MatrixRule)) == 0
+
+
+def test_no_se_borra_una_version_activa_ni_una_usada_en_una_medicion(db, mails, team):
+    active = activeMatrix(db, team.owner, ambito="INSTITUCION", idInstitucion=team.id)
+    assert not active.permisos.puedeEliminar
+    expectError("MATRIZ_ESTADO_INVALIDO", matrices.deleteVersion, db, team.owner, active.idMatriz)
+    patient = patients.createPatient(db, team.operator, team.id, patientData(sexoModelo="femenino"))
+    dev = device(db, institucion=team.id)
+    glucose(db, team.operator, patient.idPerfilMedicion, dev, condicionComida="AYUNO")
+    matrices.deactivate(db, team.owner, active.idMatriz)
+    assert not matrices.getMatrix(db, team.owner, active.idMatriz).permisos.puedeEliminar
+    expectError("MATRIZ_CON_MEDICIONES", matrices.deleteVersion, db, team.owner, active.idMatriz)
+    assert db.scalar(select(func.count()).select_from(Matrix)) == 1
+    assert db.scalar(select(func.count()).select_from(MatrixRule)) == 1
+
+
 # --- Reglas ---------------------------------------------------------------------------------------------
 
 

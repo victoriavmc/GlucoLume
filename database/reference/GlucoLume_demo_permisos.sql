@@ -37,6 +37,7 @@ GRANT DELETE ON OBJECT::dbo.FactorMfa TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.CodigoRecuperacionMfa TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.IdentidadExterna TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.PerfilMedicion TO rol_glucolume_demo_limpieza;
+GRANT DELETE ON OBJECT::dbo.VinculoCuentaDispositivo TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.Dispositivo TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.GrupoUsuario TO rol_glucolume_demo_limpieza;
 GRANT DELETE ON OBJECT::dbo.Grupo TO rol_glucolume_demo_limpieza;

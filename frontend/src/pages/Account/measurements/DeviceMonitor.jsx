@@ -56,6 +56,8 @@ function ConnectArduino() {
 
 function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, extraOptions, focus, onFocus, handleOperationError, onStarted }) {
   const [devices, setDevices] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState('');
   const [selected, setSelected] = useState('');
   const [condicionComida, setCondicionComida] = useState('NO_INFORMADA');
   const [matrix, setMatrix] = useState(undefined); // undefined: sin consultar · null: no hay matriz aplicable
@@ -68,6 +70,11 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
   // Diagnóstico del backend (puerto, identidad, sensor, asociación): única fuente de «listo para medir».
   const { readiness, refresh: refreshReadiness } = useDeviceReadiness(idPerfilMedicion, status, idInstitucion);
 
+  const loadDevices = () => measurementsApi.listDevices(idPerfilMedicion).then(
+    (list) => setDevices(list),
+    (loadError) => { setDevices([]); setError(handleOperationError(loadError)); },
+  );
+
   useEffect(() => {
     let active = true;
     measurementsApi.listDevices(idPerfilMedicion).then(
@@ -76,6 +83,21 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
     );
     return () => { active = false; };
   }, [idPerfilMedicion, handleOperationError]);
+
+  // Cuenta individual: conecta el dispositivo de prueba (el backend decide si hace falta crear uno nuevo).
+  async function connectTestDevice() {
+    setConnecting(true);
+    setConnectError('');
+    try {
+      await acquisitionApi.connectTestDevice();
+      await loadDevices();
+      refreshReadiness();
+    } catch (failure) {
+      setConnectError(handleOperationError(failure));
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   // La matriz la decide el backend: solo se muestra, nunca se elige ni se envía.
   const glucoseMode = focus === 'GLUCOSA_EXPERIMENTAL';
@@ -146,7 +168,19 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                 en Dispositivos y asignado a quien mide.
               </Alert>
             ))
-            : <Alert kind="info">No hay un dispositivo operativo disponible para medir este perfil ahora.</Alert>
+            : (
+              <>
+                <Alert kind="info">No hay un dispositivo operativo disponible para medir este perfil ahora.</Alert>
+                {!patient && online && (
+                  <div className="form-actions">
+                    <button type="button" className="btn btn-outline" disabled={connecting} onClick={connectTestDevice}>
+                      <PlugZap size={16} aria-hidden="true" /> Conectar dispositivo de prueba
+                    </button>
+                  </div>
+                )}
+                {connectError && <Alert>{connectError}</Alert>}
+              </>
+            )
         ) : null}
         <>
             <div className="form-grid is-config">

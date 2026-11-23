@@ -343,6 +343,7 @@ class MatrixPermissions(BaseModel):
     puedeActivar: bool
     puedeDesactivar: bool
     puedeArchivar: bool
+    puedeEliminar: bool
     puedeCrearVersion: bool
     puedeVerAuditoria: bool
 

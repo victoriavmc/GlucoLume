@@ -90,7 +90,7 @@ describe('Análisis detallado de mediciones', () => {
     renderAt(`/app/instituciones/${ID}/pacientes/analisis?dias=7&origen=TODOS`);
     await screen.findByText(/Con estos filtros:/);
     expect(analyticsCalls[0].get('dias')).toBe('7');
-    expect(screen.getByRole('combobox', { name: 'Período' })).toHaveValue('7');
+    expect(screen.getByRole('button', { name: '7 días' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('con «solo experimental» y únicamente DEMO explica los totales por origen y permite ver todas las fuentes', async () => {
@@ -108,7 +108,8 @@ describe('Análisis detallado de mediciones', () => {
     routes();
     renderAt(`/app/instituciones/${ID}/pacientes/analisis`);
     await screen.findByText(/Con estos filtros:/);
-    for (const name of ['Período', 'Paciente', 'Origen de los datos', 'Modo de medición', 'Variable a analizar']) {
+    expect(screen.getByRole('group', { name: 'Período' })).toBeInTheDocument();
+    for (const name of ['Paciente', 'Origen de los datos', 'Modo de medición', 'Variable a analizar']) {
       expect(screen.getByRole('combobox', { name }).closest('details')).toBeNull();
     }
     const more = within(screen.getByText(/Más filtros/).closest('details'));

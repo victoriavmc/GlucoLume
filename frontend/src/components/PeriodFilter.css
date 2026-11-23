@@ -1,0 +1,126 @@
+/* Filtro de período (PeriodFilter, components/dashboard.jsx): segmentos de acceso rápido y rango desde/hasta. */
+
+.pf-filter {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.pf-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-500, #5b6578);
+  text-transform: uppercase;
+}
+
+.pf-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 14px;
+  background: var(--ink-50, #f1f3f7);
+  border: 1px solid var(--ink-100, #e4e8ef);
+}
+
+.pf-seg {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 8px 14px;
+  min-height: 38px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-700, #3d4658);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pf-seg:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.pf-seg.is-active {
+  background: #fff;
+  color: var(--ink-900, #1d2433);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12), 0 0 0 1px rgba(16, 24, 40, 0.06);
+}
+
+.pf-seg:focus-visible,
+.pf-date input:focus-visible {
+  outline: 2px solid var(--red-500, #d32f2f);
+  outline-offset: 2px;
+}
+
+.pf-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--ink-100, #e4e8ef);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.pf-date {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-500, #5b6578);
+}
+
+.pf-date input {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--ink-200, #d5dae3);
+  background: #fff;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink-900, #1d2433);
+}
+
+.pf-sep {
+  color: var(--ink-500, #5b6578);
+  margin-bottom: 10px;
+}
+
+.pf-filter .field-error {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .pf-segments {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  }
+
+  .pf-range {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .pf-sep {
+    display: none;
+  }
+
+  .pf-date input {
+    width: 100%;
+  }
+}

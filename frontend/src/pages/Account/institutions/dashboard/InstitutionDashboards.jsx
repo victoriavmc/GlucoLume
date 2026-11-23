@@ -134,7 +134,7 @@ export function OperatorKpiPanel({ institution, data, error, period, setPeriod }
             {data && !data.operador.activo && <p><Badge tone="neutral">Ya no está vinculado/a</Badge></p>}
           </div>
         </div>
-        <PeriodFilter value={period} onChange={setPeriod} idPrefix="dash-op" compact />
+        <PeriodFilter value={period} onChange={setPeriod} idPrefix="dash-op" />
       </div>
       {error && <Alert>{error}</Alert>}
       {!data && !error && <p className="field-hint" role="status">Cargando el dashboard…</p>}

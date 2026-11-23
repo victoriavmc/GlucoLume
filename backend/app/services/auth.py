@@ -730,13 +730,13 @@ def _tareaAuditarIntentoLimitado(bind, identificador: str, origen: str) -> None:
     """Auditoría de CADA intento rechazado por el límite por origen: una fila LOGIN_LOCAL / CUENTA_BLOQUEADA por intento, como antes de
     M-2. No se descarta por rechazarse antes de validar la contraseña. Se escribe fuera de la solicitud, igual que los avisos, para que
     cuentas existentes e inexistentes tengan el mismo trabajo y la respuesta no revele si la cuenta existe. Sin cuenta identificable se
-    guarda solo el HMAC del identificador (como CUENTA_INEXISTENTE); el origen se guarda siempre como HMAC, nunca en claro."""
+    guarda solo el HMAC del identificador (como CUENTA_INEXISTENTE); el origen no se guarda: el motivo es el mismo para todos los orígenes."""
     session = _sesionDeAviso(bind)
     try:
         user = _findUserByIdentifier(session, identificador)
         _auditFailedLogin(
             session, "LOGIN_LOCAL", user, "CUENTA_BLOQUEADA",
-            f"Límite temporal por origen (origen {hashIdentifier(origen)})", identificador,
+            "Límite temporal por origen", identificador,
         )
         session.commit()
     except Exception:  # noqa: BLE001 - la auditoría fuera de la solicitud no cambia la respuesta; el fallo queda en el log

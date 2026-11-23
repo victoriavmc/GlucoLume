@@ -48,7 +48,10 @@ from app.services import auditClassification as classification
 from app.services import authAccess
 from app.services import dashboard as dashboards
 from app.services import institution as institutions
-from app.services import platform, quota, schemaCompat
+from app.services import individualDevice, platform, quota, schemaCompat
+from app.services.csvExport import csvDate, csvText
+from app.services.exportAudit import auditedExport, rejectExport
+from app.services.tableExport import tableFile
 from app.services.audit import ACCIONES_CRITICAS
 from app.utils.timeZone import nowForDb
 
@@ -87,6 +90,8 @@ def _users(db: Session, start: datetime, end: datetime | None) -> UserCounters:
         activas=_count(db, User, User.estado == "ACTIVO"), inactivas=_count(db, User, User.estado.in_(["PENDIENTE", "BLOQUEADO"])),
         conVinculoInstitucional=withBond, institucionalesSinVinculo=max(0, institutional - withBond),
         registradasPeriodo=_count(db, User, live, *dashboards._inPeriod(User.fechaCreacion, start, end)),
+        noInstitucionalesRegistradasPeriodo=_count(db, User, live, User.tipoCuenta != "USUARIO_INSTITUCIONAL",
+                                                   *dashboards._inPeriod(User.fechaCreacion, start, end)),
         registradas7Dias=_count(db, User, live, User.fechaCreacion >= nowForDb() - timedelta(days=7)),
     )
 
@@ -98,6 +103,10 @@ def _institutions(db: Session) -> InstitutionCounters:
         total=sum(states.values()), activas=states.get("ACTIVA", 0), cerradas=states.get("CERRADA", 0), inactivas=states.get("INACTIVA", 0),
         moderadores=_count(db, InstitutionUser, active, InstitutionUser.rolInstitucion == "MODERADOR"),
         operadores=_count(db, InstitutionUser, active, InstitutionUser.rolInstitucion == "OPERADOR"),
+        cuentasInstitucionales=db.scalar(
+            select(func.count(func.distinct(InstitutionUser.idUsuarioInvitado)))
+            .join(User, User.idUsuario == InstitutionUser.idUsuarioInvitado)
+            .where(active, InstitutionUser.rolInstitucion.in_(("PROPIETARIO", "MODERADOR", "OPERADOR")), User.estado != "ELIMINADO")) or 0,
     )
 
 
@@ -118,8 +127,9 @@ def _devices(db: Session) -> DeviceCounters:
         total=sum(states.values()), operativos=states.get("OPERATIVO", 0), enMantenimiento=states.get("EN_MANTENIMIENTO", 0),
         fueraDeServicio=states.get("FUERA_DE_SERVICIO", 0), descomisionados=states.get("BAJA", 0),
         asignados=_count(db, Device, live, Device.idInstitucionAsignada.is_not(None)),
-        sinAsignar=_count(db, Device, live, Device.idInstitucionAsignada.is_(None)),
+        sinAsignar=_count(db, Device, live, Device.idInstitucionAsignada.is_(None), individualDevice.notLinked(db, Device.idDispositivo)),
         conLecturasInvalidasRecientes=recentInvalid, desconectados=None, conexionVerificable=False,
+        asignadosCuentasIndividuales=individualDevice.linkedDeviceCount(db),
     )
 
 
@@ -160,8 +170,10 @@ def _security(db: Session, start: datetime, end: datetime | None) -> SecuritySum
     # Qué es un acceso fallido o correcto y a qué tipo de cuenta pertenece: services/authAccess.py (una definición y una consulta para el total y los tipos).
     access = authAccess.breakdown(db, start, end)
     failed = and_(authAccess.failedCondition(), *inPeriod)
-    reasons = db.execute(select(func.coalesce(Audit.observacion, Audit.accion), func.count()).where(failed)
-                         .group_by(func.coalesce(Audit.observacion, Audit.accion)).order_by(func.count().desc()).limit(5)).all()
+    # El límite temporal por origen es un control interno (no un motivo de acceso) y su texto trae el identificador de origen: no se lista.
+    reason = func.coalesce(Audit.observacion, Audit.accion)
+    reasons = db.execute(select(reason, func.count()).where(failed, reason.notlike("Límite temporal%"))
+                         .group_by(reason).order_by(func.count().desc()).limit(5)).all()
     repeated = db.scalar(select(func.count()).select_from(
         select(Audit.idUsuario).where(failed, Audit.accion == "LOGIN_LOCAL", Audit.idUsuario.is_not(None))
         .group_by(Audit.idUsuario).having(func.count() >= 3).subquery())) or 0
@@ -275,18 +287,6 @@ def systemStatus(db: Session, actor) -> SystemStatus:
             components.append(_component("Acceso con Google", "OPERATIVO" if reachable else "DEGRADADO",
                                          None if reachable else f"No se alcanza accounts.google.com ({reason}).", "Credenciales y conexión TCP a Google", ms))
 
-        try:
-            import serial  # noqa: F401
-            from serial.tools import list_ports
-
-            ports = len(list(list_ports.comports()))
-            components.append(_component("Adquisición por puerto serie (pySerial)", "OPERATIVO",
-                                         f"{ports} puerto(s) serie detectado(s) en este servidor." if ports else
-                                         "Sin puertos serie locales: el puente de adquisición se conecta por la API.", "Módulo pySerial y listado de puertos"))
-        except ImportError:
-            components.append(_component("Adquisición por puerto serie (pySerial)", "NO_DISPONIBLE", "pySerial no está instalado.", "Módulo pySerial"))
-        except Exception:  # noqa: BLE001
-            components.append(_component("Adquisición por puerto serie (pySerial)", "DESCONOCIDO", "No se pudieron listar los puertos.", "Módulo pySerial"))
 
     matrix = db.scalar(select(Matrix.idMatriz).where(Matrix.ambito == "GLOBAL", Matrix.estado == "ACTIVA").limit(1))
     if matrix is None:
@@ -362,6 +362,80 @@ def listInstitutions(db: Session, actor, busqueda: str | None = None, estado: st
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     page = db.scalars(query.order_by(Institution.nombre, Institution.idInstitucion).offset((pagina - 1) * tamanio).limit(tamanio)).all()
     return InstitutionPage(items=_rows(db, list(page)), total=total, pagina=pagina, tamanioPagina=tamanio, porEstado=counts)
+
+
+# --- Exportación de instituciones (CSV, Excel o PDF) -----------------------------------------------------------------------
+
+EXPORT_TIPO_DATOS = "INSTITUCIONES_PLATAFORMA"
+INSTITUTION_EXPORT_COLUMNS = ("Institución", "Tipo", "Tipo de identificador", "Identificador", "Estado", "Propietario (nombre y apellido)",
+                              "Correo del propietario", "Inicio", "Finalización", "Cuentas en uso", "Cupos disponibles", "Moderadores",
+                              "Operadores", "Pacientes activos", "Pacientes registrados", "Mediciones totales", "Dispositivos")
+_ESTADO_EXPORT = {"ACTIVA": "Activa", "INACTIVA": "Pausada", "CERRADA": "Cerrada"}
+
+
+def _ownersByInstitution(db: Session, ids: list[uuid.UUID]) -> dict[uuid.UUID, list[tuple[str, str]]]:
+    """Propietarios activos de cada institución: (nombre y apellido, correo). Una consulta para todas."""
+    owners: dict[uuid.UUID, list[tuple[str, str]]] = {}
+    if not ids:
+        return owners
+    for institution, nombre, apellido, correo in db.execute(
+            select(InstitutionUser.idInstitucion, User.nombre, User.apellido, User.correoElectronico)
+            .join(User, User.idUsuario == InstitutionUser.idUsuarioInvitado)
+            .where(InstitutionUser.idInstitucion.in_(ids), InstitutionUser.rolInstitucion == "PROPIETARIO",
+                   InstitutionUser.estadoRelacion == "ACTIVO", User.estado != "ELIMINADO")):
+        owners.setdefault(institution, []).append((" ".join(part for part in (nombre, apellido) if part), correo or ""))
+    return owners
+
+
+def _exportRows(db: Session, institutionsList: list[Institution], rows: list[InstitutionRow]) -> list[list[str]]:
+    """Una fila por institución con los datos administrativos del detalle (conteos, nunca pacientes ni valores clínicos)."""
+    owners = _ownersByInstitution(db, [item.idInstitucion for item in institutionsList])
+    out: list[list[str]] = []
+    for item, row in zip(institutionsList, rows):
+        usage = quota.usage(db, item.idInstitucion)
+        profiles = dashboards._institutionProfileIds(item.idInstitucion)
+        registered = db.scalar(select(func.count()).select_from(profiles.subquery())) or 0
+        measurements = db.scalar(select(func.count()).select_from(Measurement).where(Measurement.idPerfilMedicion.in_(profiles))) or 0
+        ownerNames = "; ".join(name for name, _ in owners.get(item.idInstitucion, [])) or "Sin propietario activo"
+        ownerEmails = "; ".join(mail for _, mail in owners.get(item.idInstitucion, []))
+        out.append([
+            csvText(row.nombre), csvText(row.tipoInstitucion), csvText(item.tipoIdentificadorLegal), csvText(item.identificadorLegal),
+            csvText(_ESTADO_EXPORT.get(row.estado, row.estado)), csvText(ownerNames), csvText(ownerEmails),
+            csvDate(row.fechaInicio), csvDate(row.fechaFin), str(usage.usuariosActivos), str(usage.cuposDisponibles),
+            str(row.moderadores), str(row.operadores), str(institutions._activePatientCount(db, item.idInstitucion)), str(registered),
+            str(measurements), str(row.dispositivos),
+        ])
+    return out
+
+
+def exportInstitutions(db: Session, actor, *, alcance: str, idsInstitucion: list[uuid.UUID] | None = None, busqueda: str | None = None,
+                       estado: str | None = None, formato: str = "csv") -> tuple[bytes, str]:
+    """Archivo de instituciones (`SELECCION` o `TODAS`) en CSV, Excel o PDF. Solo el administrador o un moderador con
+    SUPERVISAR_INSTITUCIONES. Devuelve (contenido, nombre del archivo)."""
+    try:
+        _requireSupervision(db, actor)
+    except AuthError as error:
+        rejectExport(db, actor, EXPORT_TIPO_DATOS, ambito="PLATAFORMA", formato=formato.upper(), motivo=error.code)
+        db.commit()
+        raise
+    with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito="PLATAFORMA", formato=formato.upper()) as export:
+        if alcance == "SELECCION":
+            ids = list(dict.fromkeys(idsInstitucion or []))
+            institutionsList = list(db.scalars(select(Institution).where(Institution.idInstitucion.in_(ids))).all()) if ids else []
+        else:
+            conditions = []
+            term = (busqueda or "").strip()
+            if term:
+                escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                conditions.append(Institution.nombre.like(f"%{escaped}%", escape="\\"))
+            if estado:
+                conditions.append(Institution.estado == estado)
+            institutionsList = list(db.scalars(select(Institution).where(*conditions).order_by(Institution.nombre, Institution.idInstitucion)).all())
+        rows = _rows(db, institutionsList)
+        export.registros = len(rows)
+        now = nowForDb()
+        return tableFile(formato, f"instituciones-{now:%Y%m%d-%H%M}", "Instituciones de GlucoLume", INSTITUTION_EXPORT_COLUMNS,
+                         _exportRows(db, institutionsList, rows), now)
 
 
 def institutionDetail(db: Session, actor, idInstitucion: uuid.UUID, dias: int = 30) -> InstitutionDetail:

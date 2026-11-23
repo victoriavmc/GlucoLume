@@ -39,12 +39,13 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import false, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from app.core.config import getSettings
 from app.core.exceptions import AuthError
+from app.models.accountDeviceLink import AccountDeviceLink
 from app.models.audit import Audit
 from app.models.device import Device
 from app.models.institution import Institution
@@ -71,6 +72,7 @@ from app.schemas.device import (
     DeviceSummaryCounts,
 )
 from app.services import institution as institutions
+from app.services import schemaCompat
 from app.services.audit import registerEvent
 
 OPERATIVO, EN_MANTENIMIENTO, FUERA_DE_SERVICIO, BAJA = "OPERATIVO", "EN_MANTENIMIENTO", "FUERA_DE_SERVICIO", "BAJA"
@@ -79,6 +81,7 @@ ACTIVE_MEASUREMENTS = ("PENDIENTE", "ADQUIRIENDO", "PROCESANDO")
 PLATFORM_ADMIN = "ADMINISTRADOR_PLATAFORMA"
 PLATFORM_MODERATOR = "MODERADOR_PLATAFORMA"
 MAX_PAGE_SIZE = 100
+MEASUREMENT_PAGE_SIZE = 25  # mediciones por página en el detalle del dispositivo
 INSTITUTION_EDITABLE = {"nombre", "modelo"}
 BRIDGE_MODEL = "Arduino UNO + MAX30100"
 
@@ -201,7 +204,7 @@ def currentOwner(db: Session, idInstitucion: uuid.UUID) -> InstitutionUser:
 # --- Lectura ----------------------------------------------------------------------------------------------------
 
 
-def _responsible(db: Session, device: Device) -> DeviceResponsible | None:
+def _responsible(db: Session, device: Device, withEmail: bool = False) -> DeviceResponsible | None:
     if device.idInstitucionUsuarioResponsable is None:
         return None
     relation = db.get(InstitutionUser, device.idInstitucionUsuarioResponsable)
@@ -213,7 +216,20 @@ def _responsible(db: Session, device: Device) -> DeviceResponsible | None:
         nombre=(user.nombre if user else None) or relation.nombreProfesionalHistorico,
         apellido=(user.apellido if user else None) or relation.apellidoProfesionalHistorico,
         activo=relation.estadoRelacion == institutions.RELACION_ACTIVO,
+        correoElectronico=user.correoElectronico if (user and withEmail) else None,
     )
+
+
+def _linkedToIndividual(db: Session, device: Device) -> bool:
+    """¿Está vinculado a alguna cuenta individual? (import local: individualDevice ya usa este módulo)."""
+    from app.services import individualDevice
+    return individualDevice.isLinked(db, device.idDispositivo)
+
+
+def _individualEmails(db: Session, device: Device) -> list[str]:
+    """Correos de las cuentas individuales vinculadas (solo para el inventario global)."""
+    from app.services import individualDevice
+    return [a["correoElectronico"] for a in individualDevice.accountsOf(db, device.idDispositivo) if a["correoElectronico"]]
 
 
 def _item(db: Session, device: Device, scope: Scope) -> DeviceItem:
@@ -225,7 +241,9 @@ def _item(db: Session, device: Device, scope: Scope) -> DeviceItem:
         modelo=device.modelo, modeloSensor=device.modeloSensor, versionFirmware=device.versionFirmware, estado=device.estado,
         idInstitucionAsignada=device.idInstitucionAsignada, nombreInstitucion=institution.nombre if institution else None,
         # El operador ve solo lo mínimo: su propia responsabilidad, sin datos administrativos.
-        responsable=None if operator and not mine else _responsible(db, device),
+        responsable=None if operator and not mine else _responsible(db, device, withEmail=scope.idInstitucion is None),
+        vinculadoCuentasIndividuales=scope.idInstitucion is None and _linkedToIndividual(db, device),
+        correosIndividuales=_individualEmails(db, device) if scope.idInstitucion is None else [],
         fechaRegistro=device.fechaRegistro, fechaAsignacionInstitucional=None if operator else device.fechaAsignacionInstitucional,
         disponibleParaMedir=device.estado == OPERATIVO, esMio=mine,
     )
@@ -257,7 +275,9 @@ def _usage(db: Session, device: Device, idInstitucion: uuid.UUID | None = None) 
 def getDevice(db: Session, scope: Scope, idDispositivo: uuid.UUID) -> DeviceDetail:
     _require(db, scope, "ver", "CONSULTAR_DISPOSITIVO")
     device = _load(db, scope, idDispositivo)
-    return DeviceDetail(**_item(db, device, scope).model_dump(), permisos=_permissions(device, scope),
+    from app.services import individualDevice  # import local: individualDevice ya usa este módulo
+    accounts = individualDevice.accountsOf(db, device.idDispositivo) if scope.idInstitucion is None else []
+    return DeviceDetail(**_item(db, device, scope).model_dump(), permisos=_permissions(device, scope), cuentasIndividuales=accounts,
                         medicionesRegistradas=_usage(db, device, scope.idInstitucion) if scope.can("mediciones") else None,
                         # Quién lo registró: dato administrativo, no se informa al operador.
                         registro=registration(db, device, scope.idInstitucion) if scope.can("ver") and not scope.isOperator else None)
@@ -267,7 +287,7 @@ def _like(value: str) -> str:
     return "%" + value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
-def _filtered(query, scope: Scope, *, busqueda, estado, asignado, idInstitucion):
+def _filtered(query, scope: Scope, *, busqueda, estado, asignado, idInstitucion, uso=None, linksAvailable=False):
     if scope.idInstitucion is not None:
         query = query.where(Device.idInstitucionAsignada == scope.idInstitucion)
         if scope.isOperator:
@@ -283,10 +303,29 @@ def _filtered(query, scope: Scope, *, busqueda, estado, asignado, idInstitucion)
         query = query.where(Device.idInstitucionAsignada.is_not(None))
     elif asignado is False:
         query = query.where(Device.idInstitucionAsignada.is_(None))
+    if uso == "INSTITUCION":
+        query = query.where(Device.idInstitucionAsignada.is_not(None))
+    elif uso == "INDIVIDUAL":
+        # Sin institución y vinculado a al menos una cuenta individual (sin la tabla de vínculos, no hay ninguno).
+        linked = Device.idDispositivo.in_(select(AccountDeviceLink.idDispositivo)) if linksAvailable else false()
+        query = query.where(Device.idInstitucionAsignada.is_(None), linked)
     if busqueda and busqueda.strip():
         term = _like(busqueda.strip())
-        query = query.where(or_(Device.codigoDispositivo.ilike(term, escape="\\"), Device.nombre.ilike(term, escape="\\"),
-                                Device.modelo.ilike(term, escape="\\")))
+        # Responsable institucional (nombre, apellido y, solo en el inventario de plataforma, correo) o cuenta individual vinculada.
+        byResponsible = select(InstitutionUser.idInstitucionUsuario).join(
+            User, User.idUsuario == InstitutionUser.idUsuarioInvitado).where(
+            or_(User.nombre.ilike(term, escape="\\"), User.apellido.ilike(term, escape="\\"),
+                *([User.correoElectronico.ilike(term, escape="\\")] if scope.idInstitucion is None else [])))
+        conditions = [Device.codigoDispositivo.ilike(term, escape="\\"), Device.nombre.ilike(term, escape="\\"),
+                      Device.modelo.ilike(term, escape="\\"),
+                      Device.idInstitucionUsuarioResponsable.in_(byResponsible)]
+        if linksAvailable and scope.idInstitucion is None:
+            byIndividual = select(AccountDeviceLink.idDispositivo).join(
+                User, User.idUsuario == AccountDeviceLink.idUsuario).where(
+                or_(User.nombre.ilike(term, escape="\\"), User.apellido.ilike(term, escape="\\"),
+                    User.correoElectronico.ilike(term, escape="\\")))
+            conditions.append(Device.idDispositivo.in_(byIndividual))
+        query = query.where(or_(*conditions))
     return query
 
 
@@ -295,13 +334,14 @@ def _checkFilters(estado) -> None:
         raise _error("DATOS_INVALIDOS", "El estado indicado no es válido.")
 
 
-def listDevices(db: Session, scope: Scope, *, busqueda=None, estado=None, asignado=None, idInstitucion=None, pagina=1,
+def listDevices(db: Session, scope: Scope, *, busqueda=None, estado=None, asignado=None, idInstitucion=None, uso=None, pagina=1,
                 tamanioPagina=20) -> DevicePage:
     _require(db, scope, "ver", "CONSULTAR_INVENTARIO_DISPOSITIVOS")
     _checkFilters(estado)
     tamanioPagina = max(1, min(tamanioPagina, MAX_PAGE_SIZE))
     pagina = max(1, pagina)
-    base = _filtered(select(Device), scope, busqueda=busqueda, estado=estado, asignado=asignado, idInstitucion=idInstitucion)
+    base = _filtered(select(Device), scope, busqueda=busqueda, estado=estado, asignado=asignado, idInstitucion=idInstitucion, uso=uso,
+                     linksAvailable=schemaCompat.hasTable(db, "VinculoCuentaDispositivo"))
     total = db.scalar(select(func.count()).select_from(base.subquery()))
     rows = db.scalars(base.order_by(Device.fechaRegistro.desc(), Device.codigoDispositivo)
                       .offset((pagina - 1) * tamanioPagina).limit(tamanioPagina)).all()
@@ -309,8 +349,9 @@ def listDevices(db: Session, scope: Scope, *, busqueda=None, estado=None, asigna
 
 
 def summary(db: Session, scope: Scope, *, idInstitucion=None) -> DeviceSummaryCounts:
+    from app.services import individualDevice  # import local: individualDevice ya usa este módulo
     _require(db, scope, "ver", "CONSULTAR_INVENTARIO_DISPOSITIVOS")
-    base = _filtered(select(Device.estado, Device.idInstitucionAsignada), scope, busqueda=None, estado=None, asignado=None,
+    base = _filtered(select(Device.estado, Device.idInstitucionAsignada, Device.idDispositivo), scope, busqueda=None, estado=None, asignado=None,
                      idInstitucion=idInstitucion).subquery()
 
     def count(*conditions):
@@ -319,7 +360,10 @@ def summary(db: Session, scope: Scope, *, idInstitucion=None) -> DeviceSummaryCo
     return DeviceSummaryCounts(
         total=count(), operativos=count(base.c.estado == OPERATIVO), enMantenimiento=count(base.c.estado == EN_MANTENIMIENTO),
         fueraDeServicio=count(base.c.estado == FUERA_DE_SERVICIO), descomisionados=count(base.c.estado == BAJA),
-        asignados=count(base.c.idInstitucionAsignada.is_not(None)), sinAsignar=count(base.c.idInstitucionAsignada.is_(None)),
+        # Asignados = a una institución o vinculados a una cuenta individual.
+        asignados=count(or_(base.c.idInstitucionAsignada.is_not(None), individualDevice.linked(db, base.c.idDispositivo))),
+        # Sin asignar = sin institución y sin cuenta individual vinculada (los vinculados ya están asignados a una cuenta).
+        sinAsignar=count(base.c.idInstitucionAsignada.is_(None), individualDevice.notLinked(db, base.c.idDispositivo)),
     )
 
 
@@ -356,7 +400,8 @@ def responsiblesOf(db: Session, scope: Scope, idInstitucion: uuid.UUID) -> list[
     return _members(db, idInstitucion)
 
 
-def listMeasurements(db: Session, scope: Scope, idDispositivo: uuid.UUID, pagina: int = 1, tamanioPagina: int = 20) -> DeviceMeasurementPage:
+def listMeasurements(db: Session, scope: Scope, idDispositivo: uuid.UUID, pagina: int = 1, tamanioPagina: int = MEASUREMENT_PAGE_SIZE,
+                     estado: str | None = None) -> DeviceMeasurementPage:
     """Mediciones hechas con el dispositivo SIN datos del paciente. En el inventario institucional solo se ven las de
     pacientes de esa institución: si el dispositivo se reasigna, la nueva institución no accede a lo medido antes."""
     _require(db, scope, "mediciones", "CONSULTAR_MEDICIONES_DISPOSITIVO")
@@ -372,6 +417,8 @@ def listMeasurements(db: Session, scope: Scope, idDispositivo: uuid.UUID, pagina
     )
     if scope.idInstitucion is not None:
         query = query.where(InstitutionUser.idInstitucion == scope.idInstitucion)
+    if estado:
+        query = query.where(Measurement.estadoMedicion == estado)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     rows = db.execute(query.order_by(Measurement.fechaHoraInicio.desc(), Measurement.idMedicion)
                       .offset((pagina - 1) * tamanioPagina).limit(tamanioPagina)).all()

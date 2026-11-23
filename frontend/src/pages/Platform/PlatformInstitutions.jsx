@@ -2,10 +2,11 @@
 // módulo de detalle administrativo de cada una, con pausa/reactivación, límite de cuentas y auditoría. Solo conteos y estado técnico: nunca
 // pacientes, personas ni valores clínicos (FastAPI lo exige: permiso SUPERVISAR_INSTITUCIONES, del administrador y del moderador del sistema).
 
-import { Building2, Cpu, FileText, Search, ShieldCheck, Users } from 'lucide-react';
+import { Building2, Cpu, Download, FileText, Search, ShieldCheck, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import * as institutionsApi from '../../api/institutionsApi.js';
 import * as platformApi from '../../api/platformApi.js';
 import { friendlyError } from '../../auth/errorMessages.js';
 import { Badge } from '../../components/Badge.jsx';
@@ -13,7 +14,10 @@ import { EmptyState } from '../../components/EmptyState.jsx';
 import { Alert } from '../../components/FormControls.jsx';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { usePlatform } from '../../layouts/PlatformLayout.jsx';
+import { saveBlob } from '../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../utils/exportFormats.js';
 import { formatDate, formatDateTime, formatNumber } from '../Account/groups/groupFormat.js';
+import '../Account/institutions/exportControls.css';
 import { AdministrativeClosureNotice, ExcessNotice, InstitutionActions, InstitutionAuditSection, SuspensionNotice } from './PlatformInstitutionControl.jsx';
 import './PlatformDashboard.css';
 
@@ -24,12 +28,17 @@ const DEVICE_TONE = { OPERATIVO: 'success', EN_MANTENIMIENTO: 'warning', FUERA_D
 const n = (value) => formatNumber(value ?? 0);
 
 /** Tabla de instituciones con búsqueda por nombre y filtro por estado; `compact` la limita a una página corta con enlace al listado completo. */
-export function InstitutionsTable({ pageSize = 15, compact = false }) {
+export function InstitutionsTable({ pageSize = 25, compact = false }) {
   const [term, setTerm] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [state, setState] = useState({ data: null, error: '' });
+  const [selected, setSelected] = useState(() => new Set()); // instituciones marcadas para exportar (solo de la página visible)
+  const [exportFormat, setExportFormat] = useState('csv');
+  const [exporting, setExporting] = useState(null); // clave de la exportación en curso: evita pedidos repetidos
+  const [exportError, setExportError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => { setQuery(term.trim()); setPage(1); }, 300);
@@ -44,8 +53,41 @@ export function InstitutionsTable({ pageSize = 15, compact = false }) {
     return () => { active = false; };
   }, [query, status, page, pageSize]);
 
+  // Cambiar de página, de filtro o de búsqueda limpia la selección: solo se exporta lo que se ve marcado.
+  useEffect(() => { setSelected(new Set()); }, [query, status, page, pageSize]);
+
   const { data, error } = state;
   const pages = data ? Math.max(1, Math.ceil(data.total / data.tamanioPagina)) : 1;
+  const visibleIds = data ? data.items.map((row) => row.idInstitucion) : [];
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+  function toggleOne(id) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allVisibleSelected ? new Set() : new Set(visibleIds));
+  }
+
+  async function handleExport(key, body) {
+    setExporting(key);
+    setExportError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await institutionsApi.exportPlatformInstitutions(body, exportFormat);
+      saveBlob(blob, filename);
+      setNotice(`Exportación lista: ${filename}.`);
+    } catch (failure) {
+      setExportError(friendlyError(failure));
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
     <div className="pd-institutions">
       <form className="pd-filters" role="search" aria-label="Buscar instituciones" onSubmit={(event) => event.preventDefault()}>
@@ -63,6 +105,26 @@ export function InstitutionsTable({ pageSize = 15, compact = false }) {
         </label>
         {data && <span className="pd-count" role="status">{n(data.total)} {data.total === 1 ? 'institución' : 'instituciones'}</span>}
       </form>
+      {data && data.total > 0 && (
+        <div className="export-toolbar" role="group" aria-label="Exportar instituciones">
+          <label className="pd-status">
+            <span className="field-label">Formato</span>
+            <select className="field-input field-select" value={exportFormat} onChange={(event) => setExportFormat(event.target.value)}>
+              {EXPORT_FORMATS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <button type="button" className="btn btn-outline btn-sm" disabled={selected.size === 0 || exporting !== null}
+            onClick={() => handleExport('seleccion', { alcance: 'SELECCION', idsInstitucion: [...selected] })}>
+            <Download size={16} aria-hidden="true" /> Exportar seleccionadas{selected.size > 0 ? ` (${selected.size})` : ''}
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" disabled={exporting !== null}
+            onClick={() => handleExport('todas', { alcance: 'TODAS', busqueda: query || undefined, estado: status || undefined })}>
+            <Download size={16} aria-hidden="true" /> Exportar todas{query || status ? ' las filtradas' : ''} ({n(data.total)})
+          </button>
+        </div>
+      )}
+      {exportError && <Alert>{exportError}</Alert>}
+      {notice && <p className="field-hint" role="status">{notice}</p>}
       {error && <Alert>{error}</Alert>}
       {!data && !error && <p className="field-hint" role="status">Cargando instituciones…</p>}
       {data && data.items.length === 0 && <EmptyState variant="framed" icon={Building2} headingLevel={0} title="No hay instituciones con esos filtros." />}
@@ -72,6 +134,9 @@ export function InstitutionsTable({ pageSize = 15, compact = false }) {
             <caption className="sr-only">Instituciones registradas en GlucoLume</caption>
             <thead>
               <tr>
+                <th scope="col" className="export-check-cell">
+                  <input type="checkbox" className="export-check" aria-label="Seleccionar todas las de esta página" checked={allVisibleSelected} onChange={toggleAll} />
+                </th>
                 <th scope="col">Institución</th><th scope="col">Estado</th><th scope="col">Inicio</th><th scope="col">Finalización</th>
                 <th scope="col">Moderadores</th><th scope="col">Operadores</th><th scope="col">Cuentas internas</th><th scope="col">Límite de cuentas</th>
                 <th scope="col"><span className="sr-only">Acciones</span></th>
@@ -80,6 +145,9 @@ export function InstitutionsTable({ pageSize = 15, compact = false }) {
             <tbody>
               {data.items.map((row) => (
                 <tr key={row.idInstitucion}>
+                  <td className="export-check-cell">
+                    <input type="checkbox" className="export-check" aria-label={`Seleccionar ${row.nombre}`} checked={selected.has(row.idInstitucion)} onChange={() => toggleOne(row.idInstitucion)} />
+                  </td>
                   <th scope="row"><b>{row.nombre}</b><small>{row.tipoInstitucion}</small></th>
                   <td><Badge tone={STATE_TONE[row.estado] ?? 'neutral'}>{STATE_LABEL[row.estado] ?? row.estado}</Badge></td>
                   <td>{formatDate(row.fechaInicio)}</td>
@@ -118,6 +186,45 @@ function Mini({ label, value, hint }) {
   return <div className="pd-mini"><dt>{label}</dt><dd>{value}</dd>{hint && <small>{hint}</small>}</div>;
 }
 
+/** Informe de UNA institución (CSV, Excel o PDF): institución, moderadores, operadores, pacientes (solo cantidades) y dispositivos. */
+function InstitutionReportExport({ idInstitucion }) {
+  const [formato, setFormato] = useState('csv');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  async function handleExport() {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await institutionsApi.exportPlatformInstitutionReport(idInstitucion, formato);
+      saveBlob(blob, filename);
+      setNotice(`Informe listo: ${filename}.`);
+    } catch (failure) {
+      setError(friendlyError(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="export-toolbar" role="group" aria-label="Exportar informe de la institución">
+      <label className="pd-status">
+        <span className="field-label">Formato</span>
+        <select className="field-input field-select" value={formato} onChange={(event) => setFormato(event.target.value)}>
+          {EXPORT_FORMATS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={handleExport}>
+        <Download size={16} aria-hidden="true" /> Exportar informe de la institución
+      </button>
+      {error && <Alert>{error}</Alert>}
+      {notice && <p className="field-hint" role="status">{notice}</p>}
+    </div>
+  );
+}
+
 /** Módulo independiente con el detalle administrativo de UNA institución. */
 export function PlatformInstitutionDetailPage() {
   const { idInstitucion } = useParams();
@@ -143,6 +250,7 @@ export function PlatformInstitutionDetailPage() {
       <PageHeader title={row.nombre} back={back} description={`${row.tipoInstitucion} · ${data.tipoIdentificador} ${data.identificador}`}
         actions={<Badge tone={STATE_TONE[row.estado] ?? 'neutral'}>{STATE_LABEL[row.estado] ?? row.estado}</Badge>} />
       <p className="field-hint pd-privacy"><ShieldCheck size={14} aria-hidden="true" /> Vista administrativa: no incluye pacientes, personas ni resultados clínicos.</p>
+      <InstitutionReportExport idInstitucion={row.idInstitucion} />
       <SuspensionNotice detail={data} />
       <AdministrativeClosureNotice detail={data} />
       <ExcessNotice detail={data} />

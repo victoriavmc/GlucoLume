@@ -46,6 +46,7 @@ from app.schemas.acquisition import (
 from app.schemas.measurement import MeasurementDetail, MeasurementStart
 from app.services import device as deviceService
 from app.services import deviceConnection
+from app.services import individualDevice
 from app.services import institution as institutions
 from app.services import measurement as measurements
 from app.services import schemaCompat
@@ -541,6 +542,9 @@ def _requireSameDevice(actor: User, access, device: Device, bridge, which: str) 
     identity = hub.identity()
     if bridge is None or identity["codigo"] is None:
         raise AuthError("DISPOSITIVO_NO_COINCIDE", f"El dispositivo conectado por el puente no es el {which}.")
+    if access.relation is None and hub.isConfirmed(actor.idUsuario, device.idDispositivo):
+        # Cuenta individual: confirmó con «Conectar dispositivo» (esta conexión) que el Arduino conectado es este registro de prueba.
+        return identity
     if identity["nivel"] == "DECLARADA" and access.relation is not None:
         if not hub.isConfirmed(actor.idUsuario, device.idDispositivo):
             raise AuthError("IDENTIDAD_NO_CONFIRMADA", "No se pudo confirmar qué Arduino está conectado: confirmá el dispositivo en «Conectar dispositivo».")
@@ -567,6 +571,7 @@ def startSession(db: Session, actor: User, data: TelemetrySessionStart) -> Measu
     device = db.get(Device, data.idDispositivo)
     if device is None or not measurements._deviceUsable(device, access.idInstitucion, measurements._operatorRelation(access)):
         raise AuthError("DISPOSITIVO_NO_DISPONIBLE", "El dispositivo no está disponible para medir este perfil.")
+    individualDevice.requireLinkedDevice(db, actor, device)  # cuenta individual: un solo dispositivo vinculado
     identity = _requireSameDevice(actor, access, device, bridge, "elegido para esta medición")
     if identity["nivel"] == "FISICA":
         deviceService.syncConnection(db, actor, device, firmware=identity["firmware"], medio=bridge.medium, identidad="FISICA")

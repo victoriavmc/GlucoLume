@@ -1,30 +1,32 @@
 // Piezas comunes de los dashboards: filtro de período, tarjetas de indicadores y bloque de estadísticas por variable.
 // Sin datos nunca se muestra un cero: se muestra «Sin datos disponibles».
 
-import { CalendarDays } from 'lucide-react';
+import { ArrowRight, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { TrendChart } from './TrendChart.jsx';
+import './PeriodFilter.css';
 import { formatDate, formatDateTime, formatNumber } from '../pages/Account/groups/groupFormat.js';
 
 export const NO_DATA = 'Sin datos disponibles';
 
-/** Períodos del backend: 7, 30 o 90 días, o un rango de fechas. */
-export function PeriodFilter({ value, onChange, idPrefix = 'periodo', days = [7, 30, 90], compact = false }) {
+/** Filtro de período: accesos rápidos (días) como segmentos y, en «Personalizado», un rango desde/hasta. */
+export function PeriodFilter({ value, onChange, idPrefix = 'periodo', days = [7, 30, 90] }) {
   const [customMode, setCustomMode] = useState(Boolean(value.desde || value.hasta));
   const custom = customMode || Boolean(value.desde || value.hasta);
   const [draft, setDraft] = useState({ desde: value.desde ?? '', hasta: value.hasta ?? '' });
+  const labelId = `${idPrefix}-label`;
 
-  function choose(event) {
-    const selected = event.target.value;
-    if (selected === 'rango') {
-      setCustomMode(true);
-      onChange({ desde: draft.desde || undefined, hasta: draft.hasta || undefined, dias: 30 });
-    } else {
-      setCustomMode(false);
-      onChange({ dias: Number(selected) });
-    }
+  function pickDays(count) {
+    setCustomMode(false);
+    onChange({ dias: count });
+  }
+
+  // Solo muestra los campos: el período no cambia hasta que se elige al menos una fecha.
+  function pickCustom() {
+    setCustomMode(true);
+    if (draft.desde || draft.hasta) onChange({ desde: draft.desde || undefined, hasta: draft.hasta || undefined, dias: 30 });
   }
 
   function dates(field) {
@@ -37,28 +39,33 @@ export function PeriodFilter({ value, onChange, idPrefix = 'periodo', days = [7,
 
   const invalid = custom && draft.desde && draft.hasta && draft.hasta < draft.desde;
   return (
-    <form className={`form-grid measurement-filters${compact ? ' is-compact' : ''}`} aria-label="Filtro de período" onSubmit={(event) => event.preventDefault()}>
-      <div className="field">
-        <label className="field-label" htmlFor={`${idPrefix}-select`}>Período</label>
-        <div className="period-select">
-          {compact && <CalendarDays size={18} aria-hidden="true" />}
-          <select id={`${idPrefix}-select`} className="field-input field-select" value={custom ? 'rango' : value.dias} onChange={choose}>
-            {days.map((count) => <option key={count} value={count}>{count === 1 ? 'Últimas 24 horas' : `Últimos ${count} días`}</option>)}
-            <option value="rango">Período personalizado</option>
-          </select>
-        </div>
+    <form className="pf-filter" aria-label="Filtro de período" onSubmit={(event) => event.preventDefault()}>
+      <span className="pf-title" id={labelId}><CalendarDays size={16} aria-hidden="true" />Período</span>
+      <div className="pf-segments" role="group" aria-labelledby={labelId}>
+        {days.map((count) => {
+          const active = !custom && value.dias === count;
+          return (
+            <button key={count} type="button" className={`pf-seg${active ? ' is-active' : ''}`} aria-pressed={active} onClick={() => pickDays(count)}>
+              {count === 1 ? '24 h' : `${count} días`}
+            </button>
+          );
+        })}
+        <button type="button" className={`pf-seg${custom ? ' is-active' : ''}`} aria-pressed={custom} onClick={pickCustom}>
+          Personalizado
+        </button>
       </div>
       {custom && (
-        <>
-          <div className="field">
-            <label className="field-label" htmlFor={`${idPrefix}-desde`}>Desde</label>
-            <input id={`${idPrefix}-desde`} type="date" className="field-input" value={draft.desde} onChange={dates('desde')} />
-          </div>
-          <div className="field">
-            <label className="field-label" htmlFor={`${idPrefix}-hasta`}>Hasta</label>
-            <input id={`${idPrefix}-hasta`} type="date" className="field-input" value={draft.hasta} onChange={dates('hasta')} />
-          </div>
-        </>
+        <div className="pf-range">
+          <label className="pf-date" htmlFor={`${idPrefix}-desde`}>
+            <span>Desde</span>
+            <input id={`${idPrefix}-desde`} type="date" value={draft.desde} max={draft.hasta || undefined} onChange={dates('desde')} />
+          </label>
+          <ArrowRight className="pf-sep" size={18} aria-hidden="true" />
+          <label className="pf-date" htmlFor={`${idPrefix}-hasta`}>
+            <span>Hasta</span>
+            <input id={`${idPrefix}-hasta`} type="date" value={draft.hasta} min={draft.desde || undefined} onChange={dates('hasta')} />
+          </label>
+        </div>
       )}
       {invalid && <p className="field-error" role="alert">La fecha final no puede ser anterior a la inicial.</p>}
     </form>

@@ -38,7 +38,7 @@ from types import SimpleNamespace
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -217,6 +217,7 @@ def _permissions(db: Session, access: Access) -> MatrixPermissions:
         puedeActivar=manage and matrix.estado in (BORRADOR, INACTIVA),
         puedeDesactivar=manage and matrix.estado == ACTIVA,
         puedeArchivar=manage and matrix.estado in (BORRADOR, INACTIVA),
+        puedeEliminar=manage and matrix.estado != ACTIVA and _usage(db, matrix.idMatriz) == 0,
         puedeCrearVersion=manage and matrix.estado != BORRADOR,
         puedeVerAuditoria=access.canAudit,
     )
@@ -726,6 +727,22 @@ def archive(db: Session, actor: User, idMatriz: uuid.UUID) -> MatrixDetail:
     db.commit()
     db.expire_all()
     return _detail(db, _access(db, actor, idMatriz))
+
+
+def deleteVersion(db: Session, actor: User, idMatriz: uuid.UUID) -> None:
+    """Borra una versión que nunca se usó en una medición (sus reglas se borran con ella). Una ACTIVA primero se desactiva;
+    una versión usada se conserva en el historial: para retirarla se archiva."""
+    access = _access(db, actor, idMatriz)
+    _requireManage(db, actor, access, "ELIMINAR_MATRIZ")
+    matrix = access.matrix
+    if matrix.estado == ACTIVA:
+        raise _error("MATRIZ_ESTADO_INVALIDO", "No se borra una versión activa: desactivala primero.")
+    if _usage(db, idMatriz) > 0:
+        raise _error("MATRIZ_CON_MEDICIONES", "Esta versión se usó en mediciones: no se borra, se archiva para conservar el historial.")
+    _audit(db, actor, "ELIMINAR_MATRIZ", matrix)
+    db.execute(delete(MatrixRule).where(MatrixRule.idMatriz == idMatriz))
+    db.execute(delete(Matrix).where(Matrix.idMatriz == idMatriz, Matrix.estado != ACTIVA))
+    db.commit()
 
 
 # --- Exportación de una matriz con sus reglas (CSV) ----------------------------------------------------------------------------

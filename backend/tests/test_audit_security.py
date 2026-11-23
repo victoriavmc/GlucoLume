@@ -673,7 +673,7 @@ def test_el_endpoint_de_senales_acota_el_periodo_y_los_umbrales(db, mails, admin
     assert http.get("/api/v1/audit/security/signals?fallosPorCuenta=1").status_code == 422
     assert http.get("/api/v1/audit/security/signals?ventanaMinutos=5000").status_code == 422
     far = (date.today() - timedelta(days=90)).isoformat()
-    assert http.get(f"/api/v1/audit/security/signals?desde={far}").json()["detail"].startswith("El análisis de seguridad admite")
+    assert http.get(f"/api/v1/audit/security/signals?desde={far}").status_code == 200  # cualquier período: el análisis acota las filas
     body = http.get("/api/v1/audit/security/signals?fallosPorCuenta=3&ventanaMinutos=30").json()
     assert body["umbrales"]["fallosPorCuenta"] == 3 and body["umbrales"]["ventanaMinutos"] == 30 and body["contextoDisponible"] is True
 

@@ -54,6 +54,10 @@ class InstitutionFilters(BaseModel):
     desde: date | None = None
     hasta: date | None = None
     critica: bool | None = None
+    # Uso de la cuenta que obró: institucional (USUARIO_INSTITUCIONAL) o individual (CONSUMIDOR_FINAL).
+    uso: Literal["INSTITUCION", "INDIVIDUAL", "PLATAFORMA", "SIN_CUENTA"] | None = None
+    # Operaciones críticas según su análisis: TODAS_CRITICAS, CRITICA_ANALIZADA o CRITICA_SIN_ANALIZAR.
+    estadoCritico: Literal["TODAS_CRITICAS", "CRITICA_ANALIZADA", "CRITICA_SIN_ANALIZAR"] | None = None
 
 
 class GlobalFilters(InstitutionFilters):

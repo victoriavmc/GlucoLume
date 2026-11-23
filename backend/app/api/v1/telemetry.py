@@ -26,6 +26,7 @@ from app.api.streams import Revalidator, openStreamSlot
 from app.core.config import getSettings
 from app.core.exceptions import AuthError
 from app.db.session import getSessionFactory
+from app.services import individualDevice
 from app.schemas.acquisition import (
     BridgeCheckRead,
     BridgeCheckRequest,
@@ -75,6 +76,15 @@ def requireBridge(request: Request, db: DbSession, token: Annotated[str | None, 
         rateLimit.bridgeFailures.allow(ip)
         raise AuthError("PUENTE_NO_AUTORIZADO", "El puente serie no está autorizado.")
     return bridgeCredentials.BridgeIdentity(credentialId=None, deviceCode=None, shared=True)
+
+
+@router.post("/individual/conectar", summary="Conectar el dispositivo de prueba de una cuenta individual",
+             description="Solo cuentas individuales con el puente conectado. Si el dispositivo vinculado está OPERATIVO, solo confirma la conexión "
+             "y no crea nada. Si no está OPERATIVO, crea un dispositivo de prueba nuevo, lo vincula a la cuenta y deja el anterior intacto.")
+def connectIndividualTestDevice(auth: CurrentAuth, db: DbSession):
+    device = individualDevice.connectTestDevice(db, auth.user)
+    return {"idDispositivo": str(device.idDispositivo), "codigoDispositivo": device.codigoDispositivo, "nombre": device.nombre,
+            "estado": device.estado}
 
 
 @router.post("/bridge/ingest", response_model=BridgeIngestRead, summary="Recepción de lecturas del puente serie",

@@ -68,7 +68,7 @@ GRANT SELECT, INSERT, UPDATE, EXECUTE ON SCHEMA::dbo TO rol_glucolume_retencion;
 REVOKE DELETE ON SCHEMA::dbo FROM rol_glucolume_api;
 REVOKE DELETE ON SCHEMA::dbo FROM rol_glucolume_retencion;
 
--- DELETE, una tabla por vez. API: tokens, credenciales y factores de cuenta, sesiones, datos de prueba (DEMO) y su material derivado, reglas en borrador,
+-- DELETE, una tabla por vez. API: tokens, credenciales y factores de cuenta, sesiones, datos de prueba (DEMO) y su material derivado, reglas en borrador, versiones de matriz nunca usadas,
 -- cuentas sin verificar vencidas (con sus consentimientos) y la auditoria tecnica anonima de mediciones. No incluye Auditoria ni AuditoriaContexto.
 GRANT DELETE ON OBJECT::dbo.AuditoriaRevision TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.AuditoriaTecnicaMedicion TO rol_glucolume_api;
@@ -79,6 +79,7 @@ GRANT DELETE ON OBJECT::dbo.CredencialLocalHistorial TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.EnvioResultado TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.FactorMfa TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.IdentidadExterna TO rol_glucolume_api;
+GRANT DELETE ON OBJECT::dbo.Matriz TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.Medicion TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.MedicionReferenciaCapilar TO rol_glucolume_api;
 GRANT DELETE ON OBJECT::dbo.MuestraSensor TO rol_glucolume_api;
@@ -96,6 +97,7 @@ GRANT DELETE ON OBJECT::dbo.CredencialLocalHistorial TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.EnvioResultado TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.FactorMfa TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.IdentidadExterna TO rol_glucolume_retencion;
+GRANT DELETE ON OBJECT::dbo.Matriz TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.Medicion TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.MedicionReferenciaCapilar TO rol_glucolume_retencion;
 GRANT DELETE ON OBJECT::dbo.MuestraSensor TO rol_glucolume_retencion;

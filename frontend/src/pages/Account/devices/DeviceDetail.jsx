@@ -2,17 +2,25 @@
 // institución y estado, calculados por FastAPI) y cada operación se vuelve a validar en el servidor. Cambiar la
 // asignación, el estado o el firmware no modifica las mediciones anteriores: conservan lo que tenía el dispositivo al medir.
 
-import { Ban, Cpu, Link2Off, Pencil, UserCog } from 'lucide-react';
+import { Ban, Cpu, Download, Link2Off, Pencil, UserCog } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Badge, toneFromClass } from '../../../components/Badge.jsx';
 import { Alert, SelectField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
+import { saveBlob } from '../../../utils/downloadFile.js';
+import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
+import '../institutions/exportControls.css';
 import { DeviceForm } from './DeviceForm.jsx';
 import { DEVICE_STATES, EDITABLE_STATES, formatDateTime, personLabel, stateBadge } from './deviceFormat.js';
 
 const MODES = { OXIMETRIA: 'Oximetría', GLUCOSA_EXPERIMENTAL: 'Glucosa (experimental)' };
 const MEASUREMENT_STATES = {
   PENDIENTE: 'Pendiente', ADQUIRIENDO: 'Adquiriendo', PROCESANDO: 'Procesando', COMPLETADA: 'Completada', INVALIDA: 'Inválida', CANCELADA: 'Cancelada',
+};
+
+// Tono de cada estado de medición: completada en verde, cancelada e inválida en rojo, en curso en azul.
+const MEASUREMENT_TONES = {
+  COMPLETADA: 'success', CANCELADA: 'danger', INVALIDA: 'danger', PENDIENTE: 'info', ADQUIRIENDO: 'info', PROCESANDO: 'info',
 };
 
 const REGISTRATION_ORIGINS = {
@@ -47,6 +55,10 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
   const [institutionOptions, setInstitutionOptions] = useState([]);
   const [assignMembers, setAssignMembers] = useState([]);
   const [measurements, setMeasurements] = useState(null);
+  const [exportFormat, setExportFormat] = useState('csv');
+  const [exporting, setExporting] = useState(false);
+  const [measurementsPage, setMeasurementsPage] = useState(1);
+  const [measurementsEstado, setMeasurementsEstado] = useState('');
 
   const adopt = useCallback((loaded) => {
     setDevice(loaded);
@@ -75,8 +87,9 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
 
   useEffect(() => {
     if (!permisos?.puedeVerMediciones) return;
-    api.measurements(idDispositivo).then(setMeasurements, () => setMeasurements({ items: [], total: 0 }));
-  }, [api, idDispositivo, permisos?.puedeVerMediciones, device?.estado, device?.idInstitucionAsignada]);
+    api.measurements(idDispositivo, measurementsPage, measurementsEstado)
+      .then(setMeasurements, () => setMeasurements({ items: [], total: 0, pagina: measurementsPage, tamanioPagina: 25 }));
+  }, [api, idDispositivo, measurementsPage, measurementsEstado, permisos?.puedeVerMediciones, device?.estado, device?.idInstitucionAsignada]);
 
   useEffect(() => {
     if (!permisos?.puedeCambiarResponsable || !device?.idInstitucionAsignada) return;
@@ -92,6 +105,21 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
     if (!assign.institucion) { setAssignMembers([]); return; }
     api.institutionResponsibles(assign.institucion).then(setAssignMembers, () => setAssignMembers([]));
   }, [api, assign.institucion]);
+
+  async function exportDevice() {
+    setExporting(true);
+    setError('');
+    setNotice('');
+    try {
+      const { blob, filename } = await api.exportOne(idDispositivo, exportFormat);
+      saveBlob(blob, filename);
+      setNotice(`Exportación lista: ${filename}.`);
+    } catch (failure) {
+      setError(handleOperationError(failure));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function run(call, message) {
     setBusy(true);
@@ -143,13 +171,32 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
           <Row label="Sensor">{device.modeloSensor}</Row>
           <Row label="Firmware">{device.versionFirmware}</Row>
           <Row label="Estado operativo">{DEVICE_STATES[device.estado]}</Row>
-          <Row label="Estado de conexión">No informado: el inventario no verifica la conexión</Row>
           <Row label="Institución">{institutional ? undefined : device.nombreInstitucion ?? 'Sin asignar'}</Row>
-          <Row label={institutional ? 'Propietario asignado' : 'Responsable'}>{device.responsable ? personLabel(device.responsable) : device.esMio ? 'Vos' : undefined}</Row>
+          {device.cuentasIndividuales?.length > 0 ? (
+            <Row label="Cuenta individual">
+              {device.cuentasIndividuales.map((account) => (
+                <span key={account.correoElectronico} style={{ display: 'block' }}>
+                  {personLabel(account)}{account.correoElectronico ? ` · ${account.correoElectronico}` : ''}
+                </span>
+              ))}
+            </Row>
+          ) : (
+            <Row label={institutional ? 'Propietario asignado' : 'Responsable'}>{device.responsable ? personLabel(device.responsable) : device.esMio ? 'Vos' : undefined}</Row>
+          )}
           <Row label="Registrado">{formatDateTime(device.fechaRegistro)}</Row>
           <Row label="Registrado por">{registrationText(device.registro)}</Row>
           <Row label="Asignado desde">{device.fechaAsignacionInstitucional && formatDateTime(device.fechaAsignacionInstitucional)}</Row>
         </dl>
+        <div className="export-toolbar device-export" role="group" aria-label="Exportar datos del dispositivo">
+          <select className="field-input field-select" aria-label="Formato de exportación" value={exportFormat}
+            onChange={(event) => setExportFormat(event.target.value)}>
+            {EXPORT_FORMATS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <button type="button" className="btn btn-outline btn-sm" disabled={exporting} aria-busy={exporting || undefined}
+            onClick={exportDevice}>
+            <Download size={16} aria-hidden="true" /> Exportar datos del dispositivo
+          </button>
+        </div>
         {retired && <Alert kind="info">Este dispositivo fue descomisionado: se conserva su historial pero ya no admite cambios ni mediciones nuevas.</Alert>}
       </section>
 
@@ -178,7 +225,8 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
         </section>
       )}
 
-      {permisos.puedeAsignarInstitucion && (
+      {/* Un dispositivo vinculado a una cuenta individual no se asigna a una institución. */}
+      {permisos.puedeAsignarInstitucion && !device.vinculadoCuentasIndividuales && (
         <section className="panel" aria-labelledby="dispositivo-asignar">
           <div className="panel-title">
             <span className="panel-icon"><UserCog size={22} aria-hidden="true" /></span>
@@ -268,10 +316,17 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
             Sin datos de los pacientes. Cada medición muestra el sensor y el firmware que tenía el dispositivo en ese momento.
             {institutional ? ' Solo se incluyen pacientes de esta institución.' : ''}
           </p>
+          <div className="form-grid">
+            <SelectField label="Estado de la medición" value={measurementsEstado}
+              onChange={(event) => { setMeasurementsEstado(event.target.value); setMeasurementsPage(1); }}>
+              <option value="">Todos</option>
+              {Object.entries(MEASUREMENT_STATES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </SelectField>
+          </div>
           {measurements === null ? (
             <p className="field-hint" role="status">Cargando mediciones…</p>
           ) : measurements.items.length === 0 ? (
-            <p className="field-hint">Todavía no hay mediciones con este dispositivo.</p>
+            <p className="field-hint">{measurementsEstado ? 'No hay mediciones en ese estado.' : 'Todavía no hay mediciones con este dispositivo.'}</p>
           ) : (
             <ul className="member-list-items" aria-label="Mediciones del dispositivo">
               {measurements.items.map((item) => (
@@ -281,10 +336,18 @@ export function DeviceDetail({ idDispositivo, api, institutional, handleOperatio
                     <small> · {MODES[item.modoMedicion] ?? item.modoMedicion} · {item.modeloSensorAlMomento ?? '—'} · firmware {item.versionFirmwareAlMomento ?? '—'}
                       {item.nombreInstitucion ? ` · ${item.nombreInstitucion}` : ''}</small>
                   </span>
-                  <Badge tone="neutral">{MEASUREMENT_STATES[item.estadoMedicion] ?? item.estadoMedicion}</Badge>
+                  <Badge tone={MEASUREMENT_TONES[item.estadoMedicion] ?? 'neutral'}>{MEASUREMENT_STATES[item.estadoMedicion] ?? item.estadoMedicion}</Badge>
                 </li>
               ))}
             </ul>
+          )}
+          {measurements && measurements.total > (measurements.tamanioPagina || 25) && (
+            <nav aria-label="Paginación de mediciones" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={measurementsPage <= 1} onClick={() => setMeasurementsPage((page) => page - 1)}>Anterior</button>
+              <span>Página {measurementsPage} de {Math.ceil(measurements.total / (measurements.tamanioPagina || 25))} · {measurements.total} mediciones</span>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={measurementsPage >= Math.ceil(measurements.total / (measurements.tamanioPagina || 25))}
+                onClick={() => setMeasurementsPage((page) => page + 1)}>Siguiente</button>
+            </nav>
           )}
         </section>
       )}

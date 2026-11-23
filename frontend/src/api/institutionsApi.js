@@ -81,6 +81,19 @@ export function exportPatients(idInstitucion, body, formato = 'csv') {
   return postExport(`/institutions/${idInstitucion}/patients/export`, body, 'pacientes-institucion', formato);
 }
 
+/**
+ * POST /platform/institutions/export -> { blob, filename }. `body`: { alcance: 'SELECCION', idsInstitucion } o
+ * { alcance: 'TODAS', busqueda?, estado? }. Solo administración de la plataforma.
+ */
+/** POST /platform/institutions/{id}/informe -> { blob, filename }. Informe de UNA institución con sus secciones. Solo plataforma. */
+export function exportPlatformInstitutionReport(idInstitucion, formato = 'csv') {
+  return postExport(`/platform/institutions/${idInstitucion}/informe`, undefined, 'informe-institucion', formato);
+}
+
+export function exportPlatformInstitutions(body, formato = 'csv') {
+  return postExport('/platform/institutions/export', body, 'instituciones', formato);
+}
+
 /** -> { nombre, apellido, rolPropuesto } solo si la cuenta se puede invitar; si no, un error con el motivo. */
 export function lookupMember(idInstitucion, rol, correoElectronico) {
   return request(`${membersPath(idInstitucion, rol)}/lookup`, {

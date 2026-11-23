@@ -4,7 +4,7 @@
 // clave, instituciones, cuentas, dispositivos, mediciones operativas y seguridad.
 
 import {
-  Activity, Building2, CalendarDays, Cpu, FileText, KeyRound, ShieldCheck, User, Users,
+  Activity, AlertCircle, Building2, CalendarDays, Cpu, Download, FileText, KeyRound, Layers, Lock, ShieldCheck, User, Users,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -52,22 +52,11 @@ const ACCESS_TYPES = [
   { key: 'plataforma', icon: ShieldCheck, label: 'Accesos de sistema / plataforma' },
 ];
 
-/** El número destacado son los intentos fallidos (color de advertencia si hay); los ingresos correctos van debajo. */
+/** El número son los intentos fallidos (color de advertencia si hay). */
 function AccessStat({ icon, label, counts }) {
   return (
-    <Stat icon={icon} label={label} value={n(counts.fallidos)} hint={`intentos fallidos · ${n(counts.exitosos)} ingresos correctos`}
+    <Stat icon={icon} label={label} value={n(counts.fallidos)}
       tone={counts.fallidos > 0 ? 'warn' : 'ok'} />
-  );
-}
-
-/** Intentos sin cuenta identificable (identificador inexistente) o con contexto contradictorio: no se asignan a ningún tipo. */
-function UnclassifiedAccess({ counts }) {
-  if (counts.fallidos + counts.exitosos === 0) return null;
-  return (
-    <p className="field-hint pd-unclassified">
-      Sin clasificar: {n(counts.fallidos)} {counts.fallidos === 1 ? 'intento fallido' : 'intentos fallidos'} · {n(counts.exitosos)} {counts.exitosos === 1 ? 'ingreso correcto' : 'ingresos correctos'}.
-      {' '}Son intentos sin una cuenta identificable (por ejemplo, un usuario o correo inexistente) o con datos contradictorios, y no se suman a ningún tipo de cuenta.
-    </p>
   );
 }
 
@@ -156,6 +145,114 @@ function EventList({ events, label }) {
   );
 }
 
+const ACTION_LABELS = {
+  EXPORTACION_SOLICITADA: 'Exportación solicitada', EXPORTACION_COMPLETADA: 'Exportación completada', EXPORTACION_FALLIDA: 'Exportación fallida',
+  ERROR_INTERNO: 'Error de servidor inesperado',
+};
+
+/** Nombre legible de una acción de auditoría; las que no están en la tabla se leen en minúsculas, con mayúscula inicial. */
+function actionLabel(accion) {
+  const text = ACTION_LABELS[accion] ?? accion.toLowerCase().replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function SecurityKpi({ icon: Icon, label, value, hint, tone = 'ok' }) {
+  return (
+    <li className={`pd-sec-kpi is-${tone}`}>
+      <span className="pd-sec-kpi-icon" aria-hidden="true"><Icon size={22} /></span>
+      <div>
+        <small>{label}</small>
+        <b>{value}</b>
+        {hint && <span className="pd-hint">{hint}</span>}
+      </div>
+    </li>
+  );
+}
+
+/** Motivos de acceso fallido como barras proporcionales al máximo del período. */
+function ReasonBars({ reasons }) {
+  if (reasons.length === 0) return <p className="field-hint">Sin accesos fallidos en el período.</p>;
+  const max = Math.max(...reasons.map((reason) => reason.total), 1);
+  return (
+    <ul className="pd-sec-bars" aria-label="Motivos principales de acceso fallido">
+      {reasons.map((reason) => (
+        <li key={reason.clave}>
+          <span>{reason.clave}</span>
+          <span className="pd-sec-bar-track" aria-hidden="true"><span style={{ width: `${(reason.total / max) * 100}%` }} /></span>
+          <b>{n(reason.total)}</b>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Lista de eventos: verde si salió bien, rojo si falló o si es una alerta operativa. */
+function ActivityFeed({ events, label, alert = false, empty }) {
+  if (events.length === 0) return <p className="field-hint">{empty}</p>;
+  return (
+    <ul className="pd-sec-feed" aria-label={label}>
+      {events.map((event) => {
+        const failed = event.resultado === 'FALLO';
+        return (
+          <li key={event.idAuditoria} className="pd-sec-row">
+            <span className={`pd-dot is-${alert || failed ? 'danger' : 'ok'}`} aria-hidden="true" />
+            <span className="pd-sec-text"><b>{actionLabel(event.accion)}</b> · {event.modulo ?? 'SISTEMA'}{failed ? ' · fallido' : ''}</span>
+            <small>{formatInstant(event.fechaHora)}</small>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Seguridad y actividad del período (solo administración): indicadores, motivos de fallo, actividad y alertas recientes. */
+function SecuritySection({ data, sec }) {
+  return (
+    <section className="pd-sec" aria-labelledby="pd-seguridad">
+      <header className="pd-sec-head">
+        <span className="pd-sec-icon" aria-hidden="true"><ShieldCheck size={26} /></span>
+        <div>
+          <h2 id="pd-seguridad">Seguridad y actividad</h2>
+          <p>Resumen del período. Solo eventos relevantes y alertas prioritarias.</p>
+        </div>
+        <Link to="/plataforma/auditoria" className="btn btn-outline pd-sec-link"><KeyRound size={16} aria-hidden="true" /> Auditoría y seguridad</Link>
+      </header>
+      <ul className="pd-sec-kpis" aria-label="Indicadores de seguridad">
+        <SecurityKpi icon={Lock} label="Intentos fallidos" value={n(sec.loginsFallidos)} tone={sec.loginsFallidos > 0 ? 'warn' : 'ok'} />
+        <SecurityKpi icon={Users} label="Cuentas con riesgo" value={n(sec.cuentasConFallosRepetidos)} hint="3 o más contraseñas incorrectas"
+          tone={sec.cuentasConFallosRepetidos > 0 ? 'warn' : 'ok'} />
+        <SecurityKpi icon={AlertCircle} label="Eventos críticos" value={n(sec.eventosCriticos)} tone={sec.eventosCriticos > 0 ? 'danger' : 'ok'} />
+        <SecurityKpi icon={Layers} label="Operaciones administrativas" value={n(sec.operacionesAdministrativas)} />
+        <SecurityKpi icon={Download} label="Exportaciones de datos" value={n(sec.exportaciones)}
+          hint={sec.exportaciones === 0 ? 'ninguna registrada' : undefined} />
+      </ul>
+      <p className={`pd-sec-pill ${sec.bloqueosTemporales > 0 ? 'is-warn' : 'is-ok'}`}>
+        <span className="pd-dot" aria-hidden="true" /> Bloqueos vigentes: {n(sec.bloqueosTemporales)}
+      </p>
+      <div className="pd-sec-panels">
+        <section className="pd-sec-panel" aria-labelledby="pd-motivos">
+          <header><h3 id="pd-motivos">Motivos principales de acceso fallido</h3></header>
+          <ReasonBars reasons={sec.motivosFallo} />
+        </section>
+        <section className="pd-sec-panel" aria-labelledby="pd-actividad">
+          <header>
+            <h3 id="pd-actividad">Actividad reciente</h3>
+            <span className="pd-sec-chip">{n(sec.operacionesAdministrativas)} operaciones en el período</span>
+          </header>
+          <ActivityFeed events={data.operacionesAdministrativas} label="Actividad reciente" empty="Sin operaciones en el período." />
+        </section>
+      </div>
+      <section className="pd-sec-panel" aria-labelledby="pd-alertas">
+        <header>
+          <h3 id="pd-alertas">Alertas operativas recientes</h3>
+          <span className="pd-sec-chip is-danger">{n(data.erroresRecientes.length)} errores recientes</span>
+        </header>
+        <ActivityFeed events={data.erroresRecientes} label="Alertas operativas recientes" alert empty="Sin errores recientes en el período." />
+      </section>
+    </section>
+  );
+}
+
 export function PlatformDashboardPage() {
   const { me } = usePlatform();
   const [period, setPeriod] = useState({ dias: 30 });
@@ -198,41 +295,46 @@ export function PlatformDashboardPage() {
         actions={<span className="pd-date"><CalendarDays size={16} aria-hidden="true" /> {today}</span>} />
       {error && <Alert>{error}</Alert>}
       <HealthStrip system={system.value} failed={system.failed} />
+      <div className="pd-period">
+        <PeriodFilter value={period} onChange={setPeriod} idPrefix="dash-plataforma" />
+      </div>
       {!data && !error && <p className="field-hint" role="status">Cargando indicadores…</p>}
       {data && (
         <>
-          <div className="pd-period">
-            <PeriodFilter value={period} onChange={setPeriod} idPrefix="dash-plataforma" compact />
-            <p className="field-hint">Período: {periodLabel(data.periodo)}.</p>
-          </div>
 
-          <ul className="pd-stats" aria-label="Indicadores principales">
-            {admin && <Stat icon={Users} label="Cuentas registradas" value={n(users.total)} hint={`${n(users.activas)} activas · ${n(users.inactivas)} inactivas`} />}
-            {admin && <Stat icon={Building2} label="Instituciones activas" value={n(data.instituciones.activas)} hint={`de ${n(data.instituciones.total)} en total`} />}
-            <Stat icon={Cpu} label="Dispositivos operativos" value={n(devices.operativos)} hint={`de ${n(devices.total)} registrados`}
-              tone={devices.fueraDeServicio > 0 ? 'warn' : 'ok'} />
-            <Stat icon={FileText} label="Mediciones del período" value={n(meas.enPeriodo)} hint="volumen operativo, sin valores clínicos" />
-          </ul>
+          <section className="pd-summary" aria-labelledby="pd-resumen">
+            <header className="pd-summary-head">
+              <h2 id="pd-resumen">Resumen</h2>
+              <small>{periodLabel(data.periodo)}</small>
+            </header>
+            <ul className="pd-stats" aria-label="Indicadores principales">
+              {admin && <Stat icon={Users} label="Cuentas registradas" value={n(users.total)} hint={`${n(users.activas)} activas · ${n(users.inactivas)} inactivas`} />}
+              {admin && <Stat icon={Building2} label="Instituciones activas" value={n(data.instituciones.activas)} hint={`de ${n(data.instituciones.total)} en total`} />}
+              <Stat icon={Cpu} label="Dispositivos operativos" value={n(devices.operativos)} hint={`de ${n(devices.total)} registrados`}
+                tone={devices.fueraDeServicio > 0 ? 'warn' : 'ok'} />
+              <Stat icon={FileText} label="Mediciones del período" value={n(meas.enPeriodo)} hint="volumen operativo, sin valores clínicos" />
+            </ul>
+
+            {admin && (
+              <>
+                <ul className="pd-stats" aria-label="Accesos por tipo de cuenta">
+                  {ACCESS_TYPES.map(({ key, icon, label }) => <AccessStat key={key} icon={icon} label={label} counts={sec.accesosPorTipo[key]} />)}
+                </ul>
+              </>
+            )}
+          </section>
 
           {admin && (
-            <>
-              <ul className="pd-stats" aria-label="Accesos por tipo de cuenta">
-                {ACCESS_TYPES.map(({ key, icon, label }) => <AccessStat key={key} icon={icon} label={label} counts={sec.accesosPorTipo[key]} />)}
-              </ul>
-              <UnclassifiedAccess counts={sec.accesosPorTipo.sinClasificar} />
-            </>
-          )}
-
-          {admin && (
-            <Card id="pd-instituciones" icon={Building2} title="Instituciones" subtitle="Buscá una institución y abrí su detalle administrativo.">
+            <Card id="pd-instituciones" icon={Building2} title="Instituciones" subtitle="Resumen de las instituciones de la plataforma."
+              action={<Link to="/plataforma/instituciones" className="btn btn-outline btn-sm">Mostrar instituciones →</Link>}>
               <dl className="pd-minis" aria-label="Resumen de instituciones">
                 <Mini label="Activas" value={n(data.instituciones.activas)} />
                 <Mini label="Pausadas" value={n(data.instituciones.inactivas)} />
                 <Mini label="Cerradas" value={n(data.instituciones.cerradas)} />
+                <Mini label="Cuentas institucionales" value={n(data.instituciones.cuentasInstitucionales)} hint="propietarios, moderadores y operadores" />
                 <Mini label="Moderadores institucionales" value={n(data.instituciones.moderadores)} />
                 <Mini label="Operadores institucionales" value={n(data.instituciones.operadores)} />
               </dl>
-              <InstitutionsTable pageSize={8} compact />
             </Card>
           )}
 
@@ -244,32 +346,31 @@ export function PlatformDashboardPage() {
 
           <div className="pd-grid">
             {admin && (
-              <Card id="pd-cuentas" icon={Users} title="Cuentas y grupos" subtitle="Cada cuenta se cuenta una sola vez, según su tipo.">
+              <Card id="pd-cuentas" icon={Users} title="Cuentas y grupos" subtitle="Cada cuenta se cuenta una sola vez, según su tipo." className="pd-card-cuentas">
                 <dl className="pd-minis" aria-label="Cuentas">
-                  <Mini label="Individuales" value={n(users.individuales)} />
-                  <Mini label="Institucionales" value={n(users.institucionales)} hint={`${n(users.conVinculoInstitucional)} con vínculo activo · ${n(users.institucionalesSinVinculo)} sin vínculo`} />
-                  <Mini label="Administración" value={n(users.plataforma)} hint="administrador y moderadores del sistema" />
-                  <Mini label="Registradas en 7 días" value={n(users.registradas7Dias)} />
-                  <Mini label="Registradas en el período" value={n(users.registradasPeriodo)} />
-                  <Mini label="Grupos" value={n(data.grupos.total)} hint={`${n(data.grupos.activos)} activos · ${n(data.grupos.usuariosAgrupados)} personas agrupadas`} />
+                  <Mini label="Cuentas individuales" value={n(users.individuales)} hint="solo clientes (no institucionales ni administrativos)" />
+                  <Mini label="Cuentas grupales" value={n(data.grupos.usuariosAgrupados)} hint="personas agrupadas" />
+                  <Mini label="Grupos" value={n(data.grupos.total)} hint={`${n(data.grupos.activos)} activos`} />
+                  <Mini label="Registradas en el período" value={n(users.noInstitucionalesRegistradasPeriodo)} hint="sin contar las institucionales" />
                 </dl>
-                <p className="field-hint">
-                  «Con vínculo activo» son las cuentas internas de una institución: una persona con varios roles o instituciones cuenta una vez.
-                </p>
               </Card>
             )}
 
-            <Card id="pd-dispositivos" icon={Cpu} title="Dispositivos" subtitle="Disponibilidad técnica, aparte del resultado de cada medición.">
+            <Card id="pd-dispositivos" icon={Cpu} title="Dispositivos" subtitle="Disponibilidad técnica, aparte del resultado de cada medición."
+              className="pd-card-dispositivos"
+              action={<Link to="/plataforma/dispositivos" className="btn btn-outline btn-sm">Ver inventario de dispositivos →</Link>}>
               <DeviceBar devices={devices} />
               <dl className="pd-minis" aria-label="Dispositivos">
+                <Mini label="Total de dispositivos" value={n(devices.total)} />
                 <Mini label="Asignados a instituciones" value={n(devices.asignados)} />
+                <Mini label="Asignados a cuentas individuales" value={devices.asignadosCuentasIndividuales == null ? 'No disponible' : n(devices.asignadosCuentasIndividuales)}
+                  hint={devices.asignadosCuentasIndividuales == null ? 'la base todavía no registra estos vínculos' : 'dispositivos vinculados a al menos una cuenta individual'} />
                 <Mini label="Sin asignar" value={n(devices.sinAsignar)} />
-                <Mini label="Con lecturas inválidas (7 días)" value={n(devices.conLecturasInvalidasRecientes)}
-                  hint="señal para revisarlos; una lectura cancelada no implica avería" />
-                <Mini label="Desconectados" value={devices.desconectados == null ? 'No disponible' : n(devices.desconectados)}
-                  hint={devices.conexionVerificable ? undefined : 'el sistema no registra la conexión de cada dispositivo'} />
+                <Mini label="Operativos" value={n(devices.operativos)} />
+                <Mini label="En mantenimiento" value={n(devices.enMantenimiento)} />
+                <Mini label="Fuera de servicio" value={n(devices.fueraDeServicio)} />
+                <Mini label="Descomisionados" value={n(devices.descomisionados)} />
               </dl>
-              <Link to="/plataforma/dispositivos" className="text-link">Ver el inventario de dispositivos</Link>
             </Card>
           </div>
 
@@ -298,35 +399,7 @@ export function PlatformDashboardPage() {
             </div>
           </Card>
 
-          {admin && (
-            <Card id="pd-seguridad" icon={ShieldCheck} title="Seguridad y actividad" subtitle="Resumen del período. El detalle está en Auditoría y seguridad."
-              action={<Link to="/plataforma/auditoria" className="btn btn-outline btn-sm"><KeyRound size={15} aria-hidden="true" /> Auditoría y seguridad</Link>}>
-              <dl className="pd-minis" aria-label="Seguridad">
-                <Mini label="Intentos de acceso fallidos" value={n(sec.loginsFallidos)} />
-                <Mini label="Cuentas con accesos fallidos repetidos" value={n(sec.cuentasConFallosRepetidos)} hint="3 o más contraseñas incorrectas" />
-                <Mini label="Cuentas bloqueadas" value={n(sec.cuentasBloqueadas)} hint={`${n(sec.bloqueosTemporales)} con bloqueo temporal vigente`} />
-                <Mini label="Eventos críticos" value={n(sec.eventosCriticos)} />
-                <Mini label="Operaciones administrativas" value={n(sec.operacionesAdministrativas)} />
-                <Mini label="Exportaciones de datos" value={n(sec.exportaciones)} hint={sec.exportaciones === 0 ? 'ninguna registrada' : undefined} />
-              </dl>
-              <div className="pd-split">
-                <div>
-                  <h3>Motivos de los accesos fallidos</h3>
-                  {sec.motivosFallo.length === 0 ? <p className="field-hint">Sin accesos fallidos en el período.</p> : (
-                    <ul className="pd-reasons" aria-label="Motivos de los accesos fallidos">
-                      {sec.motivosFallo.map((reason) => <li key={reason.clave}><span>{reason.clave}</span><b>{n(reason.total)}</b></li>)}
-                    </ul>
-                  )}
-                </div>
-                <div>
-                  <h3>Operaciones administrativas recientes</h3>
-                  <EventList events={data.operacionesAdministrativas} label="Operaciones administrativas recientes" />
-                </div>
-              </div>
-              <h3>Errores operativos recientes</h3>
-              <EventList events={data.erroresRecientes} label="Errores operativos recientes" />
-            </Card>
-          )}
+          {admin && <SecuritySection data={data} sec={sec} />}
         </>
       )}
     </div>

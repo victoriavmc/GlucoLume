@@ -5,15 +5,16 @@
 # viven en backend/app/services/device.py. Ninguna ruta elimina dispositivos: el retiro es el estado BAJA.
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import CurrentAuth, DbSession, PlatformMfaGate
 from app.schemas.device import (
     DeviceAssignRequest,
     DeviceDetail,
     DeviceEditRequest,
+    DeviceExportRequest,
     DeviceInstitutionOption,
     DeviceMeasurementPage,
     DevicePage,
@@ -26,12 +27,21 @@ from app.schemas.device import (
     DeviceSummaryCounts,
 )
 from app.services import device as deviceService
+from app.services import deviceExport, individualDevice
+from app.services.tableExport import FormatoExportacion, mediaTypeOf
+
+MeasurementState = Literal["PENDIENTE", "ADQUIRIENDO", "PROCESANDO", "COMPLETADA", "INVALIDA", "CANCELADA"]
 
 router = APIRouter(prefix="/devices", tags=["devices"], dependencies=[PlatformMfaGate])
 institutionRouter = APIRouter(prefix="/institutions/{idInstitucion}/devices", tags=["devices"])
 
 PageNumber = Annotated[int, Query(ge=1)]
 PageSize = Annotated[int, Query(ge=1, le=deviceService.MAX_PAGE_SIZE)]
+
+
+def _fileResponse(content: bytes, filename: str, formato: str) -> Response:
+    return Response(content=content, media_type=mediaTypeOf(formato),
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 # --- Identificación durante la adquisición ---------------------------------------------------------------------
@@ -51,11 +61,11 @@ def resolveDevice(data: DeviceResolveRequest, auth: CurrentAuth, db: DbSession):
 @router.get("", response_model=DevicePage, summary="Inventario global",
             description="Administrador del sistema y moderación de plataforma. Búsqueda, filtros y paginación en SQL.")
 def listGlobal(auth: CurrentAuth, db: DbSession, busqueda: str | None = None, estado: str | None = None,
-               asignado: bool | None = None, idInstitucion: uuid.UUID | None = None, pagina: PageNumber = 1,
-               tamanioPagina: PageSize = 20):
+               asignado: bool | None = None, idInstitucion: uuid.UUID | None = None,
+               uso: Literal["INSTITUCION", "INDIVIDUAL"] | None = None, pagina: PageNumber = 1, tamanioPagina: PageSize = 20):
     scope = deviceService.platformScope(db, auth.user)
     return deviceService.listDevices(db, scope, busqueda=busqueda, estado=estado, asignado=asignado,
-                                     idInstitucion=idInstitucion, pagina=pagina, tamanioPagina=tamanioPagina)
+                                     idInstitucion=idInstitucion, uso=uso, pagina=pagina, tamanioPagina=tamanioPagina)
 
 
 @router.get("/summary", response_model=DeviceSummaryCounts, summary="Indicadores del inventario global")
@@ -80,6 +90,30 @@ def institutionOptions(auth: CurrentAuth, db: DbSession, busqueda: str | None = 
             summary="Integrantes activos de una institución", description="Solo el administrador del sistema.")
 def institutionResponsibles(idInstitucion: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return deviceService.responsiblesOf(db, deviceService.platformScope(db, auth.user), idInstitucion)
+
+
+@router.get("/vinculos-cuentas", summary="Cuentas individuales vinculadas a cada dispositivo (inventario global)",
+            description="Una fila por vínculo. La cuenta se identifica por una referencia corta, nunca por su nombre ni su correo.")
+def listAccountLinks(auth: CurrentAuth, db: DbSession):
+    return individualDevice.listLinks(db, auth.user)
+
+
+@router.post("/export", response_class=Response, summary="Exportar el inventario global (CSV, Excel o PDF)",
+             description="`alcance` SELECCION (los de `idsDispositivo`) o TODOS (los que coinciden con los filtros del listado). "
+             "`formato` = csv (por defecto), xlsx o pdf. Exporta lo que la cuenta ve; cada exportación queda en la auditoría.")
+def exportGlobal(body: DeviceExportRequest, auth: CurrentAuth, db: DbSession, formato: FormatoExportacion = "csv"):
+    scope = deviceService.platformScope(db, auth.user)
+    content, filename = deviceExport.exportDevices(db, scope, alcance=body.alcance, ids=body.idsDispositivo, busqueda=body.busqueda,
+                                                   estado=body.estado, asignado=body.asignado, uso=body.uso, formato=formato)
+    return _fileResponse(content, filename, formato)
+
+
+@router.post("/{idDispositivo}/export", response_class=Response, summary="Exportar los datos de un dispositivo (CSV, Excel o PDF)",
+             description="`formato` = csv (por defecto), xlsx o pdf. Cada exportación queda en la auditoría.")
+def exportGlobalDevice(idDispositivo: uuid.UUID, auth: CurrentAuth, db: DbSession, formato: FormatoExportacion = "csv"):
+    scope = deviceService.platformScope(db, auth.user)
+    content, filename = deviceExport.exportDevice(db, scope, idDispositivo, formato)
+    return _fileResponse(content, filename, formato)
 
 
 @router.get("/{idDispositivo}", response_model=DeviceDetail, summary="Detalle de un dispositivo")
@@ -126,8 +160,9 @@ def decommissionGlobal(idDispositivo: uuid.UUID, auth: CurrentAuth, db: DbSessio
 @router.get("/{idDispositivo}/measurements", response_model=DeviceMeasurementPage, summary="Mediciones hechas con el dispositivo",
             description="Sin datos del paciente. Firmware y sensor son los de cada medición.")
 def measurementsGlobal(idDispositivo: uuid.UUID, auth: CurrentAuth, db: DbSession, pagina: PageNumber = 1,
-                       tamanioPagina: PageSize = 20):
-    return deviceService.listMeasurements(db, deviceService.platformScope(db, auth.user), idDispositivo, pagina, tamanioPagina)
+                       tamanioPagina: PageSize = 25, estado: MeasurementState | None = None):
+    return deviceService.listMeasurements(db, deviceService.platformScope(db, auth.user), idDispositivo, pagina, tamanioPagina,
+                                          estado=estado)
 
 
 # --- Inventario institucional --------------------------------------------------------------------------------
@@ -161,6 +196,26 @@ def responsibles(idInstitucion: uuid.UUID, auth: CurrentAuth, db: DbSession):
                         "un integrante activo de ella.")
 def registerInstitution(idInstitucion: uuid.UUID, data: DeviceRegisterRequest, auth: CurrentAuth, db: DbSession):
     return deviceService.registerDevice(db, deviceService.institutionScope(db, auth.user, idInstitucion), data)
+
+
+@institutionRouter.post("/export", response_class=Response, summary="Exportar el inventario de la institución (CSV, Excel o PDF)",
+                        description="Mismo alcance que el listado de la institución: el operador exporta solo lo que ve. `formato` = csv "
+                        "(por defecto), xlsx o pdf. Cada exportación queda en la auditoría.")
+def exportInstitution(idInstitucion: uuid.UUID, body: DeviceExportRequest, auth: CurrentAuth, db: DbSession,
+                      formato: FormatoExportacion = "csv"):
+    scope = deviceService.institutionScope(db, auth.user, idInstitucion)
+    content, filename = deviceExport.exportDevices(db, scope, alcance=body.alcance, ids=body.idsDispositivo, busqueda=body.busqueda,
+                                                   estado=body.estado, asignado=body.asignado, uso=body.uso, formato=formato)
+    return _fileResponse(content, filename, formato)
+
+
+@institutionRouter.post("/{idDispositivo}/export", response_class=Response, summary="Exportar los datos de un dispositivo de la institución",
+                        description="`formato` = csv (por defecto), xlsx o pdf. Cada exportación queda en la auditoría.")
+def exportInstitutionDevice(idInstitucion: uuid.UUID, idDispositivo: uuid.UUID, auth: CurrentAuth, db: DbSession,
+                            formato: FormatoExportacion = "csv"):
+    scope = deviceService.institutionScope(db, auth.user, idInstitucion)
+    content, filename = deviceExport.exportDevice(db, scope, idDispositivo, formato)
+    return _fileResponse(content, filename, formato)
 
 
 @institutionRouter.get("/{idDispositivo}", response_model=DeviceDetail, summary="Detalle de un dispositivo de la institución",
@@ -203,6 +258,6 @@ def decommissionInstitution(idInstitucion: uuid.UUID, idDispositivo: uuid.UUID, 
 @institutionRouter.get("/{idDispositivo}/measurements", response_model=DeviceMeasurementPage,
                        summary="Mediciones de pacientes de esta institución hechas con el dispositivo")
 def measurementsInstitution(idInstitucion: uuid.UUID, idDispositivo: uuid.UUID, auth: CurrentAuth, db: DbSession,
-                            pagina: PageNumber = 1, tamanioPagina: PageSize = 20):
+                            pagina: PageNumber = 1, tamanioPagina: PageSize = 25, estado: MeasurementState | None = None):
     return deviceService.listMeasurements(db, deviceService.institutionScope(db, auth.user, idInstitucion), idDispositivo,
-                                          pagina, tamanioPagina)
+                                          pagina, tamanioPagina, estado=estado)

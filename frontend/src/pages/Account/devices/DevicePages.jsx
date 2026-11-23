@@ -27,6 +27,7 @@ export function GlobalDevicesPage() {
   );
 }
 
+
 export function GlobalDeviceDetailPage() {
   const { account } = useAuth();
   const { idDispositivo } = useParams();

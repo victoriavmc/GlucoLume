@@ -88,7 +88,7 @@ function DraftForm({ matrix, onSaved, handleOperationError }) {
 }
 
 /** `titleAs`: «h1» cuando la pantalla no tiene otro título principal (matrices globales); «h2» dentro de una institución. */
-export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onChanged, titleAs: Title = 'h2' }) {
+export function MatrixDetail({ idMatriz, onOpenMatrix, onDeleted, handleOperationError, onChanged, titleAs: Title = 'h2' }) {
   const [matrix, setMatrix] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -133,6 +133,10 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
       setConfirming(null);
       if (name === 'version') {
         onOpenMatrix?.(result.idMatriz);
+        return;
+      }
+      if (name === 'delete') {
+        onDeleted?.();
         return;
       }
       adopt(result, message);
@@ -204,6 +208,7 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
     deactivate: { text: '¿Desactivar esta versión? Las nuevas mediciones usarán la matriz de respaldo.', run: () => run('deactivate', () => matricesApi.deactivateMatrix(idMatriz), 'La versión quedó inactiva.') },
     archive: { text: '¿Archivar esta versión? Se conserva en el historial pero no se puede volver a usar.', run: () => run('archive', () => matricesApi.archiveMatrix(idMatriz), 'La versión quedó archivada.') },
     version: { text: '¿Crear una versión nueva en borrador con las mismas reglas?', run: () => run('version', () => matricesApi.createVersion(idMatriz)) },
+    delete: { text: '¿Borrar esta versión y sus reglas? No se puede deshacer.', run: () => run('delete', () => matricesApi.deleteMatrix(idMatriz)) },
   };
 
   return (
@@ -279,6 +284,11 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, handleOperationError, onC
               {permisos.puedeArchivar && (
                 <button type="button" className="btn btn-ghost" onClick={() => setConfirming('archive')}>
                   <Archive size={16} aria-hidden="true" /> Archivar
+                </button>
+              )}
+              {permisos.puedeEliminar && (
+                <button type="button" className="btn btn-ghost" onClick={() => setConfirming('delete')}>
+                  <Trash2 size={16} aria-hidden="true" /> Borrar versión
                 </button>
               )}
               <div className="export-toolbar">

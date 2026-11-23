@@ -39,6 +39,10 @@ class AuditEventItem(BaseModel):
     idAuditoria: uuid.UUID
     fechaHora: datetime  # UTC
     usuario: str | None
+    # Solo la auditoría general (administración): correo de la cuenta que obró.
+    correoUsuario: str | None = None
+    # Uso de la cuenta que obró: INSTITUCION, INDIVIDUAL, PLATAFORMA o None (sistema).
+    usoCuenta: str | None = None
     modulo: str | None
     accion: str
     tipoEntidad: str | None
@@ -216,6 +220,9 @@ class AuditSummary(BaseModel):
     accesosFallidos: int = 0
     sospechosos: int = 0
     confirmados: int = 0
+    # Operaciones críticas analizadas (marcadas por la administración) y las que aún no se analizaron, con los mismos filtros.
+    criticasAnalizadas: int = 0
+    criticasSinAnalizar: int = 0
     porModulo: list[AuditCount]
     # Solo en la auditoría global.
     porInstitucion: list[AuditCount] = []
@@ -275,6 +282,8 @@ class SecuritySignal(BaseModel):
     ipOrigen: str | None = None
     cuenta: str | None = None
     filtros: dict[str, str] = {}
+    # Ya analizada por la administración (todos sus eventos marcados). Se muestra con su estado, no se oculta.
+    analizada: bool = False
 
     @field_serializer("desde", "hasta")
     def _withZone(self, value: datetime) -> str:

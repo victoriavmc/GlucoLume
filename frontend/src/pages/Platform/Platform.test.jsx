@@ -29,10 +29,10 @@ const metric = { total: 0, operativos: 0, enMantenimiento: 0, fueraDeServicio: 0
 const DASHBOARD = {
   alcance: 'ADMINISTRADOR', periodo: { dias: 30, desde: null, hasta: null },
   usuarios: { total: 12, individuales: 5, institucionales: 6, plataforma: 1, activas: 10, inactivas: 2, conVinculoInstitucional: 5, institucionalesSinVinculo: 1,
-    registradasPeriodo: 4, registradas7Dias: 2 },
-  instituciones: { total: 3, activas: 1, cerradas: 1, inactivas: 1, moderadores: 2, operadores: 5 },
+    registradasPeriodo: 4, noInstitucionalesRegistradasPeriodo: 3, registradas7Dias: 2 },
+  instituciones: { total: 3, activas: 1, cerradas: 1, inactivas: 1, moderadores: 2, operadores: 5, cuentasInstitucionales: 6 },
   grupos: { total: 4, activos: 4, usuariosAgrupados: 9 },
-  dispositivos: { ...metric, total: 7, operativos: 5, enMantenimiento: 1, fueraDeServicio: 1, asignados: 4, sinAsignar: 3, conLecturasInvalidasRecientes: 2,
+  dispositivos: { ...metric, asignadosCuentasIndividuales: 2, total: 7, operativos: 5, enMantenimiento: 1, fueraDeServicio: 1, asignados: 4, sinAsignar: 3, conLecturasInvalidasRecientes: 2,
     desconectados: null, conexionVerificable: false },
   mediciones: { total: 40, demo: 6, enPeriodo: 30, oximetria: 35, glucosaExperimental: 5, completadas: 33, canceladas: 4, invalidas: 3, erroresTecnicos: 5,
     motivosTecnicos: [{ clave: 'LECTURA_NO_VALIDA', total: 3 }, { clave: 'SESION_EXPIRADA', total: 2 }],
@@ -51,7 +51,6 @@ const SYSTEM = { fecha: '2026-10-09T10:00:00', componentes: [
   { nombre: 'Base de datos', estado: 'OPERATIVO', detalle: null, verificacion: 'Consulta de prueba a SQL Server', latenciaMs: 4 },
   { nombre: 'Correo (SMTP)', estado: 'NO_DISPONIBLE', detalle: 'Falta SMTP_HOST.', verificacion: 'Servidor SMTP configurado', latenciaMs: null },
   { nombre: 'Acceso con Google', estado: 'DEGRADADO', detalle: 'No se alcanza accounts.google.com (TimeoutError).', verificacion: 'Credenciales y conexión TCP a Google', latenciaMs: null },
-  { nombre: 'Adquisición por puerto serie (pySerial)', estado: 'DESCONOCIDO', detalle: 'No se pudieron listar los puertos.', verificacion: 'Módulo pySerial', latenciaMs: null },
 ] };
 const row = (overrides = {}) => ({
   idInstitucion: 'i-1', nombre: 'Centro Médico San José', tipoInstitucion: 'CLINICA', estado: 'ACTIVA', fechaInicio: '2026-09-01T10:00:00', fechaFin: null,
@@ -168,7 +167,7 @@ describe('Menú y permisos', () => {
     renderAt('/plataforma/dashboard');
     const nav = within(await screen.findByRole('navigation', { name: 'Secciones de administración' }));
     for (const label of ['Dashboard general', 'Moderadores del sistema', 'Transferir administración', 'Dispositivos globales', 'Matrices globales',
-      'Instituciones', 'Notificaciones', 'Auditoría y seguridad', 'Próximamente', 'Mi perfil', 'Seguridad y MFA', 'Cambiar contraseña']) {
+      'Instituciones', 'Notificaciones', 'Auditoría y seguridad', 'Mi perfil', 'Seguridad y MFA', 'Cambiar contraseña']) {
       expect(nav.getByRole('link', { name: label })).toBeInTheDocument();
     }
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
@@ -241,9 +240,8 @@ describe('Dashboard global', () => {
     expect(components.getByText('Base de datos').closest('li')).toHaveTextContent('Operativo');
     expect(components.getByText('Correo (SMTP)').closest('li')).toHaveTextContent('No disponible');
     expect(components.getByText('Acceso con Google').closest('li')).toHaveTextContent('Degradado');
-    expect(components.getByText(/Adquisición por puerto serie/).closest('li')).toHaveTextContent('Estado desconocido');
     expect(components.getByText('Base de datos').closest('li')).toHaveAttribute('title', expect.stringContaining('Consulta de prueba a SQL Server'));
-    expect(screen.getByText(/3 componentes requieren atención/)).toBeInTheDocument();
+    expect(screen.getByText(/2 componentes requieren atención/)).toBeInTheDocument();
   });
 
   it('prioriza cifras clave y separa cuentas, dispositivos, mediciones operativas y seguridad con datos del backend', async () => {
@@ -254,41 +252,39 @@ describe('Dashboard global', () => {
     expect(stats.getByText('Instituciones activas').closest('li')).toHaveTextContent(/1.*de 3 en total/);
     expect(stats.getByText('Dispositivos operativos').closest('li')).toHaveTextContent(/5.*de 7 registrados/);
     const access = within(screen.getByRole('list', { name: 'Accesos por tipo de cuenta' }));
-    expect(access.getByText('Accesos individuales').closest('li')).toHaveTextContent(/3.*intentos fallidos.*20 ingresos correctos/);
-    expect(access.getByText('Accesos institucionales').closest('li')).toHaveTextContent(/2.*intentos fallidos.*15 ingresos correctos/);
-    expect(access.getByText('Accesos de sistema / plataforma').closest('li')).toHaveTextContent(/1.*intentos fallidos.*5 ingresos correctos/);
+    expect(access.getByText('Accesos individuales').closest('li')).toHaveTextContent(/Accesos individuales3$/);
+    expect(access.getByText('Accesos institucionales').closest('li')).toHaveTextContent(/Accesos institucionales2$/);
+    expect(access.getByText('Accesos de sistema / plataforma').closest('li')).toHaveTextContent(/Accesos de sistema \/ plataforma1$/);
     expect(access.getByText('Accesos individuales').closest('li')).toHaveClass('is-warn'); // los fallidos conservan el color de advertencia
     expect(screen.queryByText('Accesos fallidos')).not.toBeInTheDocument(); // ya no hay una tarjeta agregada
-    expect(screen.getByText(/Sin clasificar: 1 intento fallido · 1 ingreso correcto/)).toBeInTheDocument(); // aparte, sin repartirse
     const accounts = within(screen.getByRole('region', { name: /Cuentas y grupos/ }));
-    expect(accounts.getByText('Institucionales').closest('div')).toHaveTextContent(/6.*5 con vínculo activo · 1 sin vínculo/);
-    expect(accounts.getByText('Registradas en 7 días').closest('div')).toHaveTextContent('2');
+    expect(accounts.getByText('Cuentas individuales').closest('div')).toHaveTextContent('5');
+    expect(accounts.getByText('Cuentas grupales').closest('div')).toHaveTextContent('9');
+    expect(accounts.getByText('Grupos').closest('div')).toHaveTextContent(/4.*4 activos/);
+    expect(accounts.getByText('Registradas en el período').closest('div')).toHaveTextContent(/3.*sin contar las institucionales/);
     const devices = within(screen.getByRole('region', { name: /Dispositivos/ }));
-    expect(devices.getByText('Con lecturas inválidas (7 días)').closest('div')).toHaveTextContent(/2.*no implica avería/);
-    expect(devices.getByText('Desconectados').closest('div')).toHaveTextContent(/No disponible.*no registra la conexión/); // nada inventado
+    expect(devices.getByText('Total de dispositivos', { selector: 'dt' }).closest('div')).toHaveTextContent('7');
+    expect(devices.getByText('Asignados a cuentas individuales', { selector: 'dt' }).closest('div')).toHaveTextContent(/2dispositivos vinculados a al menos una cuenta individual/);
+    expect(devices.getByText('Sin asignar', { selector: 'dt' }).closest('div')).toHaveTextContent('3');
+    expect(devices.getByText('Fuera de servicio', { selector: 'dt' }).closest('div')).toHaveTextContent('1');
+    expect(devices.getByRole('link', { name: /Ver inventario de dispositivos/ })).toHaveAttribute('href', '/plataforma/dispositivos');
     const meas = within(screen.getByRole('region', { name: /Mediciones: volumen operativo/ }));
     expect(meas.getByText('Errores técnicos (período)').closest('div')).toHaveTextContent('5');
     expect(within(meas.getByRole('list', { name: 'Errores técnicos por motivo' })).getByText('Lectura no válida').closest('li')).toHaveTextContent('3');
     const security = within(screen.getByRole('region', { name: /Seguridad y actividad/ }));
-    expect(security.getByText('Cuentas bloqueadas').closest('div')).toHaveTextContent(/1.*1 con bloqueo temporal vigente/);
-    expect(security.getByText('Exportaciones de datos').closest('div')).toHaveTextContent(/0.*ninguna registrada/);
+    expect(security.getByText(/Bloqueos vigentes: 1/)).toBeInTheDocument();
+    expect(security.getByText('Exportaciones de datos').closest('li')).toHaveTextContent(/0.*ninguna registrada/);
     expect(security.getByRole('link', { name: /Auditoría y seguridad/ })).toHaveAttribute('href', '/plataforma/auditoria');
-    expect(security.getByText(/invitar moderador plataforma/)).toBeInTheDocument();
+    expect(security.getByText(/Invitar moderador plataforma/)).toBeInTheDocument();
     expect(screen.queryByText(/glucemia|SpO₂|oxigenación/i)).not.toBeInTheDocument(); // sin valores clínicos
   });
 
-  it('la tabla de instituciones muestra estado, fechas, personal y límite, y permite buscar y filtrar', async () => {
-    const { calls } = panel(me(), ADMIN_ACCOUNT);
-    const user = userEvent.setup();
+  it('el resumen de instituciones lleva a la página de instituciones y no muestra la tabla ni el buscador', async () => {
+    panel(me(), ADMIN_ACCOUNT);
     renderAt('/plataforma/dashboard');
-    const table = within(await screen.findByRole('table', { name: 'Instituciones registradas en GlucoLume' }));
-    expect(table.getByText('Centro Médico San José').closest('tr')).toHaveTextContent(/Activa.*01\/09\/2026.*2.*5.*8.*1\.000/);
-    expect(table.getByText('Clínica Sur').closest('tr')).toHaveTextContent(/Cerrada.*01\/10\/2026.*Sin informar/);
-    expect(table.getByRole('link', { name: 'Ver detalle de Centro Médico San José' })).toHaveAttribute('href', '/plataforma/instituciones/i-1');
-    await user.type(screen.getByPlaceholderText('Buscar por nombre'), 'Sur');
-    await waitFor(() => expect(new URL(calls.filter((call) => call.key === 'GET /platform/institutions').at(-1).url).searchParams.get('busqueda')).toBe('Sur'));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Estado' }), 'CERRADA');
-    await waitFor(() => expect(new URL(calls.filter((call) => call.key === 'GET /platform/institutions').at(-1).url).searchParams.get('estado')).toBe('CERRADA'));
+    expect(await screen.findByRole('link', { name: 'Mostrar instituciones →' })).toHaveAttribute('href', '/plataforma/instituciones');
+    expect(screen.queryByRole('table', { name: 'Instituciones registradas en GlucoLume' })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Buscar por nombre')).not.toBeInTheDocument();
   });
 
   it('el detalle de una institución es un módulo aparte, administrativo y sin pacientes ni valores clínicos', async () => {
@@ -414,12 +410,6 @@ describe('Dashboard global', () => {
     expect(screen.getByText(/no tiene el cierre administrativo del esquema vigente/)).toBeInTheDocument();
   });
 
-  it('muestra errores de carga y la ausencia de instituciones sin inventar datos', async () => {
-    panel(me(), ADMIN_ACCOUNT, { 'GET /platform/institutions': jsonResponse(200, { items: [], total: 0, pagina: 1, tamanioPagina: 8, porEstado: {} }) });
-    renderAt('/plataforma/dashboard');
-    expect(await screen.findByText('No hay instituciones con esos filtros.')).toBeInTheDocument();
-  });
-
   it('si el estado de los componentes falla, avisa y el resto del dashboard sigue disponible', async () => {
     panel(me(), ADMIN_ACCOUNT, { 'GET /platform/system': jsonResponse(500, { codigo: 'ERROR_SERVIDOR', detail: 'x' }) });
     renderAt('/plataforma/dashboard');
@@ -432,7 +422,7 @@ describe('Dashboard global', () => {
     const user = userEvent.setup();
     renderAt('/plataforma/dashboard');
     await screen.findByRole('list', { name: 'Indicadores principales' });
-    await user.selectOptions(screen.getByLabelText('Período'), '7');
+    await user.click(screen.getByRole('button', { name: '7 días' }));
     await waitFor(() => expect(new URL(calls.filter((call) => call.key === 'GET /platform/dashboard').at(-1).url).searchParams.get('dias')).toBe('7'));
   });
 
@@ -446,7 +436,7 @@ describe('Dashboard global', () => {
     const stats = within(await screen.findByRole('list', { name: 'Accesos por tipo de cuenta' }));
     for (const label of ['Accesos individuales', 'Accesos institucionales', 'Accesos de sistema / plataforma']) {
       const card = stats.getByText(label).closest('li');
-      expect(card).toHaveTextContent(/0.*intentos fallidos.*0 ingresos correctos/);
+      expect(card).toHaveTextContent(/0$/);
       expect(card).toHaveClass('is-ok');
     }
     expect(screen.queryByText(/Sin clasificar/)).not.toBeInTheDocument();
@@ -865,5 +855,64 @@ describe('Cuenta', () => {
     expect(await screen.findByText(/Contraseña creada con éxito/)).toBeInTheDocument();
     expect(calls.find((call) => call.key === 'POST /auth/password').body).toEqual({ password: 'Zorro#Lento-2027' });
     expect(await screen.findByLabelText('Contraseña actual')).toBeInTheDocument(); // ahora sí puede cambiarla
+  });
+});
+
+describe('Instituciones: listado, selección y exportación', () => {
+  const exportResponse = () => ({
+    ok: true, status: 200, headers: new Headers({ 'Content-Disposition': 'attachment; filename="instituciones-prueba.csv"' }),
+    blob: async () => new Blob(['csv'], { type: 'text/csv' }),
+  });
+
+  beforeEach(() => {
+    URL.createObjectURL = () => 'blob:instituciones';
+    URL.revokeObjectURL = () => {};
+  });
+
+  it('pagina de a 25 y exporta solo las marcadas o todas las filtradas', async () => {
+    const { calls } = panel(me(), ADMIN_ACCOUNT, { 'POST /platform/institutions/export': exportResponse });
+    const user = userEvent.setup();
+    renderAt('/plataforma/instituciones');
+    const table = within(await screen.findByRole('table', { name: 'Instituciones registradas en GlucoLume' }));
+    expect(table.getByText('Clínica Sur').closest('tr')).toBeInTheDocument();
+    expect(new URL(calls.find((call) => call.key === 'GET /platform/institutions').url).searchParams.get('tamanio')).toBe('25');
+
+    expect(screen.getByRole('button', { name: /Exportar seleccionadas$/ })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar Clínica Sur' }));
+    await user.click(screen.getByRole('button', { name: 'Exportar seleccionadas (1)' }));
+    expect(await screen.findByText('Exportación lista: instituciones-prueba.csv.')).toBeInTheDocument();
+    expect(calls.find((call) => call.key === 'POST /platform/institutions/export').body).toEqual({ alcance: 'SELECCION', idsInstitucion: ['i-2'] });
+
+    await user.click(screen.getByRole('button', { name: /Exportar todas/ }));
+    await waitFor(() => expect(calls.filter((call) => call.key === 'POST /platform/institutions/export').at(-1).body).toEqual({ alcance: 'TODAS' }));
+  });
+
+  it('marcar todas selecciona la página visible', async () => {
+    panel(me(), ADMIN_ACCOUNT);
+    const user = userEvent.setup();
+    renderAt('/plataforma/instituciones');
+    await screen.findByRole('table', { name: 'Instituciones registradas en GlucoLume' });
+    await user.click(screen.getByRole('checkbox', { name: 'Seleccionar todas las de esta página' }));
+    expect(screen.getByRole('button', { name: 'Exportar seleccionadas (2)' })).toBeEnabled();
+  });
+});
+
+describe('Informe de una institución', () => {
+  it('desde el detalle de una institución exporta su informe en el formato elegido', async () => {
+    const { calls } = panel(me(), ADMIN_ACCOUNT, {
+      'GET /platform/institutions/i-1': jsonResponse(200, DETAIL),
+      'POST /platform/institutions/i-1/informe': () => ({
+        ok: true, status: 200, headers: new Headers({ 'Content-Disposition': 'attachment; filename="informe-prueba.csv"' }),
+        blob: async () => new Blob(['csv'], { type: 'text/csv' }),
+      }),
+    });
+    URL.createObjectURL = () => 'blob:informe';
+    URL.revokeObjectURL = () => {};
+    const user = userEvent.setup();
+    renderAt('/plataforma/instituciones/i-1');
+    await screen.findByRole('heading', { name: 'Centro Médico San José' });
+    await user.click(screen.getByRole('button', { name: 'Exportar informe de la institución' }));
+    expect(await screen.findByText('Informe listo: informe-prueba.csv.')).toBeInTheDocument();
+    expect(calls.some((call) => call.key === 'POST /platform/institutions/i-1/informe')).toBe(true);
   });
 });

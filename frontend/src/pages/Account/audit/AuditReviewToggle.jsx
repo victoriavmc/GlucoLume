@@ -7,6 +7,9 @@ import { setGlobalAuditReview } from '../../../api/auditApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
 import { formatInstant } from '../../../utils/dateTime.js';
 
+/** Aviso de que cambió la auditoría (una marca de análisis): las vistas vuelven a pedir sus datos sin recargar. */
+export const AUDIT_CHANGED = 'glucolume:auditoria-cambio';
+
 /** `name`: nombre del evento para el lector de pantalla (la lista tiene una casilla por fila). */
 export function AuditReviewToggle({ idAuditoria, revision, name, onChange }) {
   const [busy, setBusy] = useState(false);
@@ -17,6 +20,7 @@ export function AuditReviewToggle({ idAuditoria, revision, name, onChange }) {
     setError('');
     try {
       onChange(await setGlobalAuditReview(idAuditoria, event.target.checked));
+      window.dispatchEvent(new Event(AUDIT_CHANGED)); // las vistas de auditoría se actualizan al momento
     } catch (requestError) {
       setError(friendlyError(requestError));
     } finally {

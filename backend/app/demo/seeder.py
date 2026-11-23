@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from app.core import security
 from app.core.config import getSettings
 from app.demo import catalog as C
+from app.models.accountDeviceLink import AccountDeviceLink
 from app.models.audit import Audit
 from app.models.consent import TipoConsentimiento
 from app.models.device import Device
@@ -46,7 +47,7 @@ from app.schemas.institution import normalizeLegalId
 from app.services import consent as consentService
 from app.services import institution as institutions
 from app.services import matrix as matrixService
-from app.services import measurementRetention
+from app.services import measurementRetention, schemaCompat
 from app.services.audit import registerEvent
 from app.services.measurementProfile import calculateAge
 from app.utils.timeZone import nowForDb
@@ -294,6 +295,10 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
                 idInstitucionUsuarioResponsable=None, fechaRegistro=anchor - timedelta(days=60),
             ))
 
+    # Etapa 2 — cuenta individual ↔ dispositivo que usa en su historial (como la primera medición real: la cuenta queda vinculada a ese
+    # dispositivo). Sin la tabla en la base instalada (GlucoLume_vinculo_cuenta_dispositivo.sql) se omite, como en la aplicación.
+    _individualLinks(db, plan, building, accounts)
+
     # Etapa 3 — vínculos institucionales y del grupo.
     for link in C.STAFF:
         if _exists(db, InstitutionUser, link.id):
@@ -330,6 +335,26 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
     # Etapas 4 y 5 — perfiles de medición y mediciones.
     _profilesAndMeasurements(db, plan, building, now)
     return plan
+
+
+def _individualLinks(db: Session, plan: Plan, building: bool, accounts) -> None:
+    """Cada cuenta individual demo queda vinculada al dispositivo con el que midió, desde su primera medición (igual que en la aplicación)."""
+    if not schemaCompat.hasTable(db, "VinculoCuentaDispositivo"):
+        plan.advertencias.append("La base no tiene VinculoCuentaDispositivo: las cuentas demo individuales no quedan vinculadas a su "
+                                 "dispositivo (aplicar antes GlucoLume_vinculo_cuenta_dispositivo.sql).")
+        return
+    for accountKey, specs in C.individualMeasurements():
+        account = accounts[accountKey]
+        linkId = C.demoId("vinculo-cuenta-dispositivo", accountKey)
+        if _exists(db, AccountDeviceLink, linkId):
+            plan.items.append(PlanItem("VinculoCuentaDispositivo", accountKey, "YA_EXISTE"))
+            continue
+        deviceKey = C.deviceKeyForIndividual(accountKey)
+        plan.items.append(PlanItem("VinculoCuentaDispositivo", accountKey, "CREAR", deviceKey))
+        if building:
+            deviceId = next(device.id for device in C.DEVICES if device.key == deviceKey)
+            first = min((spec.start(plan.anchor) for spec in specs), default=plan.anchor - timedelta(days=60))
+            plan.etapas[2].append(AccountDeviceLink(idVinculo=linkId, idUsuario=account.id, idDispositivo=deviceId, fechaVinculo=first))
 
 
 def _profilesAndMeasurements(db: Session, plan: Plan, building: bool, now: datetime) -> None:
@@ -622,6 +647,9 @@ def countDemoRows(db: Session) -> dict[str, int]:
         "Medicion": (Measurement.idMedicion, [s.id for _, specs in C.individualMeasurements() for s in specs]
                      + [s.id for _, specs in C.patientMeasurements() for s in specs]),
     }
+    if schemaCompat.hasTable(db, "VinculoCuentaDispositivo"):
+        ids["VinculoCuentaDispositivo"] = (AccountDeviceLink.idVinculo,
+                                           [C.demoId("vinculo-cuenta-dispositivo", a.key) for a in C.ACCOUNTS if a.individual])
     return {entidad: len(_existingIds(db, column, values)) for entidad, (column, values) in ids.items()}
 
 

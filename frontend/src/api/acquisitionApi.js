@@ -8,6 +8,8 @@ import { queryString } from './measurementsApi.js';
 const post = (path, body) => request(`/acquisition${path}`, { method: 'POST', body, auth: true });
 
 export const getStatus = () => request('/acquisition/status', { auth: true });
+/** Cuenta individual: conecta el dispositivo de prueba (crea uno nuevo solo si el vinculado no está operativo). */
+export const connectTestDevice = () => post('/individual/conectar');
 /** medio: USB | BLUETOOTH. baudios es opcional (USB 115200, HC-06 9600 por defecto). */
 export const connect = ({ puerto, medio, baudios }) => post('/connect', { puerto, medio, ...(baudios ? { baudios } : {}) });
 export const disconnect = () => post('/disconnect');

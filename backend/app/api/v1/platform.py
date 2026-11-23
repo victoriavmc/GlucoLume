@@ -25,6 +25,7 @@ from app.schemas.platform import (
     InstitutionAuditPage,
     InstitutionDeletion,
     InstitutionDetail,
+    InstitutionExportRequest,
     InstitutionPage,
     ForgotPassword,
     ModeratorActionResult,
@@ -43,7 +44,8 @@ from app.schemas.platform import (
     TransferStart,
 )
 from app.services import platform as platformService
-from app.services import passwordChangeCode, platformDashboard, platformInstitutions
+from app.services import institutionReport, passwordChangeCode, platformDashboard, platformInstitutions
+from app.services.tableExport import FormatoExportacion, mediaTypeOf
 from app.utils.userAgent import ClientInfo, describeClient
 
 router = APIRouter(prefix="/platform", tags=["platform"])
@@ -89,8 +91,28 @@ def dashboard(auth: PlatformSecure, db: DbSession, dias: int = 30, desde: date |
 @router.get("/institutions", response_model=InstitutionPage, summary="Instituciones (solo el administrador)",
             description="Una fila por institución con estado, fechas, personal y cuentas internas; filtros por nombre y estado. Solo conteos: "
             "nunca pacientes ni valores clínicos.")
-def institutionList(auth: PlatformSecure, db: DbSession, busqueda: str | None = None, estado: str | None = None, pagina: int = 1, tamanio: int = 15):
+def institutionList(auth: PlatformSecure, db: DbSession, busqueda: str | None = None, estado: str | None = None, pagina: int = 1, tamanio: int = 25):
     return platformDashboard.listInstitutions(db, auth.user, busqueda, estado, pagina, tamanio)
+
+
+@router.post("/institutions/export", response_class=Response, summary="Exportar instituciones (CSV, Excel o PDF)",
+             description="`alcance` SELECCION (las de `idsInstitucion`) o TODAS (las que coinciden con `busqueda` y `estado`). `formato` = csv "
+             "(por defecto), xlsx o pdf. Solo conteos y estado administrativo; sin pacientes ni valores clínicos. Cada exportación queda en la "
+             "auditoría (EXPORTACION_SOLICITADA y después EXPORTACION_COMPLETADA o EXPORTACION_FALLIDA).")
+def exportInstitutions(body: InstitutionExportRequest, auth: PlatformSecure, db: DbSession, formato: FormatoExportacion = "csv"):
+    content, filename = platformDashboard.exportInstitutions(db, auth.user, alcance=body.alcance, idsInstitucion=body.idsInstitucion,
+                                                             busqueda=body.busqueda, estado=body.estado, formato=formato)
+    return Response(content=content, media_type=mediaTypeOf(formato),
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
+
+
+@router.post("/institutions/{idInstitucion}/informe", response_class=Response, summary="Informe de una institución (CSV, Excel o PDF)",
+             description="Un solo informe con secciones: institución, moderadores, operadores, pacientes (solo cantidades) y dispositivos. "
+             "`formato` = csv (por defecto), xlsx o pdf. Cada exportación queda en la auditoría.")
+def exportInstitutionReport(idInstitucion: uuid.UUID, auth: PlatformSecure, db: DbSession, formato: FormatoExportacion = "csv"):
+    content, filename = institutionReport.exportInstitutionReport(db, auth.user, idInstitucion, formato)
+    return Response(content=content, media_type=mediaTypeOf(formato),
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 @router.get("/institutions/{idInstitucion}", response_model=InstitutionDetail, summary="Detalle administrativo de una institución",

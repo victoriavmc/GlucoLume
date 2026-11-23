@@ -49,6 +49,8 @@ const action = (idMatriz, name) => request(`/matrices/${idMatriz}/${name}`, { me
 
 export const createVersion = (idMatriz) => action(idMatriz, 'new-version');
 export const validateMatrix = (idMatriz) => action(idMatriz, 'validate');
+/** Solo una versión que nunca se usó en una medición y no está activa (el backend lo valida). */
+export const deleteMatrix = (idMatriz) => request(`/matrices/${idMatriz}`, { method: 'DELETE', auth: true });
 export const activateMatrix = (idMatriz) => action(idMatriz, 'activate');
 export const deactivateMatrix = (idMatriz) => action(idMatriz, 'deactivate');
 export const archiveMatrix = (idMatriz) => action(idMatriz, 'archive');

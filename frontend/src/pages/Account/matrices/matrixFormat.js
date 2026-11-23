@@ -13,7 +13,7 @@ export const RULE_SEX = {
 export const AUDIT_ACTIONS = {
   CREAR_MATRIZ: 'Creó la matriz', CREAR_VERSION_MATRIZ: 'Creó una versión nueva', MODIFICAR_MATRIZ: 'Modificó el borrador',
   CREAR_REGLA_MATRIZ: 'Agregó una regla', MODIFICAR_REGLA_MATRIZ: 'Modificó una regla', ELIMINAR_REGLA_MATRIZ: 'Eliminó una regla',
-  ACTIVAR_MATRIZ: 'Activó la versión', DESACTIVAR_MATRIZ: 'Desactivó la versión', ARCHIVAR_MATRIZ: 'Archivó la versión',
+  ACTIVAR_MATRIZ: 'Activó la versión', DESACTIVAR_MATRIZ: 'Desactivó la versión', ARCHIVAR_MATRIZ: 'Archivó la versión', ELIMINAR_MATRIZ: 'Borró la versión',
 };
 
 export function stateBadge(state) {

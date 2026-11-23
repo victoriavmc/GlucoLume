@@ -136,9 +136,7 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
     for account, items in byAccount.items():
         count, first, last = densestWindow([i[0] for i in items], umbrales.ventanaMinutos)
         if count >= umbrales.fallosPorCuenta:
-            if not _pendingWindow([(i[0], account, i[6]) for i in items], umbrales.ventanaMinutos, umbrales.fallosPorCuenta, distinct=False):
-                hidden += 1
-                continue
+            pending = _pendingWindow([(i[0], account, i[6]) for i in items], umbrales.ventanaMinutos, umbrales.fallosPorCuenta, distinct=False)
             origins = {i[2] for i in items if i[2]}
             known = items[0][4]
             filters = {"idCuenta": str(known)} if known else {"refIdentificador": items[0][5]}
@@ -149,7 +147,7 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
                             + (f" desde {len(origins)} origen(es) distinto(s)" if origins else "") + ".",
                 cantidad=count, umbral=umbrales.fallosPorCuenta, desde=first, hasta=last,
                 cuenta=names.get(known, "Cuenta") if known else f"Identificador inexistente (ref. {items[0][5][:8]})" if items[0][5] else None,
-                filtros={**filters, "categoria": "ACCESOS_FALLIDOS"}))
+                filtros={**filters, "categoria": "ACCESOS_FALLIDOS"}, analizada=not pending))
 
     # 2. Muchas cuentas distintas desde un mismo origen.
     byOrigin: dict[str, list] = defaultdict(list)
@@ -159,14 +157,12 @@ def analyze(db: Session, desde: date, hasta: date, umbrales: SecurityThresholds,
     for origin, items in byOrigin.items():
         count, first, last = distinctWindow([(i[0], i[1]) for i in items], umbrales.ventanaMinutos)
         if count >= umbrales.cuentasPorOrigen:
-            if not _pendingWindow([(i[0], i[1], i[6]) for i in items], umbrales.ventanaMinutos, umbrales.cuentasPorOrigen, distinct=True):
-                hidden += 1
-                continue
+            pending = _pendingWindow([(i[0], i[1], i[6]) for i in items], umbrales.ventanaMinutos, umbrales.cuentasPorOrigen, distinct=True)
             signals.append(SecuritySignal(
                 tipo="MULTIPLES_CUENTAS_ORIGEN", clasificacion=classification.SOSPECHOSO, titulo="Un mismo origen probó muchas cuentas",
                 descripcion=f"{count} cuentas o identificadores distintos en {umbrales.ventanaMinutos} minutos desde un mismo origen.",
                 cantidad=count, umbral=umbrales.cuentasPorOrigen, desde=first, hasta=last, ipOrigen=origin,
-                filtros={"ip": items[0][3], "categoria": "ACCESOS_FALLIDOS"}))
+                filtros={"ip": items[0][3], "categoria": "ACCESOS_FALLIDOS"}, analizada=not pending))
 
     # 3. Origen inusual para la cuenta (solo con historia suficiente).
     if ready:
@@ -236,15 +232,14 @@ def _unusualOrigins(db: Session, attempts: list, since: datetime, until: datetim
             continue  # sin historia suficiente no se puede decir que un origen sea inusual
         if origin in {normalizeIp(ip) for ip in successful}:
             continue  # la cuenta ya entró bien desde ahí (antes o después): un descuido, no un origen ajeno
-        if all(item[6] for item in items):
-            hidden += 1  # todos sus accesos fallidos ya están analizados
-            continue
+        analyzed = all(item[6] for item in items)  # todos sus accesos fallidos ya están analizados
         signals.append(SecuritySignal(
             tipo="ORIGEN_INUSUAL", clasificacion=classification.SOSPECHOSO, titulo="Fallos desde un origen nunca usado por la cuenta",
             descripcion=f"{len(items)} acceso(s) fallido(s) desde un origen sin accesos exitosos previos; la cuenta tiene {len(successful)} accesos "
                         f"exitosos con origen registrado en los últimos {LOOKBACK_DAYS} días. Es un indicio débil: puede ser un viaje o una red nueva.",
             cantidad=len(items), umbral=umbrales.historialOrigenInusual, desde=items[0][0], hasta=items[-1][0], ipOrigen=origin,
-            cuenta=names.get(account, "Cuenta"), filtros={"idCuenta": str(account), "ip": items[0][3] or origin, "categoria": "ACCESOS_FALLIDOS"}))
+            cuenta=names.get(account, "Cuenta"), filtros={"idCuenta": str(account), "ip": items[0][3] or origin, "categoria": "ACCESOS_FALLIDOS"},
+            analizada=analyzed))
     return signals, hidden
 
 
@@ -267,21 +262,20 @@ def _recordedControls(db: Session, since: datetime, until: datetime, idInstituci
         count, first, last = db.execute(query).one()
         if not count:
             continue
+        analyzed = False
         if reviewReady:
             pendingQuery = (select(func.count()).select_from(Audit)
                             .outerjoin(AuditReview, AuditReview.idAuditoria == Audit.idAuditoria)
                             .where(Audit.accion == accion, Audit.fechaHora >= since, Audit.fechaHora < until, AuditReview.idAuditoria.is_(None)))
             if idInstitucion is not None:
                 pendingQuery = pendingQuery.where(Audit.idInstitucion == idInstitucion)
-            if not db.scalar(pendingQuery):
-                hidden += 1  # todos los eventos de este control ya están analizados
-                continue
+            analyzed = not db.scalar(pendingQuery)  # todos los eventos de este control ya están analizados
         confirmed = kind == classification.CONFIRMADO
         signals.append(SecuritySignal(
             tipo=tipo, clasificacion=kind, titulo=titulo, cantidad=count, desde=first, hasta=last,
             descripcion=("El sistema aplicó el control %d vez/veces. Es un hecho comprobado; no indica por sí solo que alguien atacara la cuenta."
                          if confirmed else "Registrado %d vez/veces por el monitor de solicitudes rechazadas. Conviene revisar el origen.") % count,
-            filtros={"accion": accion}))
+            filtros={"accion": accion}, analizada=analyzed))
     return signals, hidden
 
 
