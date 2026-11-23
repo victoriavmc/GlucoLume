@@ -9,7 +9,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, UniqueConstraint, text
+from sqlalchemy import ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.dialects.mssql import DATETIME2, UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +20,7 @@ class AccountDeviceLink(Base):
     __tablename__ = "VinculoCuentaDispositivo"
     __table_args__ = (
         UniqueConstraint("idUsuario", name="UQ_VinculoCuentaDispositivo_usuario"),
+        Index("IX_VinculoCuentaDispositivo_dispositivo", "idDispositivo"),
     )
 
     idVinculo: Mapped[uuid.UUID] = mapped_column(
