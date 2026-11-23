@@ -171,6 +171,10 @@ class Settings(BaseSettings):
     # Transitorio (equipo único compartido): permite que las cuentas individuales midan y den órdenes al puente con un dispositivo asignado a
     # una institución. NO cambia su propiedad ni los permisos de los operadores. Por defecto apagado; quitarlo cuando cada contexto tenga su equipo.
     ALLOW_INDIVIDUAL_ON_INSTITUTIONAL_DEVICE: bool = False
+    # SIMULACIÓN (demostraciones con un único Arduino): las cuentas individuales miden con el Arduino conectado aunque su registro lógico
+    # (UUID de prueba) no coincida con el código físico. Solo afecta a cuentas individuales con su dispositivo vinculado. Por defecto apagado y
+    # NUNCA permitido en producción (ver validarSimulacionDispositivoCompartido).
+    DEMO_SHARED_PHYSICAL_DEVICE: bool = False
     # Mantenimiento periódico de mediciones (vencimientos y liberación de sesiones abandonadas). 0 lo desactiva.
     MAINTENANCE_INTERVAL_SECONDS: int = 60
     # Ciclo de vida de las cuentas institucionales (servicio «lifecycle»; app/jobs/accountLifecycle.py): cada cuánto revisa los períodos
@@ -525,6 +529,12 @@ class Settings(BaseSettings):
             raise ValueError("DB_DEMO_USER y DB_DEMO_PASSWORD se definen juntas (o ninguna).")
         if self.DB_DEMO_USER is not None and self.DB_DEMO_USER == self.DB_USER:
             raise ValueError("DB_DEMO_USER debe ser una cuenta distinta de DB_USER: la de la API no borra datos.")
+        return self
+
+    @model_validator(mode="after")
+    def validarSimulacionDispositivoCompartido(self) -> "Settings":
+        if self.DEMO_SHARED_PHYSICAL_DEVICE and self.API_ENV == "production":
+            raise ValueError("DEMO_SHARED_PHYSICAL_DEVICE solo puede activarse fuera de producción (demostración).")
         return self
 
     @model_validator(mode="after")

@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import false, func, select, true
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthError
@@ -31,6 +32,10 @@ LIST_LIMIT = 500
 
 def _available(db: Session) -> bool:
     return schemaCompat.hasTable(db, TABLE)
+
+
+def hasLinkTable(db: Session) -> bool:
+    return _available(db)
 
 
 def requireLinkedDevice(db: Session, actor, device: Device) -> None:
@@ -66,30 +71,69 @@ def connectTestDevice(db: Session, actor) -> Device:
         raise AuthError("NO_DISPONIBLE", "Los vínculos de dispositivos todavía no están disponibles en esta instalación.")
     if hub.deviceState() != "CONECTADO":
         raise AuthError("PUENTE_NO_CONECTADO", "Conectá el Arduino para continuar.")
+    # Serializa las conexiones de ESTA cuenta: dos pedidos simultáneos no crean dos dispositivos lógicos (el segundo ve el vínculo del primero).
+    db.scalar(lockAccountQuery(actor.idUsuario))
     link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
-    if link is None:
-        raise AuthError("SIN_DISPOSITIVO_VINCULADO", "Primero vinculá un dispositivo a tu cuenta.")
-    current = db.get(Device, link.idDispositivo)
+    current = db.get(Device, link.idDispositivo) if link is not None else None
     if current is not None and current.estado == ESTADO_OPERATIVO:
+        db.commit()  # solo libera el bloqueo: se reutiliza el dispositivo lógico de la cuenta, sin crear otro
         hub.confirm(actor.idUsuario, current.idDispositivo)
         return current
-    now = nowForDb()
-    device = Device(codigoDispositivo=str(uuid.uuid4()), nombre="Dispositivo de prueba", modelo=MODELO_PRUEBA,
-                    modeloSensor="MAX30100", estado=ESTADO_OPERATIVO)
-    db.add(device)
-    db.flush()
-    previous = link.idDispositivo
-    link.idDispositivo = device.idDispositivo
-    link.fechaVinculo = now
-    registerEvent(db, "CRUD", "REGISTRAR_DISPOSITIVO", True, actor.idUsuario, "Dispositivo", device.idDispositivo, modulo="DISPOSITIVOS",
-                  datosNuevos={"modeloSensor": "MAX30100", "estado": ESTADO_OPERATIVO, "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA",
-                               "registroAutomatico": True, "idInstitucion": None})
-    registerEvent(db, "CRUD", "VINCULAR_CUENTA_DISPOSITIVO", True, actor.idUsuario, "VinculoCuentaDispositivo", link.idVinculo,
-                  modulo="DISPOSITIVOS", datosPrevios={"idDispositivo": str(previous)},
-                  datosNuevos={"idDispositivo": str(device.idDispositivo), "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA"})
-    db.commit()
+    # Sin vínculo (primera conexión) o con un dispositivo que ya no está OPERATIVO: se registra uno nuevo. El anterior queda intacto.
+    # Si otra conexión de la misma cuenta ganó la carrera (UQ por cuenta), se deshace esta y se reutiliza la que quedó.
+    try:
+        # Sin vínculo (primera conexión) o con un dispositivo que ya no está OPERATIVO: se registra uno nuevo. El anterior queda intacto.
+        now = nowForDb()
+        device = Device(codigoDispositivo=str(uuid.uuid4()), nombre="Dispositivo de prueba", modelo=MODELO_PRUEBA,
+                        modeloSensor="MAX30100", estado=ESTADO_OPERATIVO)
+        db.add(device)
+        db.flush()
+        previous = link.idDispositivo if link is not None else None
+        if link is None:
+            link = AccountDeviceLink(idUsuario=actor.idUsuario, idDispositivo=device.idDispositivo, fechaVinculo=now)
+            db.add(link)
+            db.flush()
+        else:
+            link.idDispositivo = device.idDispositivo
+            link.fechaVinculo = now
+        registerEvent(db, "CRUD", "REGISTRAR_DISPOSITIVO", True, actor.idUsuario, "Dispositivo", device.idDispositivo, modulo="DISPOSITIVOS",
+                      datosNuevos={"modeloSensor": "MAX30100", "estado": ESTADO_OPERATIVO, "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA",
+                                   "registroAutomatico": True, "idInstitucion": None})
+        registerEvent(db, "CRUD", "VINCULAR_CUENTA_DISPOSITIVO", True, actor.idUsuario, "VinculoCuentaDispositivo", link.idVinculo,
+                      modulo="DISPOSITIVOS", datosPrevios={"idDispositivo": str(previous)} if previous else None,
+                      datosNuevos={"idDispositivo": str(device.idDispositivo), "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA"})
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        winner = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
+        existing = db.get(Device, winner.idDispositivo) if winner is not None else None
+        if existing is None or existing.estado != ESTADO_OPERATIVO:
+            raise
+        hub.confirm(actor.idUsuario, existing.idDispositivo)
+        return existing
     hub.confirm(actor.idUsuario, device.idDispositivo)
     return device
+
+
+def lockAccountQuery(userId):
+    """Bloqueo de la fila de la cuenta hasta el commit. SQLAlchemy NO traduce with_for_update() a SQL Server (lo ignora), así que se
+    pide el hint de T-SQL explícitamente; en otros motores (pruebas SQLite) el hint no se usa."""
+    return (select(User.idUsuario).where(User.idUsuario == userId)
+            .with_hint(User.__table__, "WITH (UPDLOCK, ROWLOCK)", dialect_name="mssql"))
+
+
+def ownLinkedDevice(db: Session, actor) -> Device | None:
+    """El dispositivo lógico vinculado a la cuenta individual (None si no tiene o si la base no tiene la tabla)."""
+    if not _available(db):
+        return None
+    link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
+    return db.get(Device, link.idDispositivo) if link is not None else None
+
+
+def isOwnLinkedDevice(db: Session, actor, device: Device) -> bool:
+    """¿Es ESTE dispositivo el vinculado a la cuenta? Solo esto autoriza medir con él (nunca el código físico del Arduino)."""
+    linked = ownLinkedDevice(db, actor)
+    return linked is not None and linked.idDispositivo == device.idDispositivo
 
 
 def linked(db: Session, column):

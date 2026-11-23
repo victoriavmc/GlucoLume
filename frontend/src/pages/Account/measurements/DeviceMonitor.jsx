@@ -112,11 +112,17 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
   }, [glucoseMode, idPerfilMedicion]);
 
   // Solo se puede medir con el dispositivo que atiende el puente; el backend lo vuelve a comprobar.
-  const connected = devices?.find((item) => item.codigoDispositivo.toLowerCase() === code.toLowerCase());
+  const online = status.estado === 'CONECTADO';
+  // Cuenta individual en simulación (Arduino compartido): la lista trae SU dispositivo vinculado y el backend marca que el puente
+  // se asocia a él sin comparar códigos. En cualquier otro caso (producción, institución) se compara el código que atiende el puente.
+  const individual = !idInstitucion;
+  const sharedSimulation = individual && Boolean(devices?.[0]?.simulacionCompartida);
+  const connected = sharedSimulation
+    ? (online ? devices[0] : undefined)
+    : devices?.find((item) => item.codigoDispositivo.toLowerCase() === code.toLowerCase());
   const device = devices?.find((item) => item.idDispositivo === selected) ?? connected ?? (devices?.length === 1 ? devices[0] : undefined);
   const isConnectedOne = Boolean(device && connected && device.idDispositivo === connected.idDispositivo);
-  const online = status.estado === 'CONECTADO';
-  const unavailable = online && !connected; // el puente atiende un dispositivo que no figura para este perfil
+  const unavailable = online && !individual && !connected; // el puente atiende un dispositivo que no figura para este perfil (institución)
   // Con un dispositivo identificado solo (el conectado o el único del inventario) no se muestra un selector: solo se informa cuál es.
   const pickable = !connected && (devices?.length ?? 0) > 1;
 
@@ -161,7 +167,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
         ) : !device || unavailable ? (
           // No bloquea el formulario: tipo de medición, alimentación y datos opcionales se completan igual; solo falta el dispositivo para iniciar.
           // En «Nueva medición» (cuenta propia) el aviso de dispositivo conectado no aparece nunca; solo en la medición de un paciente.
-          online
+          online && !individual
             ? (patient && (
               <Alert kind="info">
                 El dispositivo conectado ({code}) no está disponible para medir este perfil. Tiene que estar dado de alta como operativo
@@ -170,7 +176,9 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
             ))
             : (
               <>
-                <Alert kind="info">No hay un dispositivo operativo disponible para medir este perfil ahora.</Alert>
+                {individual && online
+                  ? <Alert kind="info">Todavía no tenés un dispositivo vinculado a tu cuenta: conectá el Arduino y registralo.</Alert>
+                  : <Alert kind="info">No hay un dispositivo operativo disponible para medir este perfil ahora.</Alert>}
                 {!patient && online && (
                   <div className="form-actions">
                     <button type="button" className="btn btn-outline" disabled={connecting} onClick={connectTestDevice}>

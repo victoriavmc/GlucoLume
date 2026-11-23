@@ -298,6 +298,8 @@ class DeviceSummary(BaseModel):
     modelo: str | None
     modeloSensor: str
     versionFirmware: str | None
+    # Simulación (DEMO_SHARED_PHYSICAL_DEVICE): el Arduino conectado se asocia a este registro sin comparar su código físico.
+    simulacionCompartida: bool = False
 
 
 class MatrixSummary(BaseModel):
