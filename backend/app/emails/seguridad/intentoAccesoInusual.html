@@ -18,4 +18,5 @@
 {% endblock %}
 {% block complemento %}
 <p style="{{ m.P_SUAVE }}">Si no fuiste vos, ignorá este correo: no hace falta hacer nada y el acceso vuelve a estar disponible después de la hora indicada.</p>
+{{ m.noFuisteVos(urlSeguridad, "Revisar mi cuenta") }}
 {% endblock %}

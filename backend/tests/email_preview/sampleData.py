@@ -79,6 +79,7 @@ def sampleContexts() -> dict[E, dict]:
         E.INTENTO_ACCESO_INUSUAL: {
             **base, "fechaEvento": now, "cantidadIntentos": 3, "bloqueadoHasta": now + timedelta(minutes=15),
             "urlSeguridad": security,
+            "urlLiberar": frontendUrl("/liberar-sesion?token=TOKEN_DE_EJEMPLO"), "minutosValidez": 30,
         },
         E.MFA_ACTIVADO: {**base, "fechaEvento": now, "metodo": "TOTP", "urlSeguridad": security},
         E.MFA_DESACTIVADO: {**base, "fechaEvento": now, "urlSeguridad": security},

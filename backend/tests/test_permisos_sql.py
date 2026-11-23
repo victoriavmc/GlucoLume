@@ -80,8 +80,9 @@ def test_la_api_no_tiene_delete_de_esquema_y_solo_borra_tablas_que_existen():
     assert re.search(r"DENY UPDATE, DELETE ON OBJECT::dbo\.AuditoriaContexto TO rol_glucolume_api;", PERMISOS)
     tables = modelTables()
     assert (granted["rol_glucolume_api"] | granted["rol_glucolume_retencion"]) <= tables
-    # Tablas de negocio que se dan de baja con estados y nunca con DELETE: la API no puede borrarlas.
-    for kept in ("Institucion", "InstitucionUsuario", "PerfilMedicion", "Dispositivo", "Grupo", "GrupoUsuario", "Matriz"):
+    # Tablas de negocio que se dan de baja con estados y nunca con DELETE: la API no puede borrarlas. (Matriz no está acá: la API
+    # borra versiones que nunca se usaron, según la documentación del script.)
+    for kept in ("Institucion", "InstitucionUsuario", "PerfilMedicion", "Dispositivo", "Grupo", "GrupoUsuario"):
         assert kept in tables and kept not in granted["rol_glucolume_api"]
 
 
