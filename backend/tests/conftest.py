@@ -133,7 +133,7 @@ def deleteGrants():
             if "/backend/app/" in path:
                 retentionFiles = ("/app/services/auditRetention.py", "/app/services/notificationRetention.py")
                 role = "rol_glucolume_retencion" if path.endswith(retentionFiles) else "rol_glucolume_api"
-                if path.endswith("/app/demo/limpieza.py"):
+                if path.endswith("/app/demo/seeder.py") and frame.name in ("ejecutarLimpieza", "_deleteOrder"):
                     role = "rol_glucolume_demo_limpieza"
                 found.append((match.group(1), role, f"{path.split('/backend/', 1)[1]}:{frame.lineno}"))
                 return

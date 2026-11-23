@@ -18,8 +18,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core import security
 from app.core.exceptions import AuthError
-from app.demo import catalog as C
-from app.demo import inventory, limpieza, seeder
+from app.demo import seeder
 from app.models.accountDeviceLink import AccountDeviceLink
 from app.models.audit import Audit
 from app.models.localCredential import LocalCredential
@@ -38,8 +37,8 @@ from tests.test_account_deletion import db, engine  # noqa: F401  (fixtures: esq
 ANCHOR = datetime(2026, 10, 1)
 
 
-def account(key: str) -> C.Account:
-    return C.ACCOUNTS_BY_KEY[key]
+def account(key: str) -> seeder.Account:
+    return seeder.ACCOUNTS_BY_KEY[key]
 
 
 def actor(db, key: str) -> User:
@@ -47,7 +46,7 @@ def actor(db, key: str) -> User:
 
 
 def allPasswords() -> dict[str, str]:
-    return {a.key: seeder.generatePassword(a) for a in C.ACCOUNTS}
+    return {a.key: seeder.generatePassword(a) for a in seeder.ACCOUNTS}
 
 
 @pytest.fixture
@@ -71,7 +70,7 @@ def startAudits(db) -> list[Audit]:
 def purgeStartAudits(db) -> None:
     """Simula la purga que haría el DBA (GL-03): la limpieza de datos demo no borra auditoría. Estas pruebas de limpieza quitan antes
     todas las filas que tienen como autor una cuenta demo (la carga las agrega), para probar la limpieza en sí."""
-    db.execute(delete(Audit).where(Audit.idUsuario.in_([a.id for a in C.ACCOUNTS])))
+    db.execute(delete(Audit).where(Audit.idUsuario.in_([a.id for a in seeder.ACCOUNTS])))
     db.commit()
 
 
@@ -81,15 +80,15 @@ def purgeStartAudits(db) -> None:
 def test_dry_run_no_escribe_nada_y_prevee_las_cantidades(db):
     plan = seeder.buildPlan(db, anchor=ANCHOR)
     assert not plan.bloqueado
-    assert plan.conteo()["Usuario"] == {"CREAR": len(C.ACCOUNTS)}
-    assert plan.conteo()["PerfilMedicion"] == {"CREAR": len(C.ACCOUNTS)}
+    assert plan.conteo()["Usuario"] == {"CREAR": len(seeder.ACCOUNTS)}
+    assert plan.conteo()["PerfilMedicion"] == {"CREAR": len(seeder.ACCOUNTS)}
     assert all(not etapa for etapa in plan.etapas)  # ningún registro preparado para insertar
     assert countRows(db, User) == 0
     assert countRows(db, Measurement) == 0
 
 
 def test_aplicar_crea_exactamente_lo_previsto(db, seeded):
-    expected = C.expectedCounts()
+    expected = seeder.expectedCounts()
     assert countRows(db, User) == expected["usuarios"]
     counts = seeder.countDemoRows(db)
     assert counts["Grupo"] == expected["grupos"]
@@ -100,14 +99,14 @@ def test_aplicar_crea_exactamente_lo_previsto(db, seeded):
 
 
 def test_cada_cuenta_individual_tiene_su_propio_dispositivo_y_sus_mediciones(db, seeded):
-    individuals = [a for a in C.ACCOUNTS if a.individual]
+    individuals = [a for a in seeder.ACCOUNTS if a.individual]
     links = {row.idUsuario: row for row in db.scalars(select(AccountDeviceLink)).all()}
     assert set(links) == {a.id for a in individuals}
     assert len({row.idDispositivo for row in links.values()}) == len(individuals)  # ninguna cuenta comparte dispositivo
     for a in individuals:
         deviceId = links[a.id].idDispositivo
-        assert deviceId == next(d.id for d in C.DEVICES if d.key == C.deviceKeyForIndividual(a.key))
-        rows = db.scalars(select(Measurement).where(Measurement.idPerfilMedicion == C.demoId("perfil", a.key))).all()
+        assert deviceId == next(d.id for d in seeder.DEVICES if d.key == seeder.deviceKeyForIndividual(a.key))
+        rows = db.scalars(select(Measurement).where(Measurement.idPerfilMedicion == seeder.demoId("perfil", a.key))).all()
         assert rows and all(row.idDispositivo == deviceId for row in rows), a.key
 
 
@@ -120,7 +119,7 @@ def test_segunda_ejecucion_no_duplica_ningun_registro(db, seeded):
 
 def test_cada_medicion_se_identifica_como_sintetica_y_no_estima_glucosa(db, seeded):
     rows = db.scalars(select(Measurement)).all()
-    assert rows and all(row.observacion == C.NOTA_MEDICION for row in rows)
+    assert rows and all(row.observacion == seeder.NOTA_MEDICION for row in rows)
     assert all(row.glucosaEstimada is None for row in rows)  # la demo no fabrica estimaciones clínicas
     assert all(row.origenGlucosa in (None, "DEMO") for row in rows)
     glucose = [row for row in rows if row.glucosaDispositivo is not None]
@@ -128,10 +127,10 @@ def test_cada_medicion_se_identifica_como_sintetica_y_no_estima_glucosa(db, seed
 
 
 def test_mediciones_con_variedad_de_fechas_modos_estados_y_alimentacion(db, seeded):
-    own = db.scalars(select(Measurement).where(Measurement.idPerfilMedicion == C.demoId("perfil", "individual-a"))).all()
+    own = db.scalars(select(Measurement).where(Measurement.idPerfilMedicion == seeder.demoId("perfil", "individual-a"))).all()
     assert len({row.fechaHoraInicio.date() for row in own}) >= 8  # distintos días
     assert len({row.fechaHoraInicio.hour for row in own}) >= 5  # distintos horarios
-    assert {row.modoMedicion for row in own} == {C.MODO_GLUCOSA, C.MODO_OXIMETRIA}
+    assert {row.modoMedicion for row in own} == {seeder.MODO_GLUCOSA, seeder.MODO_OXIMETRIA}
     assert {row.condicionComida for row in own} >= {"AYUNO", "POSTPRANDIAL"}
     everything = db.scalars(select(Measurement)).all()
     assert {row.estadoMedicion for row in everything} >= {"COMPLETADA", "CANCELADA", "INVALIDA"}
@@ -178,7 +177,7 @@ def test_cuentas_demo_inician_sesion_con_el_flujo_real_sin_mfa_ni_correo(db, see
 
     monkeypatch.setattr(smtplib, "SMTP", recorder)
     monkeypatch.setattr(smtplib, "SMTP_SSL", recorder)
-    for demo in C.ACCOUNTS:
+    for demo in seeder.ACCOUNTS:
         response = auth.loginLocal(db, demo.correo, seeded[demo.key])
         assert response.estado == "AUTENTICADO", demo.key
         assert response.tokens is not None
@@ -194,7 +193,7 @@ def test_contrasena_incorrecta_no_entra(db, seeded):
 
 def test_cinco_configuraciones_de_privacidad_del_grupo(db, seeded):
     admin = actor(db, "grupo-admin")
-    group = C.demoId("grupo", C.GROUP_KEY)
+    group = seeder.demoId("grupo", seeder.GROUP_KEY)
 
     def allowed(call) -> bool:
         try:
@@ -214,7 +213,7 @@ def test_cinco_configuraciones_de_privacidad_del_grupo(db, seeded):
         "grupo-integrante-7": (True, True, True, True),
     }
     for key, (perfil, ultima, historial, avisos) in expected.items():
-        link = C.demoId("vinculo-grupo", key)
+        link = seeder.demoId("vinculo-grupo", key)
         assert allowed(lambda: groups.sharedProfile(db, admin, group, link)) is perfil, key
         assert allowed(lambda: groups.sharedLatest(db, admin, group, link)) is ultima, key
         assert allowed(lambda: groups.sharedHistory(db, admin, group, link)) is historial, key
@@ -223,13 +222,13 @@ def test_cinco_configuraciones_de_privacidad_del_grupo(db, seeded):
 
 def test_avisos_no_exponen_valores_y_el_administrador_no_ve_sus_propios_datos_en_el_grupo(db, seeded):
     admin = actor(db, "grupo-admin")
-    group = C.demoId("grupo", C.GROUP_KEY)
-    notices = groups.sharedNotices(db, admin, group, C.demoId("vinculo-grupo", "grupo-integrante-4"))
-    integrante4 = next(specs for key, specs in C.individualMeasurements() if key == "grupo-integrante-4")
-    assert notices.total == sum(1 for spec in integrante4 if spec.estado == C.ESTADO_COMPLETADA)  # solo las completadas se avisan
+    group = seeder.demoId("grupo", seeder.GROUP_KEY)
+    notices = groups.sharedNotices(db, admin, group, seeder.demoId("vinculo-grupo", "grupo-integrante-4"))
+    integrante4 = next(specs for key, specs in seeder.individualMeasurements() if key == "grupo-integrante-4")
+    assert notices.total == sum(1 for spec in integrante4 if spec.estado == seeder.ESTADO_COMPLETADA)  # solo las completadas se avisan
     assert all(set(item.model_dump().keys()) == {"fechaHoraInicio"} for item in notices.items)
     with pytest.raises(AuthError):  # tus propios datos se consultan desde tu perfil
-        groups.sharedProfile(db, admin, group, C.demoId("vinculo-grupo", "grupo-admin"))
+        groups.sharedProfile(db, admin, group, seeder.demoId("vinculo-grupo", "grupo-admin"))
 
 
 # --- Instituciones, propietarios, operadores ----------------------------------------------------------------------------
@@ -273,9 +272,9 @@ def test_administrador_existente_no_cambia_con_la_carga_ni_con_la_limpieza(db, e
     seeder.apply(db, seeder.buildPlan(db, anchor=ANCHOR, passwords=seeded))
     assert _snapshot(db.get(User, admin.idUsuario)) == before
     purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
-    cleanup = limpieza.plan(db)
+    cleanup = seeder.planificarLimpieza(db)
     assert not cleanup.bloqueada
-    limpieza.execute(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
+    seeder.ejecutarLimpieza(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
     assert _snapshot(db.get(User, admin.idUsuario)) == before
     assert seeder.countDemoRows(db) == {k: 0 for k in seeder.countDemoRows(db)}
 
@@ -289,11 +288,11 @@ def test_limpieza_elimina_solo_lo_demo_y_conserva_datos_reales(db, engine):
     seeder.apply(db, seeder.buildPlan(db, anchor=ANCHOR, passwords=allPasswords()))
     assert db.get(User, real_user.idUsuario) is not None
     purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
-    cleanup = limpieza.plan(db)
+    cleanup = seeder.planificarLimpieza(db)
     assert not cleanup.bloqueada, cleanup.bloqueos
     assert set(cleanup.resumen()) >= {"Usuario", "Medicion", "PerfilMedicion", "Dispositivo", "Grupo"}
-    borrados = limpieza.execute(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
-    assert borrados["Usuario"] == len(C.ACCOUNTS)
+    borrados = seeder.ejecutarLimpieza(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
+    assert borrados["Usuario"] == len(seeder.ACCOUNTS)
     assert seeder.countDemoRows(db) == {k: 0 for k in seeder.countDemoRows(db)}
     assert db.get(User, real_user.idUsuario) is not None  # el dato real sigue ahí
 
@@ -302,12 +301,12 @@ def test_limpieza_se_bloquea_si_hay_auditoria_de_cuentas_demo_y_no_borra_nada(db
     seeder.apply(db, seeder.buildPlan(db, anchor=ANCHOR, passwords=allPasswords()))
     registerEvent(db, "LOGIN", "LOGIN_LOCAL", True, account("individual-a").id)
     db.commit()
-    cleanup = limpieza.plan(db)
+    cleanup = seeder.planificarLimpieza(db)
     assert cleanup.bloqueada
     assert any("Auditoria" in motivo for motivo in cleanup.bloqueos)
-    with pytest.raises(limpieza.LimpiezaBloqueada):
-        limpieza.execute(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
-    assert countRows(db, User) == len(C.ACCOUNTS)  # nada se borró
+    with pytest.raises(seeder.LimpiezaBloqueada):
+        seeder.ejecutarLimpieza(cleanup, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
+    assert countRows(db, User) == len(seeder.ACCOUNTS)  # nada se borró
 
 
 # --- Credenciales: archivo privado, regeneración e inventario público ---------------------------------------------------
@@ -316,9 +315,9 @@ def test_limpieza_se_bloquea_si_hay_auditoria_de_cuentas_demo_y_no_borra_nada(db
 def test_archivo_privado_fuera_del_repositorio_y_sin_contrasenas_en_el_inventario_publico(tmp_path, seeded):
     private = tmp_path / "privado" / "credenciales-demo.txt"
     public = tmp_path / "inventario.md"
-    inventory.writePrivateFile(private, seeded, ANCHOR)
-    assert inventory.readPasswords(private) == seeded
-    inventory.writePublicMarkdown(public, ANCHOR)
+    seeder.writePrivateFile(private, seeded, ANCHOR)
+    assert seeder.readPasswords(private) == seeded
+    seeder.writePublicMarkdown(public, ANCHOR)
     text = public.read_text(encoding="utf-8")
     assert not any(password in text for password in seeded.values())
     assert "demo.individual-a@example.com" in text
@@ -330,7 +329,7 @@ def test_archivo_privado_fuera_del_repositorio_y_sin_contrasenas_en_el_inventari
 @pytest.mark.skipif(__import__("os").name == "nt", reason="los permisos POSIX se verifican solo fuera de Windows")
 def test_archivo_privado_con_permisos_restrictivos(tmp_path, seeded):
     private = tmp_path / "credenciales-demo.txt"
-    inventory.writePrivateFile(private, seeded, ANCHOR)
+    seeder.writePrivateFile(private, seeded, ANCHOR)
     assert oct(private.stat().st_mode & 0o777) == "0o600"
 
 
@@ -346,26 +345,26 @@ def test_cli_dry_run_luego_aplicar_idempotente_y_sin_imprimir_contrasenas(db, en
     assert countRows(db, User) == 0 and not private.exists()
 
     assert demoSeed.run(args + ["--aplicar"], out=lines.append) == 0
-    passwords = inventory.readPasswords(private)
-    assert set(passwords) == {a.key for a in C.ACCOUNTS}
+    passwords = seeder.readPasswords(private)
+    assert set(passwords) == {a.key for a in seeder.ACCOUNTS}
     output = "\n".join(lines)
     assert not any(password in output for password in passwords.values())  # la consola nunca muestra contraseñas
     assert not any(password in public.read_text(encoding="utf-8") for password in passwords.values())
 
     lines.clear()
     assert demoSeed.run(args + ["--aplicar"], out=lines.append) == 0  # segunda vez: no duplica ni cambia contraseñas
-    assert inventory.readPasswords(private) == passwords
-    assert countRows(db, User) == len(C.ACCOUNTS)
+    assert seeder.readPasswords(private) == passwords
+    assert countRows(db, User) == len(seeder.ACCOUNTS)
 
     lines.clear()
     assert demoSeed.run(args + ["--verificar"], out=lines.append) == 0
-    assert any(f"Cuentas verificadas: {len(C.ACCOUNTS)} de {len(C.ACCOUNTS)}" in line for line in lines)
+    assert any(f"Cuentas verificadas: {len(seeder.ACCOUNTS)} de {len(seeder.ACCOUNTS)}" in line for line in lines)
 
     old = passwords["individual-a"]
     assert demoSeed.run(args + ["--aplicar", "--regenerar-contrasenas"], out=lines.append) == 0
-    fresh = inventory.readPasswords(private)
+    fresh = seeder.readPasswords(private)
     assert fresh["individual-a"] != old
-    stored = db.get(LocalCredential, C.demoId("credencial", "individual-a"))
+    stored = db.get(LocalCredential, seeder.demoId("credencial", "individual-a"))
     assert security.verifyPassword(fresh["individual-a"], stored.passwordHash)[0]
     assert not security.verifyPassword(old, stored.passwordHash)[0]
 
@@ -377,7 +376,7 @@ def test_cli_limpieza_dry_run_no_borra(db, engine, tmp_path, monkeypatch):
     purgeStartAudits(db)  # ver purgeStartAudits: la limpieza no borra auditoría
     lines: list[str] = []
     assert demoSeed.run(["--limpiar"], out=lines.append) == 0
-    assert countRows(db, User) == len(C.ACCOUNTS)
+    assert countRows(db, User) == len(seeder.ACCOUNTS)
     assert any("Dry-run" in line for line in lines)
 
 
@@ -418,8 +417,8 @@ def test_sin_matriz_activa_la_carga_avisa_y_no_la_inventa(db):
 def test_individuo_ve_su_historial_propio_completadas_y_canceladas_se_ocultan(db, seeded):
     """Regla de la aplicación (services/measurementVisibility.py): CANCELADA e INVALIDA dejan el historial personal 30 minutos
     después de cerrarse; las COMPLETADAS permanecen. Por eso la vista personal muestra solo las completadas."""
-    specs = dict(C.individualMeasurements())["individual-a"]
-    completed = sum(1 for spec in specs if spec.estado == C.ESTADO_COMPLETADA)
+    specs = dict(seeder.individualMeasurements())["individual-a"]
+    completed = sum(1 for spec in specs if spec.estado == seeder.ESTADO_COMPLETADA)
     hidden = len(specs) - completed
     assert hidden > 0 and {spec.estado for spec in specs} >= {"CANCELADA", "INVALIDA"}  # hay canceladas e inválidas en la cuenta A
     page = measurements.listOwnHistory(db, actor(db, "individual-a"), tamanioPagina=50)

@@ -9,7 +9,7 @@
 #     python -m app.cli.demoSeed --limpiar --aplicar  # elimina los datos demo (requiere DB_DEMO_USER)
 #     python -m app.cli.demoSeed --aplicar --regenerar-contrasenas   # nuevas contraseñas demo (cuentas existentes incluidas)
 #
-# Nunca imprime contraseñas: van solo al archivo privado (ver app/demo/inventory.py).
+# Nunca imprime contraseñas: van solo al archivo privado (ver app/demo/seeder.py).
 
 from __future__ import annotations
 
@@ -18,8 +18,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from app.demo import inventory, limpieza, seeder
-from app.demo import catalog as C
+from app.demo import seeder
 
 def _parseAnchor(value: str | None) -> datetime | None:
     if value is None:
@@ -57,7 +56,7 @@ def runSeed(args, out) -> int:
             return 0
 
         generate = list(dict.fromkeys(preview.cuentasACrear + preview.cuentasARegenerar))
-        passwords = {key: seeder.generatePassword(C.ACCOUNTS_BY_KEY[key]) for key in generate}
+        passwords = {key: seeder.generatePassword(seeder.ACCOUNTS_BY_KEY[key]) for key in generate}
         plan = seeder.buildPlan(session, anchor=anchor, passwords=passwords, regenerarContrasenas=args.regenerar_contrasenas)
         if plan.bloqueado:  # cambió la base entre las dos lecturas: no se escribe nada
             out("CARGA BLOQUEADA tras releer la base. No se escribió nada.")
@@ -73,25 +72,25 @@ def runSeed(args, out) -> int:
     finally:
         session.close()
 
-    known = inventory.readPasswords(credenciales)
+    known = seeder.readPasswords(credenciales)
     known.update(passwords)  # cuentas creadas o regeneradas en esta ejecución
-    warnings = inventory.writePrivateFile(credenciales, known, anchor)
+    warnings = seeder.writePrivateFile(credenciales, known, anchor)
     out(f"\nArchivo privado de credenciales: {credenciales}")
     for warning in warnings:
         out(f"ADVERTENCIA: {warning}")
-    missing = [a.key for a in C.ACCOUNTS if a.key not in known]
+    missing = [a.key for a in seeder.ACCOUNTS if a.key not in known]
     if missing:
         out(f"Sin contraseña conocida para {len(missing)} cuenta(s) existentes: ejecutá con --regenerar-contrasenas para emitirlas.")
     if args.inventario_publico:
         target = Path(args.inventario_publico)
-        inventory.writePublicMarkdown(target, anchor)
+        seeder.writePublicMarkdown(target, anchor)
         out(f"Inventario público (sin contraseñas): {target}")
     return 0
 
 
 def runVerify(args, out) -> int:
     credenciales = Path(args.credenciales).expanduser() if args.credenciales else seeder.defaultCredentialsPath()
-    passwords = inventory.readPasswords(credenciales)
+    passwords = seeder.readPasswords(credenciales)
     from app.db.session import getSessionFactory
     session = getSessionFactory()()
     try:
@@ -111,7 +110,7 @@ def runCleanup(args, out) -> int:
     from app.db.session import getSessionFactory
     session = getSessionFactory()()
     try:
-        cleanup = limpieza.plan(session)
+        cleanup = seeder.planificarLimpieza(session)
     finally:
         session.close()
     if cleanup.bloqueada:
@@ -131,8 +130,8 @@ def runCleanup(args, out) -> int:
         return 0
     from app.db.session import getDemoSessionFactory
     try:
-        borrados = limpieza.execute(cleanup, getDemoSessionFactory())
-    except (limpieza.LimpiezaBloqueada, RuntimeError) as error:
+        borrados = seeder.ejecutarLimpieza(cleanup, getDemoSessionFactory())
+    except (seeder.LimpiezaBloqueada, RuntimeError) as error:
         out(f"ERROR: {error}")
         return 1
     out("Eliminado (una sola transacción):")
