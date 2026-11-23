@@ -283,3 +283,59 @@ def test_con_simulacion_la_medicion_queda_con_su_cuenta_y_su_dispositivo_logico(
     rowB = db.get(Measurement, startedB.idMedicion)
     assert (rowA.idPerfilMedicion, rowA.idDispositivo) == (profileA, devA.idDispositivo)
     assert (rowB.idPerfilMedicion, rowB.idDispositivo) == (profileB, devB.idDispositivo)
+
+
+# --- Auditoría de confirmaciones manuales (identidad DECLARADA) -------------------------------------------------------------
+
+
+def _confirmations(db, user):
+    from app.models.audit import Audit
+    return db.scalars(select(Audit).where(Audit.accion == "CONFIRMAR_DISPOSITIVO_CONEXION", Audit.idUsuario == user.idUsuario)).all()
+
+
+def test_la_confirmacion_manual_declarada_queda_auditada_sin_datos_sensibles(db, cuentaA, bridgeFixture):
+    import json
+    user, _ = cuentaA
+    bridgeFixture.seconds(1)  # sin ID propio: identidad DECLARADA
+    device = individualDevice.connectTestDevice(db, user)
+    rows = _confirmations(db, user)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.tablaAfectada == "Dispositivo" and row.idRegistro == device.idDispositivo and row.resultado == "EXITO"
+    data = json.loads(row.datosNuevos)
+    assert data["identificacion"] == "DECLARADA" and data["confirmacionManual"] is True
+    assert "password" not in row.datosNuevos.lower() and "token" not in row.datosNuevos.lower()
+    assert row.fechaHora is not None
+
+
+def test_cada_reconexion_confirmada_se_audita_como_reutilizada(db, cuentaA, bridgeFixture):
+    import json
+    user, _ = cuentaA
+    bridgeFixture.seconds(1)
+    individualDevice.connectTestDevice(db, user)
+    individualDevice.connectTestDevice(db, user)
+    rows = sorted(_confirmations(db, user), key=lambda r: r.fechaHora)
+    assert [json.loads(r.datosNuevos)["reutilizado"] for r in rows] == [False, True]
+
+
+def test_con_id_propio_no_hay_confirmacion_manual_que_auditar(db, cuentaA, bridgeFixture):
+    user, _ = cuentaA
+    bridgeFixture.seconds(1)
+    from app.acquisition.telemetry import hub as hubInstance
+    monkeypatch_identity = {"nivel": "FISICA", "codigo": "ARD-001", "firmware": "1.0", "sensor": "MAX30100"}
+    original = hubInstance.identity
+    hubInstance.identity = lambda: monkeypatch_identity
+    try:
+        individualDevice.connectTestDevice(db, user)
+    finally:
+        hubInstance.identity = original
+    assert _confirmations(db, user) == []
+
+
+def test_la_cuenta_individual_no_puede_consultar_la_auditoria(db, cuentaA, bridgeFixture):
+    from app.services import auditQuery
+    user, _ = cuentaA
+    bridgeFixture.seconds(1)
+    individualDevice.connectTestDevice(db, user)
+    with pytest.raises(AuthError):
+        auditQuery.listGlobal(db, user)

@@ -58,6 +58,19 @@ def linkedDeviceCount(db: Session) -> int | None:
     return db.scalar(select(func.count(func.distinct(AccountDeviceLink.idDispositivo)))) or 0
 
 
+def _auditDeclaredConfirmation(db: Session, actor, device: Device, identity: dict, reused: bool) -> None:
+    """Confirmación manual de «Conectar dispositivo» cuando el Arduino NO informa ID propio (identidad DECLARADA): queda en la auditoría
+    general (solo plataforma; la cuenta individual no puede consultarla). Se guarda cuenta, dispositivo lógico, tipo, código declarado y
+    resultado: nunca credenciales ni datos personales."""
+    if identity.get("nivel") != "DECLARADA":
+        return  # con ID propio la identidad se verificó sola: no hay confirmación manual que auditar
+    registerEvent(db, "CRUD", "CONFIRMAR_DISPOSITIVO_CONEXION", True, actor.idUsuario, "Dispositivo", device.idDispositivo,
+                  modulo="DISPOSITIVOS", datosNuevos={"identificacion": "DECLARADA", "codigoDeclarado": identity.get("codigo"),
+                                                     "confirmacionManual": True,
+                                                     "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA", "reutilizado": reused},
+                  observacion="Identidad física no verificable: la cuenta individual confirmó manualmente qué dispositivo es.")
+
+
 def connectTestDevice(db: Session, actor) -> Device:
     """«Conectar dispositivo» de una cuenta individual de prueba. Sin cambios si el dispositivo vinculado está OPERATIVO (solo confirma que
     el Arduino conectado es ese registro). Si NO está operativo, crea un dispositivo de prueba nuevo (código único, generado por el sistema,
@@ -76,7 +89,8 @@ def connectTestDevice(db: Session, actor) -> Device:
     link = db.scalar(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == actor.idUsuario))
     current = db.get(Device, link.idDispositivo) if link is not None else None
     if current is not None and current.estado == ESTADO_OPERATIVO:
-        db.commit()  # solo libera el bloqueo: se reutiliza el dispositivo lógico de la cuenta, sin crear otro
+        _auditDeclaredConfirmation(db, actor, current, hub.identity(), reused=True)
+        db.commit()  # libera el bloqueo: se reutiliza el dispositivo lógico de la cuenta, sin crear otro
         hub.confirm(actor.idUsuario, current.idDispositivo)
         return current
     # Sin vínculo (primera conexión) o con un dispositivo que ya no está OPERATIVO: se registra uno nuevo. El anterior queda intacto.
@@ -102,6 +116,7 @@ def connectTestDevice(db: Session, actor) -> Device:
         registerEvent(db, "CRUD", "VINCULAR_CUENTA_DISPOSITIVO", True, actor.idUsuario, "VinculoCuentaDispositivo", link.idVinculo,
                       modulo="DISPOSITIVOS", datosPrevios={"idDispositivo": str(previous)} if previous else None,
                       datosNuevos={"idDispositivo": str(device.idDispositivo), "origen": "CONEXION_CUENTA_INDIVIDUAL_PRUEBA"})
+        _auditDeclaredConfirmation(db, actor, device, hub.identity(), reused=False)
         db.commit()
     except IntegrityError:
         db.rollback()
