@@ -229,3 +229,57 @@ def test_dos_solicitudes_simultaneas_de_una_cuenta_no_duplican(db, engine, cuent
     links = db.scalars(select(AccountDeviceLink).where(AccountDeviceLink.idUsuario == userId)).all()
     assert len(links) == 1
     assert len(_logicalDevices(db)) == 1
+
+
+# --- Revisión de seguridad de «Conectar dispositivo» y de la simulación -----------------------------------------------------
+
+
+def test_la_confirmacion_no_sirve_si_cambia_el_arduino_conectado(db, cuentaA, bridgeFixture):
+    """Lo confirmado con «Conectar» vale solo para el Arduino que estaba conectado: si la conexión informa otro código, se rechaza."""
+    user, profileId = cuentaA
+    bridgeFixture.seconds(1)
+    own = individualDevice.connectTestDevice(db, user)
+    bridgeFixture.code = "OTRO-ARDUINO"  # otro Arduino en la misma conexión
+    bridgeFixture.seconds(1)
+    with pytest.raises(AuthError) as raised:
+        startFor(db, user, profileId, own)
+    assert raised.value.code == "DISPOSITIVO_NO_COINCIDE" and hub.session is None
+
+
+def test_un_dispositivo_vinculado_no_operativo_no_inicia_medicion(db, cuentaA, bridgeFixture):
+    user, profileId = cuentaA
+    bridgeFixture.seconds(1)
+    own = individualDevice.connectTestDevice(db, user)
+    own.estado = "FUERA_DE_SERVICIO"
+    db.commit()
+    with pytest.raises(AuthError) as raised:
+        startFor(db, user, profileId, own)
+    assert raised.value.code == "DISPOSITIVO_NO_DISPONIBLE" and hub.session is None
+
+
+def test_el_cliente_no_puede_inyectar_la_simulacion_en_el_inicio_de_medicion():
+    from pydantic import ValidationError
+
+    from app.schemas.acquisition import TelemetrySessionStart
+    with pytest.raises(ValidationError):
+        TelemetrySessionStart(idPerfilMedicion=uuid.uuid4(), idDispositivo=uuid.uuid4(), DEMO_SHARED_PHYSICAL_DEVICE=True)
+    with pytest.raises(ValidationError):
+        TelemetrySessionStart(idPerfilMedicion=uuid.uuid4(), idDispositivo=uuid.uuid4(), simulacionCompartida=True)
+
+
+def test_con_simulacion_la_medicion_queda_con_su_cuenta_y_su_dispositivo_logico(db, cuentaA, cuentaB, bridgeFixture, demoOn):
+    from app.models.measurement import Measurement
+    (userA, profileA), (userB, profileB) = cuentaA, cuentaB
+    bridgeFixture.seconds(1)
+    devA = individualDevice.connectTestDevice(db, userA)
+    devB = individualDevice.connectTestDevice(db, userB)
+    hub.reset()
+    bridgeFixture.seconds(1)
+    startedA = startFor(db, userA, profileA, devA)
+    hub.reset()
+    bridgeFixture.seconds(1)
+    startedB = startFor(db, userB, profileB, devB)
+    rowA = db.get(Measurement, startedA.idMedicion)
+    rowB = db.get(Measurement, startedB.idMedicion)
+    assert (rowA.idPerfilMedicion, rowA.idDispositivo) == (profileA, devA.idDispositivo)
+    assert (rowB.idPerfilMedicion, rowB.idDispositivo) == (profileB, devB.idDispositivo)
