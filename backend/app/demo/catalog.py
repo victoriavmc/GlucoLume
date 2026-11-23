@@ -233,17 +233,34 @@ class DemoDevice:
 
 
 DEVICES: tuple[DemoDevice, ...] = (
+    # Un dispositivo propio por cada cuenta individual (ind-01 … ind-07): nadie comparte dispositivo.
     DemoDevice("ind-01", "DEMO-DISP-IND-01", None),
     DemoDevice("ind-02", "DEMO-DISP-IND-02", None),
+    DemoDevice("ind-03", "DEMO-DISP-IND-03", None),
+    DemoDevice("ind-04", "DEMO-DISP-IND-04", None),
+    DemoDevice("ind-05", "DEMO-DISP-IND-05", None),
+    DemoDevice("ind-06", "DEMO-DISP-IND-06", None),
+    DemoDevice("ind-07", "DEMO-DISP-IND-07", None),
     DemoDevice("a-01", "DEMO-DISP-A-01", "a"),
     DemoDevice("a-02", "DEMO-DISP-A-02", "a"),
     DemoDevice("b-01", "DEMO-DISP-B-01", "b"),
     DemoDevice("b-02", "DEMO-DISP-B-02", "b"),
 )
 
+# Dispositivo con el que mide cada cuenta individual (cada una tiene el suyo).
+INDIVIDUAL_DEVICE_KEYS: dict[str, str] = {
+    "individual-a": "ind-01",
+    "grupo-admin": "ind-02",
+    "grupo-integrante-1": "ind-03",
+    "grupo-integrante-2": "ind-04",
+    "grupo-integrante-3": "ind-05",
+    "grupo-integrante-4": "ind-06",
+    "grupo-integrante-5": "ind-07",
+}
+
 
 def deviceKeyForIndividual(accountKey: str) -> str:
-    return "ind-02" if accountKey.startswith("grupo-integrante") else "ind-01"
+    return INDIVIDUAL_DEVICE_KEYS[accountKey]
 
 
 # --- Pacientes institucionales ---------------------------------------------------------------------------------------

@@ -20,6 +20,7 @@ from app.core import security
 from app.core.exceptions import AuthError
 from app.demo import catalog as C
 from app.demo import inventory, limpieza, seeder
+from app.models.accountDeviceLink import AccountDeviceLink
 from app.models.audit import Audit
 from app.models.localCredential import LocalCredential
 from app.models.measurement import Measurement
@@ -97,6 +98,18 @@ def test_aplicar_crea_exactamente_lo_previsto(db, seeded):
     assert counts["PerfilMedicion"] == expected["perfiles_individuales"] + expected["pacientes_asignados"]
     assert counts["Medicion"] == expected["mediciones_individuales"] + expected["mediciones_pacientes"]
     assert countRows(db, LocalCredential) == expected["credenciales"]
+
+
+def test_cada_cuenta_individual_tiene_su_propio_dispositivo_y_sus_mediciones(db, seeded):
+    individuals = [a for a in C.ACCOUNTS if a.individual]
+    links = {row.idUsuario: row for row in db.scalars(select(AccountDeviceLink)).all()}
+    assert set(links) == {a.id for a in individuals}
+    assert len({row.idDispositivo for row in links.values()}) == len(individuals)  # ninguna cuenta comparte dispositivo
+    for a in individuals:
+        deviceId = links[a.id].idDispositivo
+        assert deviceId == next(d.id for d in C.DEVICES if d.key == C.deviceKeyForIndividual(a.key))
+        rows = db.scalars(select(Measurement).where(Measurement.idPerfilMedicion == C.demoId("perfil", a.key))).all()
+        assert rows and all(row.idDispositivo == deviceId for row in rows), a.key
 
 
 def test_segunda_ejecucion_no_duplica_ningun_registro(db, seeded):
