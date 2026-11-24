@@ -239,6 +239,18 @@ const TICK_STEPS = [HOUR, 2 * HOUR, 3 * HOUR, 6 * HOUR, 12 * HOUR, DAY, 2 * DAY,
 export function timeTicks(t0, t1, max = 7) {
   const span = Math.max(t1 - t0, HOUR);
   const step = TICK_STEPS.find((candidate) => span / candidate <= max - 1) ?? TICK_STEPS.at(-1);
+  if (step >= 30 * DAY) {
+    // Rangos de meses: una marca por primer día del mes (hora local), espaciadas si hay demasiados meses.
+    const first = new Date(t0);
+    const months = [];
+    for (let k = 0; ; k += 1) {
+      const tick = new Date(first.getFullYear(), first.getMonth() + k, 1).getTime();
+      if (tick > t1) break;
+      if (tick >= t0) months.push(tick);
+    }
+    const every = Math.max(1, Math.ceil(months.length / (max - 1)));
+    return { ticks: months.filter((_, index) => index % every === 0), step };
+  }
   const ticks = [];
   for (let tick = Math.ceil(t0 / step) * step; tick <= t1; tick += step) ticks.push(tick);
   return { ticks, step };
