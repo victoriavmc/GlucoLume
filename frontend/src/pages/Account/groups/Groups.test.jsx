@@ -599,9 +599,11 @@ describe('Mediciones compartidas: pruebas DEMO y vista ampliada', () => {
       [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
       [`GET ${BASE}/shared/gu-beto/measurements/m-demo`]: jsonResponse(200, { ...demo, fechaHoraFin: '2026-10-08T08:31:00', indiceOptico: '2.4149',
         duracionMs: 60000, lecturasEstabilizadas: 8, esUltima: true }),
+      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
     });
     renderAt(`/app/grupo/${ID}/compartidos/gu-beto/mediciones/m-demo`);
     expect(await screen.findByRole('heading', { name: /Glucosa \(experimental\) · 08\/10\/2026 08:30/ })).toBeInTheDocument();
+    expect(await screen.findByText('Beto Ruiz')).toBeInTheDocument(); // de quién es la medición, a la derecha del título
     expect(screen.getAllByText(/DEMO — Medición de prueba/).length).toBeGreaterThan(0);
     const results = within(screen.getByLabelText('Resultados compartidos'));
     expect(results.getByText('76 lpm')).toBeInTheDocument();

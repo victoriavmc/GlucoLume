@@ -220,6 +220,8 @@
   font-size: 20px;
 }
 
+.panel-title .measurement-owner { margin: 0 0 0 auto; margin-top: 0; text-align: right; white-space: nowrap; color: var(--ink-700); }
+.panel-title .measurement-owner small { color: var(--ink-500); }
 .panel-title p {
   margin: 4px 0 0;
   color: var(--ink-500);

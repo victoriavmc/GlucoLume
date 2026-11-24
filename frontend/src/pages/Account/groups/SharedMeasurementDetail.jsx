@@ -10,13 +10,14 @@ import { friendlyError } from '../../../auth/errorMessages.js';
 import { ExperimentalNotice } from '../../../components/ExperimentalNotice.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 import { DEMO_NOTICE, formatIndex } from '../measurements/measurementFormat.js';
-import { MEALS, MODES, formatDateTime, formatNumber } from './groupFormat.js';
+import { MEALS, MODES, formatDateTime, formatNumber, personName } from './groupFormat.js';
 import { DEMO_LABEL, ORIGIN_LABELS, glucoseText } from './sharedMeasurementFormat.js';
 
 export function SharedMeasurementDetail() {
   const { group } = useOutletContext();
   const { idGrupoUsuario, idMedicion } = useParams();
   const [state, setState] = useState({ data: null, error: null });
+  const [owner, setOwner] = useState(null); // integrante que compartió la medición
 
   useEffect(() => {
     let active = true;
@@ -24,6 +25,10 @@ export function SharedMeasurementDetail() {
     groupsApi.getSharedMeasurement(group.idGrupo, idGrupoUsuario, idMedicion).then(
       (data) => active && setState({ data, error: null }),
       (error) => active && setState({ data: null, error }),
+    );
+    groupsApi.getSharedMembers(group.idGrupo).then(
+      (members) => active && setOwner(members.find((member) => member.idGrupoUsuario === idGrupoUsuario) ?? null),
+      () => active && setOwner(null),
     );
     return () => { active = false; };
   }, [group.idGrupo, idGrupoUsuario, idMedicion]);
@@ -48,6 +53,7 @@ export function SharedMeasurementDetail() {
                 {data.esDemo && <> · <b>{DEMO_LABEL}</b></>}
               </p>
             </div>
+            {owner && <p className="measurement-owner"><small>Medición de</small> <b>{personName(owner)}</b></p>}
           </div>
           {data.esDemo && <Alert kind="info"><FlaskConical size={16} aria-hidden="true" /> {DEMO_NOTICE}</Alert>}
           <ul className="result-grid" aria-label="Resultados compartidos">
