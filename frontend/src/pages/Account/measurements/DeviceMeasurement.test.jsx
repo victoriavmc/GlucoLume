@@ -693,3 +693,24 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     expect(screen.queryByText(/Datos de prueba \(DEMO\)/)).not.toBeInTheDocument();
   });
 });
+
+describe('Cuenta individual: conectar actualiza la pantalla sola, sin recargar', () => {
+  it('tras conectar el Arduino el inicio se habilita sin F5 (la cuenta todavía no tenía dispositivo)', async () => {
+    let linked = false;
+    const readyOwn = { ...READY, dispositivo: { idDispositivo: DEVICE.idDispositivo, codigoDispositivo: DEVICE.codigoDispositivo } };
+    const api = routes(SIN_PUENTE, {
+      'GET /measurements/devices': () => jsonResponse(200, linked ? [DEVICE] : []),
+      'GET /acquisition/telemetry/readiness': () => jsonResponse(200, linked ? readyOwn : readyWith({ PUERTO: { estado: 'PENDIENTE' } })),
+      'POST /acquisition/individual/conectar': () => { linked = true; return jsonResponse(200, DEVICE); },
+    });
+    const user = userEvent.setup();
+    renderAt('/app/mediciones/nueva');
+    const section = await card();
+    await user.click(await within(section).findByRole('button', { name: 'Conectar con el dispositivo' }));
+    // El navegador conectó el puerto: el backend empieza a informar telemetría (sin recargar).
+    api.set(status());
+    pushStatus(status());
+    expect(await within(section).findByRole('button', { name: 'Iniciar medición' }, { timeout: 4000 })).toBeEnabled();
+    expect(api.calls.filter((call) => call.key === 'POST /acquisition/individual/conectar').length).toBe(1);
+  });
+});

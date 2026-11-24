@@ -126,18 +126,29 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
   // Con un dispositivo identificado solo (el conectado o el único del inventario) no se muestra un selector: solo se informa cuál es.
   const pickable = !connected && (devices?.length ?? 0) > 1;
 
-  // Cuenta individual, un solo toque: apenas el Arduino queda conectado por el navegador, se confirma con la cuenta sin otro botón.
-  // Una vez por conexión; si se desconecta, al volver a conectarlo se confirma de nuevo.
-  const autoConfirmedFor = useRef('');
+  // Cuenta individual, un solo toque: apenas el Arduino queda conectado, se confirma con la cuenta sin otro botón. Si el puente todavía no
+  // está listo, reintenta sola (en silencio) cuando se actualiza el diagnóstico; se detiene al confirmar o tras varios intentos.
+  const autoConfirm = useRef({ code: '', attempts: 0, done: false });
   useEffect(() => {
     if (!online) {
-      autoConfirmedFor.current = '';
+      autoConfirm.current = { code: '', attempts: 0, done: false };
       return;
     }
-    if (!individual || patient || !code || autoConfirmedFor.current === code) return;
-    autoConfirmedFor.current = code;
-    connectTestDevice();
-  }, [online, individual, patient, code]); // eslint-disable-line react-hooks/exhaustive-deps
+    const state = autoConfirm.current;
+    if (!individual || patient || !code || state.done) return;
+    if (state.code !== code) autoConfirm.current = { code, attempts: 0, done: false };
+    const current = autoConfirm.current;
+    if (current.attempts >= 6) return;
+    current.attempts += 1;
+    acquisitionApi.connectTestDevice().then(
+      () => {
+        autoConfirm.current.done = true;
+        loadDevices();
+        refreshReadiness();
+      },
+      () => {},
+    );
+  }, [online, individual, patient, code, readiness]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function start(event) {
     event.preventDefault();
