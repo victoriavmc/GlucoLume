@@ -501,16 +501,11 @@ function GlucoseSemaforoKpi({ series }) {
   );
 }
 
-/** Promedio de una variable en el período. Experimental y DEMO no se promedian juntas: si hay experimentales, se promedian solo esas. */
+/** Promedio de una variable en el período: todas las mediciones del período entran en el promedio. */
 function AverageKpi({ name, unit, series }) {
-  const experimental = series.filter((point) => !point.demo);
-  const demo = series.filter((point) => point.demo);
-  const useDemo = experimental.length === 0 && demo.length > 0;
-  const group = useDemo ? demo : experimental;
-  const average = group.length
-    ? group.reduce((sum, point) => sum + point.value, 0) / group.length
+  const average = series.length
+    ? series.reduce((sum, point) => sum + point.value, 0) / series.length
     : null;
-  const noun = group.length === 1 ? "medición" : "mediciones";
   return (
     <article
       className="home-mini-kpi"
@@ -524,14 +519,6 @@ function AverageKpi({ name, unit, series }) {
           {formatValue(average, 1)} <span>{unit}</span>
         </b>
       )}
-      <small>
-        {average === null
-          ? `No hay mediciones de ${name} en este período.`
-          : `${useDemo ? "Prueba DEMO (simulada)" : "Experimental"}: promedio de ${group.length} ${noun}.`}
-        {!useDemo &&
-          demo.length > 0 &&
-          ` ${demo.length} ${demo.length === 1 ? "prueba DEMO no entra" : "pruebas DEMO no entran"} en el promedio.`}
-      </small>
     </article>
   );
 }

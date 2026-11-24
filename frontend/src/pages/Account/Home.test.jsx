@@ -99,8 +99,7 @@ describe('Inicio de una cuenta individual', () => {
     renderAt('/app/inicio');
     const mix = within(await screen.findByRole('region', { name: 'Cómo fueron tus mediciones' }));
     expect(await mix.findByRole('img', { name: 'Semáforo de glucosa: 3 en total' })).toBeInTheDocument();
-    expect(mix.getByRole('article', { name: 'Promedio de glucosa del período' })).toHaveTextContent('105 mg/dL');
-    expect(mix.getByRole('article', { name: 'Promedio de glucosa del período' })).toHaveTextContent('1 prueba DEMO no entra en el promedio.');
+    expect(mix.getByRole('article', { name: 'Promedio de glucosa del período' })).toHaveTextContent('120 mg/dL'); // todas las mediciones, DEMO incluida
   });
 
   it('«Cómo fueron tus mediciones» también muestra el promedio de frecuencia cardíaca y de SpO₂ del período', async () => {
@@ -109,7 +108,7 @@ describe('Inicio de una cuenta individual', () => {
     renderAt('/app/inicio');
     const mix = within(await screen.findByRole('region', { name: 'Cómo fueron tus mediciones' }));
     await waitFor(() => expect(mix.getByRole('article', { name: 'Promedio de frecuencia cardíaca del período' })).toHaveTextContent('75 lpm'));
-    expect(mix.getByRole('article', { name: 'Promedio de frecuencia cardíaca del período' })).toHaveTextContent('promedio de 2 mediciones');
+    expect(mix.getByRole('article', { name: 'Promedio de frecuencia cardíaca del período' })).toHaveTextContent('Promedio de frecuencia cardíaca');
     expect(mix.getByRole('article', { name: 'Promedio de SpO₂ del período' })).toHaveTextContent('98 %');
   });
 
