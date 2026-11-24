@@ -336,11 +336,21 @@ def readiness(db: Session, actor: User, idPerfilMedicion=None, idInstitucion=Non
 
     device = None
     identification = None
+    if code is not None and membership is None and idPerfilMedicion is not None:
+        linkedOwn = individualDevice.ownLinkedDevice(db, actor)
+        if linkedOwn is not None:
+            _ensureOwnConfirmation(db, actor, False, linkedOwn)
     own = _confirmedOwnDevice(db, actor, membership, idPerfilMedicion) if code is not None else None
+    notOperative = _linkedNotOperative(db, actor, membership, idPerfilMedicion) if code is not None and own is None else None
     if own is not None:
         # Cuenta individual: su dispositivo vinculado, confirmado en esta conexión con «Conectar». No se compara el código del Arduino.
         device = own
         steps.append(_step("REGISTRADO", "Dispositivo registrado", "OK", f"Tu dispositivo «{own.codigoDispositivo}» está conectado y confirmado."))
+    elif notOperative is not None:
+        # Su dispositivo vinculado ya no está operativo (lo cambió la administración): no se usa ni se registra otro automáticamente.
+        steps.append(_step("REGISTRADO", "Dispositivo registrado", "ERROR",
+                           f"Tu dispositivo «{notOperative.codigoDispositivo}» ya no está operativo: no se pueden guardar nuevas mediciones con él.",
+                           "Tocá «Conectar» para continuar con un dispositivo operativo."))
     elif membership is not None:
         # Contexto de operador: la identidad y el registro se resuelven contra el inventario de SU institución.
         identification = deviceConnection.identification(db, actor, idInstitucion, membership)
@@ -551,6 +561,30 @@ def _confirmedOwnDevice(db: Session, actor: User, membership, idPerfilMedicion):
     return device if hub.isConfirmed(actor.idUsuario, device.idDispositivo) else None
 
 
+def _ensureOwnConfirmation(db: Session, actor: User, institutional: bool, device: Device) -> None:
+    """Cuenta individual con SU dispositivo operativo vinculado: completa la confirmación de «Conectar» si se hizo sin código
+    (antes de que el Arduino informara su identidad). No aplica a otras cuentas, ni a conexiones nuevas, ni a un Arduino que cambió."""
+    if institutional or actor.tipoCuenta != individualDevice.TIPO_INDIVIDUAL or device.estado != measurements.DEVICE_OPERATIVO:
+        return
+    own = individualDevice.ownLinkedDevice(db, actor)
+    if own is None or own.idDispositivo != device.idDispositivo or hub.identity()["codigo"] is None:
+        return
+    current = hub.confirmation
+    # Solo completa una confirmación incompleta (hecha con «Conectar» antes de que el Arduino informara su identidad). Una conexión
+    # nueva sin confirmación sigue requiriendo «Conectar».
+    if current is None or current["userId"] != actor.idUsuario or current["idDispositivo"] != device.idDispositivo or current["code"]:
+        return
+    hub.confirm(actor.idUsuario, device.idDispositivo)
+
+
+def _linkedNotOperative(db: Session, actor: User, membership, idPerfilMedicion):
+    """Dispositivo vinculado a una cuenta individual que ya no está OPERATIVO (la administración lo cambió), o None."""
+    if membership is not None or idPerfilMedicion is None or actor.tipoCuenta != individualDevice.TIPO_INDIVIDUAL:
+        return None
+    device = individualDevice.ownLinkedDevice(db, actor)
+    return device if device is not None and device.estado != measurements.DEVICE_OPERATIVO else None
+
+
 def _requireSameDevice(db: Session, actor: User, access, device: Device, bridge, which: str) -> dict:
     """El Arduino que está conectado ahora es el dispositivo `device`. Con ID propio se compara ese ID (nunca el puerto). Si el
     firmware no informa uno, un operador solo puede medir con el dispositivo que confirmó a mano para esta conexión. Cuenta individual:
@@ -594,6 +628,7 @@ def startSession(db: Session, actor: User, data: TelemetrySessionStart) -> Measu
         raise AuthError("DISPOSITIVO_NO_DISPONIBLE", "El dispositivo no está disponible para medir este perfil.")
     # Primero se comprueba que el Arduino conectado sea este dispositivo (o el vinculado a la cuenta); recién después se vincula (la primera
     # vez) o se exige el vinculado. Así nunca se vincula a la cuenta un dispositivo que no está conectado.
+    _ensureOwnConfirmation(db, actor, access.idInstitucion is not None, device)
     identity = _requireSameDevice(db, actor, access, device, bridge, "elegido para esta medición")
     individualDevice.requireLinkedDevice(db, actor, device)  # cuenta individual: un solo dispositivo vinculado
     if identity["nivel"] == "FISICA":

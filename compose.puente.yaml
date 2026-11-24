@@ -1,0 +1,46 @@
+# Puente serie SIEMPRE ACTIVO en el servidor Linux (Arduino conectado al servidor por USB o Bluetooth). Se suma a los demás:
+#
+#   docker compose -f compose.yaml -f compose.puente.yaml up -d
+#
+# Los usuarios no instalan nada: el servicio «puente» lee el Arduino y lo envía al backend. Reinicia solo (restart: unless-stopped).
+#
+# Variables (en el .env del proyecto):
+#   SERIAL_DEVICE   nodo del host: USB → /dev/ttyACM0 (o /dev/ttyUSB0); Bluetooth HC-06 → /dev/rfcomm0 (enlazado en el host, ver docs).
+#   SERIAL_MEDIUM   USB (115200) o BLUETOOTH (9600). Debe coincidir con el dispositivo de SERIAL_DEVICE.
+#   BRIDGE_DEVICE_CODE  codigoDispositivo del inventario que corresponde a este Arduino.
+#   BRIDGE_TOKEN    el mismo BRIDGE_TOKEN que usa el backend.
+#   SERIAL_GROUP_ID grupo «dialout» del host (getent group dialout). Por defecto 20.
+#
+# El puente se conecta al backend por la red de Docker (http://backend:8000). BRIDGE_ALLOW_INSECURE=1 permite HTTP solo entre
+# contenedores de esta red; el backend no queda expuesto por ese camino.
+
+services:
+  puente:
+    image: ${GLUCOLUME_IMAGE_PREFIX:-glucolume}/backend:${GLUCOLUME_VERSION:-1.0.0}
+    depends_on:
+      backend:
+        condition: service_started
+    command: ["/opt/venv/bin/python", "/srv/puente/glucolume_bridge.py", "--service"]
+    restart: unless-stopped
+    # Solo la red «edge» (la API): el puente nunca llega a la base de datos (esa está en «data»).
+    networks:
+      - edge
+    volumes:
+      - ./backend/acquisition/bridge:/srv/puente:ro
+    devices:
+      - "${SERIAL_DEVICE:-/dev/ttyACM0}:${SERIAL_DEVICE:-/dev/ttyACM0}"
+    group_add:
+      - "${SERIAL_GROUP_ID:-20}"
+    environment:
+      SERIAL_PORT: ${SERIAL_DEVICE:-/dev/ttyACM0}
+      SERIAL_MEDIUM: ${SERIAL_MEDIUM:-USB}
+      BRIDGE_API_URL: http://backend:8000
+      BRIDGE_ALLOW_INSECURE: "1"
+      BRIDGE_TOKEN: ${BRIDGE_TOKEN}
+      BRIDGE_DEVICE_CODE: ${BRIDGE_DEVICE_CODE}
+      GLUCOLUME_BRIDGE_HOME: /tmp/puente
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      disable: true
