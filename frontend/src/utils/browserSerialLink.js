@@ -30,6 +30,8 @@ const IDENTIFY_TIMEOUT_MS = 15000;
 // Un enlace anterior (pestaña recién cerrada o recargada, o un puente que se detuvo) figura activo hasta 10 s sin latidos en el servidor. Durante
 // esa ventana el 409 PUENTE_DUPLICADO no es definitivo: se reintenta solo, sin pedirle al cliente que toque nada de nuevo.
 const TAKEOVER_WAIT_MS = 15000;
+// Puerto abierto pero sin datos del firmware: el error se muestra en una ventana (no como conectado).
+export const NO_DATA_ERROR = 'El puerto se abrió, pero el Arduino no envió datos. Encendelo o pulsá su botón de reinicio (RESET) y verificá que tenga el firmware de GlucoLume y la velocidad correcta (9600 Bluetooth, 115200 USB).';
 const DEVICE_PREFIXES = ['GLUCOLUME,', 'ST,', 'S,', 'ERR,', 'PONG']; // única evidencia de que el firmware de GlucoLume está hablando
 
 function isDeviceLine(text) {
@@ -146,7 +148,7 @@ export function createBrowserLink(deps = {}) {
   /** Puerto abierto sin ninguna línea del firmware: no se da por reconocido y se cierra con una explicación. */
   function checkIdentity(current) {
     if (current.verified || current.closing || now() - current.openedAt < IDENTIFY_TIMEOUT_MS) return;
-    shutdown(current, { estado: STATES.ERROR, error: 'El puerto se abrió, pero el Arduino no envió datos. Encendelo o pulsá su botón de reinicio (RESET) y verificá que tenga el firmware de GlucoLume y la velocidad correcta (9600 Bluetooth, 115200 USB).' }, true);
+    shutdown(current, { estado: STATES.ERROR, error: NO_DATA_ERROR }, true);
   }
 
   async function flush(current) {

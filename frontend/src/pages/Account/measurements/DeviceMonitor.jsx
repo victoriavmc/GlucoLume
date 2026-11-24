@@ -9,7 +9,8 @@ import * as acquisitionApi from '../../../api/acquisitionApi.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
 import { Alert, SelectField, SubmitButton, TextAreaField } from '../../../components/FormControls.jsx';
 import { SavingScreen } from '../../../components/SavingScreen.jsx';
-import { STATES, browserLink, useBrowserLink } from '../../../utils/browserSerialLink.js';
+import { Modal } from '../../../components/Modal.jsx';
+import { NO_DATA_ERROR, STATES, browserLink, useBrowserLink } from '../../../utils/browserSerialLink.js';
 import { useDeviceReadiness } from '../acquisition/useDeviceReadiness.js';
 import { DeviceReadout } from './DeviceReadout.jsx';
 import { DeviceSession } from './DeviceSession.jsx';
@@ -35,6 +36,10 @@ const MEDIUM_LABEL = { USB: 'USB', BLUETOOTH: 'Bluetooth' };
 function ConnectArduino() {
   const link = useBrowserLink();
   const busy = link.estado === STATES.CONNECTING;
+  const noData = link.error === NO_DATA_ERROR;
+  // Una sola ventana por error: se descarta al cerrarla y vuelve a abrirse solo si aparece un error nuevo.
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => { if (!noData) setDismissed(false); }, [noData]);
   return (
     <div className="connect-arduino">
       <div className="form-actions">
@@ -42,6 +47,20 @@ function ConnectArduino() {
           <PlugZap size={16} aria-hidden="true" /> Conectar con el dispositivo
         </button>
       </div>
+      {noData && !dismissed && (
+        <Modal
+          title="El dispositivo no está enviando datos"
+          onClose={() => setDismissed(true)}
+          actions={(
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>Cerrar</button>
+              <button type="button" className="btn btn-primary" onClick={() => { setDismissed(true); link.connect(); }}>Reintentar</button>
+            </>
+          )}
+        >
+          <p>{NO_DATA_ERROR}</p>
+        </Modal>
+      )}
       {link.estado === STATES.CONNECTED && link.verificado && link.medio && (
         <p className="field-hint" role="status">Arduino reconocido por {MEDIUM_LABEL[link.medio]}.</p>
       )}
@@ -49,7 +68,7 @@ function ConnectArduino() {
         <p className="field-hint" role="status">Puerto {MEDIUM_LABEL[link.medio]} abierto. Esperando datos del Arduino…</p>
       )}
       {!link.supported && <p className="field-hint">Para conectar el Arduino sin instalar nada usá Chrome o Edge en una computadora.</p>}
-      {link.error && <p className="field-error" role="alert">{link.error}</p>}
+      {link.error && !noData && <p className="field-error" role="alert">{link.error}</p>}
     </div>
   );
 }
