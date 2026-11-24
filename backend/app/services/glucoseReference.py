@@ -223,4 +223,11 @@ def build(db: Session, measurement: Measurement, preloaded: Preloaded | None = N
 def chosenRule(groups: list[ReferenceGroup]) -> ReferenceRule | None:
     """Regla que define el semáforo y el intervalo de referencia: la aplicada si la hay; si no, la única determinada."""
     chosen = next((g for g in groups if g.aplicada and g.reglaSeleccionada), None) or next((g for g in groups if g.reglaSeleccionada), None)
-    return chosen.reglaSeleccionada if chosen else None
+    if chosen:
+        return chosen.reglaSeleccionada
+    # Posprandial fuera de su ventana de minutos: no se elige como referencia personalizada, pero el semáforo es orientativo con la
+    # única regla de esa condición (el motivo lo avisa).
+    for group in groups:
+        if group.motivoSinSeleccion and group.motivoSinSeleccion.startswith("Fuera de la ventana") and len(group.reglas) == 1:
+            return group.reglas[0]
+    return None

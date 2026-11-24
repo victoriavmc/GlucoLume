@@ -16,6 +16,7 @@ from app.models.measurementProfile import MeasurementProfile
 from app.models.user import User
 from app.schemas.measurement import MeasurementStart
 from app.schemas.user import UserProfileUpdate
+from app.services import individualDevice
 from app.services import measurement as measurements
 from app.services import user as userService
 from app.services.measurementProfile import calculateAge
@@ -221,6 +222,11 @@ def test_el_consumidor_sin_fecha_ni_sexo_ve_perfil_dashboard_dispositivos_e_hist
     assert profile.json()["edad"] is None and profile.json()["sexoModelo"] is None
     dashboard = client.get("/api/v1/measurements/dashboard?dias=30")
     assert dashboard.status_code == 200 and dashboard.json()["perfilDisponible"] is True
+    # Cuenta individual: ve el dispositivo que tiene vinculado (no los de otras cuentas).
+    devices = client.get(f"/api/v1/measurements/devices?idPerfilMedicion={profileId}")
+    assert devices.status_code == 200 and devices.json() == []
+    individualDevice.requireLinkedDevice(db, user, registered)
+    db.commit()
     devices = client.get(f"/api/v1/measurements/devices?idPerfilMedicion={profileId}")
     assert devices.status_code == 200 and [d["idDispositivo"] for d in devices.json()] == [str(registered.idDispositivo)]
     assert client.get("/api/v1/measurements").status_code == 200
