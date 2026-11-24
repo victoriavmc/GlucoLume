@@ -583,6 +583,12 @@ describe('Mediciones compartidas: pruebas DEMO y vista ampliada', () => {
     expect(await screen.findByRole('heading', { name: 'Evolución de Beto Ruiz' })).toBeInTheDocument();
     const legend = within(await screen.findByRole('list', { name: 'Series graficadas' }));
     expect(legend.getByText('Beto Ruiz')).toBeInTheDocument(); // una sola serie por integrante, sin separar DEMO
+    const nombre = legend.getByRole('button', { name: 'Beto Ruiz' }); // tocar el nombre destaca su línea y atenúa las demás
+    expect(nombre).toHaveAttribute('aria-pressed', 'false');
+    await user.click(nombre);
+    expect(nombre).toHaveAttribute('aria-pressed', 'true');
+    await user.click(nombre);
+    expect(nombre).toHaveAttribute('aria-pressed', 'false');
     expect(legend.queryByText(/DEMO \(prueba\)/)).not.toBeInTheDocument();
     expect(screen.queryByText('No hay mediciones completadas en este período.')).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Pruebas DEMO compartidas' })).not.toBeInTheDocument();

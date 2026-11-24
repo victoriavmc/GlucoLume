@@ -1601,6 +1601,9 @@ a.dash-card:hover { border-color: var(--red-600); }
 .gd-evo-grid { stroke: #ece3e5; stroke-width: 1; }
 .gd-evo-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; margin: 0; padding: 0; list-style: none; color: var(--ink-700); font-size: 14px; }
 .gd-evo-legend li { display: inline-flex; align-items: center; gap: 8px; }
+.gd-evo-legend-button { all: unset; cursor: pointer; font: inherit; color: inherit; padding: 2px 6px; border-radius: 6px; }
+.gd-evo-legend-button:focus-visible { outline: 2px solid var(--ink-700); outline-offset: 2px; }
+.gd-evo-legend-button[aria-pressed="true"] { font-weight: 700; background: var(--surface-muted, #f1f3f7); }
 
 /* --- Grupo → Integrante: cabecera con permisos y secciones con los datos autorizados ---------------------------------- */
 

@@ -88,6 +88,7 @@ function GroupLineChart({
   variable,
   series,
   selectedKey,
+  focusKey = null,
   onSelect,
   zoomable = true,
 }) {
@@ -272,6 +273,8 @@ function GroupLineChart({
           </text>
         ))}
         {series.map((item) => {
+          const focused = focusKey === item.key;
+          const dimmed = focusKey !== null && !focused;
           const path = item.points
             .map(
               (point, i) =>
@@ -284,10 +287,10 @@ function GroupLineChart({
                 d={path}
                 fill="none"
                 stroke={item.color}
-                strokeWidth="2.2"
+                strokeWidth={focused ? "4" : "2.2"}
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                strokeOpacity="0.7"
+                strokeOpacity={dimmed ? "0.12" : focused ? "1" : "0.7"}
               />
               {item.points.map((point) => {
                 const id = `${item.key}|${point.key}`;
@@ -329,6 +332,7 @@ function GroupLineChart({
                       stroke={selected ? "#1d2433" : item.color}
                       strokeWidth={selected ? 3 : 2}
                       fill={item.color}
+                      opacity={dimmed ? 0.15 : 1}
                     />
                     {point.count > 1 && (
                       <text
@@ -382,6 +386,8 @@ export function GroupEvolution({
   const [dias, setDias] = useState(30);
   const [granularity, setGranularity] = useState("MEDICION");
   const [selection, setSelection] = useState(null); // { variable, item, point }
+  const [focusKey, setFocusKey] = useState(null); // integrante destacado desde la leyenda (los demás se atenúan)
+  const toggleFocus = (key) => setFocusKey((current) => (current === key ? null : key));
   const [loaded, setLoaded] = useState(null); // { dias, items: [{ id, name, self, readings }], failed }
 
   // Solo quienes habilitaron «Historial de mediciones» (el backend lo vuelve a comprobar en cada consulta).
@@ -677,6 +683,7 @@ export function GroupEvolution({
                       variable={candidate}
                       series={seriesOf(candidate)}
                       selectedKey={selectedKeyFor(candidate)}
+                      focusKey={focusKey}
                       onSelect={onSelectFor(candidate)}
                       zoomable={false}
                     />
@@ -690,6 +697,7 @@ export function GroupEvolution({
                   variable={variable}
                   series={seriesOf(variable)}
                   selectedKey={selectedKeyFor(variable)}
+                  focusKey={focusKey}
                   onSelect={onSelectFor(variable)}
                 />
                 <ul className="gd-evo-legend" aria-label="Series graficadas">
@@ -700,7 +708,14 @@ export function GroupEvolution({
                         style={{ "--swatch": item.color }}
                         aria-hidden="true"
                       />
-                      {item.label}
+                      <button
+                        type="button"
+                        className="gd-evo-legend-button"
+                        aria-pressed={focusKey === item.key}
+                        onClick={() => toggleFocus(item.key)}
+                      >
+                        {item.label}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -715,7 +730,14 @@ export function GroupEvolution({
                       style={{ "--swatch": item.color }}
                       aria-hidden="true"
                     />
-                    {item.label}
+                    <button
+                      type="button"
+                      className="gd-evo-legend-button"
+                      aria-pressed={focusKey === item.key}
+                      onClick={() => toggleFocus(item.key)}
+                    >
+                      {item.label}
+                    </button>
                   </li>
                 ))}
               </ul>
