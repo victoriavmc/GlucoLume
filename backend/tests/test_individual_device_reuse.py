@@ -339,3 +339,25 @@ def test_la_cuenta_individual_no_puede_consultar_la_auditoria(db, cuentaA, bridg
     individualDevice.connectTestDevice(db, user)
     with pytest.raises(AuthError):
         auditQuery.listGlobal(db, user)
+
+
+def test_tras_conectar_la_comprobacion_queda_lista_con_el_dispositivo_vinculado(db, cuentaA, bridgeFixture):
+    from app.services import telemetry as telemetryService
+
+    user, profileId = cuentaA
+    bridgeFixture.seconds(1)
+    device = individualDevice.connectTestDevice(db, user)
+    readiness = telemetryService.readiness(db, user, profileId)
+    assert readiness["listo"] is True
+    assert readiness["dispositivo"]["idDispositivo"] == str(device.idDispositivo)
+    assert len(_logicalDevices(db)) == 1  # comprobar no crea ni registra otro dispositivo
+
+
+def test_tras_conectar_se_puede_iniciar_la_medicion_con_el_dispositivo_vinculado(db, cuentaA, bridgeFixture):
+    from tests.test_telemetry import startFor as startSession
+
+    user, profileId = cuentaA
+    bridgeFixture.seconds(1)
+    device = individualDevice.connectTestDevice(db, user)
+    detail = startSession(db, user, profileId, device)
+    assert detail is not None

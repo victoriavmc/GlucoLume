@@ -336,7 +336,12 @@ def readiness(db: Session, actor: User, idPerfilMedicion=None, idInstitucion=Non
 
     device = None
     identification = None
-    if membership is not None:
+    own = _confirmedOwnDevice(db, actor, membership, idPerfilMedicion) if code is not None else None
+    if own is not None:
+        # Cuenta individual: su dispositivo vinculado, confirmado en esta conexión con «Conectar». No se compara el código del Arduino.
+        device = own
+        steps.append(_step("REGISTRADO", "Dispositivo registrado", "OK", f"Tu dispositivo «{own.codigoDispositivo}» está conectado y confirmado."))
+    elif membership is not None:
         # Contexto de operador: la identidad y el registro se resuelven contra el inventario de SU institución.
         identification = deviceConnection.identification(db, actor, idInstitucion, membership)
         _institutionSteps(steps, identification)
@@ -534,6 +539,16 @@ def _requireGlucoseSchema(db: Session) -> None:
     if not schemaCompat.glucoseDeviceModeReady(db):
         raise AuthError("ESQUEMA_DESACTUALIZADO", "La base de datos instalada todavía no admite medir glucosa con el dispositivo (falta actualizarla al "
                         "esquema vigente). Mientras tanto podés medir en modo Oximetría.")
+
+
+def _confirmedOwnDevice(db: Session, actor: User, membership, idPerfilMedicion):
+    """Dispositivo vinculado a una cuenta individual si está OPERATIVO y la conexión actual lo confirmó con «Conectar»; si no, None."""
+    if membership is not None or idPerfilMedicion is None or actor.tipoCuenta != individualDevice.TIPO_INDIVIDUAL:
+        return None
+    device = individualDevice.ownLinkedDevice(db, actor)
+    if device is None or device.estado != measurements.DEVICE_OPERATIVO:
+        return None
+    return device if hub.isConfirmed(actor.idUsuario, device.idDispositivo) else None
 
 
 def _requireSameDevice(db: Session, actor: User, access, device: Device, bridge, which: str) -> dict:

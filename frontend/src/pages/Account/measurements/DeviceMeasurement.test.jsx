@@ -184,8 +184,8 @@ describe('Nueva medición con el dispositivo: pantalla inicial y estado de la co
     renderAt('/app/mediciones/nueva');
     const section = await card();
     await user.click(await within(section).findByRole('button', { name: 'Iniciar medición' }));
-    expect(await screen.findByText(/No se pudo confirmar qué Arduino está conectado/)).toBeInTheDocument();
-    await user.click(screen.getAllByRole('button', { name: 'Entendido' }).at(-1)); // el error se muestra en una ventana: se cierra antes de seguir
+    expect(await screen.findByText(/No se pudo confirmar qué Arduino está conectado/)).toBeInTheDocument(); // en línea, sin ventana modal
+    expect(screen.queryByRole('button', { name: 'Entendido' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Sesión de medición con el dispositivo' })).not.toBeInTheDocument();
     expect(api.calls.filter((call) => call.key === 'GET /acquisition/telemetry/readiness').length).toBeGreaterThanOrEqual(2);
   });

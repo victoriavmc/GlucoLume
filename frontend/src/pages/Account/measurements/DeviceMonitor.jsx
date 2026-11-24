@@ -49,7 +49,7 @@ function ConnectArduino() {
         <p className="field-hint" role="status">Puerto {MEDIUM_LABEL[link.medio]} abierto. Esperando datos del Arduino…</p>
       )}
       {!link.supported && <p className="field-hint">Para conectar el Arduino sin instalar nada usá Chrome o Edge en una computadora.</p>}
-      {link.error && <Alert>{link.error}</Alert>}
+      {link.error && <p className="field-error" role="alert">{link.error}</p>}
     </div>
   );
 }
@@ -113,18 +113,31 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
 
   // Solo se puede medir con el dispositivo que atiende el puente; el backend lo vuelve a comprobar.
   const online = status.estado === 'CONECTADO';
-  // Cuenta individual en simulación (Arduino compartido): la lista trae SU dispositivo vinculado y el backend marca que el puente
-  // se asocia a él sin comparar códigos. En cualquier otro caso (producción, institución) se compara el código que atiende el puente.
+  // Cuenta individual: la lista trae SU dispositivo vinculado; conectado el puente, ese es el que se usa (la confirmación de «Conectar»
+  // y la comprobación de «listo» del backend lo validan). Institución: se compara el código que atiende el puente.
   const individual = !idInstitucion;
-  const sharedSimulation = individual && Boolean(devices?.[0]?.simulacionCompartida);
-  const connected = sharedSimulation
-    ? (online ? devices[0] : undefined)
-    : devices?.find((item) => item.codigoDispositivo.toLowerCase() === code.toLowerCase());
+  // Cuenta individual: solo cuenta como conectado si el backend lo confirma (readiness.dispositivo es el vinculado y confirmado).
+  const confirmedOwn = individual && online && devices?.[0] && readiness?.dispositivo?.idDispositivo === devices[0].idDispositivo;
+  const connected = devices?.find((item) => item.codigoDispositivo.toLowerCase() === code.toLowerCase())
+    ?? (confirmedOwn ? devices[0] : undefined);
   const device = devices?.find((item) => item.idDispositivo === selected) ?? connected ?? (devices?.length === 1 ? devices[0] : undefined);
   const isConnectedOne = Boolean(device && connected && device.idDispositivo === connected.idDispositivo);
   const unavailable = online && !individual && !connected; // el puente atiende un dispositivo que no figura para este perfil (institución)
   // Con un dispositivo identificado solo (el conectado o el único del inventario) no se muestra un selector: solo se informa cuál es.
   const pickable = !connected && (devices?.length ?? 0) > 1;
+
+  // Cuenta individual, un solo toque: apenas el Arduino queda conectado por el navegador, se confirma con la cuenta sin otro botón.
+  // Una vez por conexión; si se desconecta, al volver a conectarlo se confirma de nuevo.
+  const autoConfirmedFor = useRef('');
+  useEffect(() => {
+    if (!online) {
+      autoConfirmedFor.current = '';
+      return;
+    }
+    if (!individual || patient || !code || autoConfirmedFor.current === code) return;
+    autoConfirmedFor.current = code;
+    connectTestDevice();
+  }, [online, individual, patient, code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function start(event) {
     event.preventDefault();
@@ -161,7 +174,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
           <span className="panel-icon is-solid"><Settings size={22} aria-hidden="true" /></span>
           <h3 id="sesion-config">Configuración de la medición</h3>
         </div>
-        {error && <Alert>{error}</Alert>}
+        {error && <p className="field-error" role="alert">{error}</p>}
         {devices === null ? (
           <p className="field-hint" role="status">Buscando el dispositivo en tu inventario…</p>
         ) : !device || unavailable ? (
@@ -186,7 +199,7 @@ function StartForm({ status, idPerfilMedicion, idInstitucion, profile, patient, 
                     </button>
                   </div>
                 )}
-                {connectError && <Alert>{connectError}</Alert>}
+                {connectError && <p className="field-error" role="alert">{connectError}</p>}
               </>
             )
         ) : null}
@@ -277,7 +290,7 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
     // Estados B y C: el panel de monitoreo reemplaza al formulario (los datos opcionales ya quedaron fijados al iniciar).
     return (
       <section className="measure-flow" aria-label="Medición con el dispositivo">
-        {error && <Alert>{error}</Alert>}
+        {error && <p className="field-error" role="alert">{error}</p>}
         <DeviceSession status={sessionStatus} profileLabel={profileLabel} patient={patient} handleOperationError={handleOperationError}
           onWorking={setWorking}
           onSaved={(detail) => { setWorking(''); refresh(); onSaved?.(detail); }} onCancelled={(detail) => { setWorking(''); refresh(); onCancelled?.(detail); }} />
@@ -289,7 +302,7 @@ export function DeviceMonitor({ idPerfilMedicion, idInstitucion, profileLabel, p
   return (
     <section className="measure-flow" aria-labelledby="medir-dispositivo">
       <h2 id="medir-dispositivo" className="sr-only">Nueva medición</h2>
-      {error && <Alert>{error}</Alert>}
+      {error && <p className="field-error" role="alert">{error}</p>}
       {!status && <p className="field-hint" role="status">Consultando el dispositivo…</p>}
       {status?.ocupado && (
         <section className="panel measure-card" aria-label="Dispositivo en uso">
