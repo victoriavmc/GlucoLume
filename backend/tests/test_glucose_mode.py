@@ -19,6 +19,7 @@ from app.models.matrix import Matrix
 from app.models.matrixRule import MatrixRule
 from app.models.measurement import Measurement
 from app.schemas.acquisition import TelemetrySessionStart
+from app.services import glucoseReference
 from app.services import measurement as measurements
 from app.services import schemaCompat
 from app.services import telemetry as telemetryService
@@ -143,6 +144,55 @@ def test_la_glucosa_con_el_dispositivo_no_exige_edad_ni_sexo(db, mails, consumer
     profile = measurements.getOwnProfile(db, other).idPerfilMedicion
     started = startFor(db, other, profile, (bridge.seconds(1), device(db, codigo=CODE))[1], modoMedicion=GLUCOSE)
     assert started.edadAlMomento is None and started.sexoModelo is None and started.modoMedicion == GLUCOSE
+
+
+def test_el_semaforo_en_vivo_usa_la_regla_y_el_criterio_del_guardado(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    twoSexMatrix(db)
+    dev = device(db, codigo=CODE)
+    bridge.seconds(1, glu="108.0", origen="EXPERIMENTAL")
+    startFor(db, user, profileId, dev, modoMedicion=GLUCOSE, edadAlMomento=40, sexoModelo="FEMENINO", condicionComida="AYUNO")
+    bridge.seconds(9, glu="108.0", origen="EXPERIMENTAL")
+    live = telemetryService.status(db, user)["sesion"]
+    assert live["intervalo"] is not None and live["intervalo"]["unidad"] == "mg/dL"
+    assert live["semaforo"] == "ROJO"  # 108 mg/dL frente a la regla femenina 70–105: por encima del tope
+    saved = telemetryService.saveSession(db, user)
+    # Con la misma regla y el mismo valor, el semáforo y el intervalo en vivo coinciden con los del guardado.
+    reference = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa
+    rule = glucoseReference.chosenRule(reference.grupos)
+    assert rule is not None and reference.semaforo == live["semaforo"]
+    assert (live["intervalo"]["min"], live["intervalo"]["max"]) == (rule.glucosaMinReferencia, rule.glucosaMaxReferencia)
+
+
+def test_el_semaforo_en_vivo_usa_la_mediana_como_el_guardado_y_no_la_ultima_lectura(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    twoSexMatrix(db)
+    dev = device(db, codigo=CODE)
+    bridge.seconds(1, glu="100.0", origen="EXPERIMENTAL")
+    startFor(db, user, profileId, dev, modoMedicion=GLUCOSE, edadAlMomento=40, sexoModelo="FEMENINO", condicionComida="AYUNO")
+    bridge.seconds(7, glu="100.0", origen="EXPERIMENTAL")
+    bridge.seconds(1, glu="110.0", origen="EXPERIMENTAL")  # la última lectura (110) quedaría ROJO con la regla 70–105; la mediana (100) es VERDE
+    live = telemetryService.status(db, user)["sesion"]
+    assert live["semaforo"] == "VERDE" and live["glucosaReferencia"] == 100.0  # el número y el color son la mediana, no la última lectura
+    saved = telemetryService.saveSession(db, user)
+    reference = measurements.getMeasurement(db, user, saved.idMedicion).referenciaGlucosa
+    assert reference.semaforo == live["semaforo"] == "VERDE"
+
+
+def test_el_semaforo_en_vivo_no_existe_sin_lectura_valida_ni_en_oximetria(db, mails, consumer, bridge, clock):
+    user, profileId = consumer
+    twoSexMatrix(db)
+    dev = device(db, codigo=CODE)
+    bridge.seconds(1)
+    startFor(db, user, profileId, dev, modoMedicion="OXIMETRIA")
+    bridge.seconds(9)
+    oximetry = telemetryService.status(db, user)["sesion"]
+    assert oximetry["semaforo"] is None and oximetry["intervalo"] is None and oximetry["glucosaReferencia"] is None
+    telemetryService.cancelSession(db, user)
+    bridge.seconds(1, glu="108.0", origen="EXPERIMENTAL")
+    startFor(db, user, profileId, dev, modoMedicion=GLUCOSE)
+    bridge.seconds(1, glu="108.0", origen="EXPERIMENTAL", finger=0)  # sin dedo: no hay valor válido que evaluar
+    assert telemetryService.status(db, user)["sesion"]["semaforo"] is None
 
 
 # --- Restricciones del esquema (reflejadas en el modelo) -------------------------------------------------------------------------

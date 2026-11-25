@@ -30,6 +30,7 @@ from statistics import median
 from typing import Any
 
 from app.acquisition import protocol
+from app.services.glucoseReference import semaphore
 
 ORIGINS = ("DEMO", "EXPERIMENTAL", "SIN_CALIBRAR")
 
@@ -387,6 +388,8 @@ class Session:
     ppgSeq: int | None = None
     ppgAt: float | None = None  # instante en que terminó el último bloque
     modo: str = "OXIMETRIA"  # modo elegido para esta medición
+    # Regla de la matriz que define el semáforo de la glucosa (la misma que usa el guardado) y su intervalo; solo en GLUCOSA_EXPERIMENTAL.
+    regla: Any = None
 
     def addPpg(self, chunk: "PpgChunk", at: float) -> bool:
         """Agrega un bloque. Un bloque repetido se ignora; un salto en el tiempo (dedo retirado, bloques perdidos) deja un hueco."""
@@ -707,9 +710,9 @@ class TelemetryHub:
             self.session = Session(userId=userId, startedAt=self.clock(), lastSeen=self.clock())
             return self.session
 
-    def bind(self, session: Session, idMedicion: Any, deviceCode: str, mode: str = "OXIMETRIA") -> None:
+    def bind(self, session: Session, idMedicion: Any, deviceCode: str, mode: str = "OXIMETRIA", regla: Any = None) -> None:
         with self.lock:
-            session.idMedicion, session.deviceCode, session.modo = idMedicion, deviceCode, mode
+            session.idMedicion, session.deviceCode, session.modo, session.regla = idMedicion, deviceCode, mode, regla
             session.startedAt = session.lastSeen = self.clock()
             session.readings.clear()
         self._emit({"tipo": "sesion", "activa": True})
@@ -751,6 +754,7 @@ class TelemetryHub:
             latest = self.latest if (controlling and state == "CONECTADO") else None  # valores solo para quien controla (DEC-01)
             age = round(max(0.0, now - self.latest.at), 1) if (self.latest is not None and state == "CONECTADO") else None
             stability = None
+            verdict = None
             if session is not None and not busy and session.idMedicion is not None:
                 verdict = evaluateStability(list(session.readings), now, requireGlucose=session.modo == "GLUCOSA_EXPERIMENTAL")
                 stability = ({"estable": True, "motivo": None, "mensaje": None, "lecturasValidas": verdict.lecturas}
@@ -775,8 +779,30 @@ class TelemetryHub:
                 "lineasInvalidas": self.invalidLines, "lecturasRecibidas": self.readingsReceived,
                 "sesion": None if session is None or busy or session.idMedicion is None else {
                     "idMedicion": str(session.idMedicion), "iniciada": session.since.isoformat(), "enlacePerdido": session.linkLost,
-                    "estabilidad": stability, "ppg": self._ppgSnapshot(session, now), "modo": session.modo},
+                    "estabilidad": stability, "ppg": self._ppgSnapshot(session, now), "modo": session.modo,
+                    **self._liveGlucose(session, latest, verdict)},
             }
+
+    @staticmethod
+    def _liveGlucose(session: Session, latest: "Reading | None", verdict: Any) -> dict:
+        """Glucosa EN VIVO de la sesión de glucosa: el valor que se muestra y el que se guarda es la MEDIANA de las últimas lecturas de glucosa.
+        Con la medición estable es la misma mediana del veredicto (lo que se guarda); antes, la mediana de las últimas STABLE_READINGS
+        lecturas válidas. Sin lectura válida con glucosa en la última lectura, no hay valor (nunca el de una lectura anterior).
+        El semáforo sale de esa mediana frente al intervalo de la regla de la medición (sin regla: sin intervalo ni semáforo)."""
+        if session.modo != "GLUCOSA_EXPERIMENTAL":
+            return {"glucosaReferencia": None, "semaforo": None, "intervalo": None}
+        value = None
+        if latest is not None and latest.dedo and latest.senalValida and latest.glucosa is not None:
+            if isinstance(verdict, Stable) and verdict.glucosa is not None:
+                value = verdict.glucosa
+            else:
+                known = [r.glucosa for r in list(session.readings)[-STABLE_READINGS:] if r.dedo and r.senalValida and r.glucosa is not None]
+                value = round(median(known), 2) if known else None
+        rule = session.regla
+        if rule is None:
+            return {"glucosaReferencia": value, "semaforo": None, "intervalo": None}
+        interval = {"min": rule.glucosaMinReferencia, "max": rule.glucosaMaxReferencia, "unidad": "mg/dL"}
+        return {"glucosaReferencia": value, "semaforo": semaphore(rule, value) if value is not None else None, "intervalo": interval}
 
     @staticmethod
     def _ppgSnapshot(session: Session, now: float) -> dict | None:

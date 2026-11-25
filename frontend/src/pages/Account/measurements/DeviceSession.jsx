@@ -19,6 +19,7 @@ import { LiveChart } from '../../../components/LiveChart.jsx';
 import { PpgChart, hasPpgSignal } from '../../../components/PpgChart.jsx';
 import { Badge, OriginBadge } from '../../../components/Badge.jsx';
 import { DemoBadge } from './DeviceReadout.jsx';
+import { Semaforo } from './Semaforo.jsx';
 import { SERIES_CAPACITY, useSessionSeries } from './useSessionSeries.js';
 
 const ORIGIN_CODES = { DEMO: 'DEMO', EXPERIMENTAL: 'EXPERIMENTAL', SIN_CALIBRAR: 'SIN_CALIBRAR' };
@@ -81,6 +82,14 @@ function MetricCard({ title, icon: Icon, tone, current, unit, decimals = 0, poin
 /** Valor ACTUAL: el de la última lectura de la sesión y solo si es válida (sin dedo o con señal inválida no se muestra el anterior). */
 const currentOf = (points, field) => points.at(-1)?.[field] ?? null;
 
+/** Intervalo de la regla que define el semáforo, como texto («Referencia 70–105 mg/dL»); sin límite inferior, «hasta 105». */
+function intervalText(interval) {
+  if (!interval || interval.max === null || interval.max === undefined) return null;
+  const format = (value) => Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 });
+  const range = interval.min === null || interval.min === undefined ? `hasta ${format(interval.max)}` : `${format(interval.min)}–${format(interval.max)}`;
+  return `Referencia ${range} ${interval.unidad ?? 'mg/dL'}`;
+}
+
 export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = false, onSaved, onCancelled, onWorking, handleOperationError }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -142,8 +151,14 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
     : STAGES[stage];
   const origin = reading?.origen ?? null;
   const demo = Boolean(reading?.esDemo);
+  // En modo glucosa el valor es la mediana de las últimas lecturas (igual que el guardado y el semáforo); sin lectura válida, «Sin dato».
+  const glucose = session.modo === 'GLUCOSA_EXPERIMENTAL' ? (session.glucosaReferencia ?? null) : currentOf(points, 'glucosa');
+  const glucoseNote = [
+    demo ? 'Valor DEMO: representa una simulación y no una glucemia real. Prueba de comunicación, no sale del dedo.'
+      : origin === 'SIN_CALIBRAR' ? 'El dispositivo no está calibrado: no informa glucosa.' : origin ? 'Estimación experimental, no es un diagnóstico.' : null,
+    session.modo === 'GLUCOSA_EXPERIMENTAL' && glucose !== null ? 'Valor: mediana de las últimas lecturas, igual que el guardado.' : null,
+  ].filter(Boolean).join(' ') || null;
   const bpm = currentOf(points, 'bpm');
-  const glucose = currentOf(points, 'glucosa');
   const available = (value) => (value !== null ? 'Disponible' : stage === 'ESPERANDO_DEDO' ? 'Sin señal' : 'Sin dato válido todavía');
 
   return (
@@ -183,9 +198,19 @@ export function DeviceSession({ status, profileLabel = 'Mi perfil', patient = fa
           emptyText="Sin señal" availability={available(currentOf(points, 'spo2'))} />
         <MetricCard title="Glucosa" icon={Droplet} tone="glucose" current={glucose} unit="mg/dL" decimals={1} points={points.map((p) => ({ key: p.key, value: p.glucosa }))}
           emptyText="Sin dato" availability={available(glucose)}
-          badge={origin && hasReading && reading.dedo ? <OriginBadge origin={origin}>{ORIGIN_CODES[origin] ?? origin}</OriginBadge> : null}
-          note={demo ? 'Valor DEMO: representa una simulación y no una glucemia real. Prueba de comunicación, no sale del dedo.'
-            : origin === 'SIN_CALIBRAR' ? 'El dispositivo no está calibrado: no informa glucosa.' : origin ? 'Estimación experimental, no es un diagnóstico.' : null} />
+          badge={(
+            <>
+              {origin && hasReading && reading.dedo ? <OriginBadge origin={origin}>{ORIGIN_CODES[origin] ?? origin}</OriginBadge> : null}
+              {/* Semáforo en vivo: el backend lo calcula con la regla de la medición y la última lectura válida (vacío sin valor). */}
+              {glucose !== null && session.semaforo ? (
+                <span className="semaforo-live" title="Orientativo: compara la mediana de las últimas lecturas con el intervalo de la regla, igual que el valor que se guarda. No es un diagnóstico.">
+                  <Semaforo color={session.semaforo} />
+                  {intervalText(session.intervalo) && <small className="field-hint">{intervalText(session.intervalo)}</small>}
+                </span>
+              ) : null}
+            </>
+          )}
+          note={glucoseNote} />
         <MetricCard title="Índice óptico" icon={Sun} tone="optic" current={currentOf(points, 'indiceOptico')} unit="" decimals={4}
           points={points.map((p) => ({ key: p.key, value: p.indiceOptico }))} emptyText="Sin dato" availability={available(currentOf(points, 'indiceOptico'))}
           note="Indicador óptico asociado al procesamiento del sensor (Beer-Lambert); no es una magnitud clínica." />

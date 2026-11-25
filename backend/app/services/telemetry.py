@@ -47,6 +47,7 @@ from app.schemas.acquisition import (
 from app.schemas.measurement import MeasurementDetail, MeasurementStart
 from app.services import device as deviceService
 from app.services import deviceConnection
+from app.services import glucoseReference
 from app.services import individualDevice
 from app.services import institution as institutions
 from app.services import measurement as measurements
@@ -650,11 +651,15 @@ def startSession(db: Session, actor: User, data: TelemetrySessionStart) -> Measu
         registerEvent(db, "CRUD", "INICIAR_SESION_DISPOSITIVO", True, actor.idUsuario, "Medicion", started.idMedicion,
                       datosPrevios={"estadoMedicion": measurements.PENDIENTE},
                       datosNuevos={"estadoMedicion": measurements.ADQUIRIENDO, "medio": bridge.medium})
+        # Regla que define el semáforo de la glucosa: se calcula con la misma lógica que al guardar, así el semáforo en vivo y el guardado coinciden.
+        regla = None
+        if data.modoMedicion == measurements.GLUCOSA:
+            regla = glucoseReference.chosenRule(glucoseReference.build(db, db.get(Measurement, started.idMedicion)).grupos)
         db.commit()
     except BaseException:
         hub.release(session)
         raise
-    hub.bind(session, started.idMedicion, device.codigoDispositivo, data.modoMedicion)
+    hub.bind(session, started.idMedicion, device.codigoDispositivo, data.modoMedicion, regla)
     db.expire_all()
     return measurements.getMeasurement(db, actor, started.idMedicion)
 
