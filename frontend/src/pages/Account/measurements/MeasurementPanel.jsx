@@ -159,17 +159,13 @@ function MeasurementExport({ idMedicion, handleOperationError }) {
   );
 }
 
-function SendResult({ measurement, handleOperationError, onSent }) {
-  const forPatient = measurement.envioResultado === 'PACIENTE';
-  const pending = measurement.envioResultadoEstado === 'PENDIENTE';
-  const [email, setEmail] = useState('');
-  const [authorized, setAuthorized] = useState(false);
+// Envío del resultado por correo: lo usan el botón directo (cuenta individual) y el formulario del paciente.
+function useResultSend({ idMedicion, sendState, handleOperationError, onSent }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
 
   // El envío sale en segundo plano: cuando la medición deja de estar PENDIENTE se avisa aquí, aunque la página ya haya cargado.
-  const sendState = measurement.envioResultadoEstado;
   const previousSendState = useRef(sendState);
   useEffect(() => {
     const before = previousSendState.current;
@@ -182,52 +178,60 @@ function SendResult({ measurement, handleOperationError, onSent }) {
     }
   }, [sendState]);
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    if (sending) return;
-    if (forPatient && (!email.trim() || !authorized)) {
-      setError('Ingresá el correo que informó el paciente y confirmá que autorizó el envío.');
-      return;
-    }
+  // Devuelve true si el servidor aceptó el envío.
+  async function send(data = {}) {
+    if (sending) return false;
     setSending(true);
     setError('');
     setDone('');
     try {
-      const answer = await measurementsApi.sendResult(
-        measurement.idMedicion, forPatient ? { correoDestino: email.trim(), pacienteAutoriza: true } : {},
-      );
+      const answer = await measurementsApi.sendResult(idMedicion, data);
       // Un envío en cola se muestra como «enviando» (lo informa la medición); el resto trae su mensaje final.
       if (answer.estadoEnvio !== 'PENDIENTE') setDone(`${answer.mensaje} (${answer.correoEnmascarado})`);
-      setEmail('');
-      setAuthorized(false);
       await onSent?.();
+      return true;
     } catch (sendError) {
       setError(handleOperationError(sendError));
+      return false;
     } finally {
       setSending(false);
+    }
+  }
+
+  return { sending, error, done, pending: sendState === 'PENDIENTE', send };
+}
+
+function SendResult({ resultSend }) {
+  const [email, setEmail] = useState('');
+  const [authorized, setAuthorized] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (resultSend.sending) return;
+    if (!email.trim() || !authorized) {
+      setFormError('Ingresá el correo que informó el paciente y confirmá que autorizó el envío.');
+      return;
+    }
+    setFormError('');
+    if (await resultSend.send({ correoDestino: email.trim(), pacienteAutoriza: true })) {
+      setEmail('');
+      setAuthorized(false);
     }
   }
 
   return (
     <form onSubmit={handleSubmit} noValidate aria-label="Enviar resultado por correo">
       <p className="field-hint">
-        {forPatient
-          ? 'Si el paciente quiere recibir su resultado, ingresá el correo que te informó. Este envío puntual no lo guarda; para que reciba todos sus resultados, cargá su correo antes de medir.'
-          : 'Podés recibir el resultado de esta medición en el correo de tu cuenta.'}
+        Si el paciente quiere recibir su resultado, ingresá el correo que te informó. Este envío puntual no lo guarda; para que reciba todos sus resultados, cargá su correo antes de medir.
       </p>
-      {error && <Alert>{error}</Alert>}
-      {pending && <Alert kind="info">Enviando el resultado por correo electrónico. Podés seguir usando GlucoLume: te avisamos acá cuando salga.</Alert>}
-      {done && <Alert kind="info">{done}</Alert>}
-      {forPatient && (
-        <>
-          <TextField label="Correo del paciente" type="email" maxLength={254} autoComplete="off" value={email}
-            onChange={(event) => setEmail(event.target.value)} />
-          <CheckField label="El paciente autorizó el envío de su resultado por correo." checked={authorized} onChange={(event) => setAuthorized(event.target.checked)} />
-        </>
-      )}
+      {formError && <Alert>{formError}</Alert>}
+      <TextField label="Correo del paciente" type="email" maxLength={254} autoComplete="off" value={email}
+        onChange={(event) => setEmail(event.target.value)} />
+      <CheckField label="El paciente autorizó el envío de su resultado por correo." checked={authorized} onChange={(event) => setAuthorized(event.target.checked)} />
       <div className="form-actions">
-        <SubmitButton loading={sending} loadingLabel="Enviando…" className="btn btn-outline">
-          <Mail size={16} aria-hidden="true" /> {forPatient ? 'Enviar resultado al paciente' : 'Enviarme el resultado por correo'}
+        <SubmitButton loading={resultSend.sending} loadingLabel="Enviando…" className="btn btn-outline">
+          <Mail size={16} aria-hidden="true" /> Enviar resultado al paciente
         </SubmitButton>
       </div>
     </form>
@@ -280,6 +284,10 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
     const stop = setTimeout(() => clearInterval(timer), SEND_WAIT_MS);
     return () => { clearInterval(timer); clearTimeout(stop); };
   }, [sendingResult, load]);
+
+  const resultSend = useResultSend({
+    idMedicion, sendState: measurement?.envioResultadoEstado, handleOperationError, onSent: load,
+  });
 
   async function cancel() {
     setBusy(true);
@@ -426,9 +434,14 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
       {(measurement.puedeEliminar || (state === 'COMPLETADA' && (measurement.envioResultado || canExport))) && (
         <div className="form-actions md-actions">
           {canExport && <MeasurementExport idMedicion={idMedicion} handleOperationError={handleOperationError} />}
-          {state === 'COMPLETADA' && measurement.envioResultado && (
+          {state === 'COMPLETADA' && measurement.envioResultado === 'PACIENTE' && (
             <button type="button" className="btn btn-outline" aria-expanded={sendOpen} onClick={() => setSendOpen((open) => !open)}>
               <Mail size={16} aria-hidden="true" /> Enviar resultado por correo
+            </button>
+          )}
+          {state === 'COMPLETADA' && measurement.envioResultado && measurement.envioResultado !== 'PACIENTE' && (
+            <button type="button" className="btn btn-outline" disabled={resultSend.sending} onClick={() => resultSend.send()}>
+              {resultSend.sending && <span className="spinner" aria-hidden="true" />} <Mail size={16} aria-hidden="true" /> Enviar resultado por correo
             </button>
           )}
             {measurement.puedeEliminar && (confirmingDelete ? (
@@ -446,10 +459,13 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
             ))}
         </div>
       )}
-      {state === 'COMPLETADA' && measurement.envioResultado && sendOpen && (
+      {resultSend.pending && <Alert kind="info">Enviando el resultado por correo electrónico. Podés seguir usando GlucoLume: te avisamos acá cuando salga.</Alert>}
+      {resultSend.done && <Alert kind="info">{resultSend.done}</Alert>}
+      {resultSend.error && <Alert>{resultSend.error}</Alert>}
+      {state === 'COMPLETADA' && measurement.envioResultado === 'PACIENTE' && sendOpen && (
         <div className="md-details">
           <div className="md-details-body">
-            <SendResult measurement={measurement} handleOperationError={handleOperationError} onSent={load} />
+            <SendResult resultSend={resultSend} />
           </div>
         </div>
       )}
