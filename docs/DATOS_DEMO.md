@@ -71,8 +71,7 @@ Antes de implementar se revisaron los modelos SQLAlchemy (`backend/app/models/`)
 | Perfiles de medición | 39 | 7 individuales + 32 pacientes |
 | Pacientes asignados | 32 | A: 16 (3/5/4/4 por operador) · B: 16 (4/3/5/4) |
 | Cómo llegó cada paciente | 32 | 12 dados de alta por el propio operador · 10 dados de alta por un moderador y asignados a un operador · 10 transferidos entre operadores (transferencia aceptada) |
-| Mediciones individuales | 82 | cuenta A: 14 · administrador: 9 · integrantes: 4, 11, 16, 6, 22 |
-| Mediciones de pacientes | 80 | de 1 a 4 por paciente, según un ciclo fijo |
+| Mediciones individuales | 40.400 | 9 cuentas × 1.791 días (del 1/1/2022 a hoy), 2 o 3 mediciones por día en cada cuenta |
 
 ---
 
@@ -135,7 +134,7 @@ Sin cambios: modelos, servicios de negocio, permisos existentes, matrices, regla
 
 - **Identificación.** Cada medición lleva en `observacion`: *«DEMO - medición sintética de demostración académica. No es un dato médico ni un resultado validado.»*
 - **Origen.** Las mediciones con glucosa usan `origenGlucosa = DEMO` (el valor permitido por la base). La oximetría no informa glucosa, así que su `origenGlucosa` queda `NULL`: su identificación sintética está en la observación y en el perfil.
-- **Variedad.** Modos `GLUCOSA_EXPERIMENTAL` y `OXIMETRIA`; estados `COMPLETADA`, `CANCELADA` e `INVALIDA`; condiciones `AYUNO`, `POSTPRANDIAL` y `NO_INFORMADA` (con `fechaHoraUltimaComida` cuando corresponde); fechas en los últimos 60 días, algunas con dos o más mediciones el mismo día.
+- **Variedad.** Modos `GLUCOSA_EXPERIMENTAL` y `OXIMETRIA`; estados `COMPLETADA`, `CANCELADA` e `INVALIDA`; condiciones `AYUNO`, `POSTPRANDIAL` y `NO_INFORMADA` (con `fechaHoraUltimaComida` cuando corresponde); fechas desde el 1/1/2022 hasta hoy, con 2 o 3 mediciones todos los días en cada cuenta.
 - **Rangos.** Frecuencia cardíaca 52–110 lpm con una base por perfil; SpO₂ 95,0–99,5 %; glucosa 78–104 mg/dL en ayunas, 118–172 en postprandial y 92–138 sin dato de comida (solo para la demostración de gráficos, no clínicos).
 - **Calidad de señal.** Calidad 0,72–0,98, índice óptico 1,8–2,9, 8–25 lecturas estabilizadas, sensor `MAX30100`.
 

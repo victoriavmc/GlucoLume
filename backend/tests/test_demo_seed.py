@@ -8,7 +8,8 @@
 
 import smtplib
 import uuid
-from datetime import datetime, timedelta
+from collections import Counter
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -108,6 +109,15 @@ def test_cada_cuenta_individual_tiene_su_propio_dispositivo_y_sus_mediciones(db,
         assert deviceId == next(d.id for d in seeder.DEVICES if d.key == seeder.deviceKeyForIndividual(a.key))
         rows = db.scalars(select(Measurement).where(Measurement.idPerfilMedicion == seeder.demoId("perfil", a.key))).all()
         assert rows and all(row.idDispositivo == deviceId for row in rows), a.key
+
+
+def test_historial_diario_desde_2022_con_entre_dos_y_tres_mediciones_por_dia():
+    """Cada cuenta individual tiene mediciones todos los días desde el 1/1/2022 hasta el último día del historial, con 2 o 3 por día."""
+    assert seeder.HISTORY_START == date(2022, 1, 1)
+    for key, specs in seeder.individualMeasurements():
+        porDia = Counter(spec.dayOffset for spec in specs)
+        assert set(porDia) == set(range(seeder.HISTORY_DAYS + 1)), key
+        assert all(2 <= n <= 3 for n in porDia.values()), (key, sorted(set(porDia.values())))
 
 
 def test_cada_cuenta_demo_tiene_su_propio_nombre_de_usuario(db, seeded):

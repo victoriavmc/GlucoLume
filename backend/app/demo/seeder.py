@@ -62,7 +62,7 @@ EMAIL_DOMAIN = "example.com"
 NOTA_MEDICION = "DEMO - medición sintética de demostración académica. No es un dato médico ni un resultado validado."
 NOTA_GRUPO = "Grupo familiar sintético de demostración académica."
 HISTORY_START = date(2022, 1, 1)  # primera medición del historial demo
-DATA_END_DATE = date(2026, 11, 23)  # último día del historial: la última medición de cada cuenta es ese día a las 17:00
+DATA_END_DATE = date(2026, 11, 26)  # último día del historial (hoy): la última medición de cada cuenta es ese día a las 17:00
 DATA_END_HOUR = 17
 HISTORY_DAYS = (DATA_END_DATE - HISTORY_START).days
 HISTORY_START_DATETIME = datetime.combine(HISTORY_START, time(0, 0))
@@ -135,18 +135,16 @@ ACCOUNTS_BY_KEY = {account.key: account for account in ACCOUNTS}
 USUARIOS_DEMO = {account.key: f"individuo{n}" for n, account in enumerate(ACCOUNTS, start=1)}
 
 # Integrantes del grupo: permisos de compartición (compartePerfil, comparteUltimaMedicion, comparteHistorial, notificaMedicion)
-# y frecuencia de medición propia (porcentaje de días del historial con medición: 1, 2 o 3 mediciones por día).
-GROUP_MEMBERS: tuple[tuple[str, tuple[bool, bool, bool, bool], int], ...] = (
-    ("grupo-integrante-1", (True, False, False, False), 35),
-    ("grupo-integrante-2", (False, True, False, False), 50),
-    ("grupo-integrante-3", (False, False, True, False), 40),
-    ("grupo-integrante-4", (False, False, False, True), 30),
-    ("grupo-integrante-5", (True, True, True, True), 55),
-    ("grupo-integrante-6", (True, True, True, True), 45),
-    ("grupo-integrante-7", (True, True, True, True), 25),
+# Todos miden a diario: entre 2 y 3 mediciones por día (ver individualMeasurementsFor).
+GROUP_MEMBERS: tuple[tuple[str, tuple[bool, bool, bool, bool]], ...] = (
+    ("grupo-integrante-1", (True, False, False, False)),
+    ("grupo-integrante-2", (False, True, False, False)),
+    ("grupo-integrante-3", (False, False, True, False)),
+    ("grupo-integrante-4", (False, False, False, True)),
+    ("grupo-integrante-5", (True, True, True, True)),
+    ("grupo-integrante-6", (True, True, True, True)),
+    ("grupo-integrante-7", (True, True, True, True)),
 )
-GROUP_ADMIN_ACTIVITY = 45
-INDIVIDUAL_A_ACTIVITY = 60
 GROUP_KEY = "familia-demo"
 GROUP_NAME = "Grupo familiar DEMO"
 
@@ -267,18 +265,16 @@ def _estado(rng: random.Random) -> str:
     return ESTADO_COMPLETADA
 
 
-def individualMeasurementsFor(profileKey: str, *, activity: int, baseBpm: int) -> tuple[MeasurementSpec, ...]:
-    """Historial de una cuenta individual desde HISTORY_START hasta DATA_END_DATE. Cada día tiene medición con probabilidad
-    `activity` (%), y ese día 1, 2 o 3 mediciones en horas distintas. El último día termina con una medición a las 17:00."""
+def individualMeasurementsFor(profileKey: str, *, baseBpm: int) -> tuple[MeasurementSpec, ...]:
+    """Historial de una cuenta individual desde HISTORY_START hasta DATA_END_DATE (hoy). Cada día tiene entre 2 y 3 mediciones
+    en horas distintas, sin días vacíos. El último día termina con una medición a las 17:00."""
     rng = random.Random(f"demo-mediciones:{profileKey}")
     out: list[MeasurementSpec] = []
     for dayOffset in range(HISTORY_DAYS, -1, -1):
         if dayOffset == 0:
-            hours = sorted(rng.sample(range(7, DATA_END_HOUR), k=rng.randint(0, 2))) + [DATA_END_HOUR]
-        elif rng.random() * 100 < activity:
-            hours = sorted(rng.sample(range(7, 23), k=rng.choices((1, 2, 3), weights=(5, 3, 2))[0]))
+            hours = sorted(rng.sample(range(7, DATA_END_HOUR), k=rng.choice((1, 2)))) + [DATA_END_HOUR]
         else:
-            continue
+            hours = sorted(rng.sample(range(7, 23), k=rng.choice((2, 3))))
         for position, hour in enumerate(hours):
             last = dayOffset == 0 and position == len(hours) - 1
             minute = 0 if last else rng.randint(0, 59)
@@ -289,10 +285,8 @@ def individualMeasurementsFor(profileKey: str, *, activity: int, baseBpm: int) -
 
 def individualMeasurements() -> tuple[tuple[str, tuple[MeasurementSpec, ...]], ...]:
     """(clave de cuenta, mediciones) de cada cuenta individual."""
-    plan = [("individual-a", INDIVIDUAL_A_ACTIVITY), ("grupo-admin", GROUP_ADMIN_ACTIVITY)]
-    plan += [(key, activity) for key, _, activity in GROUP_MEMBERS]
-    return tuple((key, individualMeasurementsFor(key, activity=activity, baseBpm=64 + (index * 3) % 14))
-                 for index, (key, activity) in enumerate(plan))
+    keys = ["individual-a", "grupo-admin"] + [key for key, _ in GROUP_MEMBERS]
+    return tuple((key, individualMeasurementsFor(key, baseBpm=64 + (index * 3) % 14)) for index, key in enumerate(keys))
 
 
 def expectedCounts() -> dict[str, int]:
@@ -323,7 +317,7 @@ PRIVACIDAD = ("Datos básicos", "Última medición", "Historial", "Avisos")
 
 
 def _privacidad(key: str) -> str:
-    for member, flags, _ in GROUP_MEMBERS:
+    for member, flags in GROUP_MEMBERS:
         if member == key:
             return " · ".join(f"{label}: {'sí' if on else 'no'}" for label, on in zip(PRIVACIDAD, flags))
     if key == "grupo-admin":
@@ -838,7 +832,7 @@ def buildPlan(db: Session, *, anchor: datetime | None = None, passwords: dict[st
 
     # Etapa 3 — vínculos del grupo.
     memberships = [("grupo-admin", "PROPIETARIO", (False, False, False, False))]
-    memberships += [(key, "MIEMBRO", flags) for key, flags, _ in GROUP_MEMBERS]
+    memberships += [(key, "MIEMBRO", flags) for key, flags in GROUP_MEMBERS]
     for key, role, flags in memberships:
         linkId = demoId("vinculo-grupo", key)
         if _exists(db, GroupUser, linkId):
