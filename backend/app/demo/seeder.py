@@ -59,6 +59,9 @@ from app.utils.timeZone import nowForDb
 
 DEMO_NAMESPACE = uuid.UUID("6f1c2a7e-3b8d-4e51-9a0c-64d0e0b1d3a7")  # fijo: cambiarlo cambia todos los IDs demo
 EMAIL_DOMAIN = "example.com"
+# Cuentas demo con correo real del responsable (en vez de demo.<clave>@example.com). Se aplican al crear la cuenta; una cuenta ya
+# cargada conserva su correo hasta que se actualice su fila.
+CORREOS_PERSONALIZADOS = {"grupo-integrante-2": "victoriavmcortitrabajos@gmail.com"}
 NOTA_MEDICION = "DEMO - medición sintética de demostración académica. No es un dato médico ni un resultado validado."
 NOTA_GRUPO = "Grupo familiar sintético de demostración académica."
 HISTORY_START = date(2022, 1, 1)  # primera medición del historial demo
@@ -99,7 +102,7 @@ class Account:
 
     @property
     def correo(self) -> str:
-        return f"demo.{self.key}@{EMAIL_DOMAIN}"
+        return CORREOS_PERSONALIZADOS.get(self.key, f"demo.{self.key}@{EMAIL_DOMAIN}")
 
     @property
     def id(self) -> uuid.UUID:
@@ -420,7 +423,7 @@ def writePublicMarkdown(path: Path, anchor: datetime) -> None:
         "# Cuentas de demostración: inventario sin contraseñas",
         "",
         f"Generado por `app/demo/seeder.py` para la fecha de ancla {anchor:%Y-%m-%d}. Todas las cuentas son sintéticas: los correos "
-        "usan el dominio reservado `example.com`, los documentos llevan el prefijo `DEMO` y los dispositivos son `DEMO-DISP-*`. "
+        "usan el dominio reservado `example.com` (salvo las cuentas con correo personalizado), los documentos llevan el prefijo `DEMO` y los dispositivos son `DEMO-DISP-*`. "
         "Las contraseñas están solo en el archivo privado de credenciales (fuera del repositorio).",
         "",
     ]

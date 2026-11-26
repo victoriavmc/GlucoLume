@@ -122,7 +122,8 @@ def test_historial_diario_desde_2022_con_entre_dos_y_tres_mediciones_por_dia():
 
 
 def test_cada_cuenta_demo_tiene_su_propio_nombre_de_usuario(db, seeded):
-    names = [user.usuario for user in db.scalars(select(User).where(User.correoElectronico.like("demo.%"))).all()]
+    ids = [account.id for account in seeder.ACCOUNTS]  # no por el correo: algunas cuentas demo tienen correo personalizado
+    names = [user.usuario for user in db.scalars(select(User).where(User.idUsuario.in_(ids))).all()]
     assert len(names) == len(seeder.ACCOUNTS) and len(set(names)) == len(names)
     assert all(name and len(name) >= 4 and "@" not in name for name in names)
 
