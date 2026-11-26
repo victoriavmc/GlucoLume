@@ -546,35 +546,6 @@ describe('Nueva medición con el dispositivo: sesión y guardado', () => {
     expect(within(live).queryByText(/de 8/)).not.toBeInTheDocument(); // el contador de estabilidad ya no se muestra
     expect(screen.queryByText(/No hay un Arduino conectado/)).not.toBeInTheDocument(); // no mezcla el flujo de muestras crudas
   });
-
-  it('en glucosa, el semáforo en vivo sigue la última lectura válida y muestra el intervalo de la regla; sin lectura válida no aparece', async () => {
-    const sesion = (semaforo, glucosaReferencia) => ({
-      idMedicion: MEASUREMENT_ID, iniciada: '2026-10-08T09:00:01Z', enlacePerdido: false, modo: 'GLUCOSA_EXPERIMENTAL', ppg: null,
-      estabilidad: { estable: false, motivo: 'LECTURAS_INSUFICIENTES', mensaje: 'Mantené el dedo quieto.', lecturasValidas: 3, lecturasRequeridas: 8 },
-      semaforo, glucosaReferencia, intervalo: { min: 70, max: 105, unidad: 'mg/dL' },
-    });
-    const reading = (n, extra = {}) => ({
-      ...READING, origen: 'EXPERIMENTAL', esDemo: false, glucosa: 112, instante: `2026-10-08T09:00:${String(n).padStart(2, '0')}Z`, ...extra,
-    });
-    routes(status({ lectura: reading(5), sesion: sesion('ROJO', 112) }), {
-      [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, detail({ modoMedicion: 'GLUCOSA_EXPERIMENTAL' })),
-    });
-    renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
-    const live = await screen.findByRole('region', { name: 'Sesión de medición con el dispositivo' });
-    const glucose = within(within(live).getByRole('article', { name: 'Glucosa' }));
-    await waitFor(() => expect(glucose.getByText('Muy alto')).toBeInTheDocument());
-    expect(glucose.getByText('112', { selector: 'b' })).toBeInTheDocument(); // el número es la mediana que informa el servidor
-    expect(glucose.getByText('Referencia 70–105 mg/dL')).toBeInTheDocument();
-    // La siguiente lectura vuelve al intervalo: el semáforo cambia con ella, sin esperar a guardar.
-    await pushStatus(status({ lectura: reading(6, { glucosa: 90 }), sesion: sesion('VERDE', 90) }));
-    expect(glucose.getByText('Está bien')).toBeInTheDocument();
-    expect(glucose.getByText('90', { selector: 'b' })).toBeInTheDocument();
-    expect(glucose.queryByText('Muy alto')).not.toBeInTheDocument();
-    // Sin dedo no hay valor válido: no se muestra ningún semáforo ni un valor anterior.
-    await pushStatus(status({ lectura: reading(7, { dedo: false, senalValida: false, glucosa: null }), sesion: sesion(null, null) }));
-    expect(glucose.queryByText(/Muy alto|Revisar|Está bien/)).not.toBeInTheDocument();
-    expect(glucose.getByText('Sin dato')).toBeInTheDocument();
-  });
 });
 
 describe('Nueva medición con el dispositivo: guardado automático al estabilizarse', () => {

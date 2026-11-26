@@ -1839,11 +1839,6 @@ a.dash-card:hover { border-color: var(--red-600); }
 .metric-live header { gap: 12px; }
 .metric-live h4 { display: flex; align-items: center; gap: 10px; font-size: 17px; color: var(--ink-900); }
 .metric-head-end { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-500); }
-.semaforo-live { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.semaforo-live .semaforo { font-size: 13px; }
-.semaforo-live .semaforo-luces { padding: 3px; }
-.semaforo-live .semaforo-luz { width: 7px; height: 7px; }
-.semaforo-live small { font-size: 12px; }
 .metric-trailing { color: var(--ink-500); }
 .metric-icon.is-heart, .metric-icon.is-glucose { color: #e3101e; }
 .metric-icon.is-lungs { color: #2b6cb0; }
