@@ -316,9 +316,9 @@ describe('Detalle y estados de una medición', () => {
       [`POST /measurements/${MEASUREMENT_ID}/send-result`]: jsonResponse(200, { estadoEnvio: 'ENVIADO', correoEnmascarado: 'v***@example.com', mensaje: 'Salió el resultado por correo electrónico.' }),
     });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
-    await userEvent.click(await screen.findByRole('button', { name: /Enviar resultado por correo/ }));
-    await userEvent.click(screen.getByRole('button', { name: /Enviarme el resultado por correo/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Enviar resultado por correo/ })); // un solo toque: envía directo
     expect(await screen.findByText(/Salió el resultado por correo electrónico/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Enviarme el resultado por correo/ })).not.toBeInTheDocument();
     expect(calls.find((call) => call.key.endsWith('/send-result')).body).toEqual({});
   });
 
@@ -368,9 +368,8 @@ describe('Detalle y estados de una medición', () => {
     });
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     await userEvent.click(await screen.findByRole('button', { name: /Enviar resultado por correo/ }));
-    await userEvent.click(screen.getByRole('button', { name: /Enviarme el resultado por correo/ }));
     expect(await screen.findByText(/Enviando el resultado por correo electrónico/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Enviarme el resultado por correo/ })).toBeEnabled(); // no bloquea la pantalla
+    expect(screen.getByRole('button', { name: /Enviar resultado por correo/ })).toBeEnabled(); // no bloquea la pantalla
     expect(await screen.findByText(/Salió el resultado por correo electrónico/, {}, { timeout: 6000 })).toBeInTheDocument();
     expect(screen.queryByText(/Enviando el resultado por correo electrónico/)).not.toBeInTheDocument();
   }, 15000);
