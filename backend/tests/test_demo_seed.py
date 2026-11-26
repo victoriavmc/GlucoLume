@@ -19,6 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core import security
 from app.core.exceptions import AuthError
+from app.cli import demoSeed as app_cli_demoSeed
 from app.demo import seeder
 from app.models.accountDeviceLink import AccountDeviceLink
 from app.models.audit import Audit
@@ -133,6 +134,23 @@ def test_contrasena_comun_elegida_por_el_responsable_para_todas_las_cuentas(monk
     with pytest.raises(seeder.SeedError) as error:
         seeder.generatePassword(seeder.ACCOUNTS[0])
     assert "corta" not in str(error.value)  # el mensaje de error nunca muestra la contraseña
+
+
+def test_pide_una_contrasena_comun_al_crear_cuentas_y_no_pregunta_si_ya_esta_definida(monkeypatch):
+    import os
+    from app.cli import demoSeed
+    cuentas = [seeder.ACCOUNTS[0], seeder.ACCOUNTS[1]]
+    monkeypatch.setenv(seeder.DEMO_PASSWORD_ENV, "provisoria")  # pytest restaura el estado al terminar
+    monkeypatch.delenv(seeder.DEMO_PASSWORD_ENV)
+    respuestas = iter(["Demo-Clave-2026!", "otra", "Demo-Clave-2026!", "Demo-Clave-2026!"])  # la primera confirmación no coincide
+    monkeypatch.setattr(demoSeed.getpass, "getpass", lambda _prompt="": next(respuestas))
+    mensajes = []
+    demoSeed._askCommonPassword(cuentas, mensajes.append)
+    assert os.environ[seeder.DEMO_PASSWORD_ENV] == "Demo-Clave-2026!"
+    assert any("No coinciden" in m for m in mensajes)
+    assert "Demo-Clave-2026!" not in " ".join(mensajes)
+    monkeypatch.setattr(demoSeed.getpass, "getpass", lambda _prompt="": pytest.fail("no debe preguntar"))
+    demoSeed._askCommonPassword(cuentas, mensajes.append)
 
 
 def test_segunda_ejecucion_no_duplica_ningun_registro(db, seeded):
@@ -361,6 +379,9 @@ def test_archivo_privado_con_permisos_restrictivos(tmp_path, seeded):
 def test_cli_dry_run_luego_aplicar_idempotente_y_sin_imprimir_contrasenas(db, engine, tmp_path, monkeypatch):
     monkeypatch.setattr("app.db.session.getSessionFactory", lambda: sessionmaker(bind=engine, autoflush=False,
                                                                                  expire_on_commit=False))
+    respuestas = iter(["Demo-Clave-2026!", "Demo-Clave-2026!", "Demo-Clave-2027!", "Demo-Clave-2027!"])  # cada carga confirma dos veces
+    monkeypatch.setattr(app_cli_demoSeed.getpass, "getpass", lambda _prompt="": next(respuestas))
+    monkeypatch.setenv(seeder.DEMO_PASSWORD_ENV, "")  # vacío: la CLI pregunta
     private = tmp_path / "privado" / "credenciales-demo.txt"
     public = tmp_path / "inventario.md"
     lines: list[str] = []
@@ -386,6 +407,7 @@ def test_cli_dry_run_luego_aplicar_idempotente_y_sin_imprimir_contrasenas(db, en
     assert any(f"Cuentas verificadas: {len(seeder.ACCOUNTS)} de {len(seeder.ACCOUNTS)}" in line for line in lines)
 
     old = passwords["individual-a"]
+    monkeypatch.setenv(seeder.DEMO_PASSWORD_ENV, "")  # la regeneración vuelve a preguntar
     assert demoSeed.run(args + ["--aplicar", "--regenerar-contrasenas"], out=lines.append) == 0
     fresh = seeder.readPasswords(private)
     assert fresh["individual-a"] != old

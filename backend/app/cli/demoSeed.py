@@ -14,6 +14,8 @@
 from __future__ import annotations
 
 import argparse
+import getpass
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +26,34 @@ def _parseAnchor(value: str | None) -> datetime | None:
     if value is None:
         return None
     return datetime.strptime(value, "%Y-%m-%d")
+
+
+def _askCommonPassword(cuentas, out) -> None:
+    """Pide una sola vez la contraseña común de todas las cuentas demo (sin eco, se repite para confirmar). Si
+    GLUCOLUME_DEMO_PASSWORD ya está definida, no pregunta. La contraseña no se imprime ni se escribe fuera del archivo privado."""
+    if os.environ.get(seeder.DEMO_PASSWORD_ENV):
+        return
+    from app.core.security import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
+    out(f"Requisitos: entre {PASSWORD_MIN_LENGTH} y {PASSWORD_MAX_LENGTH} caracteres, con mayúscula, minúscula, número y un símbolo "
+        "especial (por ejemplo ! @ # $ % & * . _ -). No puede ser una contraseña común ni contener el nombre o el correo de una cuenta demo.")
+    while True:
+        try:
+            clave = getpass.getpass("Contraseña común para TODAS las cuentas demo: ")
+            repetida = getpass.getpass("Repetila: ")
+        except EOFError as error:
+            raise seeder.SeedError("No hay terminal para pedir la contraseña: ejecutá con -it o definí GLUCOLUME_DEMO_PASSWORD.") from error
+        if clave != repetida:
+            out("No coinciden. Probá de nuevo.")
+            continue
+        os.environ[seeder.DEMO_PASSWORD_ENV] = clave
+        try:
+            for cuenta in cuentas:  # valida con la política y con los datos personales de cada cuenta
+                seeder.generatePassword(cuenta)
+        except seeder.SeedError as error:
+            del os.environ[seeder.DEMO_PASSWORD_ENV]
+            out(str(error))
+            continue
+        return
 
 
 def _printPlan(plan: seeder.Plan, out) -> None:
@@ -56,6 +86,8 @@ def runSeed(args, out) -> int:
             return 0
 
         generate = list(dict.fromkeys(preview.cuentasACrear + preview.cuentasARegenerar))
+        if generate:
+            _askCommonPassword([seeder.ACCOUNTS_BY_KEY[key] for key in generate], out)
         passwords = {key: seeder.generatePassword(seeder.ACCOUNTS_BY_KEY[key]) for key in generate}
         plan = seeder.buildPlan(session, anchor=anchor, passwords=passwords, regenerarContrasenas=args.regenerar_contrasenas)
         if plan.bloqueado:  # cambió la base entre las dos lecturas: no se escribe nada
