@@ -1992,7 +1992,7 @@ a.dash-card:hover { border-color: var(--red-600); }
 }
 
 /* Actividad del grupo: tarjetas de ancho cómodo (nombre, fecha y valores), en varias columnas cuando hay lugar, sin líneas interminables. */
-.gd-timeline { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: var(--gap-card); }
+.gd-timeline { grid-template-columns: minmax(0, 1fr); gap: var(--gap-card); }
 
 /* Textos secundarios: nunca por debajo de 15 px (adultos mayores). */
 .field-hint,

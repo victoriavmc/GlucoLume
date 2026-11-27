@@ -646,7 +646,7 @@ def _detail(db: Session, measurement: Measurement, access: ProfileAccess) -> Mea
         origenGlucosa=measurement.origenGlucosa, glucosaDispositivo=measurement.glucosaDispositivo,
         unidadGlucosa=measurement.unidadGlucosa, indiceOptico=measurement.indiceOptico,
         lecturasEstabilizadas=measurement.lecturasEstabilizadas, esDemo=measurement.origenGlucosa == ORIGEN_DEMO,
-        puedeEliminar=bool(access.canOperate and measurement.origenGlucosa == ORIGEN_DEMO
+        puedeEliminar=bool(access.canOperate and access.profile.tipoPerfil == TIPO_CONSUMIDOR_FINAL
                            and measurement.estadoMedicion == COMPLETADA),
         dispositivo=DeviceSummary(
             idDispositivo=device.idDispositivo, codigoDispositivo=device.codigoDispositivo, nombre=device.nombre,
@@ -793,33 +793,37 @@ def listPatientHistory(db: Session, actor: User, idInstitucion: uuid.UUID, idPer
 DEMO_DELETE_BATCH = 1000  # SQL Server admite como máximo 2100 parámetros por sentencia; el IN() de cada lote queda por debajo
 
 
-def _deleteDemo(db: Session, ids: list[uuid.UUID]) -> int:
-    """Borra mediciones DEMO COMPLETADAS (y lo que cuelga de ellas). Cada DELETE se condiciona al origen: una
-    medición real nunca se elimina aunque el identificador sea otro. Se hace por lotes: una cuenta con muchas
-    mediciones demo superaba el límite de parámetros de SQL Server y la petición respondía 500."""
+def _deleteMeasurements(db: Session, ids: list[uuid.UUID], *, soloDemo: bool) -> int:
+    """Borra mediciones COMPLETADAS (y lo que cuelga de ellas). Con `soloDemo`, cada DELETE se condiciona al origen DEMO:
+    una medición real nunca se elimina por la limpieza masiva. Se hace por lotes: una cuenta con muchas mediciones
+    superaba el límite de parámetros de SQL Server y la petición respondía 500."""
     deleted = 0
     for start in range(0, len(ids), DEMO_DELETE_BATCH):
         lote = ids[start:start + DEMO_DELETE_BATCH]
         db.execute(delete(ResultDelivery).where(ResultDelivery.idMedicion.in_(lote)))
         db.execute(delete(SensorSample).where(SensorSample.idMedicion.in_(lote)))
         db.execute(delete(CapillaryReferenceMeasurement).where(CapillaryReferenceMeasurement.idMedicion.in_(lote)))
-        deleted += db.execute(delete(Measurement).where(
-            Measurement.idMedicion.in_(lote), Measurement.origenGlucosa == ORIGEN_DEMO,
-            Measurement.estadoMedicion == COMPLETADA).execution_options(synchronize_session=False)).rowcount
+        condiciones = [Measurement.idMedicion.in_(lote), Measurement.estadoMedicion == COMPLETADA]
+        if soloDemo:
+            condiciones.append(Measurement.origenGlucosa == ORIGEN_DEMO)
+        deleted += db.execute(delete(Measurement).where(*condiciones)
+                              .execution_options(synchronize_session=False)).rowcount
     return deleted
 
 
-def deleteDemoMeasurement(db: Session, actor: User, idMedicion: uuid.UUID) -> int:
-    """Elimina UNA medición de prueba que la cuenta puede operar. Una medición real responde 409."""
+def deleteOwnMeasurement(db: Session, actor: User, idMedicion: uuid.UUID) -> int:
+    """Elimina UNA medición completada del perfil propio de la persona (DEMO o real, a su elección). Las mediciones
+    de pacientes institucionales no se eliminan desde aquí: las gestiona la institución."""
     measurement, access = _measurementAccess(db, actor, idMedicion)
     _requireOperate(access)
-    if measurement.origenGlucosa != ORIGEN_DEMO or measurement.estadoMedicion != COMPLETADA:
-        raise _error("DATO_NO_ELIMINABLE", "Solo se pueden eliminar mediciones de prueba (DEMO) completadas.")
-    deleted = _deleteDemo(db, [idMedicion])
-    registerEvent(db, "CRUD", "ELIMINAR_DATOS_DEMO", deleted == 1, actor.idUsuario, "Medicion", idMedicion,
-                  datosNuevos={"cantidad": deleted},
-                  tablaRelacionada="InstitucionUsuario" if access.relation else None,
-                  idRelacionado=access.relation.idInstitucionUsuario if access.relation else None)
+    if access.profile.tipoPerfil != TIPO_CONSUMIDOR_FINAL:
+        raise _error("PERMISO_INSUFICIENTE", "Solo podés eliminar mediciones de tu propio perfil.")
+    if measurement.estadoMedicion != COMPLETADA:
+        raise _error("DATO_NO_ELIMINABLE", "Solo se pueden eliminar mediciones completadas.")
+    esDemo = measurement.origenGlucosa == ORIGEN_DEMO
+    deleted = _deleteMeasurements(db, [idMedicion], soloDemo=False)
+    registerEvent(db, "CRUD", "ELIMINAR_DATOS_DEMO" if esDemo else "ELIMINAR_MEDICION", deleted == 1, actor.idUsuario,
+                  "Medicion", idMedicion, datosNuevos={"cantidad": deleted, "origen": measurement.origenGlucosa})
     db.commit()
     return deleted
 
@@ -832,7 +836,7 @@ def deleteOwnDemoMeasurements(db: Session, actor: User) -> int:
     ids = list(db.scalars(select(Measurement.idMedicion).where(
         Measurement.idPerfilMedicion == profile.idPerfilMedicion, Measurement.origenGlucosa == ORIGEN_DEMO,
         Measurement.estadoMedicion == COMPLETADA)).all())
-    deleted = _deleteDemo(db, ids)
+    deleted = _deleteMeasurements(db, ids, soloDemo=True)
     registerEvent(db, "CRUD", "ELIMINAR_DATOS_DEMO", True, actor.idUsuario, "PerfilMedicion", profile.idPerfilMedicion,
                   datosNuevos={"cantidad": deleted})
     db.commit()

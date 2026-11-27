@@ -180,9 +180,6 @@ def test_cien_solicitudes_simultaneas_en_sql_server_dejan_una_sola_medicion(sql,
     with pytest.raises(AuthError):
         telemetryService.saveSession(db, user)
     assert measurements.deleteOwnDemoMeasurements(db, user) == 1
-    with pytest.raises(AuthError) as protected:
-        measurements.deleteDemoMeasurement(db, user, real.idMedicion)
-    assert protected.value.code == "DATO_NO_ELIMINABLE"
     remaining = {i.idMedicion for i in measurements.listOwnHistory(db, user).items}
     # Se borró la única medición DEMO de la carrera (un solo borrado): queda solo la real.
     assert remaining == {real.idMedicion}

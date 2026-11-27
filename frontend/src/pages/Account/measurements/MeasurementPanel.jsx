@@ -319,7 +319,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
     }
   }
 
-  if (deleted) return <Alert kind="success">La medición de prueba se eliminó. Tus mediciones reales no se modificaron.</Alert>;
+  if (deleted) return <Alert kind="success">La medición se eliminó de tu historial.</Alert>;
   if (error && !measurement) return <Alert>{error}</Alert>;
   if (!measurement) return <p className="field-hint" role="status">Cargando medición…</p>;
 
@@ -446,7 +446,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
           )}
             {measurement.puedeEliminar && (confirmingDelete ? (
               <>
-                <span className="field-hint">¿Eliminar esta medición de prueba? No afecta a tus mediciones reales.</span>
+                <span className="field-hint">¿Eliminar esta medición? Se borra de tu historial y no se puede recuperar.</span>
                 <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirmingDelete(false)}>Volver</button>
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={removeDemo}>
                   {busy && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
@@ -454,7 +454,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
               </>
             ) : (
               <button type="button" className="btn btn-outline" onClick={() => setConfirmingDelete(true)}>
-                <Trash2 size={16} aria-hidden="true" /> Eliminar medición de prueba
+                <Trash2 size={16} aria-hidden="true" /> Eliminar medición
               </button>
             ))}
         </div>

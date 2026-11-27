@@ -864,10 +864,7 @@ def test_los_datos_demo_se_eliminan_sin_afectar_las_mediciones_reales(db, mails,
     real = saveWith(db, user, profileId, dev, bridge, "SIN_CALIBRAR", "NA")
     assert measurements.listOwnHistory(db, user).total == 3
     assert measurements.listOwnHistory(db, user, origen="DEMO").total == 2
-    with pytest.raises(AuthError) as protected:  # una medición real no se elimina
-        measurements.deleteDemoMeasurement(db, user, real.idMedicion)
-    assert protected.value.code == "DATO_NO_ELIMINABLE"
-    assert measurements.deleteDemoMeasurement(db, user, demoA.idMedicion) == 1
+    assert measurements.deleteOwnMeasurement(db, user, demoA.idMedicion) == 1
     assert measurements.listOwnHistory(db, user, origen="DEMO").total == 1
     assert measurements.deleteOwnDemoMeasurements(db, user) == 1
     page = measurements.listOwnHistory(db, user)
@@ -879,6 +876,20 @@ def test_los_datos_demo_se_eliminan_sin_afectar_las_mediciones_reales(db, mails,
     assert gone.value.code == "MEDICION_NO_ENCONTRADA"
 
 
+def test_la_persona_puede_eliminar_su_medicion_real_y_queda_auditada(db, mails, consumer, bridge):
+    user, profileId = consumer
+    dev = device(db, codigo=CODE)
+    bridge.seconds(1)
+    real = saveWith(db, user, profileId, dev, bridge, "SIN_CALIBRAR", "NA")
+    other = saveWith(db, user, profileId, dev, bridge, "SIN_CALIBRAR", "NA")
+    assert measurements.deleteOwnMeasurement(db, user, real.idMedicion) == 1
+    assert [i.idMedicion for i in measurements.listOwnHistory(db, user).items] == [other.idMedicion]
+    assert len(audits(db, "ELIMINAR_MEDICION")) == 1
+    with pytest.raises(AuthError) as gone:
+        measurements.getMeasurement(db, user, real.idMedicion)
+    assert gone.value.code == "MEDICION_NO_ENCONTRADA"
+
+
 def test_no_se_eliminan_los_datos_demo_de_otra_cuenta(db, mails, consumer, bridge):
     user, profileId = consumer
     dev = device(db, codigo=CODE)
@@ -887,7 +898,7 @@ def test_no_se_eliminan_los_datos_demo_de_otra_cuenta(db, mails, consumer, bridg
     other = makeUser(db, email="otra@example.com", usuario="otra")
     measurements.getOwnProfile(db, other)
     with pytest.raises(AuthError) as raised:
-        measurements.deleteDemoMeasurement(db, other, demo.idMedicion)
+        measurements.deleteOwnMeasurement(db, other, demo.idMedicion)
     assert raised.value.code == "MEDICION_NO_ENCONTRADA"
     assert measurements.deleteOwnDemoMeasurements(db, other) == 0
     assert measurements.listOwnHistory(db, user, origen="DEMO").total == 1
@@ -903,11 +914,11 @@ def test_eliminar_demo_por_http(db, mails, consumer, bridge, api):
     assert client.get("/api/v1/measurements?origen=DEMO").json()["total"] == 1
     assert client.get("/api/v1/measurements?origen=REAL").json()["total"] == 1
     assert client.get("/api/v1/measurements?origen=XXX").status_code == 422
-    assert client.delete(f"/api/v1/measurements/{real.idMedicion}").status_code == 409
     assert client.delete(f"/api/v1/measurements/{demo.idMedicion}").json() == {"eliminadas": 1}
     assert client.delete("/api/v1/measurements/demo").json() == {"eliminadas": 0}
-    detail = client.get(f"/api/v1/measurements/{real.idMedicion}").json()
-    assert detail["origenGlucosa"] == "SIN_CALIBRAR" and detail["unidades"]["frecuenciaCardiaca"] == "lpm"
+    assert client.delete(f"/api/v1/measurements/{real.idMedicion}").json() == {"eliminadas": 1}  # la persona elige borrarla
+    assert client.get(f"/api/v1/measurements/{real.idMedicion}").status_code == 404
+    assert client.delete("/api/v1/measurements/demo").json() == {"eliminadas": 0}  # la limpieza masiva sigue siendo solo DEMO
 
 
 def test_persistencia_y_consulta_en_la_base(db, mails, consumer, bridge, engine):

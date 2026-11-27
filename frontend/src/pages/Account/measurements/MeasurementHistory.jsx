@@ -72,7 +72,7 @@ function filledFilters(filters) {
 }
 
 /** `filtroCondicion`: muestra el filtro por condición de comida (solo lo soporta el historial propio). */
-export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onDeleteDemoOne, onExport, filtroCondicion = false }) {
+export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onDeleteOne, onExport, filtroCondicion = false }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [confirmingDemo, setConfirmingDemo] = useState(false);
   const [confirmingSelected, setConfirmingSelected] = useState(false);
@@ -163,16 +163,16 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
     }
   }
 
-  // Borra una por una las pruebas DEMO marcadas: la API solo acepta DEMO completadas y responde 409 a cualquier otra.
+  // Borra una por una las mediciones marcadas (DEMO o reales, de la propia cuenta).
   async function deleteSelected() {
     setDeletingSelected(true);
     setError('');
     setNotice('');
     let eliminadas = 0;
     let lastError = '';
-    for (const id of selectedDemoIds) {
+    for (const id of selectedIds) {
       try {
-        await onDeleteDemoOne(id);
+        await onDeleteOne(id);
         eliminadas += 1;
       } catch (deleteError) {
         lastError = handleOperationError(deleteError);
@@ -181,8 +181,8 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
     setDeletingSelected(false);
     setConfirmingSelected(false);
     setSelected(new Set());
-    if (eliminadas) setNotice(`Se eliminaron ${eliminadas} mediciones de prueba. Tus mediciones reales no se modificaron.`);
-    if (eliminadas < selectedDemoIds.length) setError(`No se pudieron eliminar ${selectedDemoIds.length - eliminadas} mediciones. ${lastError}`.trim());
+    if (eliminadas) setNotice(`Se eliminaron ${eliminadas} mediciones.`);
+    if (eliminadas < selectedIds.length) setError(`No se pudieron eliminar ${selectedIds.length - eliminadas} mediciones. ${lastError}`.trim());
     await load();
   }
 
@@ -192,9 +192,9 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
   // Exportar: solo en el perfil propio (`onExport`). La API vuelve a validar cada pedido.
   const pageIds = page?.items.map((measurement) => measurement.idMedicion) ?? [];
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  // Solo las pruebas DEMO completadas de la selección se pueden eliminar; las reales se quedan.
-  const selectedDemoIds = page
-    ? page.items.filter((item) => selected.has(item.idMedicion) && item.esDemo && item.estadoMedicion === 'COMPLETADA')
+  // Solo las mediciones completadas de la selección se pueden eliminar.
+  const selectedIds = page
+    ? page.items.filter((item) => selected.has(item.idMedicion) && item.estadoMedicion === 'COMPLETADA')
       .map((item) => item.idMedicion)
     : [];
 
@@ -256,17 +256,17 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
                     onClick={() => handleExport({ alcance: 'TODOS', ...filledFilters(filters) })}>
                     <Download size={18} aria-hidden="true" /> Exportar todas{filtered ? ' las filtradas' : ''} ({page.total})
                   </button>
-                  {onDeleteDemoOne && (
-                    <button type="button" className="btn btn-outline" disabled={selectedDemoIds.length === 0 || deletingSelected}
+                  {onDeleteOne && (
+                    <button type="button" className="btn btn-outline" disabled={selectedIds.length === 0 || deletingSelected}
                       onClick={() => setConfirmingSelected(true)}>
-                      <Trash2 size={18} aria-hidden="true" /> Eliminar seleccionadas{selectedDemoIds.length > 0 ? ` (${selectedDemoIds.length})` : ''}
+                      <Trash2 size={18} aria-hidden="true" /> Eliminar seleccionadas{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
                     </button>
                   )}
                 </div>
                 {confirmingSelected && (
                   <div className="form-actions history-delete-confirm">
                     <span className="field-hint">
-                      ¿Eliminar {selectedDemoIds.length} {selectedDemoIds.length === 1 ? 'prueba DEMO' : 'pruebas DEMO'}? Las mediciones reales no se tocan.
+                      ¿Eliminar {selectedIds.length} {selectedIds.length === 1 ? 'medición' : 'mediciones'}? Se borran de tu historial y no se pueden recuperar.
                     </span>
                     <button type="button" className="btn btn-ghost" disabled={deletingSelected} onClick={() => setConfirmingSelected(false)}>Volver</button>
                     <button type="button" className="btn btn-primary" disabled={deletingSelected} onClick={deleteSelected}>

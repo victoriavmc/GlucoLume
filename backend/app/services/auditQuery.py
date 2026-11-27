@@ -323,7 +323,7 @@ ACTION_LABELS = {
     "INICIAR_MEDICION": "Inicio de medición", "FINALIZAR_MEDICION": "Finalización de medición", "CANCELAR_MEDICION": "Cancelación de medición",
     "CAMBIAR_ESTADO_MEDICION": "Cambio de estado de una medición", "CANCELAR_SESION_ABANDONADA": "Cancelación de una sesión abandonada",
     "INVALIDAR_MEDICION_TIEMPO_AGOTADO": "Medición invalidada por tiempo agotado", "ENVIAR_RESULTADO_MEDICION": "Envío de resultado de medición",
-    "ELIMINAR_DATOS_DEMO": "Eliminación de datos de demostración", "REGISTRAR_REFERENCIA_CAPILAR": "Registro de referencia capilar",
+    "ELIMINAR_DATOS_DEMO": "Eliminación de datos de demostración", "ELIMINAR_MEDICION": "Eliminación de medición propia","REGISTRAR_REFERENCIA_CAPILAR": "Registro de referencia capilar",
     "GUARDAR_MEDICION_DISPOSITIVO": "Medición guardada desde el dispositivo", "INICIAR_SESION_DISPOSITIVO": "Sesión de medición iniciada desde el dispositivo",
     # Dispositivos
     "REGISTRAR_DISPOSITIVO": "Registro de dispositivo", "MODIFICAR_DISPOSITIVO": "Modificación de dispositivo",

@@ -129,11 +129,11 @@ def getMeasurement(idMedicion: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return measurementService.getMeasurement(db, auth.user, idMedicion)
 
 
-@router.delete("/{idMedicion}", summary="Eliminar una medición de prueba (DEMO)",
-               description="Solo mediciones DEMO completadas que la cuenta puede operar. Una medición real responde 409 "
-               "`DATO_NO_ELIMINABLE`: las mediciones reales no se eliminan.")
-def deleteDemoMeasurement(idMedicion: uuid.UUID, auth: CurrentAuth, db: DbSession):
-    return {"eliminadas": measurementService.deleteDemoMeasurement(db, auth.user, idMedicion)}
+@router.delete("/{idMedicion}", summary="Eliminar una medición propia",
+               description="Elimina una medición completada de tu propio perfil, DEMO o real, a tu elección. Queda en la "
+               "auditoría. Las mediciones de pacientes institucionales no se eliminan desde aquí.")
+def deleteOwnMeasurement(idMedicion: uuid.UUID, auth: CurrentAuth, db: DbSession):
+    return {"eliminadas": measurementService.deleteOwnMeasurement(db, auth.user, idMedicion)}
 
 
 @router.post("/{idMedicion}/samples", response_model=MeasurementDetail, summary="Registrar muestras del sensor",

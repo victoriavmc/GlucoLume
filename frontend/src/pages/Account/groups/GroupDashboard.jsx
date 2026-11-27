@@ -78,10 +78,23 @@ function SummaryKpis({ data }) {
 // Lista cronológica de lo que cada persona autorizó mostrar, siempre con día, fecha y hora. Con «Última medición» o «Historial» trae los
 // valores autorizados (las pruebas DEMO rotuladas, sin confundirse con las experimentales). Con solo «Aviso de medición» llega únicamente
 // el hecho («Realizó una medición»): el backend no envía valores, y acá tampoco se muestra ninguno.
+const ACTIVITY_FIRST = 5; // al inicio se muestran las 5 más recientes
+const ACTIVITY_PAGE = 10; // cada «Ver más» suma una página de 10
+
+function activityTime(item) {
+  return Date.parse(item.fechaHoraInicio ?? item.medicion?.fechaHoraInicio ?? '') || 0;
+}
+
 function ActivityTimeline({ items }) {
+  const [shown, setShown] = useState(ACTIVITY_FIRST);
+  // Siempre en orden de tiempo, más reciente primero (no depende del orden que llegue de la API).
+  const sorted = [...items].sort((a, b) => activityTime(b) - activityTime(a));
+  const visible = sorted.slice(0, shown);
+  const remaining = sorted.length - visible.length;
   return (
+    <>
     <ul className="gd-timeline" aria-label="Actividad compartida reciente">
-      {items.map((item) => {
+      {visible.map((item) => {
         const measurement = item.medicion ?? null;
         const when = item.fechaHoraInicio ?? measurement?.fechaHoraInicio;
         const notice = item.tipo === 'AVISO' || !measurement;
@@ -117,6 +130,14 @@ function ActivityTimeline({ items }) {
         );
       })}
     </ul>
+      {remaining > 0 && (
+        <div className="form-actions">
+          <button type="button" className="btn btn-outline" onClick={() => setShown((count) => count + ACTIVITY_PAGE)}>
+            Ver más ({Math.min(ACTIVITY_PAGE, remaining)} de {remaining} restantes)
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

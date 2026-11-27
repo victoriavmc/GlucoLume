@@ -676,9 +676,9 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     const user = userEvent.setup();
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     expect(await screen.findByText(/Datos de prueba \(DEMO\)/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Eliminar medición de prueba/ }));
+    await user.click(screen.getByRole('button', { name: /Eliminar medición/ }));
     await user.click(screen.getByRole('button', { name: 'Confirmar eliminación' }));
-    expect(await screen.findByText(/La medición de prueba se eliminó/)).toBeInTheDocument();
+    expect(await screen.findByText(/La medición se eliminó de tu historial/)).toBeInTheDocument();
     expect(api.calls.some((call) => call.key === `DELETE /measurements/${MEASUREMENT_ID}`)).toBe(true);
   });
 

@@ -72,7 +72,7 @@ export function getOwnEvolution({ dias, desde, hasta, origen = 'EXPERIMENTAL' } 
   return request(`/measurements/evolution${queryString(desde || hasta ? { desde, hasta, origen } : { dias, origen })}`, { auth: true });
 }
 
-/** Elimina UNA medición de prueba (DEMO) completada. Una medición real responde 409 DATO_NO_ELIMINABLE. */
+/** Elimina UNA medición completada de la propia cuenta (DEMO o real, a elección de la persona). Queda auditada. */
 export function deleteDemoMeasurement(idMedicion) {
   return request(`/measurements/${idMedicion}`, { method: 'DELETE', auth: true });
 }

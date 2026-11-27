@@ -12,7 +12,7 @@
 #      libera la sesión y se confirma. Dos pedidos simultáneos no pueden guardar dos veces (bandera `saving` y UPDATE
 #      condicionado al estado).
 #   4. Los datos DEMO (glucosa sintética) se guardan con origenGlucosa='DEMO': quedan fuera de estadísticas, dashboards,
-#      avisos y correos, y se pueden consultar y eliminar (measurement.deleteDemoMeasurement).
+#      avisos y correos, y se pueden consultar y eliminar (measurement.deleteOwnMeasurement).
 #
 # No se calcula BPM, SpO₂, glucosa ni índice óptico aquí: se guardan los que informó el firmware, identificados con
 # versionAlgoritmo = FIRMWARE_ALGORITHM. Este servicio no escribe nunca en el Arduino (ni DEMO,ON/OFF ni CAL).
