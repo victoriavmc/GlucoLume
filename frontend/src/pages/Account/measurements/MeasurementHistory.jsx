@@ -4,7 +4,7 @@
 
 import { Activity, ChevronLeft, ChevronRight, Download, Filter, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { Badge } from '../../../components/Badge.jsx';
 import { EmptyState } from '../../../components/EmptyState.jsx';
@@ -78,7 +78,9 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
   const [confirmingDemo, setConfirmingDemo] = useState(false);
   const [confirmingSelected, setConfirmingSelected] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
-  const [notice, setNotice] = useState('');
+  const location = useLocation();
+  // Aviso que deja la pantalla anterior al volver al historial (por ejemplo, tras eliminar una medición).
+  const [notice, setNotice] = useState(() => location.state?.aviso ?? '');
   const [pagina, setPagina] = useState(1);
   const [page, setPage] = useState(null);
   const [error, setError] = useState('');

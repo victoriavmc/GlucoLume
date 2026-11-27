@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useNavigate } from 'react-router-dom';
 import { enSegundoPlano } from '../../../api/client.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
 import { ExperimentalNotice } from '../../../components/ExperimentalNotice.jsx';
@@ -244,7 +245,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [deleted, setDeleted] = useState(false);
+  const navigate = useNavigate();
   const [sendOpen, setSendOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [liveActive, setLiveActive] = useState(false);
@@ -310,7 +311,8 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
     setError('');
     try {
       await measurementsApi.deleteDemoMeasurement(idMedicion);
-      setDeleted(true);
+      // Al eliminar, vuelve al historial y muestra el aviso allí.
+      navigate('/app/mediciones/historial', { state: { aviso: 'La medición se eliminó de tu historial.' } });
       onChanged?.(null);
     } catch (deleteError) {
       setError(handleOperationError(deleteError));
@@ -320,7 +322,6 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
     }
   }
 
-  if (deleted) return <Alert kind="success">La medición se eliminó de tu historial.</Alert>;
   if (error && !measurement) return <Alert>{error}</Alert>;
   if (!measurement) return <p className="field-hint" role="status">Cargando medición…</p>;
 
@@ -411,6 +412,10 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
                 badge={<>{measurement.glucosaEstimada === null && <Semaforo color={measurement.referenciaGlucosa?.semaforo} />}{measurement.esDemo && <DemoBadge />}</>}
                 note={measurement.esDemo ? 'Simulación para verificar la comunicación: no es una glucemia real.' : null}
                 quality={measurement.calidadSenal} />
+            )}
+            {/* Oximetría sin glucosa guardada: el apartado de glucosa igual aparece (sin matriz ni semáforo, que son de la medición de glucosa). */}
+            {!glucose && !measurement.origenGlucosa && (
+              <ResultCard label="Glucosa del dispositivo" value={null} empty="Sin dato (esta oximetría no informó glucosa)" icon={Droplet} tone="rose" />
             )}
             <ResultCard label="Frecuencia cardíaca" value={measurement.frecuenciaCardiaca} unit="lpm" icon={HeartPulse} tone="rose" />
             <ResultCard label="SpO₂" value={measurement.spo2} unit="%" icon={Wind} tone="blue" quality={measurement.calidadSenal} />

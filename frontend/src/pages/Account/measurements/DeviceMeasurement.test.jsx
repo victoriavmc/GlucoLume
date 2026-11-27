@@ -672,6 +672,7 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     const api = routes(SIN_PUENTE, {
       [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, SAVED_DEMO),
       [`DELETE /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, { eliminadas: 1 }),
+      'GET /measurements': jsonResponse(200, { items: [], total: 0, pagina: 1, tamanioPagina: 25 }),
     });
     const user = userEvent.setup();
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
@@ -682,7 +683,8 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     expect(within(dialog).getByText(/Tus mediciones reales no se tocan/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Datos de la medición a eliminar')).toHaveTextContent(/114/);
     await user.click(screen.getByRole('button', { name: 'Confirmar eliminación' }));
-    expect(await screen.findByText(/La medición se eliminó de tu historial/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Historial de mediciones' })).toBeInTheDocument(); // vuelve al historial
+    expect(screen.getByText(/La medición se eliminó de tu historial/)).toBeInTheDocument();
     expect(api.calls.some((call) => call.key === `DELETE /measurements/${MEASUREMENT_ID}`)).toBe(true);
   });
 
@@ -695,6 +697,17 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     expect(screen.queryByText('Origen de los datos')).not.toBeInTheDocument(); // el origen ya no se muestra en el detalle
     expect(screen.queryByRole('button', { name: /Eliminar medición de prueba/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Datos de prueba \(DEMO\)/)).not.toBeInTheDocument();
+  });
+
+  it('una oximetría sin glucosa guardada muestra el apartado de glucosa sin dato y ninguna matriz', async () => {
+    routes(SIN_PUENTE, {
+      [`GET /measurements/${MEASUREMENT_ID}`]: jsonResponse(200, { ...SAVED_DEMO, modoMedicion: 'OXIMETRIA', origenGlucosa: null, glucosaDispositivo: null, esDemo: false, puedeEliminar: false, unidadGlucosa: null, matriz: null, referenciaGlucosa: null }),
+    });
+    renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
+    expect(await screen.findByText('Glucosa del dispositivo')).toBeInTheDocument();
+    expect(screen.getByText('Sin dato (esta oximetría no informó glucosa)')).toBeInTheDocument();
+    expect(screen.queryByText(/Valores estimados/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Matriz aplicada/)).not.toBeInTheDocument();
   });
 });
 
