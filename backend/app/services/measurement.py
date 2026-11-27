@@ -790,17 +790,23 @@ def listPatientHistory(db: Session, actor: User, idInstitucion: uuid.UUID, idPer
 # --- Datos de prueba (DEMO) --------------------------------------------------------------------------------------
 
 
+DEMO_DELETE_BATCH = 1000  # SQL Server admite como máximo 2100 parámetros por sentencia; el IN() de cada lote queda por debajo
+
+
 def _deleteDemo(db: Session, ids: list[uuid.UUID]) -> int:
     """Borra mediciones DEMO COMPLETADAS (y lo que cuelga de ellas). Cada DELETE se condiciona al origen: una
-    medición real nunca se elimina aunque el identificador sea otro."""
-    if not ids:
-        return 0
-    db.execute(delete(ResultDelivery).where(ResultDelivery.idMedicion.in_(ids)))
-    db.execute(delete(SensorSample).where(SensorSample.idMedicion.in_(ids)))
-    db.execute(delete(CapillaryReferenceMeasurement).where(CapillaryReferenceMeasurement.idMedicion.in_(ids)))
-    return db.execute(delete(Measurement).where(
-        Measurement.idMedicion.in_(ids), Measurement.origenGlucosa == ORIGEN_DEMO,
-        Measurement.estadoMedicion == COMPLETADA).execution_options(synchronize_session=False)).rowcount
+    medición real nunca se elimina aunque el identificador sea otro. Se hace por lotes: una cuenta con muchas
+    mediciones demo superaba el límite de parámetros de SQL Server y la petición respondía 500."""
+    deleted = 0
+    for start in range(0, len(ids), DEMO_DELETE_BATCH):
+        lote = ids[start:start + DEMO_DELETE_BATCH]
+        db.execute(delete(ResultDelivery).where(ResultDelivery.idMedicion.in_(lote)))
+        db.execute(delete(SensorSample).where(SensorSample.idMedicion.in_(lote)))
+        db.execute(delete(CapillaryReferenceMeasurement).where(CapillaryReferenceMeasurement.idMedicion.in_(lote)))
+        deleted += db.execute(delete(Measurement).where(
+            Measurement.idMedicion.in_(lote), Measurement.origenGlucosa == ORIGEN_DEMO,
+            Measurement.estadoMedicion == COMPLETADA).execution_options(synchronize_session=False)).rowcount
+    return deleted
 
 
 def deleteDemoMeasurement(db: Session, actor: User, idMedicion: uuid.UUID) -> int:
