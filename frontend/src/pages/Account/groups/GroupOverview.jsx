@@ -1,8 +1,8 @@
 // Panel y listado de integrantes del grupo. Nombre visible, rol, fecha, estado y qué permisos de compartición
-// habilitó cada uno (Compartido / No compartido): nunca correos ni los datos en sí. Los datos se consultan desde
-// «Datos compartidos», solo los autorizados. El administrador puede desvincular integrantes (con confirmación).
+// habilitó cada uno (Compartido / No compartido): nunca correos ni los datos en sí. El administrador puede
+// desvincular integrantes (con confirmación).
 
-import { Eye, Settings, UserMinus, Users } from 'lucide-react';
+import { Settings, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 
@@ -11,7 +11,7 @@ import { Badge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 import { Avatar, GroupDashboardSection, SharingBadges } from './GroupDashboard.jsx';
 import { GroupInvitations } from './GroupInvitations.jsx';
-import { ROLE_LABELS, formatDate, personName, sharesAnything } from './groupFormat.js';
+import { ROLE_LABELS, formatDate, personName } from './groupFormat.js';
 
 export function GroupOverview() {
   // Nombre, administrador, rol e integrantes ya están en el encabezado del grupo: no se repiten.
@@ -38,6 +38,13 @@ export function GroupMembers() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Lleva al formulario «Invitar a una persona» y deja el cursor en el correo.
+  function goToInvite() {
+    const section = document.getElementById('grupo-invitar')?.closest('section');
+    section?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    section?.querySelector('input')?.focus();
+  }
 
   async function remove(member) {
     setBusy(true);
@@ -67,6 +74,13 @@ export function GroupMembers() {
             <p>Personas activas del grupo.</p>
           </div>
         </div>
+        {isAdmin && (
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" onClick={goToInvite}>
+              <UserPlus size={16} aria-hidden="true" /> Invitar
+            </button>
+          </div>
+        )}
         {error && <Alert>{error}</Alert>}
         {notice && <Alert kind="success">{notice}</Alert>}
         {members === null ? (
@@ -91,11 +105,6 @@ export function GroupMembers() {
                     </Link>
                   ) : (
                     <>
-                      {member.tienePerfil && sharesAnything(member) && (
-                        <Link to={member.idGrupoUsuario} className="text-link">
-                          <Eye size={16} aria-hidden="true" /> Ver datos compartidos
-                        </Link>
-                      )}
                       {isAdmin && (confirmingId === member.idGrupoUsuario ? (
                         <span className="member-actions">
                           <span className="field-hint">¿Quitar a {personName(member)} del grupo?</span>

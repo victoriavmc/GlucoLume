@@ -278,7 +278,6 @@ export const AYUDA_CLIENTE = [
       { texto: 'Si te invitaron, la invitación aparece en Invitaciones recibidas: tocá Aceptar.', captura: 'grupo-invitacion-aceptar.png', pie: 'Invitaciones recibidas: tocá «Aceptar».' },
       { texto: 'Después confirmá con Confirmar y unirme. Unirte no comparte tus mediciones: después elegís qué compartir.', captura: 'grupo-invitacion-confirmar.png', pie: 'Confirmá con «Confirmar y unirme».' },
       { texto: 'En Mi privacidad elegí qué ven los demás: Perfil, Última medición, Historial (con gráficos y estadísticas) y Aviso de medición (solo fecha y hora). Todo arranca apagado.', captura: 'grupo-privacidad-unido.png' },
-      { texto: 'En Datos compartidos revisá lo que cada persona habilitó.', captura: 'grupo-datos-compartidos.png' },
       { texto: 'En Integrantes ves quién forma parte y qué comparte cada uno.', captura: 'grupo-integrantes.png' },
       { texto: 'Para cambiar de administrador, en Configuración designá a la otra persona. Para abandonar el grupo, tocá Abandonar; si sos administrador/a, antes designá a otra persona.', captura: 'grupo-configuracion.png' },
     ],

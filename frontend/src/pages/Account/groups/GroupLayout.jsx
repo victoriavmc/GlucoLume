@@ -3,7 +3,7 @@
 // detalle (rol vigente) desde el backend y muestra solo las secciones que corresponden. Ante un 403/404 en cualquier operación vuelve a cargar el detalle: si la persona dejó
 // de pertenecer o el grupo se eliminó, la interfaz no conserva accesos obsoletos.
 
-import { ArrowLeft, Database, Heart, Home, LayoutDashboard, Settings, ShieldCheck, User, Users } from 'lucide-react';
+import { ArrowLeft, Heart, Home, LayoutDashboard, Settings, ShieldCheck, User, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
 
@@ -19,7 +19,6 @@ const SECTIONS = [
   { to: '', label: 'Panel', end: true, icon: LayoutDashboard },
   { to: 'integrantes', label: 'Integrantes', icon: Users },
   { to: 'privacidad', label: 'Mi privacidad', icon: ShieldCheck },
-  { to: 'compartidos', label: 'Datos compartidos', icon: Database },
   { to: 'configuracion', label: 'Configuración', icon: Settings },
 ];
 

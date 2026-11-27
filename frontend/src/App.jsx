@@ -40,10 +40,6 @@ function lazyNamed(loader, name = 'default') {
 const ConfirmDeletionPage = lazyNamed(() => import('./pages/Account/ConfirmDeletionPage.jsx'));
 const LiberarSesionPage = lazyNamed(() => import('./pages/Login/LiberarSesionPage.jsx'));
 const ConfirmResultEmailPage = lazyNamed(() => import('./pages/ResultEmail/ConfirmResultEmailPage.jsx'));
-const loadGroupDashboard = () => import('./pages/Account/groups/GroupDashboard.jsx');
-const GroupMemberPage = lazyNamed(loadGroupDashboard, 'GroupMemberPage');
-const loadSharedData = () => import('./pages/Account/groups/SharedData.jsx');
-const SharedData = lazyNamed(loadSharedData, 'SharedData');
 const loadHomePage = () => import('./pages/Account/HomePage.jsx');
 const HomePage = lazyNamed(loadHomePage);
 const loadInstitutionDataPage = () => import('./pages/Account/institutions/InstitutionDataPage.jsx');
@@ -133,7 +129,6 @@ const GroupOverview = lazyNamed(loadGroupOverview, 'GroupOverview');
 const GroupsHome = lazyNamed(() => import('./pages/Account/groups/GroupsHome.jsx'));
 const GroupSettings = lazyNamed(() => import('./pages/Account/groups/GroupSettings.jsx'), 'GroupSettings');
 const MyPrivacy = lazyNamed(() => import('./pages/Account/groups/MyPrivacy.jsx'), 'MyPrivacy');
-const SharedMeasurementDetail = lazyNamed(() => import('./pages/Account/groups/SharedMeasurementDetail.jsx'), 'SharedMeasurementDetail');
 const InstitutionActivityPage = lazyNamed(() => import('./pages/Account/institutions/InstitutionActivityPage.jsx'), 'InstitutionActivityPage');
 const PersonnelProfilePage = lazyNamed(() => import('./pages/Account/institutions/PersonnelProfilePage.jsx'), 'PersonnelProfilePage');
 const ReassignmentsPage = lazyNamed(() => import('./pages/Account/institutions/reassignments/ReassignmentsPage.jsx'));
@@ -285,11 +280,8 @@ export function AppRoutes() {
           <Route path="grupo/:idGrupo" element={<GroupLayout />}>
             <Route index element={<GroupOverview />} />
             <Route path="integrantes" element={<GroupMembers />} />
-            <Route path="integrantes/:idGrupoUsuario" element={<GroupMemberPage />} />
             <Route path="invitaciones" element={<Navigate to="../integrantes" relative="path" replace />} />
             <Route path="privacidad" element={<MyPrivacy />} />
-            <Route path="compartidos" element={<SharedData />} />
-            <Route path="compartidos/:idGrupoUsuario/mediciones/:idMedicion" element={<SharedMeasurementDetail />} />
             <Route path="configuracion" element={<GroupSettings />} />
           </Route>
           <Route path="instituciones" element={<InstitutionsPage />} />

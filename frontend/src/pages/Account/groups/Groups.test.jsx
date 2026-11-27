@@ -96,7 +96,7 @@ describe('Inicio de grupos', () => {
       expect(resumen.getByText(isAdmin ? 'Administrador/a' : 'Miembro')).toBeInTheDocument();
       const tabs = within(screen.getByRole('navigation', { name: 'Secciones del grupo' }));
       expect(tabs.getAllByRole('link').map((link) => link.textContent)).toEqual(
-        ['Panel', 'Integrantes', 'Mi privacidad', 'Datos compartidos', 'Configuración']); // las invitaciones viven dentro de Integrantes
+        ['Panel', 'Integrantes', 'Mi privacidad', 'Configuración']); // las invitaciones viven dentro de Integrantes
       expect(tabs.getByRole('link', { name: 'Panel' })).toHaveAttribute('aria-current', 'page'); // NavTabs anuncia la sección actual
       expect(tabs.getByRole('link', { name: 'Integrantes' })).not.toHaveAttribute('aria-current');
       expect(screen.queryByText('Abrir grupo')).not.toBeInTheDocument();
@@ -158,6 +158,28 @@ describe('Inicio de grupos', () => {
 });
 
 describe('Invitaciones (administrador)', () => {
+  it('Integrantes tiene un botón Invitar que lleva al formulario y deja el cursor en el correo', async () => {
+    routes({
+      [`GET ${BASE}`]: jsonResponse(200, group('ADMINISTRADOR')),
+      [`GET ${BASE}/members`]: jsonResponse(200, []),
+      [`GET ${BASE}/invitations`]: jsonResponse(200, []),
+    });
+    const user = userEvent.setup();
+    renderAt(`/app/grupo/${ID}/integrantes`);
+    await user.click(await screen.findByRole('button', { name: /Invitar/ }));
+    expect(screen.getByLabelText('Correo electrónico de la cuenta individual')).toHaveFocus();
+  });
+
+  it('un miembro no ve el botón Invitar', async () => {
+    routes({
+      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
+      [`GET ${BASE}/members`]: jsonResponse(200, []),
+    });
+    renderAt(`/app/grupo/${ID}/integrantes`);
+    await screen.findByRole('heading', { name: 'Integrantes' });
+    expect(screen.queryByRole('button', { name: /Invitar/ })).not.toBeInTheDocument();
+  });
+
   it('correo inexistente: explica y ofrece el registro individual', async () => {
     routes({
       [`GET ${BASE}`]: jsonResponse(200, group()),
@@ -285,132 +307,6 @@ describe('Mi privacidad', () => {
   });
 });
 
-describe('Datos compartidos', () => {
-  it('pide solo lo que la persona habilitó: la última medición no trae el historial', async () => {
-    const { calls } = routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteUltimaMedicion: true }]),
-      [`GET ${BASE}/shared/gu-beto/latest`]: jsonResponse(200, { medicion: {
-        idMedicion: 'm-1', fechaHoraInicio: '2026-10-08T08:30:00', modoMedicion: 'OXIMETRIA', condicionComida: 'AYUNO',
-        glucosaEstimada: null, spo2: '98.00', frecuenciaCardiaca: 70,
-      } }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByText('08/10/2026 08:30')).toBeInTheDocument();
-    expect(screen.getByText(/SpO₂ 98 %/)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Historial de mediciones' })).not.toBeInTheDocument();
-    const shared = calls.filter((call) => call.key.startsWith(`GET ${BASE}/shared/`)).map((call) => call.key);
-    expect(shared).toEqual([`GET ${BASE}/shared/gu-beto/latest`]);
-  });
-
-  it('una medición de prueba (DEMO) se muestra identificada, con su valor de glucosa', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteUltimaMedicion: true }]),
-      [`GET ${BASE}/shared/gu-beto/latest`]: jsonResponse(200, { medicion: {
-        idMedicion: 'm-2', fechaHoraInicio: '2026-10-14T18:49:56', modoMedicion: 'GLUCOSA_EXPERIMENTAL', condicionComida: 'AYUNO',
-        glucosaEstimada: null, glucosa: '114.00', origenGlucosa: 'DEMO', esDemo: true, spo2: '98.00', frecuenciaCardiaca: 70,
-      } }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByText('14/10/2026 18:49')).toBeInTheDocument();
-    expect(screen.getByText('DEMO — Medición de prueba')).toBeInTheDocument();
-    expect(screen.getByText(/Glucosa DEMO \(simulada\) 114 mg\/dL/)).toBeInTheDocument();
-    expect(screen.queryByText(/Todavía no tiene mediciones/)).not.toBeInTheDocument();
-  });
-
-  it('solo con el aviso habilitado se ve cuándo midió, sin valores ni otras secciones', async () => {
-    const { calls } = routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, notificaMedicion: true }]),
-      [`GET ${BASE}/shared/gu-beto/notices`]: jsonResponse(200, {
-        items: [{ fechaHoraInicio: '2026-10-14T18:35:10' }], total: 1,
-      }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByText('Beto Ruiz realizó una medición el 14/10/2026 a las 18:35')).toBeInTheDocument();
-    expect(screen.queryByText(/SpO₂|Frecuencia cardíaca|Glucosa/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Última medición|Historial de mediciones|Datos básicos/ })).not.toBeInTheDocument();
-    expect(calls.filter((call) => call.key.startsWith(`GET ${BASE}/shared/`)).map((call) => call.key))
-      .toEqual([`GET ${BASE}/shared/gu-beto/notices`]);
-  });
-
-  it('si la persona no comparte nada, se informa y no se consulta ningún dato', async () => {
-    const { calls } = routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [BETO]),
-    });
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    expect(await screen.findByText('No habilitó datos de medición para el grupo.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Beto Ruiz/ })).toBeDisabled();
-    expect(calls.some((call) => call.key.startsWith(`GET ${BASE}/shared/`))).toBe(false);
-  });
-
-  it('una revocación en el backend cierra la sección y actualiza las tarjetas', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: [jsonResponse(200, [{ ...BETO, comparteHistorial: true }]), jsonResponse(200, [BETO])],
-      [`GET ${BASE}/shared/gu-beto/history`]: jsonResponse(403, REVOKED),
-      [`GET ${BASE}/shared/gu-beto/statistics`]: jsonResponse(403, REVOKED),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Historial de mediciones' })).not.toBeInTheDocument());
-    expect(await screen.findByText('No habilitó datos de medición para el grupo.')).toBeInTheDocument();
-  });
-
-  it('compartir el historial muestra la cabecera de la persona, su historial y su evolución', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
-      [`GET ${BASE}/shared/gu-beto/history`]: jsonResponse(200, EMPTY_HISTORY),
-      [`GET ${BASE}/shared/gu-beto/statistics`]: jsonResponse(200, STATS),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByRole('heading', { name: 'Evolución de Beto Ruiz' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Historial de mediciones' })).toBeInTheDocument();
-    // Cabecera de la persona con el estado de sus cuatro permisos (solo el estado, no los datos).
-    const perms = within(screen.getByRole('list', { name: 'Qué comparte Beto Ruiz' }));
-    expect(perms.getByText('Historial de mediciones').closest('li')).toHaveTextContent('Compartido');
-    expect(perms.getByText('Última medición').closest('li')).toHaveTextContent('No compartido');
-    expect(screen.queryByRole('heading', { name: 'Gráficos y estadísticas' })).not.toBeInTheDocument();
-  });
-
-  it('sin historial no se piden ni se muestran gráficos', async () => {
-    const { calls } = routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, compartePerfil: true }]),
-      [`GET ${BASE}/shared/gu-beto/profile`]: jsonResponse(200, { edad: 40, sexoModelo: 'MASCULINO' }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByText('Masculino')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Gráficos y estadísticas' })).not.toBeInTheDocument();
-    expect(calls.some((call) => call.key.endsWith('/statistics') || call.key.endsWith('/history'))).toBe(false);
-  });
-
-  it('llegar desde el listado de integrantes preselecciona a la persona', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
-      [`GET ${BASE}/shared/gu-beto/history`]: jsonResponse(200, EMPTY_HISTORY),
-      [`GET ${BASE}/shared/gu-beto/statistics`]: jsonResponse(200, STATS),
-    });
-    renderAt(`/app/grupo/${ID}/compartidos?integrante=gu-beto`);
-    expect(await screen.findByRole('heading', { name: 'Datos de Beto Ruiz' })).toBeInTheDocument();
-  });
-});
-
 describe('Integrantes y permisos', () => {
   const MEMBERS = [
     { idGrupoUsuario: 'gu-me', nombre: 'Juan', apellido: 'Pérez', rol: 'ADMINISTRADOR', estado: 'ACTIVO',
@@ -434,10 +330,8 @@ describe('Integrantes y permisos', () => {
     const pepe = within(screen.getByRole('list', { name: 'Qué comparte Pepe Gómez' }));
     expect(pepe.getAllByText('No compartido')).toHaveLength(4);
     expect(screen.queryByText(/Gráficos y estadísticas/)).not.toBeInTheDocument();
-    // Solo se ofrece ver datos de quien comparte algo (Beto); no de Pepe ni de uno mismo.
-    expect(screen.getAllByRole('link', { name: /Ver datos compartidos/ })).toHaveLength(1);
-    expect(screen.getByRole('link', { name: /Ver datos compartidos/ })).toHaveAttribute(
-      'href', `/app/grupo/${ID}/integrantes/gu-beto`);
+    // Ya no hay «Ver datos compartidos»: el grupo no abre datos de otros integrantes.
+    expect(screen.queryByRole('link', { name: /Ver datos compartidos/ })).not.toBeInTheDocument();
     expect(calls.some((call) => call.key.startsWith(`GET ${BASE}/shared`))).toBe(false);
   });
 });
@@ -518,107 +412,3 @@ describe('Configuración', () => {
 });
 
 
-describe('Mediciones compartidas: pruebas DEMO y vista ampliada', () => {
-  const demo = {
-    idMedicion: 'm-demo', fechaHoraInicio: '2026-10-08T08:30:00', modoMedicion: 'GLUCOSA_EXPERIMENTAL', estadoMedicion: 'COMPLETADA',
-    condicionComida: 'AYUNO', glucosaEstimada: null, glucosaDispositivo: '114.00', unidadGlucosa: 'mg/dL', origenGlucosa: 'DEMO', esDemo: true,
-    spo2: '99.00', frecuenciaCardiaca: 76,
-  };
-  const real = { ...demo, idMedicion: 'm-real', fechaHoraInicio: '2026-10-07T08:30:00', modoMedicion: 'OXIMETRIA', glucosaDispositivo: null,
-    unidadGlucosa: null, origenGlucosa: 'SIN_CALIBRAR', esDemo: false, spo2: '97.00', frecuenciaCardiaca: 70 };
-
-  it('la última medición DEMO se muestra rotulada como prueba, con su origen y un «Ver detalle» autorizado', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteUltimaMedicion: true }]),
-      [`GET ${BASE}/shared/gu-beto/latest`]: jsonResponse(200, { medicion: demo }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByText('DEMO — Medición de prueba')).toBeInTheDocument();
-    expect(screen.getByText(/Glucosa DEMO \(simulada\) 114 mg\/dL/)).toBeInTheDocument();
-    expect(screen.getByText(/Origen: DEMO \(prueba\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Glucosa \(experimental\)/)).toBeInTheDocument(); // modo de medición
-    expect(screen.getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', `/app/grupo/${ID}/compartidos/gu-beto/mediciones/m-demo`);
-    expect(screen.queryByRole('heading', { name: 'Historial de mediciones' })).not.toBeInTheDocument(); // «última» no abre el historial
-  });
-
-  it('el historial compartido lista reales y pruebas DEMO identificadas', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
-      [`GET ${BASE}/shared/gu-beto/history`]: jsonResponse(200, { items: [demo, real], total: 2, pagina: 1, tamanioPagina: 10 }),
-      [`GET ${BASE}/shared/gu-beto/statistics`]: jsonResponse(200, { ...STATS, cantidadMediciones: 1, pruebasDemo: 1, puntosDemo: [] }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    const list = await screen.findByRole('list', { name: 'Historial compartido' });
-    const [demoRow, realRow] = within(list).getAllByRole('listitem');
-    expect(within(demoRow).getByText('DEMO — Medición de prueba')).toBeInTheDocument();
-    expect(within(realRow).queryByText('DEMO — Medición de prueba')).not.toBeInTheDocument();
-    expect(realRow).toHaveTextContent('Origen: Sin calibrar');
-    expect(within(realRow).getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', `/app/grupo/${ID}/compartidos/gu-beto/mediciones/m-real`);
-  });
-
-  it('con solo pruebas DEMO no dice que no hay mediciones: las grafica en la misma línea del integrante, sin separarlas', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
-      [`GET ${BASE}/shared/gu-beto/history`]: jsonResponse(200, { items: [demo], total: 1, pagina: 1, tamanioPagina: 10 }),
-      [`GET ${BASE}/shared/gu-beto/statistics`]: jsonResponse(200, {
-        ...STATS, cantidadMediciones: 0, glucosa: { cantidad: 0, promedio: null, minimo: null, maximo: null },
-        spo2: { cantidad: 0, promedio: null, minimo: null, maximo: null }, frecuenciaCardiaca: { cantidad: 0, promedio: null, minimo: null, maximo: null },
-        serieDiaria: [], pruebasDemo: 2,
-        puntosDemo: [
-          { idMedicion: 'a', fecha: '2026-10-07T08:00:00', frecuenciaCardiaca: 72, spo2: 98, glucosa: 111 },
-          { idMedicion: 'b', fecha: '2026-10-08T08:30:00', frecuenciaCardiaca: 76, spo2: 99, glucosa: 114 },
-        ],
-      }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${ID}/compartidos`);
-    await user.click(await screen.findByRole('button', { name: /Beto Ruiz/ }));
-    expect(await screen.findByRole('heading', { name: 'Evolución de Beto Ruiz' })).toBeInTheDocument();
-    const legend = within(await screen.findByRole('list', { name: 'Series graficadas' }));
-    expect(legend.getByText('Beto Ruiz')).toBeInTheDocument(); // una sola serie por integrante, sin separar DEMO
-    const nombre = legend.getByRole('button', { name: 'Beto Ruiz' }); // tocar el nombre destaca su línea y atenúa las demás
-    expect(nombre).toHaveAttribute('aria-pressed', 'false');
-    await user.click(nombre);
-    expect(nombre).toHaveAttribute('aria-pressed', 'true');
-    await user.click(nombre);
-    expect(nombre).toHaveAttribute('aria-pressed', 'false');
-    expect(legend.queryByText(/DEMO \(prueba\)/)).not.toBeInTheDocument();
-    expect(screen.queryByText('No hay mediciones completadas en este período.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Pruebas DEMO compartidas' })).not.toBeInTheDocument();
-  });
-
-  it('la vista ampliada pide la medición a su endpoint autorizado y rotula la prueba DEMO', async () => {
-    const { calls } = routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared/gu-beto/measurements/m-demo`]: jsonResponse(200, { ...demo, fechaHoraFin: '2026-10-08T08:31:00', indiceOptico: '2.4149',
-        duracionMs: 60000, lecturasEstabilizadas: 8, esUltima: true }),
-      [`GET ${BASE}/shared`]: jsonResponse(200, [{ ...BETO, comparteHistorial: true }]),
-    });
-    renderAt(`/app/grupo/${ID}/compartidos/gu-beto/mediciones/m-demo`);
-    expect(await screen.findByRole('heading', { name: /Glucosa \(experimental\) · 08\/10\/2026 08:30/ })).toBeInTheDocument();
-    expect(await screen.findByText('Beto Ruiz')).toBeInTheDocument(); // de quién es la medición, a la derecha del título
-    expect(screen.getAllByText(/DEMO — Medición de prueba/).length).toBeGreaterThan(0);
-    const results = within(screen.getByLabelText('Resultados compartidos'));
-    expect(results.getByText('76 lpm')).toBeInTheDocument();
-    expect(results.getByText('114 mg/dL')).toBeInTheDocument();
-    expect(calls.map((call) => call.key)).toContain(`GET ${BASE}/shared/gu-beto/measurements/m-demo`);
-    expect(screen.getByRole('link', { name: /Volver a los datos compartidos/ })).toHaveAttribute('href', `/app/grupo/${ID}/compartidos?integrante=gu-beto`);
-  });
-
-  it('si la persona revocó, la vista ampliada no muestra la medición', async () => {
-    routes({
-      [`GET ${BASE}`]: jsonResponse(200, group('MIEMBRO')),
-      [`GET ${BASE}/shared/gu-beto/measurements/m-demo`]: jsonResponse(403, REVOKED),
-    });
-    renderAt(`/app/grupo/${ID}/compartidos/gu-beto/mediciones/m-demo`);
-    expect(await screen.findByText(/no autorizó compartir esta información/)).toBeInTheDocument();
-    expect(screen.queryByLabelText('Resultados compartidos')).not.toBeInTheDocument();
-  });
-});

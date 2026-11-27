@@ -191,113 +191,13 @@ describe('Dashboard del grupo', () => {
       expect(detail.getByText('14/10/2026')).toBeInTheDocument();
       expect(detail.getByText('16:12')).toBeInTheDocument();
       expect(detail.getByText('Experimental')).toBeInTheDocument();
-      expect(detail.getByRole('link', { name: 'Ver detalle completo' })).toHaveAttribute('href', `/app/grupo/${GID}/compartidos/gu-pepe/mediciones/p-1`);
+      expect(detail.queryByRole('link', { name: 'Ver detalle completo' })).not.toBeInTheDocument(); // otros integrantes: sin detalle desde el grupo
       // Una prueba DEMO se identifica como tal en el detalle.
       await user.click(section.getByRole('button', { name: /Pepe X · DEMO \(prueba\) · 14\/10\/2026 18:00: 114 mg\/dL/ }));
       const demo = within(section.getByRole('region', { name: 'Medición seleccionada' }));
       expect(demo.getByText('Glucosa DEMO (simulada)')).toBeInTheDocument();
       expect(demo.getByText('DEMO (prueba)')).toBeInTheDocument();
     });
-  });
-
-  it('el integrante que no comparte no se consulta y se muestra el aviso', async () => {
-    const { calls } = groupRoutes({ [`GET ${GBASE}/shared`]: jsonResponse(200, [member('gu-pepe', 'Pepe', 'MIEMBRO')]) });
-    renderAt(`/app/grupo/${GID}/integrantes/gu-pepe`);
-    expect(await screen.findByRole('heading', { name: 'Pepe X' })).toBeInTheDocument();
-    expect(screen.getByText('Este integrante no habilitó la visualización de sus datos de medición.')).toBeInTheDocument();
-    expect(calls.some((call) => call.key.includes('/shared/gu-pepe/'))).toBe(false); // no se consulta lo restringido
-
-  });
-
-  it('vista de un integrante con historial compartido: gráfico de evolución con tooltip completo y las DEMO identificadas', async () => {
-    const members = [member('gu-beto', 'Beto', 'MIEMBRO', { comparteHistorial: true })];
-    const exp = { idMedicion: 'e-1', fecha: '2026-10-14T16:12:00', modoMedicion: 'GLUCOSA_EXPERIMENTAL', origen: 'EXPERIMENTAL',
-      frecuenciaCardiaca: 80, spo2: 97.5, glucosa: 120 };
-    const demo = { idMedicion: 'd-1', fecha: '2026-10-13T23:38:00', frecuenciaCardiaca: 91, spo2: 99, glucosa: 114 };
-    groupRoutes({
-      [`GET ${GBASE}/shared`]: jsonResponse(200, members),
-      [`GET ${GBASE}/shared/gu-beto/history`]: jsonResponse(200, { items: [], total: 0, pagina: 1, tamanioPagina: 20 }),
-      [`GET ${GBASE}/shared/gu-beto/statistics`]: jsonResponse(200, { ...STATS, pruebasDemo: 1, puntos: [exp], puntosDemo: [demo] }),
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${GID}/integrantes/gu-beto`);
-    expect(await screen.findByRole('heading', { name: 'Evolución de Beto X' })).toBeInTheDocument();
-    await user.hover(await screen.findByRole('button', { name: 'Beto X · 14/10/2026 16:12: 120 mg/dL' }));
-    const tip = within(screen.getByRole('tooltip'));
-    expect(tip.getByText('Glucosa experimental')).toBeInTheDocument();
-    expect(tip.getByText('120 mg/dL')).toBeInTheDocument();
-    expect(tip.getByText('14/10/2026 16:12')).toBeInTheDocument();
-    expect(tip.getByText('Experimental')).toBeInTheDocument();
-    await user.hover(screen.getByRole('button', { name: 'Beto X · DEMO (prueba) · 13/10/2026 23:38: 114 mg/dL' }));
-    const demoTip = within(screen.getByRole('tooltip'));
-    expect(demoTip.getByText('Glucosa DEMO (simulada)')).toBeInTheDocument();
-    expect(demoTip.getByText('DEMO (prueba)')).toBeInTheDocument();
-  });
-
-  it('el historial y los avisos de un integrante muestran solo los últimos 5 y un botón al costado abre todos', async () => {
-    const members = [member('gu-beto', 'Beto', 'MIEMBRO', { comparteHistorial: true, notificaMedicion: true })];
-    const item = (n) => ({ idMedicion: `h-${n}`, fechaHoraInicio: `2026-10-${String(20 - n).padStart(2, '0')}T10:00:00`, modoMedicion: 'OXIMETRIA',
-      condicionComida: 'AYUNO', glucosaEstimada: null, spo2: 97, frecuenciaCardiaca: 70, esDemo: false, estadoMedicion: 'COMPLETADA' });
-    const all = Array.from({ length: 8 }, (_, n) => item(n + 1));
-    const notice = (n) => ({ fechaHoraInicio: `2026-10-${String(20 - n).padStart(2, '0')}T10:00:00` });
-    const notices = Array.from({ length: 8 }, (_, n) => notice(n + 1));
-    const { calls } = groupRoutes({
-      [`GET ${GBASE}/shared`]: jsonResponse(200, members),
-      [`GET ${GBASE}/shared/gu-beto/history`]: [
-        jsonResponse(200, { items: all.slice(0, 5), total: 8, pagina: 1, tamanioPagina: 5 }),
-        jsonResponse(200, { items: all, total: 8, pagina: 1, tamanioPagina: 10 }),
-        jsonResponse(200, { items: all.slice(0, 5), total: 8, pagina: 1, tamanioPagina: 5 }),
-      ],
-      [`GET ${GBASE}/shared/gu-beto/statistics`]: jsonResponse(200, STATS),
-      [`GET ${GBASE}/shared/gu-beto/notices`]: [
-        jsonResponse(200, { items: notices.slice(0, 5), total: 8 }),
-        jsonResponse(200, { items: notices, total: 8 }),
-      ],
-    });
-    const user = userEvent.setup();
-    renderAt(`/app/grupo/${GID}/integrantes/gu-beto`);
-    const history = within(await screen.findByRole('region', { name: 'Historial de mediciones' }));
-    expect(await history.findAllByRole('listitem')).toHaveLength(5); // solo los últimos 5
-    expect(history.getByText(/Se muestran las últimas 5 de 8/)).toBeInTheDocument();
-    expect(calls.find((call) => call.key === `GET ${GBASE}/shared/gu-beto/history`).url).toContain('tamanioPagina=5');
-    await user.click(history.getByRole('button', { name: 'Ver historial' }));
-    expect(await history.findAllByRole('listitem')).toHaveLength(8); // todos los de esa persona
-    await user.click(history.getByRole('button', { name: 'Ver solo los últimos 5' }));
-    expect(await history.findAllByRole('listitem')).toHaveLength(5);
-    // Avisos: misma lógica.
-    const avisos = within(await screen.findByRole('region', { name: 'Avisos de medición' }));
-    expect(await avisos.findAllByRole('listitem')).toHaveLength(5);
-    await user.click(avisos.getByRole('button', { name: 'Ver todos los avisos' }));
-    expect(await avisos.findAllByRole('listitem')).toHaveLength(8);
-    expect(avisos.getByText(/8 avisos en total/)).toBeInTheDocument();
-  });
-
-  it('vista de un integrante sin historial compartido (solo última medición y aviso): no hay gráfico y se explica por qué', async () => {
-    const members = [member('gu-pepe', 'Pepe', 'MIEMBRO', { comparteUltimaMedicion: true, notificaMedicion: true })];
-    const { calls } = groupRoutes({
-      [`GET ${GBASE}/shared`]: jsonResponse(200, members),
-      [`GET ${GBASE}/shared/gu-pepe/latest`]: jsonResponse(200, { medicion: null }),
-      [`GET ${GBASE}/shared/gu-pepe/notices`]: jsonResponse(200, { items: [], total: 0 }),
-    });
-    renderAt(`/app/grupo/${GID}/integrantes/gu-pepe`);
-    expect(await screen.findByText(/no habilitó compartir su historial de mediciones, por lo que no se puede mostrar su evolución/)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Evolución de/ })).not.toBeInTheDocument();
-    expect(calls.some((call) => call.key.endsWith('/statistics') || call.key.endsWith('/history'))).toBe(false);
-  });
-
-  it('quien comparte historial muestra sus datos y gráficos, sin migas de pan ni enlace de regreso', async () => {
-    const members = [member('gu-beto', 'Beto', 'MIEMBRO', { comparteUltimaMedicion: true, comparteHistorial: true })];
-    const { calls } = groupRoutes({
-      [`GET ${GBASE}/shared`]: jsonResponse(200, members),
-      [`GET ${GBASE}/shared/gu-beto/latest`]: jsonResponse(200, { medicion: null }),
-      [`GET ${GBASE}/shared/gu-beto/history`]: jsonResponse(200, { items: [], total: 0, pagina: 1, tamanioPagina: 20 }),
-      [`GET ${GBASE}/shared/gu-beto/statistics`]: jsonResponse(200, STATS),
-    });
-    renderAt(`/app/grupo/${GID}/integrantes/gu-beto`);
-    expect(await screen.findByRole('heading', { name: 'Evolución de Beto X' })).toBeInTheDocument();
-    await waitFor(() => expect(calls.some((call) => call.key === `GET ${GBASE}/shared/gu-beto/statistics`)).toBe(true));
-    expect(screen.queryByRole('navigation', { name: 'Ruta de navegación' })).not.toBeInTheDocument();
-    expect(document.querySelector('.back-link')).toBeNull();
   });
 });
 

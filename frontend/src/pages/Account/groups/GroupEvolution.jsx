@@ -529,9 +529,8 @@ export function GroupEvolution({
           .find((candidate) => candidate.id === item.memberId)
           ?.readings.find((reading) => String(reading.idMedicion) === point.key)
       : null;
-    const to = item.self
-      ? `/app/mediciones/${point.ids[0]}`
-      : `/app/grupo/${idGrupo}/compartidos/${item.memberId}/mediciones/${point.ids[0]}`;
+    // Solo la medición propia tiene «Ver detalle completo»: el detalle de otros integrantes ya no se abre desde el grupo.
+    const to = `/app/mediciones/${point.ids[0]}`;
     return (
       <PointDetail
         member={item.name}
@@ -554,7 +553,7 @@ export function GroupEvolution({
         summary={describePoint(point, chosen)}
         others={otherValues(raw, chosen)}
       >
-        {!bucket && (
+        {!bucket && item.self && (
           <Link to={to} className="btn btn-ghost point-detail-link">
             Ver detalle completo
           </Link>
