@@ -266,6 +266,32 @@ describe('Mediciones: historial completo', () => {
     expect(within(rows[1]).queryByRole('button')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Eliminar mis datos de prueba/ })).toBeInTheDocument();
   });
+
+  it('eliminar seleccionadas borra solo las pruebas DEMO marcadas y nunca una medición real', async () => {
+    const user = userEvent.setup();
+    const item = { idMedicion: 'm-5', fechaHoraInicio: '2026-10-08T09:00:00', fechaHoraFin: '2026-10-08T09:00:12', modoMedicion: 'OXIMETRIA',
+      estadoMedicion: 'COMPLETADA', condicionComida: 'AYUNO', edadAlMomento: 36, glucosaEstimada: null, spo2: '98.00', frecuenciaCardiaca: 70,
+      calidadSenal: null, observacion: null, dispositivo: 'ARD-001', origenGlucosa: 'EXPERIMENTAL', glucosaDispositivo: '101.00', indiceOptico: '2.1', esDemo: false };
+    const demo = { ...item, idMedicion: 'm-6', origenGlucosa: 'DEMO', glucosaDispositivo: '114.00', esDemo: true };
+    const { calls } = routes({
+      'GET /measurements/profile': jsonResponse(200, OWN_PROFILE),
+      'GET /measurements': jsonResponse(200, { items: [item, demo], total: 2, pagina: 1, tamanioPagina: 25 }),
+      'GET /measurements/statistics': jsonResponse(200, NO_STATS),
+      'DELETE /measurements/m-6': jsonResponse(200, { eliminadas: 1 }),
+    });
+    renderAt('/app/mediciones/historial');
+    const rows = within(await screen.findByRole('table', { name: 'Mediciones' })).getAllByRole('row').slice(1);
+    const deleteButton = screen.getByRole('button', { name: /Eliminar seleccionadas/ });
+    expect(deleteButton).toBeDisabled(); // sin selección no hay nada que borrar
+    await user.click(within(rows[0]).getByRole('checkbox'));                  // real: no entra en el borrado
+    expect(deleteButton).toBeDisabled();
+    await user.click(within(rows[1]).getByRole('checkbox'));                  // DEMO: sí
+    await user.click(screen.getByRole('button', { name: /Eliminar seleccionadas \(1\)/ }));
+    await user.click(screen.getByRole('button', { name: /Confirmar eliminación/ }));
+    await waitFor(() => expect(calls.some((call) => call.key === 'DELETE /measurements/m-6')).toBe(true));
+    expect(calls.some((call) => call.key === 'DELETE /measurements/m-5')).toBe(false);
+    expect(await screen.findByText(/Se eliminaron 1 mediciones de prueba/)).toBeInTheDocument();
+  });
 });
 
 describe('Detalle y estados de una medición', () => {

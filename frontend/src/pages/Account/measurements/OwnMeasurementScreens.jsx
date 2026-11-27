@@ -83,7 +83,8 @@ export function MeasurementHistoryPage() {
   return (
     <MeasurementsScreen title="Historial de mediciones" subtitle="Todas tus mediciones, con filtros y estadísticas.">
       <MeasurementHistory loadPage={measurementsApi.getOwnHistory} detailPath={(id) => `/app/mediciones/${id}`} filtroCondicion
-        onDeleteDemo={measurementsApi.deleteOwnDemoMeasurements} onExport={measurementsApi.exportOwnMeasurements} handleOperationError={friendlyError}
+        onDeleteDemo={measurementsApi.deleteOwnDemoMeasurements} onDeleteDemoOne={measurementsApi.deleteDemoMeasurement}
+        onExport={measurementsApi.exportOwnMeasurements} handleOperationError={friendlyError}
         emptyText="Todavía no hiciste ninguna medición." />
       <MeasurementsInfo />
     </MeasurementsScreen>

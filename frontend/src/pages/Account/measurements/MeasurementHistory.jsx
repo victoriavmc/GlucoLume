@@ -72,9 +72,11 @@ function filledFilters(filters) {
 }
 
 /** `filtroCondicion`: muestra el filtro por condición de comida (solo lo soporta el historial propio). */
-export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onExport, filtroCondicion = false }) {
+export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handleOperationError, emptyText, refreshKey, onDeleteDemo, onDeleteDemoOne, onExport, filtroCondicion = false }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [confirmingDemo, setConfirmingDemo] = useState(false);
+  const [confirmingSelected, setConfirmingSelected] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const [notice, setNotice] = useState('');
   const [pagina, setPagina] = useState(1);
   const [page, setPage] = useState(null);
@@ -114,6 +116,7 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
   // La selección es de la página y de los filtros que se ven: al cambiar cualquiera de los dos, se limpia.
   useEffect(() => {
     setSelected(new Set());
+    setConfirmingSelected(false);
   }, [filters, pagina]);
 
   function update(field) {
@@ -160,12 +163,40 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
     }
   }
 
+  // Borra una por una las pruebas DEMO marcadas: la API solo acepta DEMO completadas y responde 409 a cualquier otra.
+  async function deleteSelected() {
+    setDeletingSelected(true);
+    setError('');
+    setNotice('');
+    let eliminadas = 0;
+    let lastError = '';
+    for (const id of selectedDemoIds) {
+      try {
+        await onDeleteDemoOne(id);
+        eliminadas += 1;
+      } catch (deleteError) {
+        lastError = handleOperationError(deleteError);
+      }
+    }
+    setDeletingSelected(false);
+    setConfirmingSelected(false);
+    setSelected(new Set());
+    if (eliminadas) setNotice(`Se eliminaron ${eliminadas} mediciones de prueba. Tus mediciones reales no se modificaron.`);
+    if (eliminadas < selectedDemoIds.length) setError(`No se pudieron eliminar ${selectedDemoIds.length - eliminadas} mediciones. ${lastError}`.trim());
+    await load();
+  }
+
   const hasDemo = Boolean(page?.items.some((item) => item.esDemo));
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1;
   const filtered = Object.entries(filters).some(([key, current]) => current !== EMPTY_FILTERS[key]);
   // Exportar: solo en el perfil propio (`onExport`). La API vuelve a validar cada pedido.
   const pageIds = page?.items.map((measurement) => measurement.idMedicion) ?? [];
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  // Solo las pruebas DEMO completadas de la selección se pueden eliminar; las reales se quedan.
+  const selectedDemoIds = page
+    ? page.items.filter((item) => selected.has(item.idMedicion) && item.esDemo && item.estadoMedicion === 'COMPLETADA')
+      .map((item) => item.idMedicion)
+    : [];
 
   return (
     <>
@@ -225,7 +256,24 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
                     onClick={() => handleExport({ alcance: 'TODOS', ...filledFilters(filters) })}>
                     <Download size={18} aria-hidden="true" /> Exportar todas{filtered ? ' las filtradas' : ''} ({page.total})
                   </button>
+                  {onDeleteDemoOne && (
+                    <button type="button" className="btn btn-outline" disabled={selectedDemoIds.length === 0 || deletingSelected}
+                      onClick={() => setConfirmingSelected(true)}>
+                      <Trash2 size={18} aria-hidden="true" /> Eliminar seleccionadas{selectedDemoIds.length > 0 ? ` (${selectedDemoIds.length})` : ''}
+                    </button>
+                  )}
                 </div>
+                {confirmingSelected && (
+                  <div className="form-actions history-delete-confirm">
+                    <span className="field-hint">
+                      ¿Eliminar {selectedDemoIds.length} {selectedDemoIds.length === 1 ? 'prueba DEMO' : 'pruebas DEMO'}? Las mediciones reales no se tocan.
+                    </span>
+                    <button type="button" className="btn btn-ghost" disabled={deletingSelected} onClick={() => setConfirmingSelected(false)}>Volver</button>
+                    <button type="button" className="btn btn-primary" disabled={deletingSelected} onClick={deleteSelected}>
+                      {deletingSelected && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             <div className="history-table-wrap">
