@@ -85,56 +85,116 @@ function activityTime(item) {
   return Date.parse(item.fechaHoraInicio ?? item.medicion?.fechaHoraInicio ?? '') || 0;
 }
 
+// Un aviso no trae valores: solo el hecho («Realizó una medición»). Con medición, trae los valores que la persona autorizó.
+function isNotice(item) {
+  return item.tipo === 'AVISO' || !item.medicion;
+}
+
 function ActivityTimeline({ items }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(1);
+  const [person, setPerson] = useState(''); // idGrupoUsuario de la persona elegida; vacío = todas
+  const [kind, setKind] = useState(''); // '' = todas, 'valores' = con valores medidos, 'aviso' = solo aviso
   // Siempre en orden de tiempo, más reciente primero (no depende del orden que llegue de la API).
   const sorted = [...items].sort((a, b) => activityTime(b) - activityTime(a));
-  const totalPages = Math.max(1, Math.ceil(sorted.length / ACTIVITY_PAGE));
+  // Personas que aparecen en la actividad, ordenadas por nombre.
+  const people = [...new Map(sorted.map((item) => [item.idGrupoUsuario, personName(item)]))]
+    .sort((a, b) => a[1].localeCompare(b[1], 'es'));
+  const filtered = sorted.filter((item) => (!person || item.idGrupoUsuario === person)
+    && (!kind || (kind === 'aviso') === isNotice(item)));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVITY_PAGE));
   const currentPage = Math.min(page, totalPages);
-  // Al inicio, las 5 más recientes; con «Ver más actividades», páginas de 10.
+  // Al inicio, las 5 más recientes sin filtros. Con «Ver más actividades», páginas de 10 de lo que coincida con los filtros.
   const visible = expanded
-    ? sorted.slice((currentPage - 1) * ACTIVITY_PAGE, currentPage * ACTIVITY_PAGE)
+    ? filtered.slice((currentPage - 1) * ACTIVITY_PAGE, currentPage * ACTIVITY_PAGE)
     : sorted.slice(0, ACTIVITY_FIRST);
+
+  function changeFilter(setter) {
+    return (event) => {
+      setter(event.target.value);
+      setPage(1);
+    };
+  }
+
+  function collapse() {
+    setExpanded(false);
+    setPage(1);
+    setPerson('');
+    setKind('');
+  }
+
   return (
     <>
-    <ul className="gd-timeline" aria-label="Actividad compartida reciente">
-      {visible.map((item) => {
-        const measurement = item.medicion ?? null;
-        const when = item.fechaHoraInicio ?? measurement?.fechaHoraInicio;
-        const notice = item.tipo === 'AVISO' || !measurement;
-        const glucose = measurement ? glucoseText(measurement) : null;
-        return (
-          <li key={`${item.idGrupoUsuario}-${when}-${notice ? 'aviso' : 'medicion'}`} className={`gd-activity${notice ? ' is-notice' : ''}`}>
-            <span className="gd-activity-dot" aria-hidden="true" />
-            <Avatar person={item} />
-            <div className="gd-activity-who">
-              <b>{personName(item)}</b>
-              <small>{formatWeekdayDateTime(when)}</small>
-            </div>
-            {notice ? (
-              <div className="gd-activity-body">
-                <span className="gd-activity-tags">
-                  <Badge tone="neutral" icon={Bell}>Aviso de medición compartido</Badge>
-                </span>
-                <small>Realizó una medición</small>
-              </div>
-            ) : (
-              <div className="gd-activity-body">
-                <span className="gd-activity-tags">
-                  <Badge tone="brand">{MODES[measurement.modoMedicion] ?? measurement.modoMedicion}</Badge>
-                  {measurement.esDemo && <OriginBadge origin="DEMO">DEMO (prueba)</OriginBadge>}
-                </span>
-                <small>
-                  SpO₂ {formatNumber(measurement.spo2, '%')} · Frecuencia cardíaca {formatNumber(measurement.frecuenciaCardiaca, 'lpm')}
-                  {glucose && ` · ${glucose}`}
-                </small>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+      {expanded && (
+        <section className="gd-evo-filters" aria-label="Filtros de la actividad">
+          <label className="gd-evo-filter">
+            <span className="gd-evo-filter-icon">
+              <UserRound size={22} aria-hidden="true" />
+            </span>
+            <span className="gd-evo-filter-body">
+              <span>Persona</span>
+              <select className="field-input field-select" aria-label="Filtrar actividad por persona" value={person} onChange={changeFilter(setPerson)}>
+                <option value="">Todas las personas</option>
+                {people.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+            </span>
+          </label>
+          <label className="gd-evo-filter">
+            <span className="gd-evo-filter-icon">
+              <Bell size={22} aria-hidden="true" />
+            </span>
+            <span className="gd-evo-filter-body">
+              <span>Qué muestra</span>
+              <select className="field-input field-select" aria-label="Filtrar actividad por tipo" value={kind} onChange={changeFilter(setKind)}>
+                <option value="">Todas</option>
+                <option value="valores">Con valores medidos</option>
+                <option value="aviso">Solo aviso, sin valores</option>
+              </select>
+            </span>
+          </label>
+        </section>
+      )}
+      {visible.length === 0 ? (
+        <p className="field-hint">No hay actividades con esos filtros.</p>
+      ) : (
+        <ul className="gd-timeline" aria-label="Actividad compartida reciente">
+          {visible.map((item) => {
+            const measurement = item.medicion ?? null;
+            const when = item.fechaHoraInicio ?? measurement?.fechaHoraInicio;
+            const notice = isNotice(item);
+            const glucose = measurement ? glucoseText(measurement) : null;
+            return (
+              <li key={`${item.idGrupoUsuario}-${when}-${notice ? 'aviso' : 'medicion'}`} className={`gd-activity${notice ? ' is-notice' : ''}`}>
+                <span className="gd-activity-dot" aria-hidden="true" />
+                <Avatar person={item} />
+                <div className="gd-activity-who">
+                  <b>{personName(item)}</b>
+                  <small>{formatWeekdayDateTime(when)}</small>
+                </div>
+                {notice ? (
+                  <div className="gd-activity-body">
+                    <span className="gd-activity-tags">
+                      <Badge tone="neutral" icon={Bell}>Aviso de medición compartido</Badge>
+                    </span>
+                    <small>Realizó una medición</small>
+                  </div>
+                ) : (
+                  <div className="gd-activity-body">
+                    <span className="gd-activity-tags">
+                      <Badge tone="brand">{MODES[measurement.modoMedicion] ?? measurement.modoMedicion}</Badge>
+                      {measurement.esDemo && <OriginBadge origin="DEMO">DEMO (prueba)</OriginBadge>}
+                    </span>
+                    <small>
+                      SpO₂ {formatNumber(measurement.spo2, '%')} · Frecuencia cardíaca {formatNumber(measurement.frecuenciaCardiaca, 'lpm')}
+                      {glucose && ` · ${glucose}`}
+                    </small>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {!expanded && sorted.length > ACTIVITY_FIRST && (
         <div className="form-actions">
           <button type="button" className="btn btn-outline" onClick={() => { setPage(1); setExpanded(true); }}>
@@ -151,13 +211,12 @@ function ActivityTimeline({ items }) {
           <button type="button" className="btn btn-ghost" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
             Siguiente <ChevronRight size={16} aria-hidden="true" />
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setExpanded(false)}>Ver menos</button>
+          <button type="button" className="btn btn-ghost" onClick={collapse}>Ver menos</button>
         </nav>
       )}
     </>
   );
 }
-
 /** Panel del grupo: una sola consulta al dashboard (resumen, integrantes, actividad y estadísticas del período). */
 export function GroupDashboardSection() {
   const { group, handleOperationError } = useOutletContext();

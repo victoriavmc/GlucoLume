@@ -447,18 +447,19 @@ def test_la_actividad_incluye_el_aviso_de_medicion_sin_valores(db, mails, family
     assert avisos and all(item.tipo == "AVISO" and item.medicion is None and item.fechaHoraInicio is not None for item in avisos)
     dumped = [item.model_dump() for item in avisos]
     assert all(set(item) == {"idGrupoUsuario", "nombre", "apellido", "tipo", "fechaHoraInicio", "medicion"} and item["medicion"] is None for item in dumped)
-    # Aviso + última medición: la última trae sus valores y el resto del cupo figura como aviso, sin repetirla.
+    # Aviso + última medición: la última trae sus valores y las demás figuran como aviso, sin repetir valores.
     share(db, family.beto, family.id, notificaMedicion=True, comparteUltimaMedicion=True)
     mixed = [item for item in dashboards.groupDashboard(db, family.ana, family.id).actividadReciente if item.idGrupoUsuario == family.betoLink]
-    assert [item.tipo for item in mixed] == ["MEDICION", "AVISO"]
-    assert mixed[0].medicion is not None and mixed[0].fechaHoraInicio > mixed[1].fechaHoraInicio
+    assert [item.tipo for item in mixed] == ["MEDICION", "AVISO", "AVISO"]  # Beto tiene 3 mediciones: ninguna queda fuera
+    assert mixed[0].medicion is not None and all(item.medicion is None for item in mixed[1:])
+    assert mixed[0].fechaHoraInicio > mixed[1].fechaHoraInicio > mixed[2].fechaHoraInicio
     # Sin ningún permiso, no hay actividad.
     share(db, family.beto, family.id)
     assert not [item for item in dashboards.groupDashboard(db, family.ana, family.id).actividadReciente if item.idGrupoUsuario == family.betoLink]
 
 
-def test_la_actividad_toma_un_cupo_por_integrante_y_luego_ordena_todo_junto(db, mails, family):
-    """Cada persona aporta como máximo ACTIVITY_PER_MEMBER actividades (aunque tenga más); después se ordena todo por fecha y hora."""
+def test_la_actividad_mezcla_a_todas_las_personas_ordenada_por_fecha_y_hora(db, mails, family):
+    """Sin cupo por integrante: aparecen todas las actividades permitidas, mezcladas por fecha y hora."""
     # Ana comparte todo y tiene 4 mediciones; Beto (3 mediciones) comparte solo el aviso. Quedan intercaladas en el tiempo.
     anaProfile, _ = addMeasurement(db, family.ana)  # hace 3 días
     for daysAgo in (1.5, 0.5, 0.25):
@@ -466,18 +467,29 @@ def test_la_actividad_toma_un_cupo_por_integrante_y_luego_ordena_todo_junto(db, 
     share(db, family.ana, family.id, compartePerfil=True, comparteUltimaMedicion=True, comparteHistorial=True, notificaMedicion=True)
     share(db, family.beto, family.id, notificaMedicion=True)
     feed = dashboards.groupDashboard(db, family.ana, family.id).actividadReciente
-    cupo = dashboards.ACTIVITY_PER_MEMBER
-    assert cupo == 2
     porPersona = {link: [item for item in feed if item.idGrupoUsuario == link] for link in (family.anaLink, family.betoLink)}
-    assert [len(items) for items in porPersona.values()] == [cupo, cupo]  # ni 4 de Ana ni 3 de Beto: nadie monopoliza la lista
-    assert len(feed) == 2 * cupo
-    # Orden global descendente, mezclando a las dos personas (no «todo Ana y luego todo Beto»).
+    assert len(porPersona[family.anaLink]) == 4 and len(porPersona[family.betoLink]) == 3  # ya no hay cupo por integrante
+    assert len(feed) == 7
+    # Orden global descendente, mezclando a las dos personas.
     assert [item.fechaHoraInicio for item in feed] == sorted((item.fechaHoraInicio for item in feed), reverse=True)
-    assert [item.idGrupoUsuario for item in feed] == [family.betoLink, family.anaLink, family.anaLink, family.betoLink]
+    assert len({item.idGrupoUsuario for item in feed[:4]}) == 2
     # Ana comparte el historial: sus actividades traen valores. Beto solo el aviso: ninguno.
     assert all(item.tipo == "MEDICION" and item.medicion is not None for item in porPersona[family.anaLink])
     assert all(item.tipo == "AVISO" and item.medicion is None for item in porPersona[family.betoLink])
 
+
+def test_la_actividad_tiene_un_tope_total_con_las_mas_recientes(db, mails, family, monkeypatch):
+    """Con el tope total, el panel conserva solo las más recientes del grupo (entre todos los integrantes)."""
+    anaProfile, _ = addMeasurement(db, family.ana)
+    for daysAgo in (1.5, 0.5, 0.25):
+        addReading(db, anaProfile, daysAgo, 97)
+    share(db, family.ana, family.id, compartePerfil=True, comparteUltimaMedicion=True, comparteHistorial=True, notificaMedicion=True)
+    share(db, family.beto, family.id, notificaMedicion=True)
+    completo = dashboards.groupDashboard(db, family.ana, family.id).actividadReciente
+    monkeypatch.setattr(dashboards, "ACTIVITY_MAX", 3)
+    recortado = dashboards.groupDashboard(db, family.ana, family.id).actividadReciente
+    assert len(recortado) == 3
+    assert [item.fechaHoraInicio for item in recortado] == [item.fechaHoraInicio for item in completo[:3]]
 
 def test_revocar_bloquea_la_consulta_siguiente(db, mails, family):
     share(db, family.beto, family.id, comparteHistorial=True)

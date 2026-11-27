@@ -136,6 +136,49 @@ describe('Dashboard del grupo', () => {
     expect(aviso).not.toHaveTextContent(/SpO₂|Frecuencia|Glucosa|lpm|mg\/dL|%/); // ningún valor
   });
 
+  it('Ver más actividades pagina de 10 y filtra por persona y por tipo (con valores o solo aviso)', async () => {
+    const dia = (d, hora) => `2026-10-${String(d).padStart(2, '0')}T${hora}:00`;
+    const pepe = Array.from({ length: 8 }, (_, i) => ({
+      idGrupoUsuario: 'gu-pepe', nombre: 'Pepe', apellido: 'X', tipo: 'MEDICION', fechaHoraInicio: dia(i + 1, '10:00'),
+      medicion: { idMedicion: `pepe-${i + 1}`, fechaHoraInicio: dia(i + 1, '10:00'), modoMedicion: 'OXIMETRIA', condicionComida: 'AYUNO', glucosaEstimada: null, spo2: 98, frecuenciaCardiaca: 70 },
+    }));
+    const juan = Array.from({ length: 4 }, (_, i) => ({
+      idGrupoUsuario: 'gu-juan', nombre: 'Juan', apellido: 'X', tipo: 'AVISO', fechaHoraInicio: dia(i + 9, '20:00'), medicion: null,
+    }));
+    groupRoutes({ [`GET ${GBASE}/dashboard`]: jsonResponse(200, { ...GROUP_DASHBOARD, actividadReciente: [...pepe, ...juan] }) });
+    const user = userEvent.setup();
+    renderAt(`/app/grupo/${GID}`);
+    const list = () => screen.getByRole('list', { name: 'Actividad compartida reciente' });
+    await screen.findByRole('list', { name: 'Actividad compartida reciente' });
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(5); // al inicio: las 5 más recientes, de ambas personas
+    expect(list()).toHaveTextContent('Juan X');
+    expect(list()).toHaveTextContent('Pepe X');
+
+    await user.click(screen.getByRole('button', { name: 'Ver más actividades (7 más)' }));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(10);
+    expect(screen.getByText('Página 1 de 2')).toBeInTheDocument();
+    const pages = within(screen.getByRole('navigation', { name: 'Páginas de actividad compartida' }));
+    await user.click(pages.getByRole('button', { name: 'Siguiente' }));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByText('Página 2 de 2')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar actividad por persona' }), 'gu-juan');
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(4);
+    expect(screen.getByText('Página 1 de 1')).toBeInTheDocument();
+    expect(list()).not.toHaveTextContent('Pepe X');
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar actividad por tipo' }), 'valores');
+    expect(screen.getByText('No hay actividades con esos filtros.')).toBeInTheDocument(); // Juan solo tiene avisos
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar actividad por persona' }), '');
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(8); // todas las mediciones con valores (Pepe)
+    expect(list()).not.toHaveTextContent('Realizó una medición');
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar actividad por tipo' }), 'aviso');
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(4); // solo los avisos de Juan
+    expect(list()).not.toHaveTextContent(/SpO₂/);
+  });
+
   describe('evolución grupal: vista general, filtros y clic', () => {
     const exp = (id, fecha, extra = {}) => ({ idMedicion: id, fecha, modoMedicion: 'GLUCOSA_EXPERIMENTAL', origen: 'EXPERIMENTAL',
       frecuenciaCardiaca: 80, spo2: 97, glucosa: 120, indiceOptico: 2.4, ...extra });

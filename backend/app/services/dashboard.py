@@ -80,7 +80,7 @@ from app.utils.timeZone import nowForDb
 
 COMPLETADA = measurements.COMPLETADA
 RECENT = 10
-ACTIVITY_PER_MEMBER = 2  # cupo de actividades recientes por integrante: ninguna persona ocupa toda la lista
+ACTIVITY_MAX = 100  # tope total de actividad compartida que devuelve el panel: las más recientes del grupo, entre todos los integrantes
 MIN_GROUP_PARTICIPANTS = 2
 MAX_LISTED = 50
 
@@ -812,18 +812,18 @@ def patientDashboard(db: Session, actor: User, idInstitucion: uuid.UUID, idPerfi
 
 
 def _memberActivity(db: Session, member, relation: GroupUser, profile) -> list[GroupActivity]:
-    """Las últimas `ACTIVITY_PER_MEMBER` actividades que ESTA persona autorizó mostrar (cupo por integrante).
+    """Las últimas `ACTIVITY_MAX` actividades que ESTA persona autorizó mostrar (sin cupo fijo por integrante).
 
     Se toman sus mediciones completadas más recientes (DEMO incluidas) y cada una se muestra según SUS permisos:
       · «Historial» → con valores en todo el cupo; «Última medición» → con valores solo la más reciente;
       · «Aviso de medición» → solo el hecho (fecha y hora): NUNCA valores. Sin ningún permiso aplicable no hay actividad.
-    El orden global entre integrantes lo hace quien llama, después de aplicar el cupo a cada persona."""
-    withValues = ACTIVITY_PER_MEMBER if relation.comparteHistorial else (1 if relation.comparteUltimaMedicion else 0)
+    El orden global entre integrantes y el tope total los aplica quien llama."""
+    withValues = ACTIVITY_MAX if relation.comparteHistorial else (1 if relation.comparteUltimaMedicion else 0)
     if withValues == 0 and not relation.notificaMedicion:
         return []
     rows = db.scalars(select(Measurement).where(
         Measurement.idPerfilMedicion == profile.idPerfilMedicion, Measurement.estadoMedicion == COMPLETADA)
-        .order_by(Measurement.fechaHoraInicio.desc()).limit(ACTIVITY_PER_MEMBER)).all()
+        .order_by(Measurement.fechaHoraInicio.desc()).limit(ACTIVITY_MAX)).all()
     items: list[GroupActivity] = []
     for index, row in enumerate(rows):
         base = dict(idGrupoUsuario=member.idGrupoUsuario, nombre=member.nombre, apellido=member.apellido, fechaHoraInicio=row.fechaHoraInicio)
@@ -855,6 +855,7 @@ def groupDashboard(db: Session, actor: User, idGrupo: uuid.UUID, dias: int = 30,
         if relation.comparteHistorial:  # solo el historial autoriza estadísticas; «última medición» no alcanza
             pooled.append((profile.idPerfilMedicion, " ".join(p for p in (member.nombre, member.apellido) if p) or "Integrante"))
     activity.sort(key=lambda item: item.fechaHoraInicio, reverse=True)
+    activity = activity[:ACTIVITY_MAX]  # tope total: se conservan las más recientes del grupo
 
     aggregate, reason = None, None
     if len(pooled) >= MIN_GROUP_PARTICIPANTS:
