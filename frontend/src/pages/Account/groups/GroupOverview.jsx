@@ -1,4 +1,4 @@
-// Panel y listado de integrantes del grupo. Nombre visible, rol, estado y qué permisos de compartición habilitó cada
+// Panel y listado de integrantes del grupo. Nombre visible, rol, fecha de ingreso y qué permisos de compartición habilitó cada
 // uno (Compartido / No compartido): nunca correos ni los datos en sí. «Ver datos compartidos» abre solo las secciones
 // de esa persona, las que autorizó. El administrador puede invitar y desvincular integrantes (con confirmación).
 
@@ -11,7 +11,7 @@ import { Badge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 import { Avatar, GroupDashboardSection, SharingBadges } from './GroupDashboard.jsx';
 import { GroupInvitations } from './GroupInvitations.jsx';
-import { ROLE_LABELS, personName, sharesAnything } from './groupFormat.js';
+import { ROLE_LABELS, formatDate, personName, sharesAnything } from './groupFormat.js';
 
 export function GroupOverview() {
   // Nombre, administrador, rol e integrantes ya están en el encabezado del grupo: no se repiten.
@@ -97,7 +97,7 @@ export function GroupMembers() {
                       <Badge tone={member.rol === 'ADMINISTRADOR' ? 'brand' : 'info'}>{ROLE_LABELS[member.rol]}</Badge>
                     </span>
                   </div>
-                  <span className="gd-member-status"><span className="gd-dot" aria-hidden="true" /> Activo</span>
+                  <span className="gd-member-status">En el grupo desde {formatDate(member.fechaIncorporacion)}</span>
                 </div>
                 <SharingBadges member={member} />
                 <div className="gd-member-actions">
