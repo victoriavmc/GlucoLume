@@ -1,18 +1,21 @@
-// Dashboard del grupo. Todo sale de FastAPI, que evalúa los permisos personales de
+// Dashboard del grupo y página de cada integrante. Todo sale de FastAPI, que evalúa los permisos personales de
 // compartición EN CADA CONSULTA: si alguien revoca, deja de aparecer en la siguiente. Nada privado llega a React para
 // ocultarse después. Roles del grupo: ADMINISTRADOR y MIEMBRO.
 
 import {
-  BarChart3, Bell, Clock, Crown, Droplet, FileText, Info, Lock, UserRound, Users,
+  ArrowLeft, BarChart3, Bell, Clock, Crown, Droplet, FileText, Info, Lock, UserRound, Users,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
 
 import * as dashboardApi from '../../../api/dashboardApi.js';
+import * as groupsApi from '../../../api/groupsApi.js';
 import { Badge, OriginBadge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 import { GroupEvolution } from './GroupEvolution.jsx';
-import { MODES, SHARING_OPTIONS, formatNumber, formatWeekdayDateTime, glucoseText, personName } from './groupFormat.js';
+import { MODES, SHARING_OPTIONS, formatNumber, formatWeekdayDateTime, glucoseText, personName, sharesAnything } from './groupFormat.js';
+import { MemberHero } from './MemberHero.jsx';
+import { EvolutionNotShared, MemberSections } from './SharedData.jsx';
 
 const SHARING_ICONS = { compartePerfil: UserRound, comparteUltimaMedicion: Droplet, comparteHistorial: BarChart3, notificaMedicion: Bell };
 
@@ -166,6 +169,56 @@ export function GroupDashboardSection() {
         Pertenecer al grupo no comparte tus datos: cada persona, incluido el administrador, decide en «Mi privacidad» qué información de sus
         mediciones ve el resto.
       </p>
+    </>
+  );
+}
+
+/** Grupo → Integrantes → persona: nombre, rol, permisos y solo los datos autorizados. */
+export function GroupMemberPage() {
+  const { group, handleOperationError } = useOutletContext();
+  const { idGrupoUsuario } = useParams();
+  const [members, setMembers] = useState(null);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setMembers(await groupsApi.getSharedMembers(group.idGrupo));
+    } catch (loadError) {
+      setError(handleOperationError(loadError));
+      setMembers([]);
+    }
+  }, [group.idGrupo, handleOperationError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const member = members?.find((item) => item.idGrupoUsuario === idGrupoUsuario) ?? null;
+  // Sin migas de pan ni «volver»: las pestañas del grupo (Panel, Integrantes…) ya son la navegación.
+  const toPanel = <Link to="../.." relative="path" className="back-link"><ArrowLeft size={16} aria-hidden="true" /> Volver al panel</Link>
+
+  if (members === null) return <p className="field-hint" role="status">Cargando…</p>;
+  if (!member) {
+    return (
+      <>
+        {error && <Alert>{error}</Alert>}
+        <Alert kind="info">
+          No encontramos a ese integrante entre los demás integrantes activos del grupo. Tus propios datos están en «Mis mediciones».
+        </Alert>
+        {toPanel}
+      </>
+    );
+  }
+  const canView = member.tienePerfil && sharesAnything(member);
+  return (
+    <>
+      <MemberHero member={member} />
+      {canView ? (
+        <MemberSections group={group} member={member} handleOperationError={handleOperationError} onRevoked={load} />
+      ) : (
+        <>
+          <Alert kind="info">Este integrante no habilitó la visualización de sus datos de medición.</Alert>
+          <EvolutionNotShared />
+        </>
+      )}
     </>
   );
 }

@@ -1,8 +1,8 @@
-// Panel y listado de integrantes del grupo. Nombre visible, rol, fecha, estado y qué permisos de compartición
-// habilitó cada uno (Compartido / No compartido): nunca correos ni los datos en sí. El administrador puede
-// desvincular integrantes (con confirmación).
+// Panel y listado de integrantes del grupo. Nombre visible, rol, estado y qué permisos de compartición habilitó cada
+// uno (Compartido / No compartido): nunca correos ni los datos en sí. «Ver datos compartidos» abre solo las secciones
+// de esa persona, las que autorizó. El administrador puede invitar y desvincular integrantes (con confirmación).
 
-import { Settings, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Eye, Settings, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 
@@ -11,7 +11,7 @@ import { Badge } from '../../../components/Badge.jsx';
 import { Alert } from '../../../components/FormControls.jsx';
 import { Avatar, GroupDashboardSection, SharingBadges } from './GroupDashboard.jsx';
 import { GroupInvitations } from './GroupInvitations.jsx';
-import { ROLE_LABELS, formatDate, personName } from './groupFormat.js';
+import { ROLE_LABELS, personName, sharesAnything } from './groupFormat.js';
 
 export function GroupOverview() {
   // Nombre, administrador, rol e integrantes ya están en el encabezado del grupo: no se repiten.
@@ -86,25 +86,32 @@ export function GroupMembers() {
         {members === null ? (
           <p className="field-hint" role="status">Cargando…</p>
         ) : (
-          <ul className="gd-members is-list" aria-label="Integrantes del grupo">
+          <ul className="gd-members" aria-label="Integrantes del grupo">
             {members.map((member) => (
               <li key={member.idGrupoUsuario} className="gd-member">
                 <div className="gd-member-head">
-                  <Avatar person={member} tone={member.rol === 'ADMINISTRADOR' ? 'rose' : 'violet'} />
-                  <span className="gd-member-name">
-                    <b>{personName(member)}{member.esVos && ' (vos)'}</b>
-                    <Badge tone={member.rol === 'ADMINISTRADOR' ? 'brand' : 'info'}>{ROLE_LABELS[member.rol]}</Badge>
-                  </span>
+                  <div className="gd-member-id">
+                    <Avatar person={member} tone={member.rol === 'ADMINISTRADOR' ? 'rose' : 'violet'} />
+                    <span className="gd-member-name">
+                      <b>{personName(member)}{member.esVos && ' (vos)'}</b>
+                      <Badge tone={member.rol === 'ADMINISTRADOR' ? 'brand' : 'info'}>{ROLE_LABELS[member.rol]}</Badge>
+                    </span>
+                  </div>
+                  <span className="gd-member-status"><span className="gd-dot" aria-hidden="true" /> Activo</span>
                 </div>
-                <p className="gd-member-since"><span className="gd-dot" aria-hidden="true" /> Activo · desde {formatDate(member.fechaIncorporacion)}</p>
-                <SharingBadges member={member} columns />
+                <SharingBadges member={member} />
                 <div className="gd-member-actions">
                   {member.esVos ? (
-                    <Link to="../privacidad" relative="path" className="btn btn-outline">
+                    <Link to="../privacidad" relative="path" className="btn btn-outline gd-member-solo">
                       <Settings size={16} aria-hidden="true" /> Cambiar mi privacidad
                     </Link>
                   ) : (
                     <>
+                      {member.tienePerfil && sharesAnything(member) && (
+                        <Link to={member.idGrupoUsuario} className="text-link">
+                          <Eye size={16} aria-hidden="true" /> Ver datos compartidos
+                        </Link>
+                      )}
                       {isAdmin && (confirmingId === member.idGrupoUsuario ? (
                         <span className="member-actions">
                           <span className="field-hint">¿Quitar a {personName(member)} del grupo?</span>

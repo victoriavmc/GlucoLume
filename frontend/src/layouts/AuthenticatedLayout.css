@@ -1536,9 +1536,11 @@ a.dash-card:hover { border-color: var(--red-600); }
 .gd-kpi.is-green { background: #e9f8ef; color: #1f8f55; }
 .gd-kpi.is-violet { background: #f1edff; color: #6b46c1; }
 
-.gd-members { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.gd-members { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
 .gd-member { display: grid; gap: 12px; align-content: start; padding: 18px; border-radius: 18px; border: 1px solid var(--line-soft); background: #fff; box-shadow: var(--shadow-soft); min-width: 0; }
-.gd-member-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.gd-member-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.gd-member-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gd-member-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--ink-700); font-size: 14px; }
 .gd-member-head b { font-size: 17px; overflow-wrap: anywhere; }
 .gd-avatar { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--red-100); color: var(--red-600); font-weight: 700; font-size: 18px; }
 .gd-avatar.is-violet { background: #ece6fb; color: #6b46c1; }
@@ -1578,7 +1580,6 @@ a.dash-card:hover { border-color: var(--red-600); }
 
 /* --- Grupo → Integrantes: tarjetas con permisos en dos columnas e invitaciones del administrador ----------------------- */
 
-.gd-members.is-list { grid-template-columns: 1fr; }
 .gd-member-name { display: grid; gap: 4px; justify-items: start; min-width: 0; }
 .gd-member-since { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink-500); font-size: 14px; }
 .gd-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
@@ -1589,6 +1590,7 @@ a.dash-card:hover { border-color: var(--red-600); }
 .gd-member-actions .btn { min-height: 44px; }
 .gd-member-actions .text-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .gd-member-actions .gd-remove { margin-left: auto; }
+.gd-member-actions .gd-member-solo { width: 100%; justify-content: center; }
 .gd-pending-title { padding-top: 16px; border-top: 1px solid var(--line); }
 
 @media (max-width: 560px) {
