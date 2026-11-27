@@ -677,6 +677,10 @@ describe('Datos de prueba (DEMO) en el historial y el detalle', () => {
     renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
     expect(await screen.findByText(/Datos de prueba \(DEMO\)/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Eliminar medición/ }));
+    const dialog = screen.getByRole('alertdialog'); // el aviso muestra los datos de la medición antes de borrar
+    expect(within(dialog).getByText('Eliminar esta medición de prueba')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Tus mediciones reales no se tocan/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Datos de la medición a eliminar')).toHaveTextContent(/114/);
     await user.click(screen.getByRole('button', { name: 'Confirmar eliminación' }));
     expect(await screen.findByText(/La medición se eliminó de tu historial/)).toBeInTheDocument();
     expect(api.calls.some((call) => call.key === `DELETE /measurements/${MEASUREMENT_ID}`)).toBe(true);

@@ -331,6 +331,8 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const showNotice = state === 'COMPLETADA' && (glucose || measurement.origenGlucosa);
   // Exportar es del historial propio (cuenta individual): una medición de paciente se exporta desde la institución.
   const canExport = state === 'COMPLETADA' && profileLabel === 'Mi perfil';
+  // Glucosa que muestra el detalle (la estimada o, si el firmware informó su origen, la del dispositivo). Se muestra en el aviso de eliminación.
+  const deleteGlucose = measurement.glucosaEstimada ?? (measurement.origenGlucosa ? measurement.glucosaDispositivo : null);
 
   return (
     <section className="panel measurement-detail" aria-labelledby="medicion-estado">
@@ -452,7 +454,7 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
             )}
             {measurement.puedeEliminar && confirmingDelete && (
               <Modal
-                title="Eliminar esta medición"
+                title={measurement.esDemo ? 'Eliminar esta medición de prueba' : 'Eliminar esta medición'}
                 onClose={() => { if (!busy) setConfirmingDelete(false); }}
                 actions={(
                   <>
@@ -463,7 +465,14 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
                   </>
                 )}
               >
-                <p>Se borra de tu historial y no se puede recuperar.</p>
+                <p>Se borra de tu historial y no se puede recuperar.{measurement.esDemo ? ' Tus mediciones reales no se tocan.' : ''}</p>
+                <dl className="data-list" aria-label="Datos de la medición a eliminar">
+                  <Row label="Fecha y hora">{formatDateTime(measurement.fechaHoraInicio)}</Row>
+                  <Row label="Modo">{MODES[measurement.modoMedicion] ?? measurement.modoMedicion}</Row>
+                  <Row label="Glucosa">{deleteGlucose != null ? formatNumber(deleteGlucose, measurement.unidadGlucosa ?? 'mg/dL') : null}</Row>
+                  <Row label="Frecuencia cardíaca">{measurement.frecuenciaCardiaca != null ? formatNumber(measurement.frecuenciaCardiaca, 'lpm') : null}</Row>
+                  <Row label="SpO₂">{measurement.spo2 != null ? formatNumber(measurement.spo2, '%') : null}</Row>
+                </dl>
               </Modal>
             )}
         </div>

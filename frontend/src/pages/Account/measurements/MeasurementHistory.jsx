@@ -278,6 +278,19 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
                     )}
                   >
                     <p>Se borran de tu historial y no se pueden recuperar.</p>
+                    <ul className="delete-preview" aria-label="Mediciones a eliminar">
+                      {page.items.filter((item) => selectedIds.includes(item.idMedicion)).map((item) => {
+                        const glucose = glucoseOf(item);
+                        return (
+                          <li key={item.idMedicion}>
+                            <span>{formatDateTime(item.fechaHoraInicio)}</span>
+                            <span>{MODES[item.modoMedicion] ?? item.modoMedicion}</span>
+                            <span>{glucose ? value(glucose.value, 'mg/dL') : 'Sin glucosa'}</span>
+                            {item.esDemo && <DemoBadge />}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </Modal>
                 )}
               </div>
