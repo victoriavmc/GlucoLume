@@ -20,6 +20,7 @@ import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
 import '../institutions/exportControls.css';
 import { LiveAcquisition } from '../acquisition/LiveAcquisition.jsx';
 import { Badge } from '../../../components/Badge.jsx';
+import { Modal } from '../../../components/Modal.jsx';
 import { DemoBadge, DeviceReadout } from './DeviceReadout.jsx';
 import { GlucoseReferencePanel } from './GlucoseReferencePanel.jsx';
 import { DeviceSession } from './DeviceSession.jsx';
@@ -444,19 +445,27 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
               {resultSend.sending && <span className="spinner" aria-hidden="true" />} <Mail size={16} aria-hidden="true" /> Enviar resultado por correo
             </button>
           )}
-            {measurement.puedeEliminar && (confirmingDelete ? (
-              <>
-                <span className="field-hint">¿Eliminar esta medición? Se borra de tu historial y no se puede recuperar.</span>
-                <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirmingDelete(false)}>Volver</button>
-                <button type="button" className="btn btn-primary" disabled={busy} onClick={removeDemo}>
-                  {busy && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
-                </button>
-              </>
-            ) : (
+            {measurement.puedeEliminar && (
               <button type="button" className="btn btn-outline" onClick={() => setConfirmingDelete(true)}>
                 <Trash2 size={16} aria-hidden="true" /> Eliminar medición
               </button>
-            ))}
+            )}
+            {measurement.puedeEliminar && confirmingDelete && (
+              <Modal
+                title="Eliminar esta medición"
+                onClose={() => { if (!busy) setConfirmingDelete(false); }}
+                actions={(
+                  <>
+                    <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirmingDelete(false)}>Cancelar</button>
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={removeDemo}>
+                      {busy && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
+                    </button>
+                  </>
+                )}
+              >
+                <p>Se borra de tu historial y no se puede recuperar.</p>
+              </Modal>
+            )}
         </div>
       )}
       {resultSend.pending && <Alert kind="info">Enviando el resultado por correo electrónico. Podés seguir usando GlucoLume: te avisamos acá cuando salga.</Alert>}

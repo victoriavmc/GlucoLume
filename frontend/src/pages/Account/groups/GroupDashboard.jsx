@@ -3,7 +3,7 @@
 // ocultarse después. Roles del grupo: ADMINISTRADOR y MIEMBRO.
 
 import {
-  ArrowLeft, BarChart3, Bell, Clock, Crown, Droplet, FileText, Info, Lock, UserRound, Users,
+  ArrowLeft, BarChart3, Bell, ChevronLeft, ChevronRight, Clock, Crown, Droplet, FileText, Info, Lock, UserRound, Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
@@ -86,11 +86,16 @@ function activityTime(item) {
 }
 
 function ActivityTimeline({ items }) {
-  const [shown, setShown] = useState(ACTIVITY_FIRST);
+  const [expanded, setExpanded] = useState(false);
+  const [page, setPage] = useState(1);
   // Siempre en orden de tiempo, más reciente primero (no depende del orden que llegue de la API).
   const sorted = [...items].sort((a, b) => activityTime(b) - activityTime(a));
-  const visible = sorted.slice(0, shown);
-  const remaining = sorted.length - visible.length;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ACTIVITY_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  // Al inicio, las 5 más recientes; con «Ver más actividades», páginas de 10.
+  const visible = expanded
+    ? sorted.slice((currentPage - 1) * ACTIVITY_PAGE, currentPage * ACTIVITY_PAGE)
+    : sorted.slice(0, ACTIVITY_FIRST);
   return (
     <>
     <ul className="gd-timeline" aria-label="Actividad compartida reciente">
@@ -130,12 +135,24 @@ function ActivityTimeline({ items }) {
         );
       })}
     </ul>
-      {remaining > 0 && (
+      {!expanded && sorted.length > ACTIVITY_FIRST && (
         <div className="form-actions">
-          <button type="button" className="btn btn-outline" onClick={() => setShown((count) => count + ACTIVITY_PAGE)}>
-            Ver más ({Math.min(ACTIVITY_PAGE, remaining)} de {remaining} restantes)
+          <button type="button" className="btn btn-outline" onClick={() => { setPage(1); setExpanded(true); }}>
+            Ver más actividades ({sorted.length - ACTIVITY_FIRST} más)
           </button>
         </div>
+      )}
+      {expanded && (
+        <nav className="pagination" aria-label="Páginas de actividad compartida">
+          <button type="button" className="btn btn-ghost" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+            <ChevronLeft size={16} aria-hidden="true" /> Anterior
+          </button>
+          <span>Página {currentPage} de {totalPages}</span>
+          <button type="button" className="btn btn-ghost" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
+            Siguiente <ChevronRight size={16} aria-hidden="true" />
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setExpanded(false)}>Ver menos</button>
+        </nav>
       )}
     </>
   );

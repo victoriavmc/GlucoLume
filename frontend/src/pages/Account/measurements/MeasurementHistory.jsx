@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { Badge } from '../../../components/Badge.jsx';
 import { EmptyState } from '../../../components/EmptyState.jsx';
 import { Alert, SelectField, TextField } from '../../../components/FormControls.jsx';
+import { Modal } from '../../../components/Modal.jsx';
 import { SkeletonList } from '../../../components/Skeleton.jsx';
 import { saveBlob } from '../../../utils/downloadFile.js';
 import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
@@ -264,15 +265,20 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
                   )}
                 </div>
                 {confirmingSelected && (
-                  <div className="form-actions history-delete-confirm">
-                    <span className="field-hint">
-                      ¿Eliminar {selectedIds.length} {selectedIds.length === 1 ? 'medición' : 'mediciones'}? Se borran de tu historial y no se pueden recuperar.
-                    </span>
-                    <button type="button" className="btn btn-ghost" disabled={deletingSelected} onClick={() => setConfirmingSelected(false)}>Volver</button>
-                    <button type="button" className="btn btn-primary" disabled={deletingSelected} onClick={deleteSelected}>
-                      {deletingSelected && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
-                    </button>
-                  </div>
+                  <Modal
+                    title={`Eliminar ${selectedIds.length} ${selectedIds.length === 1 ? 'medición' : 'mediciones'}`}
+                    onClose={() => { if (!deletingSelected) setConfirmingSelected(false); }}
+                    actions={(
+                      <>
+                        <button type="button" className="btn btn-ghost" disabled={deletingSelected} onClick={() => setConfirmingSelected(false)}>Cancelar</button>
+                        <button type="button" className="btn btn-primary" disabled={deletingSelected} onClick={deleteSelected}>
+                          {deletingSelected && <span className="spinner" aria-hidden="true" />} Confirmar eliminación
+                        </button>
+                      </>
+                    )}
+                  >
+                    <p>Se borran de tu historial y no se pueden recuperar.</p>
+                  </Modal>
                 )}
               </div>
             )}
@@ -342,18 +348,24 @@ export function MeasurementHistory({ loadPage, loadEvolution, detailPath, handle
             </div>
             {onDeleteDemo && hasDemo && (
               <div className="form-actions">
-                {confirmingDemo ? (
+                <button type="button" className="btn btn-outline" onClick={() => setConfirmingDemo(true)}>
+                  <Trash2 size={16} aria-hidden="true" /> Eliminar mis datos de prueba
+                </button>
+              </div>
+            )}
+            {confirmingDemo && (
+              <Modal
+                title="Eliminar tus datos de prueba"
+                onClose={() => setConfirmingDemo(false)}
+                actions={(
                   <>
-                    <span className="field-hint">¿Eliminar todos tus datos de prueba (DEMO)? Las mediciones reales no se tocan.</span>
-                    <button type="button" className="btn btn-ghost" onClick={() => setConfirmingDemo(false)}>Volver</button>
+                    <button type="button" className="btn btn-ghost" onClick={() => setConfirmingDemo(false)}>Cancelar</button>
                     <button type="button" className="btn btn-primary" onClick={deleteDemo}>Confirmar eliminación</button>
                   </>
-                ) : (
-                  <button type="button" className="btn btn-outline" onClick={() => setConfirmingDemo(true)}>
-                    <Trash2 size={16} aria-hidden="true" /> Eliminar mis datos de prueba
-                  </button>
                 )}
-              </div>
+              >
+                <p>Se borran todas tus pruebas DEMO completadas. Las mediciones reales no se tocan.</p>
+              </Modal>
             )}
             {page.total > PAGE_SIZE && (
               <nav className="pagination" aria-label="Páginas de mediciones">
