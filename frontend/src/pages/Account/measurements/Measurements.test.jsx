@@ -289,6 +289,32 @@ describe('Detalle y estados de una medición', () => {
     expect(screen.queryByRole('button', { name: /Cancelar medición/ })).not.toBeInTheDocument();
   });
 
+  it('el detalle propio muestra nombre, apellido, correo, fecha de nacimiento, comida y género informados', async () => {
+    open(detail({ estadoMedicion: 'COMPLETADA', condicionComida: 'AYUNO', spo2: '97.50', frecuenciaCardiaca: 72, puedeOperar: false }), {
+      'GET /measurements/profile': jsonResponse(200, OWN_PROFILE),
+    });
+    renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
+    const personal = within(await screen.findByLabelText('Datos personales'));
+    expect(personal.getByText('Victoria')).toBeInTheDocument();
+    expect(personal.getByText('Cortés')).toBeInTheDocument();
+    expect(personal.getByText('victoria@example.com')).toBeInTheDocument();
+    expect(personal.getByText('17/05/1990')).toBeInTheDocument();
+    expect(personal.getByText('En ayunas')).toBeInTheDocument();
+    expect(personal.getByText('Femenino')).toBeInTheDocument();
+  });
+
+  it('el detalle propio omite fecha de nacimiento, comida y género cuando no están informados', async () => {
+    open(detail({ estadoMedicion: 'COMPLETADA', condicionComida: 'NO_INFORMADA', spo2: '97.50', frecuenciaCardiaca: 72, puedeOperar: false }), {
+      'GET /measurements/profile': jsonResponse(200, { ...OWN_PROFILE, apellido: null, fechaNacimiento: null, sexoModelo: null }),
+    });
+    renderAt(`/app/mediciones/${MEASUREMENT_ID}`);
+    const personal = within(await screen.findByLabelText('Datos personales'));
+    expect(personal.getByText('No informado')).toBeInTheDocument(); // el apellido
+    expect(personal.queryByText('Fecha de nacimiento')).not.toBeInTheDocument();
+    expect(personal.queryByText('Comida')).not.toBeInTheDocument();
+    expect(personal.queryByText('Género')).not.toBeInTheDocument();
+  });
+
   it('el detalle ocupa la pantalla con tarjetas grandes, identifica la glucosa DEMO como sintética y permite volver', async () => {
     open(detail({
       estadoMedicion: 'COMPLETADA', fechaHoraFin: '2026-10-08T09:00:12', duracionMs: 12000, spo2: '99.65', frecuenciaCardiaca: 76,

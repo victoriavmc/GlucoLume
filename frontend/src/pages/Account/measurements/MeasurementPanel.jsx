@@ -15,7 +15,8 @@ import { enSegundoPlano } from '../../../api/client.js';
 import * as measurementsApi from '../../../api/measurementsApi.js';
 import { ExperimentalNotice } from '../../../components/ExperimentalNotice.jsx';
 import { Alert, CheckField, SelectField, SubmitButton, TextField } from '../../../components/FormControls.jsx';
-import { sexoLabel } from '../accountFormat.js';
+import { formatDate, sexoLabel } from '../accountFormat.js';
+import { useAuth } from '../../../auth/AuthContext.jsx';
 import { saveBlob } from '../../../utils/downloadFile.js';
 import { EXPORT_FORMATS } from '../../../utils/exportFormats.js';
 import '../institutions/exportControls.css';
@@ -46,6 +47,33 @@ function Row({ label, children }) {
 /** Calidad de señal de la medición (0 a 1, dos decimales). */
 function formatQuality(value) {
   return Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Un dato de la lista de datos personales. Sin valor se muestra «No informado». */
+function PersonalItem({ icon: Icon, label, value }) {
+  return (
+    <div>
+      <span className="fact-icon"><Icon size={20} aria-hidden="true" /></span>
+      <dt>{label}</dt>
+      <dd className={value ? undefined : 'is-empty'}>{value || 'No informado'}</dd>
+    </div>
+  );
+}
+
+/** Datos personales del perfil propio, junto con el correo de la cuenta. Fecha de nacimiento, comida y género solo se muestran si están informados. */
+function PersonalData({ personal, email, comida }) {
+  const nacimiento = formatDate(personal.fechaNacimiento);
+  const genero = sexoLabel(personal.sexoModelo);
+  return (
+    <dl className="detail-overview" aria-label="Datos personales">
+      <PersonalItem icon={User} label="Nombre" value={personal.nombre} />
+      <PersonalItem icon={User} label="Apellido" value={personal.apellido} />
+      <PersonalItem icon={Mail} label="Correo electrónico" value={email} />
+      {nacimiento && <PersonalItem icon={CalendarDays} label="Fecha de nacimiento" value={nacimiento} />}
+      {comida && <PersonalItem icon={Utensils} label="Comida" value={comida} />}
+      {genero && <PersonalItem icon={User} label="Género" value={genero} />}
+    </dl>
+  );
 }
 
 /** Resultado grande del detalle, con su ícono. Un dato ausente se muestra «Sin dato», nunca como cero. `quality` muestra la calidad
@@ -249,6 +277,8 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   const [sendOpen, setSendOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [liveActive, setLiveActive] = useState(false);
+  const { account } = useAuth();
+  const [personal, setPersonal] = useState(null); // perfil propio: nombre, apellido, fecha de nacimiento y género (solo en el detalle propio)
   const inProgress = Boolean(measurement && measurement.puedeOperar
     && (measurement.estadoMedicion === 'PENDIENTE' || measurement.estadoMedicion === 'ADQUIRIENDO'));
   // Sesión de medición con el dispositivo (puente serie) asociada a ESTA medición, si la hay.
@@ -270,6 +300,14 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
   useEffect(() => {
     load();
   }, [load]);
+
+  const individual = profileLabel === 'Mi perfil';
+  useEffect(() => {
+    if (!individual) return undefined;
+    let active = true;
+    measurementsApi.getOwnProfile().then((value) => active && setPersonal(value), () => {}); // sin el perfil, el bloque de datos personales no se muestra
+    return () => { active = false; };
+  }, [individual]);
 
   const active = measurement && ACTIVE_STATES.includes(measurement.estadoMedicion);
   useEffect(() => {
@@ -367,6 +405,11 @@ export function MeasurementPanel({ idMedicion, handleOperationError, onChanged, 
           <div><span className="fact-icon"><Utensils size={20} aria-hidden="true" /></span><dt>Última comida</dt><dd>{formatDateTime(measurement.fechaHoraUltimaComida)}</dd></div>
         )}
       </dl>
+
+      {individual && personal && (
+        <PersonalData personal={personal} email={account?.usuario?.correoElectronico ?? null}
+          comida={measurement.condicionComida !== 'NO_INFORMADA' ? (MEALS[measurement.condicionComida] ?? measurement.condicionComida) : null} />
+      )}
 
       {deviceSession && (
         <DeviceSession status={device.status} profileLabel={profileLabel} handleOperationError={handleOperationError}
