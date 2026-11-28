@@ -107,11 +107,11 @@ describe('Mediciones: dashboard', () => {
     expect(screen.queryByLabelText('Estado')).not.toBeInTheDocument(); // sin los filtros del historial completo
   });
 
-  it('sin ninguna medición guardada no dice que hay pruebas disponibles', async () => {
+  it('sin ninguna medición guardada no muestra el aviso de pruebas', async () => {
     routes({ 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE) });
     renderAt('/app/mediciones');
     expect(await screen.findByText('Todavía no guardaste ninguna medición.')).toBeInTheDocument();
-    expect(screen.getByText(/Todavía no hay mediciones experimentales/)).toBeInTheDocument();
+    expect(screen.queryByText(/Todavía no hay mediciones experimentales/)).not.toBeInTheDocument();
     expect(screen.queryByText(/mediciones de prueba disponibles/)).not.toBeInTheDocument();
   });
 
@@ -129,8 +129,8 @@ describe('Mediciones: dashboard', () => {
     expect(last.getByText('Glucosa DEMO (simulada)')).toBeInTheDocument(); // la línea de valores ya no se repite en la tarjeta
     expect(last.getByText(/no se cuentan como indicadores experimentales/)).toBeInTheDocument();
     expect(last.getByRole('link', { name: /Ver detalle/ })).toHaveAttribute('href', '/app/mediciones/m-demo');
-    expect(screen.getByText(/Todavía no hay mediciones experimentales/)).toBeInTheDocument();
-    expect(screen.getByText(/Tenés mediciones de prueba disponibles/)).toBeInTheDocument();
+    expect(screen.queryByText(/Todavía no hay mediciones experimentales/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tenés mediciones de prueba disponibles/)).not.toBeInTheDocument();
     const recent = within(screen.getByRole('table', { name: 'Mediciones recientes' }));
     expect(recent.getByText('DEMO')).toBeInTheDocument();
     expect(recent.getByText('114 mg/dL')).toBeInTheDocument();
@@ -140,11 +140,11 @@ describe('Mediciones: dashboard', () => {
     expect(screen.queryByText('Todavía no hay mediciones recientes.')).not.toBeInTheDocument();
   });
 
-  it('sin ninguna medición guardada no dice que hay pruebas disponibles', async () => {
+  it('sin ninguna medición guardada no muestra el aviso de pruebas', async () => {
     routes({ 'GET /measurements/profile': jsonResponse(200, OWN_PROFILE) });
     renderAt('/app/mediciones');
     expect(await screen.findByText('Todavía no guardaste ninguna medición.')).toBeInTheDocument();
-    expect(screen.getByText(/Todavía no hay mediciones experimentales/)).toBeInTheDocument();
+    expect(screen.queryByText(/Todavía no hay mediciones experimentales/)).not.toBeInTheDocument();
     expect(screen.queryByText(/mediciones de prueba disponibles/)).not.toBeInTheDocument();
   });
 });

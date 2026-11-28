@@ -276,8 +276,6 @@ export function PersonalDashboard({ handleOperationError }) {
   }, [JSON.stringify(period), handleOperationError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const exp = evolution?.estadisticas.experimental ?? null;
-  const noExperimental =
-    Boolean(summary) && Boolean(evolution) && (exp?.mediciones ?? 0) === 0;
   // Sin valores experimentales, los «últimos valores» muestran los de la última prueba guardada, identificada como DEMO.
   const saved = summary?.ultimaGuardada ?? null;
   const latest = (variable, savedValue) => {
@@ -347,19 +345,6 @@ export function PersonalDashboard({ handleOperationError }) {
               />
             </ul>
           </div>
-          {noExperimental && (
-            <p className="field-hint" role="status">
-              Todavía no hay mediciones experimentales en este período.
-              {summary.pruebasDemo > 0 && (
-                <>
-                  {" "}
-                  <b>Tenés mediciones de prueba disponibles</b> (
-                  {summary.pruebasDemo}): figuran en tus mediciones recientes.
-                </>
-              )}
-            </p>
-          )}
-
           <section
             className="panel dash-recent"
             aria-labelledby="recientes-titulo"
