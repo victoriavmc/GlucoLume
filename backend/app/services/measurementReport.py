@@ -14,16 +14,21 @@ from xml.sax.saxutils import escape
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ExcelImage
+from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+from openpyxl.drawing.xdr import XDRPositiveSize2D
 from openpyxl.formatting.rule import CellIsRule
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.units import pixels_to_EMU
 from openpyxl.worksheet.properties import PageSetupProperties
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.platypus import Flowable, LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    BaseDocTemplate, Flowable, Frame, HRFlowable, Image, LongTable, NextPageTemplate, PageTemplate, Paragraph, Spacer, Table, TableStyle,
+)
 
 from app.services import brandAssets as brand
 from app.services.csvExport import csvBytes, csvDate, csvText
@@ -42,6 +47,11 @@ _SEMAFORO_COLOR = {"VERDE": "#2E7D4F", "AMARILLO": "#E0A100", "ROJO": "#C62828"}
 _SIN_DATO = "Sin dato"
 _SIN_INFORMAR = "Sin informar"
 _MARGEN_PDF = 14 * mm
+_MARGEN_INFERIOR_PDF = _MARGEN_PDF + 22  # deja lugar al pie institucional
+# Banner centrado, completo y de tamaño equilibrado: no ocupa todo el ancho para no robar altura a la tabla.
+_FRACCION_BANNER = 0.5
+_ALTO_CABECERA_SIGUIENTE = 26  # pt: encabezado compacto de las páginas siguientes (sin banner)
+_ALTO_FILA_EXCEL = 15  # pt: alto de fila estándar (20 px a 96 dpi)
 
 
 @dataclass(frozen=True)
@@ -147,47 +157,67 @@ def _xlsx(lines: list[ReportLine], generado: datetime, alcance: str, periodo: st
     return buffer.getvalue()
 
 
+def _anchoPx(ancho: float) -> int:
+    """Ancho de columna de Excel en píxeles (aproximación con la fuente predeterminada)."""
+    return int(ancho * 7 + 5)
+
+
+def _columnaEnPx(px: int, anchos: tuple[float, ...]) -> tuple[int, int]:
+    """Columna (desde 0) y desplazamiento dentro de ella para una posición horizontal, en píxeles."""
+    acumulado = 0
+    for indice, ancho in enumerate(anchos):
+        if px < acumulado + _anchoPx(ancho):
+            return indice, px - acumulado
+        acumulado += _anchoPx(ancho)
+    return len(anchos) - 1, 0
+
+
 def _hojaResumen(hoja, lines, generado, alcance, periodo, filtros) -> None:
-    for letter, width in zip("ABCDEF", (2, 34, 34, 3, 16, 16)):
+    anchos = (2, 34, 34, 3, 16, 16)
+    for letter, width in zip("ABCDEF", anchos):
         hoja.column_dimensions[letter].width = width
-    for row in range(2, 6):
-        hoja.row_dimensions[row].height = 24
-    oficial = brand.existing(brand.LOGO_PATH)
-    if oficial:  # el logo oficial ya trae el nombre y el eslogan
-        logo = ExcelImage(str(oficial))
-        logo.height = 100
-        logo.width = int(100 * brand.proporcion(oficial))
-    else:
-        logo = ExcelImage(BytesIO(brand.logo_png(96)))
-        logo.width, logo.height = 72, 72
-    hoja.add_image(logo, "B2")
-    if brand.existing(brand.LUMI_PATH):
-        lumi = ExcelImage(str(brand.LUMI_PATH))
-        lumi.height = 96
-        lumi.width = int(96 * brand.proporcion(brand.LUMI_PATH))
-        hoja.add_image(lumi, "E2")
-    if not oficial:
-        _textoExcel(hoja["C2"], "GlucoLume")
-        hoja["C2"].font = Font(bold=True, size=20, color=_ROJO_HEX)
-    _textoExcel(hoja["C3"], "Informe de mediciones")
-    hoja["C3"].font = Font(bold=True, size=14, color="1F1F23")
-    if not oficial:
-        _textoExcel(hoja["C4"], brand.SLOGAN)
-        hoja["C4"].font = Font(italic=True, size=10, color="6B6B70")
+    fila = 2
+    banner = brand.existing(brand.BANNER_PATH)
+    if banner:
+        # Banner completo, centrado en el ancho de la hoja y con su proporción original. Las filas que ocupa quedan reservadas.
+        total = sum(_anchoPx(ancho) for ancho in anchos)
+        ancho_px = round(total * _FRACCION_BANNER)
+        alto_px = round(ancho_px / brand.proporcion(banner))
+        filas = math.ceil(alto_px / (_ALTO_FILA_EXCEL * 96 / 72))
+        for reservada in range(fila, fila + filas):
+            hoja.row_dimensions[reservada].height = _ALTO_FILA_EXCEL
+        imagen = ExcelImage(str(banner))
+        imagen.width, imagen.height = ancho_px, alto_px
+        columna, desplazamiento = _columnaEnPx((total - ancho_px) // 2, anchos)
+        imagen.anchor = OneCellAnchor(
+            _from=AnchorMarker(col=columna, colOff=pixels_to_EMU(desplazamiento), row=fila - 1, rowOff=0),
+            ext=XDRPositiveSize2D(pixels_to_EMU(ancho_px), pixels_to_EMU(alto_px)),
+        )
+        hoja.add_image(imagen)
+        fila += filas
+        # Regla roja bajo el banner, en una fila corta propia.
+        hoja.row_dimensions[fila].height = 8
+        for col in "BCDEF":
+            hoja[f"{col}{fila}"].border = Border(bottom=Side(style="medium", color=_ROJO_HEX))
+        fila += 2
+    _textoExcel(hoja[f"B{fila}"], "Informe de mediciones")
+    hoja[f"B{fila}"].font = Font(bold=True, size=14, color="1F1F23")
+    fila += 2
     datos = [
         ("Generado", None), ("Alcance", alcance), ("Período", periodo), ("Filtros", filtros),
     ]
-    for offset, (etiqueta, valor) in enumerate(datos, start=7):
-        _textoExcel(hoja[f"B{offset}"], etiqueta)
-        hoja[f"B{offset}"].font = Font(bold=True, color="4A4A4F")
+    for etiqueta, valor in datos:
+        _textoExcel(hoja[f"B{fila}"], etiqueta)
+        hoja[f"B{fila}"].font = Font(bold=True, color="4A4A4F")
         if valor is None:
-            hoja[f"C{offset}"].value = _naive(generado)
-            hoja[f"C{offset}"].number_format = _FORMATO_FECHA
-            hoja[f"C{offset}"].alignment = Alignment(horizontal="left")
+            hoja[f"C{fila}"].value = _naive(generado)
+            hoja[f"C{fila}"].number_format = _FORMATO_FECHA
+            hoja[f"C{fila}"].alignment = Alignment(horizontal="left")
         else:
-            _textoExcel(hoja[f"C{offset}"], valor)
+            _textoExcel(hoja[f"C{fila}"], valor)
+        fila += 1
+    fila += 1
     cifras = _indicadores(lines)
-    fila = 12
     _textoExcel(hoja[f"B{fila}"], "Indicadores")
     hoja[f"B{fila}"].font = Font(bold=True, size=12, color=_ROJO_HEX)
     fila += 1
@@ -219,6 +249,8 @@ def _hojaResumen(hoja, lines, generado, alcance, periodo, filtros) -> None:
     fila += 1
     _textoExcel(hoja[f"B{fila}"], "Las clasificaciones de semáforo comparan con el intervalo configurado; no son una clasificación clínica.")
     hoja[f"B{fila}"].font = Font(italic=True, size=9, color="6B6B70")
+    hoja.print_area = f"A1:F{fila}"  # imprime el banner, los indicadores y el aviso; no las filas vacías de más
+    hoja.print_options.horizontalCentered = True
     hoja.page_setup.orientation = "landscape"
     hoja.page_setup.paperSize = hoja.PAPERSIZE_A4
     hoja.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
@@ -461,56 +493,26 @@ class _NumeracionCanvas(pdfcanvas.Canvas):
         self.restoreState()
 
 
-def _dibujarMarca(canvas, x: float, y: float, altura: float) -> None:
-    """Gota de la marca con vectores: contorno rojo y el interior blanco, escalados a `altura` (y es la base)."""
-    escala = altura / 32
-
-    def trazar(puntos):
-        path = canvas.beginPath()
-        path.moveTo(x + puntos[0][0] * escala, y + altura - puntos[0][1] * escala)
-        for px, py in puntos[1:]:
-            path.lineTo(x + px * escala, y + altura - py * escala)
-        path.close()
-        return path
-
-    canvas.setFillColor(colors.HexColor(brand.ROJO))
-    canvas.drawPath(trazar(brand.drop_polygon(outer=True)), stroke=0, fill=1)
-    canvas.setFillColor(colors.white)
-    canvas.drawPath(trazar(brand.drop_polygon(outer=False)), stroke=0, fill=1)
-
-
-def _encabezado(canvas) -> None:
-    """Marca institucional a la izquierda (logo oficial si está cargado; si no, la gota vectorial con el nombre) y Lumi a la derecha."""
+def _cabeceraCompacta(canvas) -> None:
+    """Encabezado de las páginas siguientes: nombre de la marca en texto, título del informe y una línea roja. Sin banner."""
     arriba = _PAGINA[1] - _MARGEN_PDF
-    oficial = brand.existing(brand.LOGO_PATH)
-    if oficial:
-        alto = 44
-        canvas.drawImage(str(oficial), _MARGEN_PDF, arriba - 4 - alto, width=alto * brand.proporcion(oficial), height=alto, mask="auto")
-    else:
-        _dibujarMarca(canvas, _MARGEN_PDF, arriba - 30, 30)
-        canvas.setFont("Helvetica-Bold", 15)
-        canvas.setFillColor(colors.HexColor("#1F1F23"))
-        canvas.drawString(_MARGEN_PDF + 38, arriba - 13, "Gluco")
-        ancho = canvas.stringWidth("Gluco", "Helvetica-Bold", 15)
-        canvas.setFillColor(colors.HexColor(brand.ROJO))
-        canvas.drawString(_MARGEN_PDF + 38 + ancho, arriba - 13, "Lume")
-        canvas.setFont("Helvetica-Oblique", 8)
-        canvas.setFillColor(colors.HexColor("#6B6B70"))
-        canvas.drawString(_MARGEN_PDF + 38, arriba - 25, brand.SLOGAN)
-    lumi = brand.existing(brand.LUMI_PATH)
-    if lumi:
-        alto = 50
-        canvas.drawImage(str(lumi), _PAGINA[0] - _MARGEN_PDF - alto * brand.proporcion(lumi), arriba - 4 - alto,
-                         width=alto * brand.proporcion(lumi), height=alto, mask="auto")
-
-
-def _decorarPagina(canvas, doc, generado: datetime) -> None:
-    canvas.saveState()
-    _encabezado(canvas)
+    canvas.setFont("Helvetica-Bold", 11)
+    canvas.setFillColor(colors.HexColor("#1F1F23"))
+    canvas.drawString(_MARGEN_PDF, arriba - 11, "Gluco")
+    ancho = canvas.stringWidth("Gluco", "Helvetica-Bold", 11)
+    canvas.setFillColor(colors.HexColor(brand.ROJO))
+    canvas.drawString(_MARGEN_PDF + ancho, arriba - 11, "Lume")
+    canvas.setFont("Helvetica", 8.5)
+    canvas.setFillColor(colors.HexColor(brand.GRIS_TEXTO))
+    canvas.drawRightString(_PAGINA[0] - _MARGEN_PDF, arriba - 11, "Informe de mediciones")
     canvas.setStrokeColor(colors.HexColor(brand.ROJO))
     canvas.setLineWidth(1.2)
-    canvas.line(_MARGEN_PDF, _PAGINA[1] - _MARGEN_PDF - 60, _PAGINA[0] - _MARGEN_PDF, _PAGINA[1] - _MARGEN_PDF - 60)
-    # Pie institucional: aviso experimental (siempre visible) y fecha de generación.
+    canvas.line(_MARGEN_PDF, arriba - _ALTO_CABECERA_SIGUIENTE, _PAGINA[0] - _MARGEN_PDF, arriba - _ALTO_CABECERA_SIGUIENTE)
+
+
+def _pie(canvas, generado: datetime) -> None:
+    """Pie institucional: aviso experimental (siempre visible) y fecha de generación."""
+    canvas.saveState()
     canvas.setStrokeColor(colors.HexColor(brand.GRIS_LINEA))
     canvas.setLineWidth(0.5)
     canvas.line(_MARGEN_PDF, 34, _PAGINA[0] - _MARGEN_PDF, 34)
@@ -523,10 +525,29 @@ def _decorarPagina(canvas, doc, generado: datetime) -> None:
     canvas.restoreState()
 
 
+def _marco(id: str, sangria_superior: float) -> Frame:
+    """Área útil de la hoja. `sangria_superior` reserva el alto del encabezado (0 si lo ocupa el banner en la primera página)."""
+    return Frame(
+        _MARGEN_PDF, _MARGEN_INFERIOR_PDF, _ANCHO_UTIL,
+        _PAGINA[1] - _MARGEN_INFERIOR_PDF - _MARGEN_PDF - sangria_superior,
+        leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id=id,
+    )
+
+
 def _pdf(lines: list[ReportLine], generado: datetime, alcance: str, periodo: str, filtros: str) -> bytes:
     estilos = _estilos()
     cifras = _indicadores(lines)
-    story = [
+    banner = brand.existing(brand.BANNER_PATH)
+    cabecera = []
+    if banner:
+        # El banner completo ocupa su alto real en el flujo: el contenido empieza debajo y nunca se superpone con él.
+        ancho = _ANCHO_UTIL * _FRACCION_BANNER
+        cabecera = [
+            Image(str(banner), width=ancho, height=ancho / brand.proporcion(banner), hAlign="CENTER"),
+            HRFlowable(width="100%", thickness=1.2, color=colors.HexColor(brand.ROJO), spaceBefore=8, spaceAfter=10),
+        ]
+    story = cabecera + [
+        NextPageTemplate("siguientes"),  # desde la segunda hoja, encabezado compacto en lugar del banner
         Paragraph("Informe de mediciones", estilos["titulo"]),
         Paragraph(escape(f"{alcance} · Período: {periodo}"), estilos["subtitulo"]),
         Spacer(1, 8),
@@ -569,11 +590,27 @@ def _pdf(lines: list[ReportLine], generado: datetime, alcance: str, periodo: str
     else:
         story.append(Paragraph("No hay mediciones que coincidan con los filtros elegidos.", estilos["aviso"]))
     buffer = BytesIO()
-    document = SimpleDocTemplate(buffer, pagesize=_PAGINA, leftMargin=_MARGEN_PDF, rightMargin=_MARGEN_PDF,
-                                 topMargin=_MARGEN_PDF + 68, bottomMargin=_MARGEN_PDF + 22,
-                                 title="Informe de mediciones", author="GlucoLume", subject="Mis mediciones")
-    decorar = lambda canvas, doc: _decorarPagina(canvas, doc, generado)  # noqa: E731
-    document.build(story, onFirstPage=decorar, onLaterPages=decorar, canvasmaker=_NumeracionCanvas)
+    document = BaseDocTemplate(buffer, pagesize=_PAGINA, leftMargin=_MARGEN_PDF, rightMargin=_MARGEN_PDF,
+                               topMargin=_MARGEN_PDF, bottomMargin=_MARGEN_INFERIOR_PDF,
+                               title="Informe de mediciones", author="GlucoLume", subject="Mis mediciones")
+    sangria_siguientes = _ALTO_CABECERA_SIGUIENTE + 12
+    # Sin banner (archivo ausente), la primera hoja también lleva el encabezado compacto, y el contenido empieza debajo.
+    sangria_primera = 0 if banner else sangria_siguientes
+
+    def primera(canvas, doc):
+        if not banner:
+            _cabeceraCompacta(canvas)
+        _pie(canvas, generado)
+
+    def siguientes(canvas, doc):
+        _cabeceraCompacta(canvas)
+        _pie(canvas, generado)
+
+    document.addPageTemplates([
+        PageTemplate(id="primera", frames=[_marco("primera", sangria_primera)], onPage=primera),
+        PageTemplate(id="siguientes", frames=[_marco("siguientes", sangria_siguientes)], onPage=siguientes),
+    ])
+    document.build(story, canvasmaker=_NumeracionCanvas)
     return buffer.getvalue()
 
 

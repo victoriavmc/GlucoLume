@@ -13,7 +13,6 @@ from datetime import date, datetime
 import openpyxl
 import pytest
 from openpyxl.worksheet.properties import PageSetupProperties
-from PIL import Image
 
 from app.services import brandAssets
 from app.services import measurementReport as report
@@ -93,27 +92,43 @@ def libro(content: bytes):
     return openpyxl.load_workbook(io.BytesIO(content))
 
 
-def test_el_excel_tiene_resumen_y_mediciones_con_el_logo_oficial():
-    content, nombre = generar("xlsx", muestra(3))
-    assert nombre == "mis-mediciones-prueba.xlsx"
-    book = libro(content)
+def filaDe(hoja, texto: str) -> int:
+    """Número de fila de la celda de la columna B con ese texto (los datos del resumen se ubican por su rótulo, no por posición fija)."""
+    return next(celda.row for celda in hoja["B"] if celda.value == texto)
+
+
+def test_el_excel_tiene_resumen_con_el_banner_completo_centrado_y_sin_deformar():
+    book = libro(generar("xlsx", muestra(3))[0])
     assert book.sheetnames == ["Resumen", "Mediciones"]
-    assert len(book["Resumen"]._images) >= 1  # el logo oficial (o la gota, si el archivo no está)
-    assert book["Resumen"]["C3"].value == "Informe de mediciones"
-    assert book["Resumen"]["C2"].value is None  # el logo oficial ya trae el nombre: no se repite como texto
+    resumen = book["Resumen"]
+    [imagen] = resumen._images  # el banner completo, una sola imagen
+    ancho, alto = imagen.anchor.ext.width, imagen.anchor.ext.height  # EMU
+    assert ancho / alto == pytest.approx(brandAssets.proporcion(brandAssets.BANNER_PATH), rel=0.01)  # proporción original
+    assert imagen.anchor._from.colOff > 0  # centrado: no empieza en el borde izquierdo
+    assert resumen[f"B{filaDe(resumen, 'Informe de mediciones')}"].value == "Informe de mediciones"
+    assert resumen["B2"].value is None and resumen["C2"].value is None  # el banner ya trae el nombre: no se repite como texto
 
 
-def test_sin_logo_oficial_el_excel_dibuja_la_gota_con_el_nombre_y_el_eslogan(monkeypatch, tmp_path):
-    monkeypatch.setattr(brandAssets, "LOGO_PATH", tmp_path / "no-existe.png")
-    book = libro(generar("xlsx", muestra(1))[0])
-    assert book["Resumen"]["C2"].value == "GlucoLume"
-    assert book["Resumen"]["C4"].value == brandAssets.SLOGAN
+def test_el_banner_reserva_las_filas_y_el_contenido_empieza_debajo_sin_superponerse():
+    resumen = libro(generar("xlsx", muestra(3))[0])["Resumen"]
+    [imagen] = resumen._images
+    primera = imagen.anchor._from.row + 1  # fila de Excel donde empieza el banner
+    alto_pt = sum(resumen.row_dimensions[fila].height or 15 for fila in range(primera, filaDe(resumen, "Informe de mediciones")))
+    assert alto_pt * 96 / 72 >= imagen.anchor.ext.height / 9525 - 1  # las filas reservadas cubren todo el alto del banner
+
+
+def test_sin_banner_el_excel_sale_con_el_titulo_y_sin_imagen(monkeypatch, tmp_path):
+    monkeypatch.setattr(brandAssets, "BANNER_PATH", tmp_path / "no-existe.jpg")
+    resumen = libro(generar("xlsx", muestra(1))[0])["Resumen"]
+    assert resumen._images == []
+    assert resumen["B2"].value == "Informe de mediciones"
 
 
 def test_los_indicadores_del_resumen_son_numeros_nativos():
     lineas = [linea(), linea(semaforo="ROJO"), linea(semaforo=None, glucosa=None, esDemo=False, origenGlucosa=None)]
     resumen = libro(generar("xlsx", lineas)[0])["Resumen"]
-    valores = {resumen[f"B{fila}"].value: resumen[f"C{fila}"].value for fila in range(14, 22)}
+    primera = filaDe(resumen, "Registros exportados")
+    valores = {resumen[f"B{fila}"].value: resumen[f"C{fila}"].value for fila in range(primera, primera + 8)}
     assert valores["Registros exportados"] == 3 and isinstance(valores["Registros exportados"], int)
     assert valores["Con glucosa del dispositivo"] == 2
     assert valores["Pruebas DEMO (simuladas)"] == 2
@@ -169,6 +184,13 @@ def test_la_impresion_del_excel_sale_en_a4_horizontal_con_pie_institucional():
     assert book["Mediciones"].sheet_properties.pageSetUpPr == PageSetupProperties(fitToPage=True)
 
 
+def test_el_area_de_impresion_del_resumen_llega_hasta_el_aviso_y_centra_la_hoja():
+    resumen = libro(generar("xlsx", muestra(1))[0])["Resumen"]
+    ultima = filaDe(resumen, brandAssets.AVISO_EXPERIMENTAL) + 1  # el aviso va seguido de su nota
+    assert resumen.print_area == f"'Resumen'!$A$1:$F${ultima}"
+    assert resumen.print_options.horizontalCentered is True
+
+
 # --- PDF --------------------------------------------------------------------------------------------------------------
 
 
@@ -201,8 +223,7 @@ def test_el_pdf_funciona_con_uno_varios_y_muchos_registros(cantidad):
 
 def test_una_observacion_de_500_caracteres_no_rompe_el_pdf():
     content, _ = generar("pdf", [linea(observacion=OBSERVACION_LARGA), linea(observacion=OBSERVACION_LARGA)])
-    texto = paginas(content)[0]
-    assert "Observación extensa de la medición" in texto
+    assert "Observación extensa de la medición" in " ".join(paginas(content))
 
 
 def test_sin_mediciones_el_pdf_avisa_y_no_falla():
@@ -212,25 +233,26 @@ def test_sin_mediciones_el_pdf_avisa_y_no_falla():
 
 def test_el_pdf_muestra_sin_dato_y_no_inventa_colores_sin_clasificacion():
     content, _ = generar("pdf", [linea(semaforo=None, glucosa=None, spo2=None), linea(glucosa=0.0)])
-    texto = paginas(content)[0]
+    texto = " ".join(paginas(content))  # con el banner, la segunda medición puede pasar a la hoja siguiente
     assert "Sin dato" in texto and "0,0" in texto and "Sin clasificación" in texto
 
 
-def test_con_el_logo_oficial_cargado_se_incrusta_sin_depender_de_recursos_externos(tmp_path, monkeypatch):
+def test_el_banner_va_solo_en_la_primera_hoja_con_su_proporcion_original():
     pypdf = pytest.importorskip("pypdf")
-    archivo = tmp_path / "lumi.png"
-    Image.new("RGB", (64, 64), (217, 8, 32)).save(archivo)  # marcador de prueba: no es la mascota
-    monkeypatch.setattr(brandAssets, "LUMI_PATH", archivo)
-    content, _ = generar("pdf", [linea()])
-    lector = pypdf.PdfReader(io.BytesIO(content))
-    assert len(lector.pages[0].images) >= 1
-    assert "Informe de mediciones" in lector.pages[0].extract_text()  # el texto sigue siendo seleccionable
+    content, _ = generar("pdf", muestra(80))  # varias hojas
+    paginas_pdf = pypdf.PdfReader(io.BytesIO(content)).pages
+    assert len(paginas_pdf) > 1
+    [imagen] = paginas_pdf[0].images  # el banner completo, una sola imagen
+    assert imagen.image.width / imagen.image.height == pytest.approx(brandAssets.proporcion(brandAssets.BANNER_PATH), rel=0.01)
+    assert all(len(pagina.images) == 0 for pagina in paginas_pdf[1:])  # las siguientes llevan el encabezado compacto, sin banner
+    assert "Informe de mediciones" in paginas(content)[1]  # el encabezado compacto se repite
 
 
-def test_sin_el_archivo_de_lumi_el_pdf_sale_igual_de_bien(monkeypatch, tmp_path):
-    monkeypatch.setattr(brandAssets, "LUMI_PATH", tmp_path / "no-existe.png")
+def test_sin_el_banner_el_pdf_sale_igual_de_bien(monkeypatch, tmp_path):
+    monkeypatch.setattr(brandAssets, "BANNER_PATH", tmp_path / "no-existe.jpg")
     content, _ = generar("pdf", [linea()])
     assert content.startswith(b"%PDF-")
+    assert "Informe de mediciones" in paginas(content)[0]
 
 
 # --- Varios ----------------------------------------------------------------------------------------------------------
