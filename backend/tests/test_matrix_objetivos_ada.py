@@ -6,8 +6,9 @@
 # Ejecutar desde backend/:
 #     python -m pytest tests/test_matrix_objetivos_ada.py -v
 
+import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -209,3 +210,16 @@ def test_el_instalador_sql_carga_los_mismos_objetivos_que_el_backend():
     assert "https://diabetes.org/living-with-diabetes/treatment-care/checking-your-blood-sugar" in sql
     assert "N'ADA 2026 - Seguimiento adulto no gestante'" not in sql
     assert "matriz de prueba DEMO" not in sql
+
+
+def test_la_vigencia_del_instalador_cubre_todo_el_historial_demo():
+    """Regresión: la matriz se cargaba con vigencia desde HOY; las mediciones demo (anteriores) quedaban sin matriz vigente y el
+    detalle mostraba «SIN_MATRIZ» aunque la matriz estuviera ACTIVA."""
+    from app.demo import seeder
+
+    sql = INSTALADOR.read_text(encoding="utf-8")
+    match = re.search(r"N'GLOBAL', CAST\(N'([\d-]+)' AS DATE\),\s*CAST\(N'([\d-]+)' AS DATE\)", sql)
+    assert match, "El instalador debe fijar fechaVigenciaDesde y fechaVigenciaHasta explícitas."
+    desde, hasta = date.fromisoformat(match.group(1)), date.fromisoformat(match.group(2))
+    assert desde <= seeder.HISTORY_START
+    assert hasta >= seeder.DATA_END_DATE

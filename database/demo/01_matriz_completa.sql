@@ -138,8 +138,8 @@ BEGIN TRY
             (idMatriz, idInstitucion, nombre, version, ambito, fechaVigenciaDesde,
              fechaVigenciaHasta, descripcion, referenciaBase, urlReferencia, estado)
         VALUES
-            (@idMatriz, NULL, @nombre, @version, N'GLOBAL', CONVERT(DATE, SYSDATETIME()),
-             NULL,
+            (@idMatriz, NULL, @nombre, @version, N'GLOBAL', CAST(N'2020-01-01' AS DATE),
+             CAST(N'2028-12-31' AS DATE),
              N'Objetivos de glucosa capilar de la guía ADA para adultos no gestantes con diabetes: preprandial 80–130 mg/dL y '
                  + N'posprandial menor de 180 mg/dL, medido 1–2 h desde el inicio de la comida. Sin distinción por sexo ni edad. '
                  + N'No es diagnóstico ni clasificación clínica.',
