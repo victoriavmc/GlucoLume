@@ -145,6 +145,8 @@ def _measurements(db: Session, start: datetime, end: datetime | None) -> Measure
         bucket = byDay.setdefault(moment.date(), [0, 0])
         bucket[0] += 1
         bucket[1] += state == COMPLETADA
+    periodStates = dict(db.execute(select(Measurement.estadoMedicion, func.count()).where(
+        NOT_DEMO, *dashboards._inPeriod(Measurement.fechaHoraInicio, start, end)).group_by(Measurement.estadoMedicion)).all())
     techInPeriod = dashboards._inPeriod(TechnicalAudit.fechaHora, start, end)
     reasons = db.execute(select(TechnicalAudit.motivo, func.count()).where(*techInPeriod).group_by(TechnicalAudit.motivo)
                          .order_by(func.count().desc()).limit(8)).all()
@@ -154,6 +156,8 @@ def _measurements(db: Session, start: datetime, end: datetime | None) -> Measure
         total=sum(states.values()), enPeriodo=len(rows), oximetria=modes.get("OXIMETRIA", 0),
         glucosaExperimental=modes.get("GLUCOSA_EXPERIMENTAL", 0), completadas=states.get(COMPLETADA, 0),
         canceladas=states.get("CANCELADA", 0), invalidas=states.get("INVALIDA", 0), porEstado=states,
+        completadasPeriodo=periodStates.get(COMPLETADA, 0), canceladasPeriodo=periodStates.get("CANCELADA", 0),
+        invalidasPeriodo=periodStates.get("INVALIDA", 0),
         serie=[DayCount(fecha=day, total=total, completadas=done) for day, (total, done) in sorted(byDay.items())],
     )
 

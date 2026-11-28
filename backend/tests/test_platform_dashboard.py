@@ -173,6 +173,7 @@ def test_las_mediciones_son_volumen_operativo_con_errores_tecnicos_y_demo_aparte
     data = stats(db, admin[0]).mediciones
     assert (data.total, data.completadas, data.demo) == (1, 1, 1) and real is not None  # las DEMO no inflan el volumen real
     assert data.erroresTecnicos == 4 and {m.clave: m.total for m in data.motivosTecnicos} == {"LECTURA_NO_VALIDA": 3, "SESION_EXPIRADA": 1}
+    assert (data.enPeriodo, data.completadasPeriodo, data.canceladasPeriodo, data.invalidasPeriodo) == (1, 1, 0, 0)  # el período acota las tarjetas
     for forbidden in ("spo2", "glucosa", "frecuenciaCardiaca"):
         assert forbidden not in data.model_dump_json().replace("glucosaExperimental", "")
 

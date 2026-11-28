@@ -112,6 +112,27 @@ export function HealthStrip({ system, failed }) {
   );
 }
 
+/** Resumen total: histórico desde la creación de la base de datos. No depende del período elegido. */
+function TotalSummary({ data, admin }) {
+  const { usuarios: users, dispositivos: devices, mediciones: meas } = data;
+  return (
+    <section className="pd-summary pd-total" aria-labelledby="pd-resumen-total">
+      <header className="pd-summary-head">
+        <h2 id="pd-resumen-total">Resumen total</h2>
+        <small>Histórico desde la creación de la base de datos · no cambia con el período</small>
+      </header>
+      <ul className="pd-stats" aria-label="Totales históricos">
+        {admin && <Stat icon={Users} label="Cuentas totales" value={n(users.total)} hint={`${n(users.activas)} activas · ${n(users.inactivas)} inactivas`} />}
+        {admin && <Stat icon={User} label="Cuentas individuales" value={n(users.individuales)} hint="clientes" />}
+        {admin && <Stat icon={Building2} label="Cuentas institucionales" value={n(users.institucionales)} hint={`${n(users.conVinculoInstitucional)} con vínculo activo`} />}
+        <Stat icon={Cpu} label="Dispositivos operativos" value={n(devices.operativos)} hint={`de ${n(devices.total)} registrados`}
+          tone={devices.fueraDeServicio > 0 ? 'warn' : 'ok'} />
+        <Stat icon={FileText} label="Mediciones" value={n(meas.total)} hint="procesadas, sin DEMO" />
+      </ul>
+    </section>
+  );
+}
+
 function DeviceBar({ devices }) {
   const parts = [
     ['Operativos', devices.operativos, 'ok'], ['En mantenimiento', devices.enMantenimiento, 'warn'],
@@ -295,6 +316,7 @@ export function PlatformDashboardPage() {
         actions={<span className="pd-date"><CalendarDays size={16} aria-hidden="true" /> {today}</span>} />
       {error && <Alert>{error}</Alert>}
       <HealthStrip system={system.value} failed={system.failed} />
+      {data && <TotalSummary data={data} admin={admin} />}
       <div className="pd-period">
         <PeriodFilter value={period} onChange={setPeriod} idPrefix="dash-plataforma" />
       </div>
@@ -376,10 +398,10 @@ export function PlatformDashboardPage() {
 
           <Card id="pd-mediciones" icon={FileText} title="Mediciones: volumen operativo" subtitle="Solo cantidades. La administración no consulta resultados clínicos.">
             <dl className="pd-minis" aria-label="Mediciones">
-              <Mini label="Procesadas (total)" value={n(meas.total)} hint={meas.demo ? `${n(meas.demo)} DEMO aparte en el período` : undefined} />
-              <Mini label="Completadas" value={n(meas.completadas)} />
-              <Mini label="Canceladas" value={n(meas.canceladas)} />
-              <Mini label="Inválidas" value={n(meas.invalidas)} />
+              <Mini label="Procesadas (período)" value={n(meas.enPeriodo)} hint={meas.demo ? `${n(meas.demo)} DEMO aparte en el período` : undefined} />
+              <Mini label="Completadas" value={n(meas.completadasPeriodo)} />
+              <Mini label="Canceladas" value={n(meas.canceladasPeriodo)} />
+              <Mini label="Inválidas" value={n(meas.invalidasPeriodo)} />
               <Mini label="Errores técnicos (período)" value={n(meas.erroresTecnicos)} hint="auditoría técnica anonimizada" />
             </dl>
             <div className="pd-split">

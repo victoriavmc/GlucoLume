@@ -212,13 +212,17 @@ class MeasurementCounters(BaseModel):
     demo: int = 0
     erroresTecnicos: int = 0  # eventos de la auditoría técnica anonimizada en el período (lecturas no válidas, sesiones expiradas o abandonadas…)
     motivosTecnicos: list[CountBy] = []
-    total: int
+    total: int  # histórico (desde la creación de la base), sin filtro de período
     enPeriodo: int
     oximetria: int
     glucosaExperimental: int
-    completadas: int
-    canceladas: int
-    invalidas: int
+    completadas: int  # histórico
+    canceladas: int  # histórico
+    invalidas: int  # histórico
+    # Mismos estados, pero solo del período elegido (las tarjetas de volumen operativo las usan).
+    completadasPeriodo: int = 0
+    canceladasPeriodo: int = 0
+    invalidasPeriodo: int = 0
     porEstado: dict[str, int]
     serie: list[DayCount]
 
