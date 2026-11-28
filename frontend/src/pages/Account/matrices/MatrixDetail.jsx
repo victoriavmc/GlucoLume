@@ -5,7 +5,7 @@
 //
 // Aviso: los límites de glucosa de referencia no son un algoritmo de estimación. Elegir una regla no calcula glucosa.
 
-import { Archive, CheckCircle2, CopyPlus, Download, History, Pencil, Play, PowerOff, ShieldCheck, Trash2 } from 'lucide-react';
+import { Archive, Bell, BellOff, CheckCircle2, CopyPlus, Download, History, Pencil, Play, PowerOff, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import * as matricesApi from '../../../api/matricesApi.js';
@@ -203,6 +203,13 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, onDeleted, handleOperatio
   if (!matrix) return <p className="field-hint" role="status">Cargando matriz…</p>;
 
   const { permisos } = matrix;
+  // Los avisos de vencimiento se activan o desactivan en cualquier momento; no cambian la matriz, así que no piden confirmación.
+  function toggleExpiryAlert() {
+    const recibir = Boolean(matrix.avisoVencimientoSilenciado);
+    return run('expiryAlert', () => matricesApi.setExpiryAlert(idMatriz, recibir),
+      recibir ? 'Vas a volver a recibir los avisos de vencimiento de esta matriz.' : 'Dejaste de recibir los avisos de vencimiento de esta matriz.');
+  }
+
   const CONFIRMS = {
     activate: { text: matrix.estado === 'BORRADOR' ? '¿Activar esta versión? La activa actual dejará de usarse para nuevas mediciones.' : '¿Volver a activar esta versión?', run: () => run('activate', () => matricesApi.activateMatrix(idMatriz), 'La versión quedó activa.') },
     deactivate: { text: '¿Desactivar esta versión? Las nuevas mediciones usarán la matriz de respaldo.', run: () => run('deactivate', () => matricesApi.deactivateMatrix(idMatriz), 'La versión quedó inactiva.') },
@@ -249,6 +256,11 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, onDeleted, handleOperatio
         {matrix.estado !== 'BORRADOR' && (
           <p className="field-hint">Una versión activada no se edita. Para cambiarla, creá una versión nueva.</p>
         )}
+        {permisos.puedeCambiarAvisoVencimiento && (
+          <p className="field-hint" role="status">
+            Avisos de vencimiento: {matrix.avisoVencimientoSilenciado ? 'desactivados (no te llegará ningún aviso de esta matriz)' : 'activados (te avisamos a 10, 5, 3, 2 y 1 día antes, el día del vencimiento y, si ya venció, cada 24 horas)'}.
+          </p>
+        )}
 
         <div className="form-actions" aria-label="Acciones de la matriz">
           {confirming ? (
@@ -289,6 +301,12 @@ export function MatrixDetail({ idMatriz, onOpenMatrix, onDeleted, handleOperatio
               {permisos.puedeEliminar && (
                 <button type="button" className="btn btn-ghost" onClick={() => setConfirming('delete')}>
                   <Trash2 size={16} aria-hidden="true" /> Borrar versión
+                </button>
+              )}
+              {permisos.puedeCambiarAvisoVencimiento && (
+                <button type="button" className="btn btn-ghost" disabled={busy} onClick={toggleExpiryAlert}>
+                  {matrix.avisoVencimientoSilenciado ? <Bell size={16} aria-hidden="true" /> : <BellOff size={16} aria-hidden="true" />}
+                  {matrix.avisoVencimientoSilenciado ? ' Recibir avisos de vencimiento' : ' Dejar de recibir avisos de vencimiento'}
                 </button>
               )}
               <div className="export-toolbar">

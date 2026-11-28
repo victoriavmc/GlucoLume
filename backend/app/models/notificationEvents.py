@@ -39,6 +39,9 @@ MEDICION_REALIZADA = "MEDICION_REALIZADA"
 PLATAFORMA_TRANSFERENCIA_SOLICITADA = "PLATAFORMA_TRANSFERENCIA_SOLICITADA"  # al moderador a quien se ofrece la administración
 PLATAFORMA_TRANSFERENCIA_RESPONDIDA = "PLATAFORMA_TRANSFERENCIA_RESPONDIDA"  # al administrador: aceptada o rechazada
 PLATAFORMA_MODERADOR_ACTIVO = "PLATAFORMA_MODERADOR_ACTIVO"  # al administrador: un moderador activó su cuenta
+# Matriz global activa que está por vencer (10, 5, 3, 2 y 1 día antes) o ya venció (services/matrixExpiryAlerts.py). Solo al administrador,
+# por la página y por correo.
+PLATAFORMA_MATRIZ_VENCIMIENTO = "PLATAFORMA_MATRIZ_VENCIMIENTO"
 
 CATEGORIA_SEGURIDAD = "SEGURIDAD"
 CATEGORIA_GRUPO = "GRUPO"
@@ -91,6 +94,8 @@ CATALOGO: dict[str, EventSpec] = {
     PLATAFORMA_TRANSFERENCIA_SOLICITADA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
     PLATAFORMA_TRANSFERENCIA_RESPONDIDA: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
     PLATAFORMA_MODERADOR_ACTIVO: EventSpec(CATEGORIA_PLATAFORMA, porCorreo=False, correo=False, plataforma=True),
+    # Por correo también (por omisión activo): el correo lleva al detalle de la matriz para dejar el aviso o crear una versión.
+    PLATAFORMA_MATRIZ_VENCIMIENTO: EventSpec(CATEGORIA_PLATAFORMA, plataforma=True),
 }
 EVENTOS = tuple(CATALOGO)
 

@@ -116,6 +116,8 @@ class EmailEventType(StrEnum):
     ALERTA_INTENTO_ACCESO_ADMIN = "ALERTA_INTENTO_ACCESO_ADMIN"
     TRANSFERENCIA_ADMIN_SOLICITADA = "TRANSFERENCIA_ADMIN_SOLICITADA"
     TRANSFERENCIA_ADMIN_RESPONDIDA = "TRANSFERENCIA_ADMIN_RESPONDIDA"
+    # Matriz global activa que vence o ya venció (services/matrixExpiryAlerts.py): al administrador.
+    MATRIZ_VENCIMIENTO = "MATRIZ_VENCIMIENTO"
     ADMINISTRACION_ASIGNADA = "ADMINISTRACION_ASIGNADA"
     INSTITUCION_PAUSADA = "INSTITUCION_PAUSADA"
     INSTITUCION_REACTIVADA = "INSTITUCION_REACTIVADA"
@@ -487,6 +489,10 @@ EMAIL_EVENTS: dict[EmailEventType, EmailEventSpec] = {
         "plataforma/transferenciaSolicitada.html", "Te ofrecen la administración de GlucoLume", CATEGORIA_PLATAFORMA,
         ("nombreAdministrador", "fechaEvento", "urlTransferencia"), ("urlTransferencia",), securityNotice=True,
         highPriority=True,
+    ),
+    _E.MATRIZ_VENCIMIENTO: EmailEventSpec(
+        "plataforma/matrizVencimiento.html", "Una matriz de GlucoLume está por vencer", CATEGORIA_PLATAFORMA,
+        ("descripcion", "nombreMatriz", "version", "fechaVencimiento", "fechaEvento", "urlMatriz"), ("urlMatriz",),
     ),
     _E.TRANSFERENCIA_ADMIN_RESPONDIDA: EmailEventSpec(
         "plataforma/transferenciaRespondida.html", "Respuesta a la transferencia de administración", CATEGORIA_PLATAFORMA,

@@ -3,8 +3,8 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import NVARCHAR, CheckConstraint, Date, ForeignKey, Index, UniqueConstraint, text
-from sqlalchemy.dialects.mssql import DATETIME2, UNIQUEIDENTIFIER
+from sqlalchemy import NVARCHAR, CheckConstraint, Date, ForeignKey, Index, SmallInteger, UniqueConstraint, text
+from sqlalchemy.dialects.mssql import BIT, DATETIME2, UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -58,5 +58,13 @@ class Matrix(Base):
     referenciaBase: Mapped[str] = mapped_column(NVARCHAR(200))
     estado:Mapped[str] = mapped_column(NVARCHAR(30), server_default=text("N'BORRADOR'"))
     fechaCreacion: Mapped[datetime] = mapped_column(DATETIME2(precision=3), server_default=text("sysutcdatetime()"))
+    # Estado de los avisos de vencimiento al administrador de la plataforma (services/matrixExpiryAlerts.py). No son datos de la matriz:
+    # no cambian su contenido, así que una ACTIVA sigue siendo inmutable.
+    #   avisoVencimientoNivel: último umbral avisado (10, 5, 3, 2 o 1 día antes); NULL = ninguno.
+    #   avisoVencimientoUltimo: último aviso de «vencida» (se repite cada 24 h).
+    #   avisoVencimientoSilenciado: el administrador eligió no recibir los avisos de esta matriz (puede cambiarlo en cualquier momento).
+    avisoVencimientoNivel: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    avisoVencimientoUltimo: Mapped[datetime | None] = mapped_column(DATETIME2(precision=3), nullable=True)
+    avisoVencimientoSilenciado: Mapped[bool] = mapped_column(BIT, server_default=text("0"))
 
     institucion: Mapped[Institution | None] = relationship()

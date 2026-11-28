@@ -127,6 +127,8 @@ Sección `/plataforma/matrices`. La matriz global es la referencia para las cuen
 
 Una matriz activa no se edita: para cambiarla se crea una versión nueva. Cada paso queda auditado.
 
+**Vigencia.** Cuando una matriz global activa tiene fecha de fin, el administrador recibe un aviso en la bandeja de Notificaciones al llegar a 10, 5, 3, 2 y 1 día antes, y el día del vencimiento. Si ya venció, el aviso se repite cada 24 horas. Podés elegir en cualquier momento si querés recibirlos: en el detalle de la matriz, **Dejar de recibir avisos de vencimiento** o **Recibir avisos de vencimiento** (la matriz no cambia). Al reactivarlos, el siguiente aviso es el que corresponde a la fecha de hoy. Los avisos los envía el servicio `notifications`. Las matrices de una institución no generan este aviso: las administra su propietario.
+
 📷 **Captura 16** — listado de matrices globales.
 📷 **Captura 17** — detalle de una matriz con reglas y validación.
 

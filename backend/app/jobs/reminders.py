@@ -32,7 +32,7 @@ from app.core.config import getSettings
 from app.db.session import getJobsSessionFactory
 from app.models.reminderSchedule import ReminderSchedule
 from app.models.user import User
-from app.services import notificationRetention, userNotifications
+from app.services import matrixExpiryAlerts, notificationRetention, userNotifications
 from app.utils.timeZone import nowForDb
 
 
@@ -58,7 +58,14 @@ def run(db: Session, now=None) -> dict:
             continue
         if userNotifications.processReminders(db, user, schedule, now):
             notified += 1
-    return {"revisadas": reviewed, "avisadas": notified, "reintentos": retried}
+    # Vigencia de las matrices globales activas (aviso al administrador de la plataforma). Un fallo aquí no frena los recordatorios.
+    try:
+        expiry = matrixExpiryAlerts.run(db, now)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló el aviso de vigencia de matrices")
+        db.rollback()
+        expiry = {"avisos": None}
+    return {"revisadas": reviewed, "avisadas": notified, "reintentos": retried, "vigenciaMatrices": expiry["avisos"]}
 
 
 def beat() -> None:

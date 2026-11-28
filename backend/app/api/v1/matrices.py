@@ -14,6 +14,7 @@ from app.schemas.matrix import (
     MatrixCreateRequest,
     MatrixDetail,
     MatrixDraftUpdateRequest,
+    MatrixExpiryAlertUpdate,
     MatrixItem,
     MatrixRuleInput,
     MatrixRulesCheckRequest,
@@ -81,6 +82,13 @@ def activate(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
 @router.post("/{idMatriz}/deactivate", response_model=MatrixDetail, summary="Desactivar la versión activa")
 def deactivate(idMatriz: uuid.UUID, auth: CurrentAuth, db: DbSession):
     return matrixService.deactivate(db, auth.user, idMatriz)
+
+
+@router.put("/{idMatriz}/aviso-vencimiento", response_model=MatrixDetail,
+            summary="Elegir si se reciben los avisos de vencimiento de una matriz global",
+            description="Solo ADMINISTRADOR_PLATAFORMA, en una matriz global ACTIVA; en cualquier momento. No cambia la matriz.")
+def setExpiryAlert(idMatriz: uuid.UUID, body: MatrixExpiryAlertUpdate, auth: CurrentAuth, db: DbSession):
+    return matrixService.setExpiryAlert(db, auth.user, idMatriz, body.recibir)
 
 
 @router.post("/{idMatriz}/archive", response_model=MatrixDetail, summary="Archivar una versión",

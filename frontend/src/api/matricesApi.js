@@ -54,6 +54,10 @@ export const deleteMatrix = (idMatriz) => request(`/matrices/${idMatriz}`, { met
 export const activateMatrix = (idMatriz) => action(idMatriz, 'activate');
 export const deactivateMatrix = (idMatriz) => action(idMatriz, 'deactivate');
 export const archiveMatrix = (idMatriz) => action(idMatriz, 'archive');
+/** Solo el administrador de la plataforma, en una matriz global activa, en cualquier momento: recibir (true) o no (false) los avisos de vencimiento. */
+export function setExpiryAlert(idMatriz, recibir) {
+  return request(`/matrices/${idMatriz}/aviso-vencimiento`, { method: 'PUT', body: { recibir }, auth: true });
+}
 
 /** Auditoría: global solo para plataforma; institucional solo para el propietario. */
 export function getMatrixAudit(idMatriz) {

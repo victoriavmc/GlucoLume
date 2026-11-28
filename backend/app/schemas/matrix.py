@@ -346,6 +346,8 @@ class MatrixPermissions(BaseModel):
     puedeEliminar: bool
     puedeCrearVersion: bool
     puedeVerAuditoria: bool
+    # Solo el administrador de la plataforma, en una matriz global activa: elige si recibe sus avisos de vencimiento.
+    puedeCambiarAvisoVencimiento: bool = False
 
 
 class MatrixModifier(BaseModel):
@@ -358,6 +360,8 @@ class MatrixDetail(MatrixItem):
     nombreInstitucion: str | None
     reglas: list[MatrixRuleView]
     permisos: MatrixPermissions
+    # Avisos de vencimiento al administrador de la plataforma: True = no se le envían para esta matriz.
+    avisoVencimientoSilenciado: bool = False
     # Solo para quien puede consultar la auditoría (moderación de plataforma / propietario de la institución).
     creadaPor: MatrixModifier | None = None
     ultimaModificacion: MatrixModifier | None = None
@@ -384,3 +388,9 @@ class InstitutionMatrixOverview(BaseModel):
     globalActiva: MatrixSummary | None
     efectiva: MatrixSummary | None
     versiones: list[MatrixItem]
+
+
+class MatrixExpiryAlertUpdate(BaseModel):
+    """El administrador elige si quiere recibir los avisos de vencimiento de la matriz global (en cualquier momento)."""
+
+    recibir: bool

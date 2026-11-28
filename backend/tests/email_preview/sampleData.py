@@ -182,6 +182,7 @@ def sampleContexts() -> dict[E, dict]:
             "urlTransferencia": frontendUrl("/plataforma/transferencia"),
         },
         E.TRANSFERENCIA_ADMIN_RESPONDIDA: {**base, "aceptada": True, "nombreDestinatario": "Laura Díaz", "fechaEvento": now},
+        E.MATRIZ_VENCIMIENTO: {**base, "descripcion": "La matriz «Matriz GlucoLume» (versión 2) está activa y faltan 5 días para que venza (10/12/2026).", "nombreMatriz": "Matriz GlucoLume", "version": "2", "fechaVencimiento": "10/12/2026", "fechaEvento": now, "urlMatriz": frontendUrl("/app/matrices/ejemplo")},
         E.ADMINISTRACION_ASIGNADA: {**base, "fechaEvento": now, "urlAcceso": frontendUrl("/plataforma/login")},
         E.INSTITUCION_PAUSADA: {**base, "nombreInstitucion": "Institución de ejemplo", "motivo": "Revisión de seguridad", "fechaEvento": now},
         E.INSTITUCION_REACTIVADA: {**base, "nombreInstitucion": "Institución de ejemplo", "fechaEvento": now},

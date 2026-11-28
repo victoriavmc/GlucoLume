@@ -68,6 +68,7 @@ from app.schemas.matrix import (
 from app.services import institution as institutions
 from app.services.audit import registerEvent
 from app.services.csvExport import csvDate, csvText
+from app.services.matrixExport import MatrixHeader, MatrixRuleRow, matrixFile
 from app.services.tableExport import tableFile
 from app.services.exportAudit import auditedExport, rejectExport
 from app.utils.timeZone import nowForDb
@@ -209,6 +210,10 @@ def _modifier(db: Session, idMatriz: uuid.UUID, first: bool) -> MatrixModifier |
     return MatrixModifier(fecha=audit.fechaHora, por=f"{user.nombre or ''} {user.apellido or ''}".strip() if user else None)
 
 
+def _vencida(matrix: Matrix) -> bool:
+    return matrix.fechaVigenciaHasta is not None and matrix.fechaVigenciaHasta < nowForDb().date()
+
+
 def _permissions(db: Session, access: Access) -> MatrixPermissions:
     matrix = access.matrix
     manage = access.canManage
@@ -220,6 +225,8 @@ def _permissions(db: Session, access: Access) -> MatrixPermissions:
         puedeEliminar=manage and matrix.estado != ACTIVA and _usage(db, matrix.idMatriz) == 0,
         puedeCrearVersion=manage and matrix.estado != BORRADOR,
         puedeVerAuditoria=access.canAudit,
+        # Para una global, canAudit solo lo tiene el administrador de la plataforma (ver _access): los avisos de vencimiento son suyos.
+        puedeCambiarAvisoVencimiento=access.canAudit and matrix.ambito == GLOBAL and matrix.estado == ACTIVA,
     )
 
 
@@ -237,6 +244,7 @@ def _detail(db: Session, access: Access) -> MatrixDetail:
             minutosComidaMax=r.minutosComidaMax, glucosaMinReferencia=r.glucosaMinReferencia,
             glucosaMaxReferencia=r.glucosaMaxReferencia) for r in rules],
         permisos=_permissions(db, access),
+        avisoVencimientoSilenciado=bool(matrix.avisoVencimientoSilenciado),
         creadaPor=_modifier(db, matrix.idMatriz, True) if access.canAudit else None,
         ultimaModificacion=_modifier(db, matrix.idMatriz, False) if access.canAudit else None,
     )
@@ -729,6 +737,29 @@ def archive(db: Session, actor: User, idMatriz: uuid.UUID) -> MatrixDetail:
     return _detail(db, _access(db, actor, idMatriz))
 
 
+def setExpiryAlert(db: Session, actor: User, idMatriz: uuid.UUID, recibir: bool) -> MatrixDetail:
+    """El administrador de la plataforma elige si quiere recibir los avisos de vencimiento de una matriz GLOBAL activa, en cualquier
+    momento (antes de vencer o después). No cambia la matriz: solo Matriz.avisoVencimientoSilenciado (services/matrixExpiryAlerts.py).
+    Al volver a recibirlos, el siguiente aviso es el que corresponda según la fecha de hoy. El moderador no lo puede cambiar."""
+    access = _access(db, actor, idMatriz)
+    _requireManage(db, actor, access, "CAMBIAR_AVISO_VENCIMIENTO_MATRIZ")
+    matrix = access.matrix
+    if actor.tipoCuenta != "ADMINISTRADOR_PLATAFORMA":
+        registerEvent(db, "PERMISO", "CAMBIAR_AVISO_VENCIMIENTO_MATRIZ", False, actor.idUsuario, "Matriz", matrix.idMatriz,
+                      observacion="Motivo: PERMISO_INSUFICIENTE")
+        db.commit()
+        raise _error("PERMISO_INSUFICIENTE", DENIED)
+    if matrix.ambito != GLOBAL or matrix.estado != ACTIVA:
+        raise _error("MATRIZ_ESTADO_INVALIDO", "Los avisos de vencimiento son de una matriz global activa.")
+    silenced = not recibir
+    if bool(matrix.avisoVencimientoSilenciado) != silenced:
+        matrix.avisoVencimientoSilenciado = silenced
+        _audit(db, actor, "DESACTIVAR_AVISO_VENCIMIENTO_MATRIZ" if silenced else "ACTIVAR_AVISO_VENCIMIENTO_MATRIZ", matrix)
+    db.commit()
+    db.expire_all()
+    return _detail(db, _access(db, actor, idMatriz))
+
+
 def deleteVersion(db: Session, actor: User, idMatriz: uuid.UUID) -> None:
     """Borra una versión que nunca se usó en una medición (sus reglas se borran con ella). Una ACTIVA primero se desactiva;
     una versión usada se conserva en el historial: para retirarla se archiva."""
@@ -780,8 +811,28 @@ def _safeName(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip("-") or "matriz"
 
 
+def _origen(matrix: Matrix, institutionName: str | None) -> str:
+    return "Global (GlucoLume)" if matrix.ambito == GLOBAL else (institutionName or "Institución")
+
+
+def _matrixHeader(matrix: Matrix, institutionName: str | None) -> MatrixHeader:
+    return MatrixHeader(
+        nombre=matrix.nombre, version=matrix.version, origen=_origen(matrix, institutionName),
+        estado=_ESTADO_LABELS.get(matrix.estado, matrix.estado), vigenciaDesde=matrix.fechaVigenciaDesde,
+        vigenciaHasta=matrix.fechaVigenciaHasta, referenciaBase=matrix.referenciaBase or "", urlReferencia=matrix.urlReferencia or "",
+    )
+
+
+def _matrixRuleRows(rules: list[MatrixRule]) -> list[MatrixRuleRow]:
+    return [MatrixRuleRow(
+        codigo=r.codigoRegla, sexo=_SEXO_LABELS.get(r.sexoModelo, r.sexoModelo), edadDesde=r.edadDesde, edadHasta=r.edadHasta,
+        condicion=_CONDICION_LABELS.get(r.condicionComida, r.condicionComida), minutosMin=r.minutosComidaMin,
+        minutosMax=r.minutosComidaMax, glucosaMin=r.glucosaMinReferencia, glucosaMax=r.glucosaMaxReferencia,
+    ) for r in rules]
+
+
 def _matrixRows(matrix: Matrix, institutionName: str | None, rules: list[MatrixRule]) -> list[list[str]]:
-    origin = "Global (GlucoLume)" if matrix.ambito == GLOBAL else (institutionName or "Institución")
+    origin = _origen(matrix, institutionName)
     common = [
         csvText(matrix.nombre), csvText(matrix.version), csvText(origin), csvText(_ESTADO_LABELS.get(matrix.estado, matrix.estado)),
         csvDate(matrix.fechaVigenciaDesde), csvDate(matrix.fechaVigenciaHasta), csvText(matrix.referenciaBase), csvText(matrix.urlReferencia),
@@ -813,6 +864,10 @@ def exportMatrix(db: Session, actor: User, idMatriz: uuid.UUID, formato: str = "
     with auditedExport(db, actor, EXPORT_TIPO_DATOS, ambito=_exportAmbito(matrix), idInstitucion=matrix.idInstitucion, formato=formato.upper()) as export:
         export.registros = len(rules)
         now = nowForDb()
-        return tableFile(formato, f"matriz-{_safeName(matrix.nombre)}-{_safeName(matrix.version)}-{now:%Y%m%d-%H%M}",
-                         f"Matriz {matrix.nombre} ({matrix.version})", MATRIX_EXPORT_COLUMNS,
-                         _matrixRows(matrix, institution.nombre if institution else None, rules), now)
+        nombreBase = f"matriz-{_safeName(matrix.nombre)}-{_safeName(matrix.version)}-{now:%Y%m%d-%H%M}"
+        institutionName = institution.nombre if institution else None
+        if formato == "csv":
+            return tableFile("csv", nombreBase, f"Matriz {matrix.nombre}", MATRIX_EXPORT_COLUMNS,
+                             _matrixRows(matrix, institutionName, rules), now)
+        return matrixFile(formato, nombreBase, f"Matriz {matrix.nombre}", MATRIX_EXPORT_COLUMNS,
+                          _matrixHeader(matrix, institutionName), _matrixRuleRows(rules), now)

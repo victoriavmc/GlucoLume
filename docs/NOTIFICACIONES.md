@@ -53,6 +53,7 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | Institución | `INSTITUCION_SOLICITUD_NUEVA` | Otro operador pide un paciente, o la gestión propone uno. Llega al operador destino | No | Preferencia, encendido por omisión. Es el correo `TRANSFERENCIA_SOLICITADA` del flujo |
 | Institución | `INSTITUCION_SOLICITUD_ACEPTADA` | El destino acepta la solicitud. Llega al operador de origen | No | Preferencia, encendido por omisión. Es el correo `TRANSFERENCIA_ACEPTADA` del flujo |
 | Institución | `INSTITUCION_SOLICITUD_RECHAZADA` | El destino rechaza la solicitud. Llega al operador de origen | No | Preferencia, encendido por omisión. Es el correo `TRANSFERENCIA_RECHAZADA` del flujo |
+| Plataforma | `PLATAFORMA_MATRIZ_VENCIMIENTO` | Una matriz **global** activa vence en 10, 5, 3, 2 o 1 día, o ya venció (cada 24 h si ya venció); el administrador puede desactivar o reactivar estos avisos en cualquier momento. Solo al administrador de la plataforma, por la página y por correo (`services/matrixExpiryAlerts.py`; el correo lleva al detalle de la matriz para dejar el aviso o crear una versión nueva) | No | Preferencia, encendido por omisión (`MATRIZ_VENCIMIENTO`) |
 
 - **Institución (`services/institutionNotifications.py`):** se disparan después del commit del hecho. Cada hecho sale por correo **una sola vez**, según la preferencia de la cuenta: si el flujo ya enviaba un correo a esa persona, ese correo es el que se rige por la preferencia (encendido por omisión, como antes); si no, el correo es `AVISO_INSTITUCION` (apagado por omisión). Excepción: los avisos de operador (alta y baja) comparten un mismo interruptor para propietarios y moderadores, así que los moderadores reciben `AVISO_INSTITUCION` con el interruptor encendido por omisión, aunque no tengan correo de flujo. Los avisos nunca incluyen datos del paciente, solo su identificador seudónimo. Hoy **no hay un flujo de cambio de propietario** en el sistema, así que no genera aviso alguno.
 - **Sin canal de correo propio** (`correo = false` en el catálogo): la preferencia lo informa con `correoDisponible = false`, la pantalla no ofrece el interruptor «Por correo» y `PUT /preferencias/{evento}` con `porCorreo = true` responde `409 CANAL_NO_DISPONIBLE`.
@@ -92,6 +93,7 @@ El catálogo vive en `backend/app/models/notificationEvents.py` (también arma e
 | Incorporación | `AGREGADO_GRUPO:<idGrupoUsuario>` |
 | Novedad del grupo | `NUEVA_ACCION_GRUPO:<idGrupoUsuario>:SUMA` o `:SALE` |
 | Medición del grupo | `MEDICION_GRUPO:<idUsuario>:<fin de la medición>` |
+| Vigencia de matriz | `PLATAFORMA_MATRIZ_VENCIMIENTO:<idMatriz>:<umbral>` (10, 5, 3, 2, 1) o `…:VENCIDA:<instante>` (cada 24 h) |
 
 Sin `clave`, el aviso se trata como hecho único (clave aleatoria): ningún flujo del sistema lo hace.
 
@@ -131,6 +133,8 @@ Sigue igual: cada inicio de sesión (con o sin aviso) queda en `Auditoria` (`LOG
 Comandos: `python -m app.jobs.reminders --loop | --health | ejecutar | depurar | previsualizar` (`depurar` es el mismo borrado que hace solo el servicio `notifications` cada hora, a demanda).
 
 ## 8. Cambios de esquema
+
+**Vencimiento de matrices (aviso al administrador):** [GlucoLume_matriz_vencimiento.sql](../database/reference/GlucoLume_matriz_vencimiento.sql) agrega a `Matriz` las columnas `avisoVencimientoNivel`, `avisoVencimientoUltimo` y `avisoVencimientoSilenciado`, reemplaza los dos CHECK de `evento` para admitir `PLATAFORMA_MATRIZ_VENCIMIENTO` y da `UPDATE` sobre `Matriz` al rol de retención (el servicio `notifications`). Exige `-v CONFIRMAR="ACTUALIZAR_MATRIZ_VENCIMIENTO"` y se aplica **después** de v8. Mientras no se aplique, el aviso no se guarda y la matriz sigue igual.
 
 **v8 (medición realizada, cuentas individuales):** [GlucoLume_notificaciones_v8.sql](../database/reference/GlucoLume_notificaciones_v8.sql) reemplaza los dos CHECK de `evento` para admitir `MEDICION_REALIZADA`. Igual que v4–v7: no modifica ni borra filas, es idempotente, exige `-v CONFIRMAR="ACTUALIZAR_NOTIFICACIONES_V8"` y se aplica **después** de v7. Mientras no se aplique, el aviso de cada medición no se guarda (queda como error en el log) y el guardado de la medición y su correo siguen igual. Las instalaciones nuevas ya lo tienen en [GlucoLume_DB_v5.sql](../database/reference/GlucoLume_DB_v5.sql), que se mantiene igual que el modelo.
 

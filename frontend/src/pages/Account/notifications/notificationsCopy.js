@@ -150,7 +150,7 @@ export function presentacion(notificacion) {
 }
 
 // Destinos que existen en App.jsx. El backend ya solo guarda estos, pero la pantalla no confía en un texto recibido para navegar.
-const DESTINOS = ['/app/mediciones', '/app/grupo', '/app/seguridad', '/app/instituciones', RUTA_BANDEJA];
+const DESTINOS = ['/app/mediciones', '/app/grupo', '/app/seguridad', '/app/instituciones', '/app/matrices', RUTA_BANDEJA];
 
 /** Ruta interna válida a la que lleva el aviso, o null (sin enlaces externos ni rutas inventadas). */
 export function destinoSeguro(url) {

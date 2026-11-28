@@ -108,8 +108,13 @@ def test_la_matriz_sale_en_excel_y_en_pdf_con_una_fila_por_regla(db, mails, plat
     draft = newMatrix(db, platform, rules=(None, rule(sexoModelo="MASCULINO")))
     content, filename = matrices.exportMatrix(db, platform, draft.idMatriz, formato="xlsx")
     assert filename.startswith("matriz-") and filename.endswith(".xlsx")
-    sheet = openpyxl.load_workbook(io.BytesIO(content)).active
+    book = openpyxl.load_workbook(io.BytesIO(content))
+    assert book.sheetnames == ["Resumen", "Matriz"]
+    assert len(book["Resumen"]._images) == 1  # banner completo en el resumen
+    sheet = book["Matriz"]
     assert [cell.value for cell in sheet[1]] == list(matrices.MATRIX_EXPORT_COLUMNS)
     assert sheet.max_row == 3  # encabezado + una fila por regla
+    assert sheet.freeze_panes == "B2" and sheet.auto_filter.ref == "A1:Q3"
+    assert sheet.print_title_rows == "$1:$1"  # el encabezado se repite en cada hoja impresa
     pdf, filename = matrices.exportMatrix(db, platform, draft.idMatriz, formato="pdf")
     assert filename.endswith(".pdf") and pdf.startswith(b"%PDF-")

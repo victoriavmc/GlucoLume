@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Una matriz de GlucoLume está por vencer{% endblock %}
+{% block contenido %}
+<p style="{{ m.P }}">{{ descripcion }}</p>
+{{ m.datos([("Matriz", nombreMatriz), ("Versión", version), ("Vigencia hasta", fechaVencimiento), ("Fecha del aviso", fechaEvento|fechaHora)]) }}
+<p style="{{ m.P }}">Desde la matriz podés modificar este aviso (dejar de recibirlo, si ya no corresponde) o crear una versión nueva con las reglas actualizadas. La matriz activa no cambia hasta que actives otra versión.</p>
+{{ m.boton(urlMatriz, "Ver la matriz en GlucoLume") }}
+{% endblock %}
+{% block complemento %}
+<p style="{{ m.P_SUAVE }}">Recibís este correo porque sos administrador de la plataforma. Podés desactivarlo en «Notificaciones» de GlucoLume.</p>
+{% endblock %}
