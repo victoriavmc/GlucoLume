@@ -246,7 +246,8 @@ def _spec(profileKey: str, index: int, dayOffset: int, hour: int, minute: int, e
         minutosComida = rng.randint(480, 720)
     elif condicion == "POSTPRANDIAL":
         minutosComida = rng.randint(45, 180)
-    glucosa = _glucosaDemo(rng, condicion) if completed and modo == MODO_GLUCOSA else None
+    # Glucosa de dispositivo sintética (DEMO) en ambos modos; la estimada (glucosaEstimada) queda NULL siempre.
+    glucosa = _glucosaDemo(rng, condicion) if completed else None
     return MeasurementSpec(
         profileKey=profileKey, index=index, dayOffset=dayOffset, hour=hour, minute=minute, modo=modo, estado=estado,
         condicion=condicion, minutosDesdeComida=minutosComida,
@@ -928,12 +929,13 @@ def _measurementRecord(spec: MeasurementSpec, profileId, birth: date | None, sex
                        deviceKey: str, matrixId: uuid.UUID | None) -> Measurement:
     start = spec.start(anchor)
     completed = spec.estado == ESTADO_COMPLETADA
-    glucose = spec.glucosa  # solo en mediciones de glucosa completadas (DEMO); la oximetría no informa glucosa
+    glucose = spec.glucosa  # glucosa de dispositivo DEMO en mediciones completadas, de ambos modos
     lastMeal = start - timedelta(minutes=spec.minutosDesdeComida) if spec.minutosDesdeComida is not None else None
     deviceId = next(device.id for device in DEVICES if device.key == deviceKey)
     return Measurement(
         idMedicion=spec.id, idPerfilMedicion=profileId, idDispositivo=deviceId,
-        idMatriz=matrixId if glucose is not None else None,
+        # La matriz clasifica la glucosa estimada del modo GLUCOSA_EXPERIMENTAL; la oximetría no lleva matriz.
+        idMatriz=matrixId if glucose is not None and spec.modo == MODO_GLUCOSA else None,
         modoMedicion=spec.modo, estadoMedicion=spec.estado, fechaHoraInicio=start, fechaHoraFin=start + timedelta(minutes=2),
         fechaHoraUltimaComida=lastMeal, condicionComida=spec.condicion,
         edadAlMomento=calculateAge(birth, start.date()) if birth else None, sexoModelo=sex,

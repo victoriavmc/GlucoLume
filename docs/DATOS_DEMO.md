@@ -133,7 +133,7 @@ Sin cambios: modelos, servicios de negocio, permisos existentes, matrices, regla
 ## 5. Mediciones sintéticas
 
 - **Identificación.** Cada medición lleva en `observacion`: *«DEMO - medición sintética de demostración académica. No es un dato médico ni un resultado validado.»*
-- **Origen.** Las mediciones con glucosa usan `origenGlucosa = DEMO` (el valor permitido por la base). La oximetría no informa glucosa, así que su `origenGlucosa` queda `NULL`: su identificación sintética está en la observación y en el perfil.
+- **Origen.** Las mediciones completadas, de ambos modos, llevan `glucosaDispositivo` sintética con `origenGlucosa = DEMO` (el valor permitido por la base). La glucosa estimada (`glucosaEstimada`) queda `NULL` siempre. Solo las de `GLUCOSA_EXPERIMENTAL` se clasifican con la matriz; la oximetría no lleva matriz.
 - **Variedad.** Modos `GLUCOSA_EXPERIMENTAL` y `OXIMETRIA`; estados `COMPLETADA`, `CANCELADA` e `INVALIDA`; condiciones `AYUNO`, `POSTPRANDIAL` y `NO_INFORMADA` (con `fechaHoraUltimaComida` cuando corresponde); fechas desde el 1/1/2022 hasta hoy, con 2 o 3 mediciones todos los días en cada cuenta.
 - **Rangos.** Frecuencia cardíaca 52–110 lpm con una base por perfil; SpO₂ 95,0–99,5 %; glucosa 78–104 mg/dL en ayunas, 118–172 en postprandial y 92–138 sin dato de comida (solo para la demostración de gráficos, no clínicos).
 - **Calidad de señal.** Calidad 0,72–0,98, índice óptico 1,8–2,9, 8–25 lecturas estabilizadas, sensor `MAX30100`.

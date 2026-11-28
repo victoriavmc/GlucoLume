@@ -449,10 +449,12 @@ def test_glucosa_demo_referencia_la_matriz_activa_y_puede_clasificarse(db, engin
     plan = seeder.buildPlan(db, anchor=ANCHOR, passwords=allPasswords())
     assert not any("SIN_MATRIZ" in advertencia for advertencia in plan.advertencias)
     seeder.apply(db, plan)
-    glucose = db.scalars(select(Measurement).where(Measurement.glucosaDispositivo.is_not(None))).all()
+    glucose = db.scalars(select(Measurement).where(Measurement.glucosaDispositivo.is_not(None),
+                                                   Measurement.modoMedicion == seeder.MODO_GLUCOSA)).all()
     assert glucose and all(row.idMatriz == matrixId for row in glucose)
+    # La oximetría también lleva glucosa de dispositivo DEMO, pero no se clasifica con la matriz.
     assert all(row.idMatriz is None for row in db.scalars(select(Measurement).where(
-        Measurement.glucosaDispositivo.is_(None))).all())
+        Measurement.modoMedicion == seeder.MODO_OXIMETRIA)).all())
     assert glucoseReference.build(db, glucose[0]).estado != "SIN_MATRIZ"
 
 
