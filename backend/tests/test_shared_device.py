@@ -201,7 +201,8 @@ def test_el_arduino_registrado_no_pertenece_a_ninguna_cuenta(db, two, bridge, cl
     dev = device(db, codigo=CODE)
     assert dev.idInstitucionAsignada is None and dev.idInstitucionUsuarioResponsable is None
     (a, profileA), (b, profileB) = two
-    assert [d.idDispositivo for d in measurements.listDevices(db, a, profileA)] == [dev.idDispositivo]
-    assert [d.idDispositivo for d in measurements.listDevices(db, b, profileB)] == [dev.idDispositivo]
+    # Cuenta individual: solo ve su dispositivo vinculado (app/services/measurement.py). Sin vincular, ninguna cuenta lo ve.
+    assert measurements.listDevices(db, a, profileA) == []
+    assert measurements.listDevices(db, b, profileB) == []
     with pytest.raises(AuthError):
         measurements.listDevices(db, b, profileA)  # compartir el equipo no es compartir el perfil

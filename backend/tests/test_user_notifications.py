@@ -223,8 +223,8 @@ def test_el_proceso_de_recordatorios_avisa_una_sola_vez(db, mails):
     row.ultimoAviso = datetime(2026, 10, 29, 9, 0)
     db.commit()
 
-    assert reminders.run(db, datetime(2026, 10, 30, 9, 0)) == {"revisadas": 1, "avisadas": 1, "reintentos": 0}
-    assert reminders.run(db, datetime(2026, 10, 30, 9, 0)) == {"revisadas": 1, "avisadas": 0, "reintentos": 0}
+    assert reminders.run(db, datetime(2026, 10, 30, 9, 0)) == {"revisadas": 1, "avisadas": 1, "reintentos": 0, "vigenciaMatrices": 0}
+    assert reminders.run(db, datetime(2026, 10, 30, 9, 0)) == {"revisadas": 1, "avisadas": 0, "reintentos": 0, "vigenciaMatrices": 0}
     assert len(mails) == 1
     assert len(rows(db, user, "RECORDATORIO_MEDICION")) == 1
 
@@ -505,7 +505,7 @@ def test_eliminar_la_programacion_apaga_los_recordatorios(db):
 
     assert service.settings(db, user).recordatorio.modo == "NINGUNO"
     assert service.dueReminderAt(row, row.ultimoAviso + timedelta(days=3)) is None
-    assert reminders.run(db, row.ultimoAviso + timedelta(days=3)) == {"revisadas": 0, "avisadas": 0, "reintentos": 0}
+    assert reminders.run(db, row.ultimoAviso + timedelta(days=3)) == {"revisadas": 0, "avisadas": 0, "reintentos": 0, "vigenciaMatrices": 0}
 
 
 def test_el_proceso_ignora_cuentas_que_no_estan_activas(db):
@@ -576,10 +576,10 @@ def test_el_proceso_reintenta_el_correo_de_un_recordatorio_fallido_sin_crear_otr
     now = scheduleOf(db, user).ultimoAviso + timedelta(hours=1, minutes=1)
     realSend = sender.sendHtmlEmail
     failSmtp(monkeypatch)
-    assert reminders.run(db, now) == {"revisadas": 1, "avisadas": 1, "reintentos": 0}
+    assert reminders.run(db, now) == {"revisadas": 1, "avisadas": 1, "reintentos": 0, "vigenciaMatrices": 0}
 
     monkeypatch.setattr(sender, "sendHtmlEmail", realSend)
-    assert reminders.run(db, now + timedelta(minutes=5)) == {"revisadas": 1, "avisadas": 0, "reintentos": 1}
+    assert reminders.run(db, now + timedelta(minutes=5)) == {"revisadas": 1, "avisadas": 0, "reintentos": 1, "vigenciaMatrices": 0}
 
     [row] = rows(db, user, "RECORDATORIO_MEDICION")
     assert (row.estadoCorreo, row.intentosCorreo) == ("ENVIADO", 2)
@@ -1243,7 +1243,7 @@ def test_la_migracion_v7_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
         assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
         assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
-    for evento in (e for e in notificationEvents.EVENTOS if e != "MEDICION_REALIZADA"):  # este aviso lo agrega la v8
+    for evento in (e for e in notificationEvents.EVENTOS if e not in ("MEDICION_REALIZADA", "PLATAFORMA_MATRIZ_VENCIMIENTO")):  # lo agregan v8 y matriz_vencimiento
         assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
     for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
         assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones
@@ -1261,7 +1261,7 @@ def test_la_migracion_v8_admite_todos_los_avisos_del_catalogo_y_es_idempotente()
     for constraint in ("CK_NotificacionUsuario_evento", "CK_PreferenciaNotificacion_evento"):
         assert script.count(f"CONSTRAINT [{constraint}] CHECK") == 1
         assert script.count(f"OBJECT_ID(N'dbo.{constraint}', N'C') IS NOT NULL") == 1  # se borra antes de volver a crearla
-    for evento in notificationEvents.EVENTOS:
+    for evento in (e for e in notificationEvents.EVENTOS if e != "PLATAFORMA_MATRIZ_VENCIMIENTO"):  # lo agrega matriz_vencimiento, después de v8
         assert script.count(f"[evento]=N'{evento}'") == 2, evento  # una vez por tabla
     for forbidden in ("DELETE FROM", "TRUNCATE", "DROP TABLE", "UPDATE "):
         assert forbidden not in code.upper(), forbidden  # no borra ni modifica filas: solo reemplaza restricciones

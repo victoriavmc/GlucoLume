@@ -393,4 +393,6 @@ class InstitutionMatrixOverview(BaseModel):
 class MatrixExpiryAlertUpdate(BaseModel):
     """El administrador elige si quiere recibir los avisos de vencimiento de la matriz global (en cualquier momento)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     recibir: bool
