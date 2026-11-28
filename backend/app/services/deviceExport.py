@@ -16,6 +16,7 @@ from app.models.institution import Institution
 from app.services import device as deviceService
 from app.services import schemaCompat
 from app.services.csvExport import csvDate, csvText
+from app.services.deviceReport import DeviceRecord, inventoryFile
 from app.services.exportAudit import auditedExport
 from app.services.tableExport import FormatoExportacion, tableFile
 from app.utils.timeZone import nowForDb
@@ -24,6 +25,7 @@ EXPORT_TIPO_DATOS = "DISPOSITIVOS"
 COLUMNS = ("Código", "Nombre", "Modelo", "Estado", "Uso", "Responsable", "Sensor", "Firmware", "Registrado",
            "Asignado a la institución desde")
 _ESTADO = {"OPERATIVO": "Operativo", "EN_MANTENIMIENTO": "En mantenimiento", "FUERA_DE_SERVICIO": "Fuera de servicio", "BAJA": "Descomisionado"}
+_TITULO = "Inventario de dispositivos"
 
 
 def _ambito(scope: deviceService.Scope) -> str:
@@ -55,21 +57,58 @@ def _responsable(item, scope: deviceService.Scope) -> str:
     return "Vos" if item.esMio else "Sin asignar"
 
 
-def _rows(db: Session, scope: deviceService.Scope, devices: list[Device]) -> list[list[str]]:
+def _records(db: Session, scope: deviceService.Scope, devices: list[Device]) -> list[DeviceRecord]:
+    """Un registro por dispositivo, con los mismos datos que muestra el listado para el alcance de la cuenta."""
     institutionName = None
     if scope.idInstitucion is not None:
         institution = db.get(Institution, scope.idInstitucion)
         institutionName = institution.nombre if institution else None
-    rows = []
+    records = []
     for device in devices:
         item = deviceService._item(db, device, scope)
-        rows.append([
-            csvText(device.codigoDispositivo), csvText(device.nombre), csvText(device.modelo),
-            csvText(_ESTADO.get(device.estado, device.estado)), csvText(_uso(item, institutionName)),
-            csvText(_responsable(item, scope)), csvText(device.modeloSensor), csvText(device.versionFirmware),
-            csvDate(item.fechaRegistro), csvDate(item.fechaAsignacionInstitucional),
-        ])
-    return rows
+        institucional = item.idInstitucionAsignada is not None
+        records.append(DeviceRecord(
+            codigo=device.codigoDispositivo, nombre=device.nombre, modelo=device.modelo,
+            estado=_ESTADO.get(device.estado, device.estado), operativo=device.estado == "OPERATIVO",
+            uso=_uso(item, institutionName), responsable=_responsable(item, scope), sensor=device.modeloSensor,
+            firmware=device.versionFirmware, registrado=item.fechaRegistro, institucional=institucional,
+            institucion=(item.nombreInstitucion or institutionName) if institucional else None,
+            incorporado=item.fechaAsignacionInstitucional,
+        ))
+    return records
+
+
+def _csvRows(records: list[DeviceRecord]) -> list[list[str]]:
+    """El CSV conserva sus columnas y su formato de siempre."""
+    return [[csvText(r.codigo), csvText(r.nombre), csvText(r.modelo), csvText(r.estado), csvText(r.uso), csvText(r.responsable),
+             csvText(r.sensor), csvText(r.firmware), csvDate(r.registrado), csvDate(r.incorporado)] for r in records]
+
+
+def _filtros(alcance: str, cantidad: int, busqueda: str | None, estado: str | None, asignado: bool | None,
+             uso: str | None) -> list[tuple[str, str]]:
+    """Solo los filtros que de verdad se aplicaron, en el mismo lenguaje que el listado."""
+    if alcance == "SELECCION":
+        return [("Alcance", f"Selección manual ({cantidad} marcados)")]
+    filtros = []
+    if busqueda and busqueda.strip():
+        filtros.append(("Búsqueda", busqueda.strip()))
+    if estado:
+        filtros.append(("Estado", _ESTADO.get(deviceService.ESTADO_ALIAS.get(estado, estado), estado)))
+    if asignado is True:
+        filtros.append(("Asignación", "Con institución"))
+    elif asignado is False:
+        filtros.append(("Asignación", "Sin institución"))
+    if uso == "INSTITUCION":
+        filtros.append(("Tipo de uso", "Uso institucional"))
+    elif uso == "INDIVIDUAL":
+        filtros.append(("Tipo de uso", "Uso individual"))
+    return filtros or [("Filtros", "Ninguno: todos los dispositivos que puede ver")]
+
+
+def _archivo(formato: str, nombreBase: str, titulo: str, filtros: list[tuple[str, str]], records: list[DeviceRecord], now):
+    if formato == "csv":
+        return tableFile("csv", nombreBase, titulo, COLUMNS, _csvRows(records), now)
+    return inventoryFile(formato, nombreBase, titulo, filtros, records, now)
 
 
 def exportDevices(db: Session, scope: deviceService.Scope, *, alcance: str, ids: list[uuid.UUID] | None = None, busqueda: str | None = None,
@@ -92,7 +131,8 @@ def exportDevices(db: Session, scope: deviceService.Scope, *, alcance: str, ids:
         devices = list(db.scalars(query.order_by(Device.fechaRegistro.desc(), Device.codigoDispositivo)).all())
         export.registros = len(devices)
         now = nowForDb()
-        return tableFile(formato, f"dispositivos-{now:%Y%m%d-%H%M}", "Inventario de dispositivos", COLUMNS, _rows(db, scope, devices), now)
+        filtros = _filtros(alcance, len(devices), busqueda, estado, asignado, uso)
+        return _archivo(formato, f"dispositivos-{now:%Y%m%d-%H%M}", _TITULO, filtros, _records(db, scope, devices), now)
 
 
 def exportDevice(db: Session, scope: deviceService.Scope, idDispositivo: uuid.UUID, formato: FormatoExportacion = "csv") -> tuple[bytes, str]:
@@ -104,5 +144,6 @@ def exportDevice(db: Session, scope: deviceService.Scope, idDispositivo: uuid.UU
         export.registros = 1
         now = nowForDb()
         safe = re.sub(r"[^A-Za-z0-9]+", "-", device.codigoDispositivo or "dispositivo").strip("-")[:40] or "dispositivo"
-        return tableFile(formato, f"dispositivo-{safe}-{now:%Y%m%d-%H%M}", f"Dispositivo {device.codigoDispositivo}", COLUMNS,
-                         _rows(db, scope, [device]), now)
+        filtros = [("Código", device.codigoDispositivo)]
+        return _archivo(formato, f"dispositivo-{safe}-{now:%Y%m%d-%H%M}", f"Dispositivo {device.codigoDispositivo}", filtros,
+                        _records(db, scope, [device]), now)
