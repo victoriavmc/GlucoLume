@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import * as authApi from '../../../api/authApi.js';
+import * as groupsApi from '../../../api/groupsApi.js';
 import { friendlyError } from '../../../auth/errorMessages.js';
 import { Alert } from '../../../components/FormControls.jsx';
 
@@ -56,12 +57,21 @@ export function AccountDeletionSection({ account }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(null);
+  const [group, setGroup] = useState(null); // grupo activo de la cuenta, solo si es responsable de uno
 
   useEffect(() => {
     let active = true;
     authApi.getAccountDeletionPreview().then((value) => active && setPreview(value), () => {}); // sin la consulta, el flujo funciona igual
     return () => { active = false; };
   }, []);
+
+  const blockCode = preview?.codigoBloqueo;
+  useEffect(() => {
+    if (blockCode !== 'PROPIETARIO_GRUPO_ACTIVO') return undefined;
+    let active = true;
+    groupsApi.getMyGroup().then((value) => active && setGroup(value.grupo ?? null), () => {}); // sin el grupo, el enlace va al listado
+    return () => { active = false; };
+  }, [blockCode]);
 
   async function request() {
     setStep('sending');
@@ -96,7 +106,14 @@ export function AccountDeletionSection({ account }) {
         <>
           <Alert kind="info">{preview.mensajeBloqueo}</Alert>
           <div className="form-actions">
-            <Link to="/app/instituciones" className="btn btn-outline">Gestionar mis instituciones</Link>
+            <Link
+              to={blockCode === 'PROPIETARIO_GRUPO_ACTIVO'
+                ? (group ? `/app/grupo/${group.idGrupo}/configuracion` : '/app/grupo')
+                : '/app/instituciones'}
+              className="btn btn-outline"
+            >
+              Gestionar mis instituciones
+            </Link>
           </div>
         </>
       )}

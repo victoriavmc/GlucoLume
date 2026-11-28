@@ -95,6 +95,22 @@ describe('Eliminar mi cuenta', () => {
     expect(screen.queryByRole('button', { name: 'Eliminar cuenta' })).not.toBeInTheDocument();
   });
 
+  it('siendo responsable de un grupo activo lleva a la configuración de ese grupo', async () => {
+    const idGrupo = 'a2991402-a38d-5fba-b00d-2b9ede483b9d';
+    mockApi({
+      'GET /auth/me': jsonResponse(200, ACCOUNT),
+      'GET /auth/account-deletion/preview': jsonResponse(200, {
+        puedeEliminar: false, codigoBloqueo: 'PROPIETARIO_GRUPO_ACTIVO',
+        mensajeBloqueo: 'No puede eliminar su cuenta mientras sea responsable de un grupo activo. Debe transferir la administración del grupo o darlo de baja.',
+        datosEliminados: [], datosConservados: [], invitacionesPendientes: 0, periodoGracia: null, reautenticacion: '',
+      }),
+      'GET /groups/mine': jsonResponse(200, { grupo: { idGrupo, nombre: 'Familia' } }),
+    });
+    renderAt('/app/seguridad');
+    expect(await screen.findByText(/responsable de un grupo activo/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Gestionar mis instituciones' })).toHaveAttribute('href', `/app/grupo/${idGrupo}/configuracion`));
+  });
+
   it('sin instituciones activas muestra las consecuencias antes de pedir el enlace de confirmación', async () => {
     const { calls } = mockApi({
       'GET /auth/me': jsonResponse(200, IN_GRACE),
